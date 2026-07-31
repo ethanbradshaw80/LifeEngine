@@ -78,3 +78,108 @@ dd {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* --- Milestone 1 additions ------------------------------------------- */
+
+.check {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.check.ok {
+  background: color-mix(in srgb, #2e7d32 12%, transparent);
+  border-left: 3px solid #2e7d32;
+}
+
+.check.bad {
+  background: color-mix(in srgb, #c62828 14%, transparent);
+  border-left: 3px solid #c62828;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.controls input[type='text'],
+.controls input:not([type]) {
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  width: 10rem;
+}
+
+.controls input[type='range'] {
+  width: 14rem;
+}
+
+.summary {
+  font-variant-numeric: tabular-nums;
+}
+
+ul.people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+ul.people button {
+  width: 100%;
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  font: inherit;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+ul.people button:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+ul.people button.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+pre.story {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+@media (max-width: 30rem) {
+  .controls {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .controls input[type='range'] {
+    width: 100%;
+  }
+}

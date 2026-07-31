@@ -55,47 +55,60 @@ Dev server at http://localhost:5173
 
 ## Where the project is
 
-**Milestone 0 — COMPLETE** (commit `0620632`)
+**GitHub:** https://github.com/ethanbradshaw80/LifeEngine (PRIVATE).
+Remote `origin` is configured and `gh` is authenticated as ethanbradshaw80.
+Push normally with `git push`.
 
+**Milestone 0 — COMPLETE** (`0620632`)
 Monorepo: `packages/shared` (branded primitives, integer money),
-`packages/engine` (pure simulation), `apps/web` (React + Vite).
-TypeScript strict. 16 tests pass. Build works. Page renders.
+`packages/engine` (pure simulation), `apps/web` (React + Vite). Strict
+TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
+`"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
+for every banned construct in `docs/DETERMINISM.md` §5.
 
-Engine purity is enforced twice, independently:
-1. `packages/engine/tsconfig.json` declares no `"types"`, so importing
-   `node:fs` or touching `document` from engine source is a compile error.
-2. `packages/engine/test/purity.test.ts` scans source for forbidden imports
-   and every banned construct in `docs/DETERMINISM.md` §5.
+**Milestone 1 — COMPLETE**
+A deterministic town of ~100 people over 120 monthly ticks with readable life
+stories and causal records. 69 tests pass.
 
-**Milestone 1 — IN PROGRESS**
+Engine modules: `rng.ts` (derived streams, integer-only), `clock.ts`,
+`types.ts`, `content.ts`, `worldgen.ts`, `systems.ts` (education, employment,
+friendship, households, births, mortality), `tick.ts`, `records.ts`,
+`story.ts`, `snapshot.ts`, `text.ts`.
 
-Done so far:
-- `packages/engine/src/rng.ts` — seeded RNG, derived streams, integer-only
+Determinism is covered by golden seed, double-run, per-10-tick comparison,
+seed sensitivity, staged resumption, narrative stability, and a
+**cross-environment check in the browser** — `apps/web/src/App.tsx` recomputes
+the same fingerprint and displays pass/fail.
 
-Remaining (see `docs/MILESTONE_PLAN.md` for the binding scope list):
-- Clock (monthly ticks ↔ calendar dates)
-- Entity ID allocator
-- Domain types: Person, Place, Household, Event, CausalRecord, World
-- Name generation and world generation (~100 people, one town)
-- Tick systems: education, employment, friendship, household, birth, death
-- Life-story rendering — a person's life as readable prose
-- Snapshot (serializable world state, with `userId: "local"` in the header)
-- Determinism tests: golden seed, double-run, cross-process, cross-environment
+> **The golden hash `d5a213eb` appears in TWO places** and they must stay in
+> step: `packages/engine/test/determinism.test.ts` and
+> `apps/web/src/App.tsx`. If simulation behaviour changes deliberately, update
+> both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
+> quietly to make a test pass.
 
 ### Next up
 
-Continue Milestone 1 at the clock and domain types, then world generation.
+**Milestone 2 — the real interface.** See `docs/MILESTONE_PLAN.md`.
+The current page is a test harness, not the milestone: it needs a person view,
+a timeline, an advance-time control, and a "Why?" view. The binding rule is
+that the UI renders engine state and sends commands — it holds no simulation
+state of its own.
 
-**Exit criteria:** run seed 12345 twice and get byte-identical output; print a
-person's life story and it reads as a coherent, plausible life; all tests pass.
+After that: M3 measure and prove, M4 saves + Web Worker, M5 relationships,
+M6 accounts.
 
-**Binding out-of-scope for M1** — do not build these, changing this list needs
-an ADR: marriage/divorce, relationship depth, businesses as entities, economy,
-health beyond alive/dead, government, military, crime, media, weather,
-inheritance, multiple towns, simulation tiers beyond Deep, save/load, causal
-compression.
+**Binding out-of-scope until an ADR says otherwise:** marriage/divorce,
+relationship depth, businesses as entities, economy, health beyond
+alive/dead, government, military, crime, media, weather, inheritance,
+multiple towns, simulation tiers beyond Deep, causal compression.
 
----
+### Known simplifications worth revisiting
+
+- Births require an adult woman and a co-resident adult man in the same
+  household. A deliberate placeholder for Layer 2's relationship systems, not
+  a claim about families.
+- Names are not unique, so two living people can share a full name.
+- No economy: pay bands are fixed and there is no inflation.
 
 ## Rules that cannot be bent
 
@@ -110,6 +123,7 @@ compression.
 
 ## Open items for Ethan
 
-- **GitHub:** no remote configured; nothing has been pushed. `gh` CLI is not
-  installed. Needs him to choose public vs private and authenticate.
-- **Git identity is repo-local only.** Global is still unset.
+- **Git identity is repo-local only.** Global is still unset, so other repos
+  on this machine cannot commit until he runs:
+  `git config --global user.name "Ethan"` and
+  `git config --global user.email "ethanbradshaw80@gmail.com"`
