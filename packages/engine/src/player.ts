@@ -26,6 +26,7 @@ import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { occupationById } from './content.js'
 import { withArticle } from './text.js'
 import { householdCosts, householdIncome, inArrears } from './finances.js'
+import { applyConvalescence } from './health.js'
 import { rentFor } from './content.js'
 import { factor, recordDecision } from './records.js'
 import { Stream } from './rng.js'
@@ -242,6 +243,23 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'convalesce': {
+      applyConvalescence(world, pending.tick, person.id, choice === 'rest')
+      recordDecision(world, pending.tick, {
+        subjectId: person.id,
+        decision: 'convalescence',
+        significance: 'notable',
+        inputs: [
+          factor('own-choice', 1000),
+          factor('frailty', world.health.get(person.id)?.severity ?? 500),
+        ],
+        chosen: choice === 'rest' ? 'took time to heal' : 'worked through it',
+        rejected: [choice === 'rest' ? 'to push on' : 'to rest'],
+        streamId: Stream.Health,
+      })
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -312,6 +330,11 @@ export function describePending(world: World, pending: PendingDecision): string 
       return `You are ${age}. Retire, or keep working?`
     case 'separation':
       return `Things with ${other ? other.givenName : 'your spouse'} have grown distant. What do you do?`
+    case 'convalesce': {
+      const record = world.health.get(pending.personId)
+      const what = record?.ailment === 'injury' ? 'The injury is serious' : 'The illness is serious'
+      return `${what}. How do you carry it?`
+    }
     default: {
       const never: never = pending.kind
       return String(never)
@@ -471,6 +494,17 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push('Staying is a real attempt — it restores some closeness, but the strains remain.')
       break
     }
+    case 'convalesce': {
+      const record = world.health.get(pending.personId)
+      if (record) {
+        lines.push('Resting heals faster but the work will slip.')
+        lines.push('Pushing on keeps the job sharp and the body slow to mend — and mending badly can leave a lasting mark.')
+        const job = world.employment.get(person.id)
+        if (job) lines.push(`You are working as ${withArticle(occupationById(job.occupationId).title)}.`)
+      }
+      break
+    }
+
     default:
       break
   }

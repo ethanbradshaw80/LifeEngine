@@ -124,6 +124,18 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — ${nameOf(world, event.otherId)} died. Left widowed at ${age}.`
     case 'had-child':
       return `${year} — ${nameOf(world, event.otherId)} was born.`
+    case 'was-injured':
+      return event.detail === 'serious'
+        ? `${year} — Badly hurt in an accident.`
+        : `${year} — Hurt, though not badly.`
+    case 'fell-ill':
+      return event.detail === 'serious'
+        ? `${year} — Fell seriously ill.`
+        : `${year} — Fell ill.`
+    case 'recovered':
+      return event.detail === 'marked'
+        ? `${year} — Recovered, but never quite the same.`
+        : `${year} — Back on ${objectPronoun(person) === 'her' ? 'her' : 'his'} feet.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':

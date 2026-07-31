@@ -23,6 +23,7 @@ import type {
 import { relationshipKey } from './types.js'
 import { foundingSavings } from './finances.js'
 import { generateNations } from './geopolitics.js'
+import { freshHealth } from './health.js'
 import {
   CIVIC_NAMES,
   FAMILY_NAMES,
@@ -136,6 +137,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     households: new Map(),
     education: new Map(),
     employment: new Map(),
+    health: new Map(),
     relationships: new Map(),
     events: [],
     causalRecords: [],
@@ -294,6 +296,8 @@ function makePerson(world: World, genRng: Rng, spec: PersonSpec): EntityId {
     parentIds: spec.parentIds,
   }
   world.people.set(id, person)
+
+  world.health.set(id, freshHealth(id))
 
   const eduRng = openStream(world.seed, Stream.Education, id, 0)
   const level = startingEducation(spec.age, traits.curiosity, eduRng)

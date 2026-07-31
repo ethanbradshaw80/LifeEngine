@@ -101,6 +101,30 @@ export interface Household {
 }
 
 // ---------------------------------------------------------------------------
+// Health (L4-M2)
+// ---------------------------------------------------------------------------
+
+export type Ailment = 'injury' | 'illness'
+
+export interface HealthRecord {
+  readonly personId: EntityId
+  /** Current ailment, or null when well. One at a time — modest by design. */
+  readonly ailment: Ailment | null
+  /** 0-1000 while ailing; 0 when well. Recovery works it down. */
+  readonly severity: number
+  /** The worst this ailment got — what lasting damage is judged by. */
+  readonly peakSeverity: number
+  readonly sinceTick: Tick | null
+  /** The player is asked once per ailment how to carry a serious one. */
+  readonly askedConvalesce: boolean
+  /**
+   * Permanent disability, 0-1000. Accumulates when bad ailments resolve
+   * badly; NEVER decreases. The field a war pension will one day read.
+   */
+  readonly disability: number
+}
+
+// ---------------------------------------------------------------------------
 // Education
 // ---------------------------------------------------------------------------
 
@@ -249,6 +273,8 @@ export type PendingKind =
   | 'retirement'
   /** The marriage has grown distant: separate, or try again. */
   | 'separation'
+  /** A serious ailment: rest, or push on. */
+  | 'convalesce'
 
 export interface PendingDecision {
   readonly id: number
@@ -320,6 +346,9 @@ export type EventType =
   | 'back-in-the-black'
   /** Money passed to this person from a parent's estate. */
   | 'inherited'
+  | 'was-injured'
+  | 'fell-ill'
+  | 'recovered'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'
@@ -355,6 +384,7 @@ export type DecisionType =
   | 'courtship'
   | 'marriage'
   | 'separation'
+  | 'convalescence'
   | 'geopolitics'
 
 /** Drives retention. Assigned when the record is created. */
@@ -435,6 +465,8 @@ export interface World {
   readonly households: Map<EntityId, Household>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
+  /** L4-M2. Keyed by personId; single writer is the health system. */
+  readonly health: Map<EntityId, HealthRecord>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
    *  therefore deterministic — see docs/DETERMINISM.md §3. */
   readonly relationships: Map<string, Relationship>

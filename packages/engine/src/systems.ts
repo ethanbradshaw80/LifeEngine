@@ -36,6 +36,7 @@ import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relat
 import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdIncome } from './finances.js'
+import { freshHealth, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -282,6 +283,9 @@ export function runEmployment(world: World, tick: Tick): void {
       continue
     }
 
+    // Too ill or hurt to take new work this month.
+    if (isSeverelyAiling(world, person.id)) continue
+
     // Unemployed: look for work.
     const eligible = OCCUPATIONS.filter((o) => meetsRequirement(education.level, o.requires))
     if (eligible.length === 0) continue
@@ -427,8 +431,15 @@ function annualReview(world: World, tick: Tick, person: Person): void {
 }
 
 function driftPerformance(world: World, person: Person, job: EmploymentRecord, rng: Rng): void {
-  const pull = person.traits.diligence - job.performance
-  const drift = Math.floor(pull / 40) + rng.nextInt(-8, 9)
+  // The body sets the ceiling (L4-M2): performance drifts toward what
+  // diligence can deliver THROUGH the disability, and an active severe
+  // ailment drags the month regardless.
+  const health = world.health.get(person.id)
+  const ceiling = Math.max(0, person.traits.diligence - Math.floor((health?.disability ?? 0) / 2))
+  const ailingDrag = health && health.ailment !== null && health.severity >= 600 ? 25 : 0
+
+  const pull = ceiling - job.performance
+  const drift = Math.floor(pull / 40) + rng.nextInt(-8, 9) - ailingDrag
   const next = Math.max(0, Math.min(1000, job.performance + drift))
   world.employment.set(person.id, { ...job, performance: next })
 }
@@ -954,6 +965,7 @@ export function deliverChild(world: World, tick: Tick, motherId: EntityId, partn
     completesAtTick: null,
     attainment: 500,
   })
+  world.health.set(childId, freshHealth(childId))
 
   addToHousehold(world, household.id, childId)
   recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
@@ -986,14 +998,40 @@ export function runMortality(world: World, tick: Tick): void {
     const age = ageAt(person.birthTick, tick)
     const rng = openStream(world.seed, Stream.Health, person.id, tick)
 
-    // Vitality shifts the rate by up to ±40%.
+    // Vitality shifts the rate by up to ±40%; the body's current state
+    // (active ailment, permanent disability) adds its own weight (L4-M2).
     const base = baseMortality(age)
     const adjustment = 1400 - Math.floor((person.traits.vitality * 800) / 1000)
-    const rate = Math.max(1, Math.floor((base * adjustment) / 1000))
+    const rate =
+      Math.max(1, Math.floor((base * adjustment) / 1000)) +
+      mortalityFromHealth(world.health.get(person.id))
 
     if (!rng.chanceInTenThousand(rate)) continue
 
     const accidental = age < 55 && rng.chance(1, 3)
+
+    // L4-M2: most accidents that would have killed now wound instead. The
+    // person survives into an injury the health system will carry — possibly
+    // to full recovery, possibly to a permanent mark, occasionally to a death
+    // that arrives anyway through the elevated mortality of the wounded.
+    if (accidental && rng.chance(2, 3)) {
+      const record = world.health.get(person.id) ?? freshHealth(person.id)
+      if (record.ailment === null) {
+        world.health.set(person.id, {
+          ...record,
+          ailment: 'injury',
+          severity: rng.nextIntInclusive(600, 950),
+          peakSeverity: 0, // set below from severity
+          sinceTick: tick,
+          askedConvalesce: false,
+        })
+        const struck = world.health.get(person.id)
+        if (struck) world.health.set(person.id, { ...struck, peakSeverity: struck.severity })
+        recordEvent(world, tick, { type: 'was-injured', subjectId: person.id, detail: 'serious' })
+      }
+      continue
+    }
+
     const cause = accidental ? 'an accident' : age >= 70 ? 'old age' : 'illness'
 
     setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })

@@ -87,6 +87,28 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**L4-M2 (health) — COMPLETE**
+`packages/engine/src/health.ts`: one HealthRecord per person (ailment
+injury|illness, severity 0-1000, peakSeverity, permanent disability that
+NEVER decreases — the field a war pension will read). Onset: injury tracks
+work (RISKY_OCCUPATIONS set), illness tracks age+frailty. Recovery monthly
+(youth+vitality heal faster); worsening uncommon; lasting damage judged by
+PEAK severity (first draft judged the residual at recovery ≈ 0 and no one
+was ever marked — bug found by test). Severe ailments (>=600) block hiring
+and drag performance; disability lowers the performance ceiling
+(driftPerformance reads it); mortality reads both (mortalityFromHealth).
+**2/3 of accident deaths become survivable serious injuries** in
+runMortality. Player: 'convalesce' pending (once per ailment via
+askedConvalesce): rest = -220 severity, -60 performance; push-on = +20
+performance, no healing bonus. Health stat chip in GameScreen; Health row in
+PersonDetail (only when notable); 🩹🤒💪 feed icons. Stream.Health with
+tick+5555 salt (no collision with mortality draws). Schema v9? NO — v8.
+SIMULATION_VERSION 8, golden 2e05c9c8, migration v7→v8 (everyone well and
+unmarked — unrecorded history not invented). vitest testTimeout raised to
+60s: century-scale tests brushed the 5s default under parallel load and
+LOOKED like flaky nondeterminism (failed 1 then 4 then 0) — timeouts, not
+drift; determinism was never broken.
+
 **L4-M1 (geopolitics) — COMPLETE**
 `packages/engine/src/geopolitics.ts`: 12 fictional nations + 'the Republic'
 (homeland, exactly one), all AGGREGATE (statistics; nation ids never appear

@@ -239,7 +239,45 @@ const V6_TO_V7: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7]
+/**
+ * v7 → v8 (L4-M2).
+ *
+ * Every person gains a health record. An old save recorded no ailments and
+ * no disabilities, so everyone arrives WELL AND UNMARKED — including people
+ * whose recorded history contains surviving nothing worse than time. That is
+ * the honest default: history that was not written down is not invented.
+ */
+const V7_TO_V8: Migration = {
+  from: 7,
+  to: 8,
+  describe: 'add health records (everyone well and unmarked)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const people = Array.isArray(world['people']) ? world['people'] : []
+
+    const health = people.map((entry) => {
+      const person = requireObject(entry, 'save.world.people[]')
+      return {
+        personId: requireInteger(person, 'id', 'person'),
+        ailment: null,
+        severity: 0,
+        peakSeverity: 0,
+        sinceTick: null,
+        askedConvalesce: false,
+        disability: 0,
+      }
+    })
+
+    const nextWorld: Record<string, unknown> = { ...world, health }
+    return {
+      header: { ...header, schemaVersion: 8, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

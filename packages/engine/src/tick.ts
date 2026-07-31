@@ -22,6 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { tick as makeTick } from '@life-engine/shared'
 import { runFinances } from './finances.js'
 import { runGeopolitics } from './geopolitics.js'
+import { runHealth } from './health.js'
 import { runRelationships } from './relationships.js'
 import {
   runBirths,
@@ -46,6 +47,9 @@ export function advanceTick(world: World): World {
   runGeopolitics(world, next)
 
   runEducation(world, next)
+  // Health before employment: a body broken this month affects this month's
+  // work, and a recovery clears the way for this month's hiring.
+  runHealth(world, next)
   runEmployment(world, next)
   // Finances directly after employment: this month's wages land before any
   // system reads the balance, so strain and affordability see current money.

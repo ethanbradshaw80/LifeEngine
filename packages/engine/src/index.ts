@@ -60,6 +60,9 @@ export {
 } from './geopolitics.js'
 export type { NewsItem } from './geopolitics.js'
 
+// Health (L4-M2)
+export { healthOf, isSeverelyAiling, SEVERE_AILMENT } from './health.js'
+
 // Legacy
 export {
   childrenIdsOf,
@@ -126,8 +129,10 @@ export type {
   Sex,
   Significance,
   Tier,
+  Ailment,
   GeoRelation,
   GeoState,
+  HealthRecord,
   Nation,
   Town,
   Traits,

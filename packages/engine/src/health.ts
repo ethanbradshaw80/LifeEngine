@@ -1,0 +1,258 @@
+/**
+ * Health: bodies that break, mend, and carry the marks. L4-M2.
+ *
+ * Before this milestone, health was a vitality trait and a death tick — a
+ * coin labelled died/fine. That could not receive a combat resolution
+ * (L4-M4), and it was thin even for civilian life: the town had fatal
+ * accidents but no broken legs, pneumonia that killed but never merely
+ * ruined a winter.
+ *
+ * The model, kept deliberately modest (the deep healthcare domain stays
+ * deferred):
+ *
+ *   - One active AILMENT at a time (injury or illness), with an integer
+ *     severity that recovery works down. Vitality and youth heal faster.
+ *   - PERMANENT DISABILITY, 0–1000, accumulated when bad ailments resolve
+ *     badly. It never decreases. It is the field a war pension will one day
+ *     read (foundation §17: service-connected disability is lifelong).
+ *   - Ailments gate work: severe ones block hiring and drag performance;
+ *     disability lowers the ceiling performance can reach.
+ *   - Mortality reads health: an active severe ailment and a broken body
+ *     both make every month more dangerous.
+ *
+ * OWNERSHIP: this system is the only writer of health records. Employment
+ * and mortality READ them (DOMAIN_MAP one-owner rule).
+ *
+ * Draws use Stream.Health with salted ticks, so they never collide with the
+ * mortality draws on the same stream (the births +7777/+8888 pattern).
+ */
+
+import type { EntityId, Tick } from '@life-engine/shared'
+import { ageAt } from './clock.js'
+import { occupationById } from './content.js'
+import { raisePending } from './player.js'
+import { recordEvent } from './records.js'
+import { openStream, Stream } from './rng.js'
+import type { HealthRecord, Person, World } from './types.js'
+
+// --- Tunables ---------------------------------------------------------------
+
+/** Physically risky occupations: higher injury odds. */
+const RISKY_OCCUPATIONS = new Set(['labourer', 'millhand', 'carpenter', 'machinist', 'electrician', 'cook'])
+
+/** An ailment at or above this severity blocks new hiring and drags work. */
+export const SEVERE_AILMENT = 600
+
+/** The severity at which the player is asked how to carry it. */
+const CONVALESCE_ASK_SEVERITY = 500
+
+// ---------------------------------------------------------------------------
+// Queries — the read side employment and mortality use
+// ---------------------------------------------------------------------------
+
+export function healthOf(world: World, personId: EntityId): HealthRecord | undefined {
+  return world.health.get(personId)
+}
+
+export function isSeverelyAiling(world: World, personId: EntityId): boolean {
+  const record = world.health.get(personId)
+  return record !== undefined && record.ailment !== null && record.severity >= SEVERE_AILMENT
+}
+
+/** Extra monthly mortality per 10,000 from the body's current state. */
+export function mortalityFromHealth(record: HealthRecord | undefined): number {
+  if (!record) return 0
+  const ailing = record.ailment !== null ? Math.floor(record.severity / 60) : 0
+  const broken = Math.floor(record.disability / 90)
+  return ailing + broken
+}
+
+/** A blank record: well, unmarked. Every person gets one at creation. */
+export function freshHealth(personId: EntityId): HealthRecord {
+  return {
+    personId,
+    ailment: null,
+    severity: 0,
+    peakSeverity: 0,
+    sinceTick: null,
+    askedConvalesce: false,
+    disability: 0,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The monthly tick
+// ---------------------------------------------------------------------------
+
+export function runHealth(world: World, tick: Tick): void {
+  for (const person of livingSorted(world)) {
+    const record = world.health.get(person.id) ?? freshHealth(person.id)
+    const rng = openStream(world.seed, Stream.Health, person.id, tick + 5555)
+    const age = ageAt(person.birthTick, tick)
+
+    if (record.ailment !== null) {
+      recoverOrWorsen(world, tick, person, record, rng, age)
+      continue
+    }
+
+    // Onset. Injury tracks the work; illness tracks the years.
+    const job = world.employment.get(person.id)
+    const risky = job !== undefined && RISKY_OCCUPATIONS.has(occupationById(job.occupationId).id)
+    const injuryPerTenK = (risky ? 14 : 5) + Math.floor(Math.max(0, age - 50) / 8)
+    const illnessPerTenK =
+      3 + Math.floor(Math.max(0, age - 35) / 3) + Math.floor((1000 - person.traits.vitality) / 150)
+
+    if (rng.chanceInTenThousand(injuryPerTenK)) {
+      beginAilment(world, tick, person, 'injury', rng.nextBellInt(150, 850), rng)
+    } else if (rng.chanceInTenThousand(illnessPerTenK)) {
+      beginAilment(world, tick, person, 'illness', rng.nextBellInt(150, 900), rng)
+    }
+  }
+}
+
+function livingSorted(world: World): Person[] {
+  const living: Person[] = []
+  for (const person of world.people.values()) {
+    if (person.deathTick === null) living.push(person)
+  }
+  living.sort((a, b) => a.id - b.id)
+  return living
+}
+
+function beginAilment(
+  world: World,
+  tick: Tick,
+  person: Person,
+  ailment: 'injury' | 'illness',
+  severity: number,
+  rng: ReturnType<typeof openStream>,
+): void {
+  void rng
+  world.health.set(person.id, {
+    ...(world.health.get(person.id) ?? freshHealth(person.id)),
+    ailment,
+    severity,
+    peakSeverity: severity,
+    sinceTick: tick,
+    askedConvalesce: false,
+  })
+  recordEvent(world, tick, {
+    type: ailment === 'injury' ? 'was-injured' : 'fell-ill',
+    subjectId: person.id,
+    detail: severity >= SEVERE_AILMENT ? 'serious' : 'minor',
+  })
+}
+
+/**
+ * Recovery is the default; worsening the exception. Youth and vitality speed
+ * the mending. A bad ailment that finally clears can leave a permanent mark —
+ * the disability that outlives the wound.
+ */
+function recoverOrWorsen(
+  world: World,
+  tick: Tick,
+  person: Person,
+  record: HealthRecord,
+  rng: ReturnType<typeof openStream>,
+  age: number,
+): void {
+  // The player is asked, once per ailment, how to carry a serious one.
+  if (
+    person.id === world.player.personId &&
+    !record.askedConvalesce &&
+    record.severity >= CONVALESCE_ASK_SEVERITY
+  ) {
+    world.health.set(person.id, { ...record, askedConvalesce: true })
+    raisePending(world, {
+      tick,
+      kind: 'convalesce',
+      personId: person.id,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['rest', 'push-on'],
+    })
+    return
+  }
+
+  // Worsening: uncommon, likelier for the old and the frail.
+  if (rng.chanceInTenThousand(160 + Math.max(0, age - 60) * 6)) {
+    const worse = Math.min(1000, record.severity + rng.nextIntInclusive(60, 180))
+    world.health.set(person.id, {
+      ...record,
+      severity: worse,
+      peakSeverity: Math.max(record.peakSeverity, worse),
+    })
+    return
+  }
+
+  const healing =
+    40 +
+    Math.floor(person.traits.vitality / 12) +
+    (age < 30 ? 40 : age > 65 ? -25 : 0)
+  const severity = record.severity - Math.max(15, healing)
+
+  if (severity > 0) {
+    world.health.set(person.id, { ...record, severity })
+    return
+  }
+
+  // Recovered — possibly marked. Lasting damage is judged by how bad the
+  // ailment GOT (peak), not by the residual sliver it ended on — the first
+  // draft tested the residual and produced a town where nothing ever left a
+  // mark. Disability only ever accumulates.
+  let disability = record.disability
+  if (record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
+    disability = Math.min(1000, disability + Math.floor(record.peakSeverity / 9))
+  }
+
+  world.health.set(person.id, {
+    ...record,
+    ailment: null,
+    severity: 0,
+    peakSeverity: 0,
+    sinceTick: null,
+    askedConvalesce: false,
+    disability,
+  })
+  recordEvent(world, tick, {
+    type: 'recovered',
+    subjectId: person.id,
+    ...(disability > record.disability ? { detail: 'marked' } : {}),
+  })
+}
+
+/**
+ * The player's answer to a serious ailment. Both roads are real:
+ * rest heals a solid step now; pushing on keeps the month's work sharp but
+ * lets the ailment linger. Neither is free — that is what makes it a choice.
+ */
+export function applyConvalescence(world: World, tick: Tick, personId: EntityId, rest: boolean): void {
+  void tick
+  const record = world.health.get(personId)
+  if (!record || record.ailment === null) return
+
+  if (rest) {
+    world.health.set(personId, {
+      ...record,
+      severity: Math.max(1, record.severity - 220),
+    })
+    const job = world.employment.get(personId)
+    if (job) {
+      world.employment.set(personId, {
+        ...job,
+        performance: Math.max(0, job.performance - 60),
+      })
+    }
+  } else {
+    const job = world.employment.get(personId)
+    if (job) {
+      world.employment.set(personId, {
+        ...job,
+        performance: Math.min(1000, job.performance + 20),
+      })
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import {
   ageAt,
   explainDecision,
+  healthOf,
   familyHomeSince,
   familyTreeOf,
   formatYear,
@@ -109,6 +110,23 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             <dd>{education.level}</dd>
           </>
         )}
+        {alive && (() => {
+          const record = healthOf(world, personId)
+          const ailing = record !== undefined && record.ailment !== null
+          const marked = (record?.disability ?? 0) > 0
+          if (!ailing && !marked) return null
+          return (
+            <>
+              <dt>Health</dt>
+              <dd>
+                {ailing && (record.ailment === 'injury' ? 'injured' : 'ill')}
+                {ailing && record.severity >= 600 && <span className="muted"> (seriously)</span>}
+                {ailing && marked && ' · '}
+                {marked && <span className="muted">carries old wounds</span>}
+              </dd>
+            </>
+          )
+        })()}
         {alive && household && (
           <>
             <dt>Money</dt>

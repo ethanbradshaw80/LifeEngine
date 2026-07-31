@@ -21,6 +21,9 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v8 — L4-M2. Health: ailments with recovery, permanent disability, health-
+ *      aware employment and mortality, and most fatal accidents becoming
+ *      survivable injuries. Deaths and work histories differ from v7.
  * v7 — L4-M1. The world beyond the town: nations, an explainable conflict
  *      state machine on Stream 9, war phases, aggregate casualties. Serialized
  *      shape gains nations and geoRelations.
@@ -43,7 +46,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 7
+export const SIMULATION_VERSION = 8
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -85,6 +88,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
+      health: [...world.health.values()].sort((a, b) => a.personId - b.personId),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,

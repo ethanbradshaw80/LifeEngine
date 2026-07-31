@@ -13,6 +13,7 @@ import type {
   EducationRecord,
   EmploymentRecord,
   GeoRelation,
+  HealthRecord,
   Relationship,
   Household,
   Nation,
@@ -144,6 +145,11 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     employment.set(record.personId, record)
   }
 
+  const health = new Map<import('@life-engine/shared').EntityId, HealthRecord>()
+  for (const record of (body['health'] as HealthRecord[] | undefined) ?? []) {
+    health.set(record.personId, record)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -174,6 +180,7 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     events: body['events'] as WorldEvent[],
     causalRecords: body['causalRecords'] as CausalRecord[],
     player: body['player'] as PlayerState,
+    health,
     nations,
     geoRelations,
   }

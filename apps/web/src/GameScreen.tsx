@@ -27,6 +27,7 @@ import {
   spouseOf,
   timelineFor,
 } from '@life-engine/engine'
+import { healthOf } from '@life-engine/engine'
 import type { EventType, Person, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -39,6 +40,9 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'finished-school': '🎓',
   hired: '💼',
   'got-raise': '💵',
+  'was-injured': '🩹',
+  'fell-ill': '🤒',
+  recovered: '💪',
   'left-job': '📦',
   befriended: '🤝',
   'friendship-lapsed': '🍂',
@@ -156,6 +160,30 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
           {household && familyHomeSince(world, household) !== null && (
             <span className="stat-sub">the family home</span>
           )}
+        </div>
+        <div className="stat">
+          <span className="stat-label">Health</span>
+          {(() => {
+            const record = healthOf(world, person.id)
+            const ailing = record !== undefined && record.ailment !== null
+            const marked = (record?.disability ?? 0) > 0
+            return (
+              <>
+                <span className={ailing && record.severity >= 600 ? 'stat-value bad' : 'stat-value'}>
+                  {ailing ? (record.ailment === 'injury' ? 'injured' : 'ill') : 'well'}
+                </span>
+                <span className="stat-sub">
+                  {ailing
+                    ? record.severity >= 600
+                      ? 'seriously'
+                      : 'mending'
+                    : marked
+                      ? 'carries old wounds'
+                      : ' '}
+                </span>
+              </>
+            )
+          })()}
         </div>
         <div className="stat">
           <span className="stat-label">Family</span>
