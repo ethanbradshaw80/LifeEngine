@@ -335,7 +335,29 @@ const V10_TO_V11: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11]
+/** v11 → v12 (M-GAMEDEPTH). Nations gain war exhaustion. The old sim never
+ *  tracked it, so every migrated nation arrives rested — null, not invented. */
+const V11_TO_V12: Migration = {
+  from: 11,
+  to: 12,
+  describe: 'add nation war exhaustion (none recorded)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const nations = Array.isArray(world['nations']) ? world['nations'] : []
+    const migrated = nations.map((entry) => {
+      const nation = requireObject(entry, 'save.world.nations[]')
+      return { ...nation, exhaustedUntilTick: null }
+    })
+    const nextWorld: Record<string, unknown> = { ...world, nations: migrated }
+    return {
+      header: { ...header, schemaVersion: 12, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

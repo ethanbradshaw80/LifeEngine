@@ -298,6 +298,12 @@ export interface Nation {
   readonly stability: number
   /** Alliance bloc index, or null for the non-aligned. */
   readonly bloc: number | null
+  /**
+   * War exhaustion: this nation starts no new escalation before this tick.
+   * Set when a war it fought reaches ceasefire (10-20 years out, scaled by
+   * how worn down the war left it); null for a nation that has never fought.
+   */
+  readonly exhaustedUntilTick: Tick | null
 }
 
 /** L4-M1's escalation subset of the foundation §4 ladder. */

@@ -87,6 +87,7 @@ export function generateNations(world: World): void {
     economy: 850 + rng.nextInt(0, 120),
     stability: 800 + rng.nextInt(0, 150),
     bloc: 0,
+    exhaustedUntilTick: null,
   })
 
   for (let i = 0; i < FOREIGN_NATION_COUNT; i++) {
@@ -101,6 +102,7 @@ export function generateNations(world: World): void {
       stability: rng.nextBellInt(200, 950),
       // Bloc 0 is the homeland's; some nations are non-aligned (null).
       bloc: rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
+      exhaustedUntilTick: null,
     })
   }
 
@@ -188,12 +190,22 @@ export function runGeopolitics(world: World, tick: Tick): void {
     const escalationPressure =
       Math.floor(instability / 12) + rivalry + Math.floor(economicGap / 6) - (sameBloc ? 300 : 0)
 
+    // A nation that just fought a war starts nothing new for a decade or two.
+    // Exhaustion suppresses the escalation branch entirely, which also lets a
+    // still-heated pair fall through to de-escalation and cool off.
+    const exhausted =
+      (a.exhaustedUntilTick !== null && tick < a.exhaustedUntilTick) ||
+      (b.exhaustedUntilTick !== null && tick < b.exhaustedUntilTick)
+
     // Escalate one rung, rarely; further rungs are likelier once on the ladder.
     // First tuning produced 20 concurrent wars by year 20 — a world on fire.
-    // The denominators below hold long-run concurrency to a handful.
-    if (stepIndex >= 0 && stepIndex < LADDER.length - 1 && escalationPressure > 0) {
-      const odds = 4 + stepIndex * 10
-      if (rng.chance(Math.min(escalationPressure, 400), Math.floor(600_000 / odds))) {
+    // Second tuning (600k base) still gave the homeland a war roughly every
+    // eight years — "wars literally every year" as news. These denominators
+    // put a ratchet pair's full peace-to-war climb at ~3 centuries, which
+    // lands homeland wars at a few per century: generational, not routine.
+    if (stepIndex >= 0 && stepIndex < LADDER.length - 1 && escalationPressure > 0 && !exhausted) {
+      const odds = 4 + stepIndex * 14
+      if (rng.chance(Math.min(escalationPressure, 400), Math.floor(2_000_000 / odds))) {
         const next = LADDER[stepIndex + 1]
         if (next) {
           const inputs = [
@@ -215,7 +227,7 @@ export function runGeopolitics(world: World, tick: Tick): void {
     }
 
     // De-escalation: calm is the default direction of history here.
-    if (stepIndex > 0 && rng.chance(40 + (sameBloc ? 40 : 0), 3_000)) {
+    if (stepIndex > 0 && rng.chance(60 + (sameBloc ? 60 : 0), 3_000)) {
       const previous = LADDER[stepIndex - 1]
       if (previous) {
         transition(world, tick, relation, previous, [
@@ -268,6 +280,13 @@ function resolveWarMonth(
       factor('war-weariness', Math.min(1000, weariness)),
       factor('heavy-casualties', Math.min(1000, Math.floor(totalLosses / 120))),
     ], `ceasefire between ${a.name} and ${b.name}`)
+
+    // Both nations come home exhausted: 10-20 years before either starts a
+    // new escalation, longer the more worn down the war left them. No draw —
+    // exhaustion follows from the recorded weariness, so it is explainable.
+    const restUntil = (tick + 120 + Math.min(120, weariness)) as Tick
+    world.nations.set(a.id, { ...a, exhaustedUntilTick: restUntil })
+    world.nations.set(b.id, { ...b, exhaustedUntilTick: restUntil })
   }
 }
 

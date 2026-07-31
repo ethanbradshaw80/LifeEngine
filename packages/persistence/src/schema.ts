@@ -29,6 +29,9 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v12 — M-GAMEDEPTH. Nations gain `exhaustedUntilTick` (post-war exhaustion;
+ *      null for saves that never recorded one — and for every migrated save,
+ *      because the old sim never tracked it).
  * v11 — M-WOUNDS. Health records gain ailmentKind, ailmentSite, marks.
  *      Migrated ailments keep null kinds (unrecorded specifics stay
  *      unrecorded); marks start empty.
@@ -43,7 +46,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1
