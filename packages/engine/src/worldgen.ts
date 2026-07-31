@@ -22,6 +22,7 @@ import type {
 } from './types.js'
 import { relationshipKey } from './types.js'
 import { foundingSavings } from './finances.js'
+import { generateNations } from './geopolitics.js'
 import {
   CIVIC_NAMES,
   FAMILY_NAMES,
@@ -139,6 +140,8 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     events: [],
     causalRecords: [],
     player: { personId: null, pending: null, log: [], nextDecisionId: 1, lineage: [] },
+    nations: new Map(),
+    geoRelations: new Map(),
   }
 
   const genRng = openStream(seed, Stream.WorldGeneration, 0, 0)
@@ -241,6 +244,13 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
       savings: foundingSavings(world, household),
     })
   }
+
+  // The wider world is generated LAST, so nations take ids above every
+  // founding person and place. Deliberate: allocating them first shifted all
+  // person ids, and person ids seed trait streams — the whole town would have
+  // been reborn as different people. Draws live on Stream 9 either way; id
+  // order is the only coupling, and this removes it.
+  generateNations(world)
 
   return world
 }

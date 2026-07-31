@@ -214,7 +214,32 @@ const V5_TO_V6: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6]
+/**
+ * v6 → v7 (L4-M1).
+ *
+ * The world gains nations and geo-relations. An old save's wider world is
+ * generated deterministically from its own seed at LOAD time (the same
+ * generation a fresh world runs at tick 0) — the honest framing is that the
+ * news simply starts now. Migration adds EMPTY collections; hydration-side
+ * code fills them if empty, because generation needs the live World shape,
+ * not raw JSON.
+ */
+const V6_TO_V7: Migration = {
+  from: 6,
+  to: 7,
+  describe: 'add nations and geoRelations (generated from seed on load)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const nextWorld: Record<string, unknown> = { ...world, nations: [], geoRelations: [] }
+    return {
+      header: { ...header, schemaVersion: 7, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

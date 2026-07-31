@@ -19,8 +19,10 @@ import {
   explainDecision,
   familyHomeSince,
   formatDate,
+  formatYear,
   fullName,
   monthlyNetOf,
+  newsSince,
   occupationById,
   spouseOf,
   timelineFor,
@@ -77,11 +79,26 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
   const childCount = childrenIdsOf(world, person.id).length
   const entries = useMemo(() => timelineFor(world, person.id), [world, person.id])
 
+  // The world's news, woven into the life at the months it happened. A war on
+  // the other side of the world shares a feed with a first job — which is how
+  // it feels to live through one, until L4-M3 makes it personal.
+  const feedItems = useMemo(() => {
+    const news = newsSince(world, person.birthTick)
+    const merged: (
+      | { kind: 'life'; tick: number; entry: (typeof entries)[number] }
+      | { kind: 'news'; tick: number; text: string; nearby: boolean }
+    )[] = []
+    for (const entry of entries) merged.push({ kind: 'life', tick: entry.tick, entry })
+    for (const item of news) merged.push({ kind: 'news', tick: item.tick, text: item.text, nearby: item.nearby })
+    merged.sort((x, y) => x.tick - y.tick)
+    return merged
+  }, [world, person.birthTick, entries])
+
   // The feed follows the life: new events scroll into view as years pass.
   useEffect(() => {
     const feed = feedRef.current
     if (feed) feed.scrollTop = feed.scrollHeight
-  }, [entries.length])
+  }, [feedItems.length])
 
   function toggleWhy(eventId: number) {
     setOpenWhy((open) => {
@@ -158,20 +175,37 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
       </section>
 
       <div className="feed" ref={feedRef} aria-label="Your story so far">
-        {entries.length === 0 && (
+        {feedItems.length === 0 && (
           <p className="feed-empty">
             Your story starts now. Age up and see what the years bring.
           </p>
         )}
-        {entries.map((entry, index) => {
-          const previous = entries[index - 1]
-          const showYear = previous === undefined || previous.year !== entry.year
-          const icon = EVENT_ICONS[
-            world.events.find((e) => e.id === entry.eventId)?.type ?? 'born'
-          ]
+        {feedItems.map((item, index) => {
+          const previous = feedItems[index - 1]
+          const year = formatYear(item.tick as never)
+          const showYear = previous === undefined || formatYear(previous.tick as never) !== year
+
+          if (item.kind === 'news') {
+            return (
+              <div key={`news-${item.tick}-${item.text}`}>
+                {showYear && <div className="feed-year">{year}</div>}
+                <div className={item.nearby ? 'card news nearby' : 'card news'}>
+                  <span className="card-icon" aria-hidden="true">
+                    📰
+                  </span>
+                  <span className="card-text">
+                    {item.text.charAt(0).toUpperCase() + item.text.slice(1)}.
+                  </span>
+                </div>
+              </div>
+            )
+          }
+
+          const entry = item.entry
+          const icon = EVENT_ICONS[world.events.find((e) => e.id === entry.eventId)?.type ?? 'born']
           return (
             <div key={entry.eventId}>
-              {showYear && <div className="feed-year">{entry.year}</div>}
+              {showYear && <div className="feed-year">{year}</div>}
               <div className="card">
                 <span className="card-icon" aria-hidden="true">
                   {icon ?? '•'}

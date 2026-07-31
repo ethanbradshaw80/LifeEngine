@@ -48,6 +48,16 @@ export const WORKPLACE_NAMES: readonly string[] = [
 
 export const CIVIC_NAMES: readonly string[] = ['the town hall', 'the public library']
 
+/**
+ * Foreign nations, all invented (fictional-world constraint,
+ * MILITARY_AND_WAR_FOUNDATION §3). Chosen to sound like places without
+ * sounding like any place in particular.
+ */
+export const NATION_NAMES: readonly string[] = [
+  'Varenia', 'Costmara', 'Belgrave', 'Tyrene', 'Osmark', 'Halvia',
+  'Rondesia', 'Quillar', 'Verros', 'Nortavia', 'Sundermark', 'Ashkelon',
+]
+
 export const SCHOOL_NAME = 'Fairview Consolidated School'
 
 export const TOWN_NAME = 'Haverlock'

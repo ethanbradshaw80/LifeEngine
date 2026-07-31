@@ -87,6 +87,27 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**L4-M1 (geopolitics) — COMPLETE**
+`packages/engine/src/geopolitics.ts`: 12 fictional nations + 'the Republic'
+(homeland, exactly one), all AGGREGATE (statistics; nation ids never appear
+in people/education/employment — tested). Pairwise relations on the ladder
+peace↔tension↔sanctions↔skirmish↔war→ceasefire→peace, advanced monthly on
+Stream 9 (reserved since M1), pair-keyed draws (a*4096+b). Escalation
+pressure modelled (bloc rivalry, instability, economic gap; same-bloc damps);
+wars have phases (opening→attrition⇄offensive⇄stalemate), aggregate
+casualties, and END via weariness. Every transition = event + causal record
+(war/ceasefire Defining). newsSince() → GameScreen feed as 📰 cards (dashed
+border; solid red when homeland involved; foreign minor shifts filtered out).
+Schema v7: old saves get nations GENERATED FROM THEIR OWN SEED at load
+(hydration-side, since generation needs the live World; tested against the
+v1 fixture — deterministic across loads). SIMULATION_VERSION 7, golden
+b94ca00e. TWO LESSONS: (1) rng.chance denominators must be integers —
+600_000/odds needed Math.floor (Rng threw, correctly); (2) nations are
+allocated LAST in createWorld — allocating them first shifted every person
+id, and ids seed trait streams, so the whole town was reborn as strangers.
+First tuning gave 20 concurrent wars by year 20; cooled to a handful
+(escalation /5, de-escalation ×4, war-end 26k→18k denominator).
+
 **L4-PLANNING — COMPLETE** (docs only; engine, golden, tests untouched)
 `docs/LAYER4_PLAN.md`: Layer 4 entered military-first (ADR-0017, **Accepted** 2026-07-31). Five vertical milestones:
 L4-M1 geopolitics (fictional nations, relationship state machine on Stream 9

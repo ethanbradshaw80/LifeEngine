@@ -123,7 +123,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(5) // v1 through v6, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(6) // v1 through v7, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     expect(loaded.world.seed).toBe(777)
@@ -135,6 +135,19 @@ describe('migration from a real v1 save', () => {
       expect(Number.isInteger(person.birthTick)).toBe(true)
       expect(person.id).toBeGreaterThan(0)
     }
+  })
+
+  it('generates the wider world for a save that predates it', () => {
+    // A v1 save knows nothing of nations. Loading generates them from the
+    // save's own seed — deterministically, so loading twice gives the same
+    // world stage. The town's history is untouched; the news starts now.
+    const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
+    expect(loaded.world.nations.size).toBe(13)
+    expect(loaded.world.geoRelations.size).toBeGreaterThan(0)
+    const again = fromSaveFile(rawV1, SIMULATION_VERSION)
+    expect([...again.world.nations.values()].map((n) => n.name)).toEqual(
+      [...loaded.world.nations.values()].map((n) => n.name),
+    )
   })
 
   it('produces a world that still simulates', () => {

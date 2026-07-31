@@ -21,6 +21,7 @@
 import type { Tick } from '@life-engine/shared'
 import { tick as makeTick } from '@life-engine/shared'
 import { runFinances } from './finances.js'
+import { runGeopolitics } from './geopolitics.js'
 import { runRelationships } from './relationships.js'
 import {
   runBirths,
@@ -38,6 +39,11 @@ export function advanceTick(world: World): World {
 
   const next = makeTick(world.tick + 1)
   ;(world as { tick: Tick }).tick = next
+
+  // The world turns first: nations act on the same tick the town then lives
+  // through. Nothing in the town reads geopolitics yet (that starts at
+  // L4-M3), so this ordering is about the future, not the present.
+  runGeopolitics(world, next)
 
   runEducation(world, next)
   runEmployment(world, next)

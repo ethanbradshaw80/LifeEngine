@@ -847,3 +847,15 @@ ul.welcome-points li + li {
     padding: 0.4rem 0.5rem;
   }
 }
+
+.card.news {
+  background: color-mix(in srgb, var(--muted) 7%, var(--bg));
+  border-style: dashed;
+  font-style: italic;
+}
+
+.card.news.nearby {
+  border-color: var(--bad);
+  border-style: solid;
+  font-style: normal;
+}

@@ -176,6 +176,45 @@ export function relationshipKey(a: EntityId, b: EntityId): string {
 export const friendshipKey = relationshipKey
 
 // ---------------------------------------------------------------------------
+// Geopolitics (L4-M1)
+//
+// Nations are AGGREGATE entities: statistics with causal records, never
+// containers of simulated people (LAYER4_PLAN §3). They take ids from the
+// same allocator as everything else, so events and causal records about them
+// flow through the existing machinery unchanged.
+// ---------------------------------------------------------------------------
+
+export interface Nation {
+  readonly id: EntityId
+  readonly name: string
+  /** The nation the town lives in. Exactly one. */
+  readonly isHomeland: boolean
+  /** 0-1000 scales. Statistics, not personalities. */
+  readonly strength: number
+  readonly economy: number
+  readonly stability: number
+  /** Alliance bloc index, or null for the non-aligned. */
+  readonly bloc: number | null
+}
+
+/** L4-M1's escalation subset of the foundation §4 ladder. */
+export type GeoState = 'peace' | 'tension' | 'sanctions' | 'skirmish' | 'war' | 'ceasefire'
+
+export type WarPhase = 'opening' | 'attrition' | 'offensive' | 'stalemate'
+
+export interface GeoRelation {
+  readonly a: EntityId
+  readonly b: EntityId
+  readonly state: GeoState
+  readonly sinceTick: Tick
+  /** Non-null only while at war. */
+  readonly warPhase: WarPhase | null
+  /** Aggregate war dead, per side — the entire foreign population model. */
+  readonly casualtiesA: number
+  readonly casualtiesB: number
+}
+
+// ---------------------------------------------------------------------------
 // The player
 //
 // The player is one person inside the simulation, not a special entity. The
@@ -281,6 +320,11 @@ export type EventType =
   | 'back-in-the-black'
   /** Money passed to this person from a parent's estate. */
   | 'inherited'
+  /** Geopolitics (subjects are nation ids, invisible to person queries). */
+  | 'war-began'
+  | 'ceasefire'
+  | 'peace-restored'
+  | 'tensions-shifted'
 
 export interface WorldEvent {
   readonly id: number
@@ -311,6 +355,7 @@ export type DecisionType =
   | 'courtship'
   | 'marriage'
   | 'separation'
+  | 'geopolitics'
 
 /** Drives retention. Assigned when the record is created. */
 export type Significance = 'notable' | 'major' | 'defining'
@@ -343,6 +388,13 @@ export type FactorId =
   | 'own-choice'
   | 'in-arrears'
   | 'cheaper-rent'
+  | 'bloc-rivalry'
+  | 'resource-competition'
+  | 'internal-instability'
+  | 'war-weariness'
+  | 'heavy-casualties'
+  | 'old-grudge'
+  | 'long-peace'
 
 export interface CausalFactor {
   readonly factor: FactorId
@@ -390,4 +442,8 @@ export interface World {
   readonly events: WorldEvent[]
   readonly causalRecords: CausalRecord[]
   readonly player: PlayerState
+  /** L4-M1. Keyed by id; insertion order deterministic from generation. */
+  readonly nations: Map<EntityId, Nation>
+  /** Keyed by relationKey(a, b). */
+  readonly geoRelations: Map<string, GeoRelation>
 }

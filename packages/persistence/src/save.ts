@@ -7,13 +7,15 @@
  * server (ADR-0003, ADR-0010).
  */
 
-import { relationshipKey, toSnapshot } from '@life-engine/engine'
+import { generateNations, relationshipKey, toSnapshot } from '@life-engine/engine'
 import type {
   CausalRecord,
   EducationRecord,
   EmploymentRecord,
+  GeoRelation,
   Relationship,
   Household,
+  Nation,
   Person,
   Place,
   PlayerState,
@@ -147,7 +149,16 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
   }
 
-  return {
+  const nations = new Map<import('@life-engine/shared').EntityId, Nation>()
+  for (const nation of (body['nations'] as Nation[] | undefined) ?? []) {
+    nations.set(nation.id, nation)
+  }
+  const geoRelations = new Map<string, GeoRelation>()
+  for (const relation of (body['geoRelations'] as GeoRelation[] | undefined) ?? []) {
+    geoRelations.set(relation.a < relation.b ? `${relation.a}:${relation.b}` : `${relation.b}:${relation.a}`, relation)
+  }
+
+  const world: World = {
     seed: meta.seed,
     tick: meta.tick,
     nextEntityId: body['nextEntityId'] as number,
@@ -163,5 +174,16 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     events: body['events'] as WorldEvent[],
     causalRecords: body['causalRecords'] as CausalRecord[],
     player: body['player'] as PlayerState,
+    nations,
+    geoRelations,
   }
+
+  // A v6-or-older save was migrated with empty collections: generate the
+  // wider world now, deterministically from the save's own seed. The town's
+  // history is untouched; the news simply starts today.
+  if (world.nations.size === 0) {
+    generateNations(world)
+  }
+
+  return world
 }

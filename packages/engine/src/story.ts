@@ -169,6 +169,13 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'own-choice': 'they chose it themselves',
   'in-arrears': 'the household had fallen behind',
   'cheaper-rent': 'the rent was cheaper there',
+  'bloc-rivalry': 'of rivalry between the powers',
+  'resource-competition': 'of competition over resources',
+  'internal-instability': 'of unrest at home',
+  'war-weariness': 'both sides were worn out',
+  'heavy-casualties': 'of the cost in lives',
+  'old-grudge': 'of an old grudge',
+  'long-peace': 'the quiet had held a long time',
 }
 
 function joinClauses(parts: readonly string[]): string {

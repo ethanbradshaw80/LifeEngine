@@ -32,7 +32,8 @@ export const Stream = {
   Employment: 6,
   Health: 7,
   Economy: 8,
-  // 9 reserved — geopolitics (Layer 4)
+  /** Reserved in Milestone 1; claimed at L4-M1. */
+  Geopolitics: 9,
   // 10 reserved — combat resolution (Layer 4)
 } as const
 

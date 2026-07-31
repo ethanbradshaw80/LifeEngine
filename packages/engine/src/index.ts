@@ -49,6 +49,17 @@ export {
   setPlayer,
 } from './player.js'
 
+// Geopolitics (L4-M1)
+export {
+  activeWars,
+  generateNations,
+  homeland,
+  isAtWar,
+  newsSince,
+  relationBetween,
+} from './geopolitics.js'
+export type { NewsItem } from './geopolitics.js'
+
 // Legacy
 export {
   childrenIdsOf,
@@ -115,8 +126,12 @@ export type {
   Sex,
   Significance,
   Tier,
+  GeoRelation,
+  GeoState,
+  Nation,
   Town,
   Traits,
+  WarPhase,
   World,
   WorldEvent,
 } from './types.js'
