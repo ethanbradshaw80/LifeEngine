@@ -313,7 +313,29 @@ const V9_TO_V10: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10]
+/** v10 → v11 (M-WOUNDS). Named harm: kinds, sites, marks-in-words. Old
+ *  ailments keep null kinds — the record never said what they were. */
+const V10_TO_V11: Migration = {
+  from: 10,
+  to: 11,
+  describe: 'add ailment kinds, sites and marks (existing ailments unnamed)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const health = Array.isArray(world['health']) ? world['health'] : []
+    const migrated = health.map((entry) => {
+      const record = requireObject(entry, 'save.world.health[]')
+      return { ...record, ailmentKind: null, ailmentSite: null, marks: [] }
+    })
+    const nextWorld: Record<string, unknown> = { ...world, health: migrated }
+    return {
+      header: { ...header, schemaVersion: 11, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

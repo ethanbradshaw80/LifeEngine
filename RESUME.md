@@ -87,6 +87,29 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-WOUNDS (named harm) — COMPLETE** (owner direction: "grounded tone" must
+not mean vague — depth everywhere, injuries first)
+`packages/engine/src/wounds.ts`: InjuryKind (gunshot/shrapnel/blast/burns/
+crush/fracture/concussion/laceration) × BodySite, picked by InjuryContext —
+machinery/mishap (civilian), direct-combat/convoy/base-attack/field-accident
+(deployment channel maps to context: convoy wounds are blast/shrapnel/crush,
+base attacks burn). IllnessKind by age (heart-trouble old, pneumonia any).
+HealthRecord += ailmentKind/ailmentSite/marks[] (marks = permanent damage IN
+WORDS, append-only, from markFor(kind,site): "walked with a limp from then
+on", "the hand never worked fine tools again"). Event detail format is now
+"serious|minor:description" (tests use startsWith). Stories render specifics:
+"Badly hurt: a crush injury to the hand." / "Recovered — but the lungs never
+fully recovered." Marks appear in PersonDetail Health row and dead people's
+Legacy section. inflictWound(world,tick,id,severity,context,rng) returns
+{kind,site,description}. Migrated old ailments keep NULL kinds ("an injury"
+— unrecorded specifics stay unrecorded). Schema v11, SIMULATION_VERSION 11,
+golden d6d7fc43. Verified: a mill hand's 1977 pneumonia mark ("lungs never
+fully recovered") preceded his death of illness at 55 — the mark raised his
+mortality for 16 years. DEPTH-PASS PRINCIPLE (Ethan's standing direction):
+apply the same specificity elsewhere — candidates: cause of death should
+name the illness that killed (performDeath 'illness' → active ailmentKind),
+richer courtship/marriage texture, workplace incidents naming the machine.
+
 **L4-M4 (deployment & risk) — COMPLETE**
 `packages/engine/src/deployment.ts` on Stream 10 (the last reserved stream,
 claimed). Homeland wars issue ORDERS (not pendings — deployment is the

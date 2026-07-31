@@ -260,14 +260,24 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       continue
     }
 
-    // Wounded. The health system carries it from here — evacuation home when
-    // it is bad enough that the war is over for them this tour.
-    inflictWound(world, tick, personId, severity)
+    // Wounded — and wounded SPECIFICALLY (M-WOUNDS): the channel that found
+    // them shapes the harm. A convoy strike is blast and shrapnel; a base
+    // attack burns. The health system carries it from here — evacuation home
+    // when it is bad enough that the war is over for them this tour.
+    const context =
+      channel === 'direct-combat-exposure'
+        ? ('direct-combat' as const)
+        : channel === 'convoy-exposure'
+          ? ('convoy' as const)
+          : channel === 'base-attack-exposure'
+            ? ('base-attack' as const)
+            : ('field-accident' as const)
+    const wound = inflictWound(world, tick, personId, severity, context, rng)
     recordEvent(world, tick, {
       type: isAccident ? 'was-injured' : 'wounded-in-action',
       subjectId: personId,
       otherId: deployment.enemyId,
-      detail: severity >= 600 ? 'serious' : 'minor',
+      detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
     })
     if (!isAccident) {
       recordDecision(world, tick, {

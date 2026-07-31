@@ -78,7 +78,7 @@ describe('accidents wound more often than they kill', () => {
       (e) => e.type === 'died' && e.detail === 'an accident',
     ).length
     const seriousInjuries = world.events.filter(
-      (e) => e.type === 'was-injured' && e.detail === 'serious',
+      (e) => e.type === 'was-injured' && String(e.detail).startsWith('serious'),
     ).length
 
     expect(seriousInjuries).toBeGreaterThan(0)

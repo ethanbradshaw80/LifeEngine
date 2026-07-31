@@ -36,7 +36,7 @@ import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relat
 import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdIncome } from './finances.js'
-import { freshHealth, isSeverelyAiling, mortalityFromHealth } from './health.js'
+import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -1030,17 +1030,14 @@ export function runMortality(world: World, tick: Tick): void {
     if (accidental && rng.chance(2, 3)) {
       const record = world.health.get(person.id) ?? freshHealth(person.id)
       if (record.ailment === null) {
-        world.health.set(person.id, {
-          ...record,
-          ailment: 'injury',
-          severity: rng.nextIntInclusive(600, 950),
-          peakSeverity: 0, // set below from severity
-          sinceTick: tick,
-          askedConvalesce: false,
+        const wound = inflictWound(
+          world, tick, person.id, rng.nextIntInclusive(600, 950), 'mishap', rng,
+        )
+        recordEvent(world, tick, {
+          type: 'was-injured',
+          subjectId: person.id,
+          detail: `serious:${wound.description}`,
         })
-        const struck = world.health.get(person.id)
-        if (struck) world.health.set(person.id, { ...struck, peakSeverity: struck.severity })
-        recordEvent(world, tick, { type: 'was-injured', subjectId: person.id, detail: 'serious' })
       }
       continue
     }

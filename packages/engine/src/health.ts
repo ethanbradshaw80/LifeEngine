@@ -33,7 +33,9 @@ import { occupationById } from './content.js'
 import { raisePending } from './player.js'
 import { recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import type { HealthRecord, Person, World } from './types.js'
+import type { BodySite, HealthRecord, Person, World } from './types.js'
+import { describeAilment, markFor, pickIllness, pickInjury } from './wounds.js'
+import type { InjuryContext } from './wounds.js'
 
 // --- Tunables ---------------------------------------------------------------
 
@@ -72,11 +74,14 @@ export function freshHealth(personId: EntityId): HealthRecord {
   return {
     personId,
     ailment: null,
+    ailmentKind: null,
+    ailmentSite: null,
     severity: 0,
     peakSeverity: 0,
     sinceTick: null,
     askedConvalesce: false,
     disability: 0,
+    marks: [],
   }
 }
 
@@ -103,9 +108,9 @@ export function runHealth(world: World, tick: Tick): void {
       3 + Math.floor(Math.max(0, age - 35) / 3) + Math.floor((1000 - person.traits.vitality) / 150)
 
     if (rng.chanceInTenThousand(injuryPerTenK)) {
-      beginAilment(world, tick, person, 'injury', rng.nextBellInt(150, 850), rng)
+      beginAilment(world, tick, person, 'injury', rng.nextBellInt(150, 850), rng, risky ? 'machinery' : 'mishap')
     } else if (rng.chanceInTenThousand(illnessPerTenK)) {
-      beginAilment(world, tick, person, 'illness', rng.nextBellInt(150, 900), rng)
+      beginAilment(world, tick, person, 'illness', rng.nextBellInt(150, 900), rng, 'mishap')
     }
   }
 }
@@ -126,11 +131,26 @@ function beginAilment(
   ailment: 'injury' | 'illness',
   severity: number,
   rng: ReturnType<typeof openStream>,
+  context: InjuryContext,
 ): void {
-  void rng
+  // What, specifically (M-WOUNDS): the mill maims differently than the road,
+  // and the winter lung is not "illness".
+  const age = ageAt(person.birthTick, tick)
+  let kind: string
+  let site: BodySite | null = null
+  if (ailment === 'injury') {
+    const injury = pickInjury(rng, context)
+    kind = injury.kind
+    site = injury.site
+  } else {
+    kind = pickIllness(rng, age)
+  }
+
   world.health.set(person.id, {
     ...(world.health.get(person.id) ?? freshHealth(person.id)),
     ailment,
+    ailmentKind: kind,
+    ailmentSite: site,
     severity,
     peakSeverity: severity,
     sinceTick: tick,
@@ -139,7 +159,7 @@ function beginAilment(
   recordEvent(world, tick, {
     type: ailment === 'injury' ? 'was-injured' : 'fell-ill',
     subjectId: person.id,
-    detail: severity >= SEVERE_AILMENT ? 'serious' : 'minor',
+    detail: `${severity >= SEVERE_AILMENT ? 'serious' : 'minor'}:${describeAilment(ailment, kind, site)}`,
   })
 }
 
@@ -202,25 +222,34 @@ function recoverOrWorsen(
   // Recovered — possibly marked. Lasting damage is judged by how bad the
   // ailment GOT (peak), not by the residual sliver it ended on — the first
   // draft tested the residual and produced a town where nothing ever left a
-  // mark. Disability only ever accumulates.
+  // mark. Disability only ever accumulates — and the mark gets its WORDS,
+  // fixed from what caused it (M-WOUNDS).
   let disability = record.disability
+  let marks = record.marks
   if (record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
     disability = Math.min(1000, disability + Math.floor(record.peakSeverity / 9))
+    const mark = markFor(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)
+    if (!marks.includes(mark)) marks = [...marks, mark]
   }
 
   world.health.set(person.id, {
     ...record,
     ailment: null,
+    ailmentKind: null,
+    ailmentSite: null,
     severity: 0,
     peakSeverity: 0,
     sinceTick: null,
     askedConvalesce: false,
     disability,
+    marks,
   })
   recordEvent(world, tick, {
     type: 'recovered',
     subjectId: person.id,
-    ...(disability > record.disability ? { detail: 'marked' } : {}),
+    ...(disability > record.disability
+      ? { detail: `marked:${marks[marks.length - 1] ?? ''}` }
+      : {}),
   })
 }
 
@@ -230,8 +259,18 @@ function recoverOrWorsen(
  * rule); the deployment system asks, this module does. Returns false when an
  * active ailment already occupies the body (the wound then worsens it).
  */
-export function inflictWound(world: World, tick: Tick, personId: EntityId, severity: number): boolean {
+export function inflictWound(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  severity: number,
+  context: InjuryContext,
+  rng: { pick: <T>(items: readonly T[]) => T },
+): { kind: string; site: BodySite | null; description: string } {
   const record = world.health.get(personId) ?? freshHealth(personId)
+  const injury = pickInjury(rng as never, context)
+  const description = describeAilment('injury', injury.kind, injury.site)
+
   if (record.ailment !== null) {
     const worse = Math.min(1000, record.severity + Math.floor(severity / 2))
     world.health.set(personId, {
@@ -239,17 +278,19 @@ export function inflictWound(world: World, tick: Tick, personId: EntityId, sever
       severity: worse,
       peakSeverity: Math.max(record.peakSeverity, worse),
     })
-    return false
+    return { kind: injury.kind, site: injury.site, description }
   }
   world.health.set(personId, {
     ...record,
     ailment: 'injury',
+    ailmentKind: injury.kind,
+    ailmentSite: injury.site,
     severity,
     peakSeverity: severity,
     sinceTick: tick,
     askedConvalesce: false,
   })
-  return true
+  return { kind: injury.kind, site: injury.site, description }
 }
 
 /**

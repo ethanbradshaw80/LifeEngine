@@ -62,6 +62,8 @@ export type { NewsItem } from './geopolitics.js'
 
 // Health (L4-M2)
 export { healthOf, isSeverelyAiling, SEVERE_AILMENT } from './health.js'
+export { describeAilment, markFor } from './wounds.js'
+export type { InjuryContext } from './wounds.js'
 
 // Service (L4-M3)
 export {
@@ -152,7 +154,10 @@ export type {
   Significance,
   Tier,
   Ailment,
+  BodySite,
   GeoRelation,
+  IllnessKind,
+  InjuryKind,
   GeoState,
   HealthRecord,
   Nation,

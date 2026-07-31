@@ -248,7 +248,10 @@ describe('what the war costs', () => {
 
     for (const event of wounded) {
       // The family's version is short.
-      expect(event.detail === 'serious' || event.detail === 'minor').toBe(true)
+      const grade = String(event.detail).split(':')[0]
+      expect(grade === 'serious' || grade === 'minor').toBe(true)
+      // The wound is SPECIFIC (M-WOUNDS): the detail names what happened.
+      expect(String(event.detail).includes(':')).toBe(true)
       // The record's version carries the chain (§8): enemy, phase, channel.
       const record = world.causalRecords.find(
         (r) =>
@@ -290,7 +293,7 @@ describe('what the war costs', () => {
       (e) => e.type === 'returned-home' && e.detail === 'evacuated',
     )
     const seriousWounds = world.events.filter(
-      (e) => e.type === 'wounded-in-action' && e.detail === 'serious',
+      (e) => e.type === 'wounded-in-action' && String(e.detail).startsWith('serious'),
     )
     if (seriousWounds.length > 0) {
       expect(evacuated.length).toBeGreaterThan(0)

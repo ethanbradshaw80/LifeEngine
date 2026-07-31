@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import {
   ageAt,
+  describeAilment,
   explainDecision,
   healthOf,
   familyHomeSince,
@@ -119,10 +120,10 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             <>
               <dt>Health</dt>
               <dd>
-                {ailing && (record.ailment === 'injury' ? 'injured' : 'ill')}
-                {ailing && record.severity >= 600 && <span className="muted"> (seriously)</span>}
+                {ailing && describeAilment(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)}
+                {ailing && record.severity >= 600 && <span className="muted"> (serious)</span>}
                 {ailing && marked && ' · '}
-                {marked && <span className="muted">carries old wounds</span>}
+                {marked && <span className="muted">{record?.marks.join('; ') ?? 'carries old wounds'}</span>}
               </dd>
             </>
           )

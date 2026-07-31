@@ -124,18 +124,36 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — ${nameOf(world, event.otherId)} died. Left widowed at ${age}.`
     case 'had-child':
       return `${year} — ${nameOf(world, event.otherId)} was born.`
-    case 'was-injured':
-      return event.detail === 'serious'
-        ? `${year} — Badly hurt in an accident.`
-        : `${year} — Hurt, though not badly.`
-    case 'fell-ill':
-      return event.detail === 'serious'
-        ? `${year} — Fell seriously ill.`
-        : `${year} — Fell ill.`
-    case 'recovered':
-      return event.detail === 'marked'
-        ? `${year} — Recovered, but never quite the same.`
-        : `${year} — Back on ${objectPronoun(person) === 'her' ? 'her' : 'his'} feet.`
+    case 'was-injured': {
+      const [grade, what] = (event.detail ?? '').split(':')
+      const description = what && what.length > 0 ? what : 'an injury'
+      return grade === 'serious'
+        ? `${year} — Badly hurt: ${description}.`
+        : `${year} — Hurt — ${description} — though not badly.`
+    }
+    case 'fell-ill': {
+      const [grade, what] = (event.detail ?? '').split(':')
+      const description = what && what.length > 0 ? what : 'an illness'
+      return grade === 'serious'
+        ? `${year} — Taken seriously ill: ${description}.`
+        : `${year} — Down with ${description}.`
+    }
+    case 'wounded-in-action': {
+      const [grade, what] = (event.detail ?? '').split(':')
+      const description = what && what.length > 0 ? what : 'wounds'
+      return grade === 'serious'
+        ? `${year} — Wounded in action: ${description}. It was bad.`
+        : `${year} — Wounded in action: ${description}.`
+    }
+    case 'recovered': {
+      if (event.detail?.startsWith('marked')) {
+        const mark = event.detail.split(':')[1]
+        return mark && mark.length > 0
+          ? `${year} — Recovered — but ${mark}.`
+          : `${year} — Recovered, but never quite the same.`
+      }
+      return `${year} — Back on ${objectPronoun(person) === 'her' ? 'her' : 'his'} feet.`
+    }
     case 'enlisted':
       return `${year} — Enlisted as a ${event.detail ?? 'recruit'} at ${age}.`
     case 'promoted':
@@ -152,10 +170,6 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return event.detail === 'evacuated'
         ? `${year} — Evacuated home.`
         : `${year} — Came home; the tour was done.`
-    case 'wounded-in-action':
-      return event.detail === 'serious'
-        ? `${year} — Wounded in action, badly.`
-        : `${year} — Wounded in action.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
@@ -408,6 +422,12 @@ export function lifeStory(world: World, personId: EntityId): string {
     }
     if (legacy.leftToHeirs > 0) {
       legacyLines.push(`Left ${formatMoney(legacy.leftToHeirs)} to the next generation.`)
+    }
+    const healthRecord = world.health.get(personId)
+    if (healthRecord && healthRecord.marks.length > 0) {
+      legacyLines.push(
+        `${subjectPronoun(person)} carried it: ${healthRecord.marks.join('; ')}.`,
+      )
     }
     if (legacy.generations >= 2) {
       legacyLines.push(`The family ${person.familyName} line runs ${legacy.generations} generations on.`)

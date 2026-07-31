@@ -106,10 +106,41 @@ export interface Household {
 
 export type Ailment = 'injury' | 'illness'
 
+/** What KIND of harm it is. M-WOUNDS: a wound has a name, not a category. */
+export type InjuryKind =
+  | 'gunshot'
+  | 'shrapnel'
+  | 'blast'
+  | 'burns'
+  | 'crush'
+  | 'fracture'
+  | 'concussion'
+  | 'laceration'
+
+export type IllnessKind =
+  | 'pneumonia'
+  | 'influenza'
+  | 'fever'
+  | 'infection'
+  | 'heart-trouble'
+  | 'back-trouble'
+
+/** Where on the body an injury landed. */
+export type BodySite = 'leg' | 'arm' | 'hand' | 'chest' | 'head' | 'back' | 'shoulder' | 'foot'
+
 export interface HealthRecord {
   readonly personId: EntityId
   /** Current ailment, or null when well. One at a time — modest by design. */
   readonly ailment: Ailment | null
+  /**
+   * The specific kind: an InjuryKind for injuries, an IllnessKind for
+   * illnesses. Null only on records migrated from before kinds existed —
+   * unrecorded history stays unrecorded, and the text falls back to the
+   * general word.
+   */
+  readonly ailmentKind: string | null
+  /** For injuries: where it landed. Illnesses carry no site. */
+  readonly ailmentSite: BodySite | null
   /** 0-1000 while ailing; 0 when well. Recovery works it down. */
   readonly severity: number
   /** The worst this ailment got — what lasting damage is judged by. */
@@ -122,6 +153,12 @@ export interface HealthRecord {
    * badly; NEVER decreases. The field a war pension will one day read.
    */
   readonly disability: number
+  /**
+   * The marks in WORDS, accumulated alongside the number: "the left leg never
+   * carried him the same", "hearing in one ear never came back". What a
+   * retrospective says instead of a percentage. Append-only.
+   */
+  readonly marks: readonly string[]
 }
 
 // ---------------------------------------------------------------------------
