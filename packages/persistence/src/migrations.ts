@@ -1,0 +1,122 @@
+/**
+ * Save migrations.
+ *
+ * Rules (docs/DETERMINISM.md §7, ADR-0004):
+ *
+ * - Migrations apply IN SEQUENCE. A v1 save becomes v2, then v3, never v1→v3
+ *   directly. One step per version keeps each one small and testable.
+ * - A migration NEVER silently drops a field. If data cannot be carried
+ *   forward, that is a deliberate decision to state in the migration's comment.
+ * - Every migration is tested against a REAL old save committed to the
+ *   repository, not a hand-written fixture that happens to match today's
+ *   assumptions.
+ * - Loading a save older than the current version is normal. Loading one from
+ *   the FUTURE is not — refuse rather than guess.
+ */
+
+import { checksumOf } from './encoding.js'
+import { MIN_SUPPORTED_SCHEMA_VERSION, SaveError, SCHEMA_VERSION } from './schema.js'
+import { requireField, requireInteger, requireObject, requireString } from './validate.js'
+
+interface Migration {
+  readonly from: number
+  readonly to: number
+  readonly describe: string
+  readonly apply: (save: Record<string, unknown>) => Record<string, unknown>
+}
+
+/**
+ * v1 → v2 (Milestone 4).
+ *
+ * v1 was `{ header: { schemaVersion, simulationVersion, seed, tick, userId },
+ * body: {...} }` with no integrity check.
+ *
+ * v2 renames `body` to `world`, and adds `checksum` and `savedAtTick` to the
+ * header. The checksum is COMPUTED here rather than invented: a v1 save was
+ * never checksummed, so the correct behaviour is to compute one over the data
+ * as loaded and carry it forward. Nothing is dropped.
+ */
+const V1_TO_V2: Migration = {
+  from: 1,
+  to: 2,
+  describe: 'rename body → world; add checksum and savedAtTick',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const body = requireField(save, 'body', 'save')
+
+    const tick = requireInteger(header, 'tick', 'save.header')
+
+    return {
+      header: {
+        schemaVersion: 2,
+        simulationVersion: requireInteger(header, 'simulationVersion', 'save.header'),
+        seed: requireInteger(header, 'seed', 'save.header'),
+        tick,
+        savedAtTick: tick,
+        userId: requireString(header, 'userId', 'save.header'),
+        checksum: checksumOf(body),
+      },
+      world: body,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2]
+
+/** Read the schema version from an unvalidated save, or fail clearly. */
+export function readSchemaVersion(save: unknown): number {
+  const root = requireObject(save, 'save')
+  const header = requireObject(requireField(root, 'header', 'save'), 'save.header')
+  return requireInteger(header, 'schemaVersion', 'save.header')
+}
+
+export interface MigrationResult {
+  readonly save: Record<string, unknown>
+  /** Human-readable steps applied, oldest first. Empty if already current. */
+  readonly applied: readonly string[]
+  readonly fromVersion: number
+}
+
+/**
+ * Bring a save up to the current schema, applying each step in order.
+ *
+ * Throws rather than guessing when the save is too old to support or newer
+ * than this build understands. A save from the future usually means the player
+ * opened an old tab, and loading it partially would corrupt real progress.
+ */
+export function migrate(save: unknown): MigrationResult {
+  const fromVersion = readSchemaVersion(save)
+
+  if (fromVersion > SCHEMA_VERSION) {
+    throw new SaveError(
+      `This save was written by a newer version of the game (schema ${fromVersion}; this build understands ${SCHEMA_VERSION}). Update the game to open it.`,
+      'from-the-future',
+    )
+  }
+
+  if (fromVersion < MIN_SUPPORTED_SCHEMA_VERSION) {
+    throw new SaveError(
+      `This save is too old to open (schema ${fromVersion}; the oldest supported is ${MIN_SUPPORTED_SCHEMA_VERSION}).`,
+      'too-old',
+    )
+  }
+
+  let current = requireObject(save, 'save')
+  const applied: string[] = []
+  let version = fromVersion
+
+  while (version < SCHEMA_VERSION) {
+    const step = MIGRATIONS.find((m) => m.from === version)
+    if (!step) {
+      throw new SaveError(
+        `No migration from schema ${version} to ${version + 1}. This is a bug: a version was added without its migration.`,
+        'migration-failed',
+      )
+    }
+    current = step.apply(current)
+    applied.push(`v${step.from} → v${step.to}: ${step.describe}`)
+    version = step.to
+  }
+
+  return { save: current, applied, fromVersion }
+}

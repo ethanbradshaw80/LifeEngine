@@ -1,0 +1,75 @@
+/**
+ * The save format.
+ *
+ * A SAVE FORMAT IS A PUBLIC CONTRACT (ADR-0004). Once a real save exists,
+ * every change must either be backward compatible or ship with a tested
+ * migration. Silent data loss is the worst outcome here — worse than a crash,
+ * because a crash gets noticed.
+ *
+ * The stakes rise with the product stage (`PRODUCT_ROADMAP.md` §8): breaking
+ * the format costs nothing today, an apology at closed alpha, and 250 people's
+ * progress at closed beta. That ratchet only tightens.
+ */
+
+import type { Seed, Tick } from '@life-engine/shared'
+
+/**
+ * Current save schema version. Increment on ANY change to the persisted shape,
+ * and add a migration in the same commit.
+ *
+ * v1 — Milestone 1. `{ header, body }`, no checksum. Header carried
+ *      schemaVersion, simulationVersion, seed, tick, userId.
+ * v2 — Milestone 4. `{ header, world }`. Header gains a checksum for corruption
+ *      detection and `savedAtTick`. Body renamed to `world`.
+ */
+export const SCHEMA_VERSION = 2
+
+/** The oldest schema this build can still load. */
+export const MIN_SUPPORTED_SCHEMA_VERSION = 1
+
+/**
+ * Placeholder owner until accounts arrive at Milestone 6 (ADR-0010).
+ *
+ * Every save carries a userId from the very first one ever written. It costs
+ * nothing now and turns "add accounts" from a migration across every existing
+ * save into an additive change.
+ */
+export const LOCAL_USER_ID = 'local'
+
+export interface SaveHeader {
+  readonly schemaVersion: number
+  /** Which simulation behaviour produced this save. See DETERMINISM.md §7. */
+  readonly simulationVersion: number
+  readonly seed: Seed
+  readonly tick: Tick
+  readonly savedAtTick: Tick
+  readonly userId: string
+  /** Covers the serialized world. Detects corruption, not tampering. */
+  readonly checksum: string
+}
+
+export interface SaveFile {
+  readonly header: SaveHeader
+  /** Plain JSON-safe world state. Shape owned by the engine's snapshot. */
+  readonly world: unknown
+}
+
+/** A save that has been read but not yet validated. Never trust its shape. */
+export type UnknownSave = unknown
+
+export class SaveError extends Error {
+  constructor(
+    message: string,
+    readonly kind:
+      | 'not-an-object'
+      | 'missing-field'
+      | 'bad-type'
+      | 'checksum-mismatch'
+      | 'too-old'
+      | 'from-the-future'
+      | 'migration-failed',
+  ) {
+    super(message)
+    this.name = 'SaveError'
+  }
+}

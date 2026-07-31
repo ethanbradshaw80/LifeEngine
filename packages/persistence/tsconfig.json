@@ -1,0 +1,7 @@
+{
+  // Package SOURCE only. No "types" declared, so this package cannot reach for
+  // Node or DOM APIs: persistence converts data and performs no I/O. Reading
+  // and writing IndexedDB is the web app's job.
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.ts"]
+}

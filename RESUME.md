@@ -66,6 +66,27 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**Milestone 4 — COMPLETE**
+Saves and responsiveness. Resolves ADR-0004.
+
+`packages/persistence` — NEW, and pure (no I/O, no "types" in its tsconfig).
+Save schema v2: `{header, world}` with checksum, savedAtTick, seed, tick,
+simulationVersion and **userId** (`"local"` until M6). Runtime validation with
+no casts (R-23). BigInt encode/decode ready for Layer 4. Migration v1 to v2
+tested against a REAL committed v1 save at
+`packages/persistence/test/fixtures/save-v1-seed777.json` — do not regenerate
+it, a test asserts it is still schema v1.
+
+`apps/web/src/storage.ts` — IndexedDB. **The only I/O in the project.**
+`apps/web/src/engine.worker.ts` — the engine on a background thread. The worker
+OWNS the world; the main thread holds a structured-clone snapshot for rendering
+and never mutates it.
+
+Verified in a real browser: 50 years simulated in 469 ms while the main thread
+blocked for only **3.3 ms**; save, reload, continue restores exactly; a
+deliberately corrupted save is refused with an honest message and the previous
+save is left untouched.
+
 **Milestone 3 — COMPLETE**
 `npm run bench` writes `docs/PERFORMANCE_BASELINE.md`. Every performance guess in
 the docs is now a measurement. `performance-reviewer` agent created (ADR-0007).
@@ -120,21 +141,25 @@ the same fingerprint and displays pass/fail.
 
 ### Next up
 
-**Milestone 4 — saves and responsiveness.** See `docs/MILESTONE_PLAN.md`.
-Resolves ADR-0004. In scope: choose the serialized save shape; header carrying
-schemaVersion, simulationVersion, seed **and `userId`** (valued `"local"` until
-M6); IndexedDB read/write from `apps/web`; checksum + graceful refusal of
-corrupt saves; one real migration from the M1 shape tested against a committed
-old save; move the engine into a **Web Worker**; handle `BigInt` in
-serialization before Layer 4 needs it.
+**Milestone 5 — relationships, one domain done properly.** See
+`docs/MILESTONE_PLAN.md`. The template for how every Layer 2 domain gets built.
 
-`toSnapshot()` / `serialize()` in `snapshot.ts` already produce plain JSON-safe
-data with the header, so the shape work is mostly done. Engine state is already
-serializable, which the worker boundary requires.
+In scope: typed relationship edges; formation from compatibility, proximity and
+shared context; decay and reinforcement; **marriage and divorce with causal
+records**; household composition changes; UI for viewing relationships; full
+test coverage.
 
-Out of scope: cloud sync, accounts, named save slots.
+Exit criterion: a generated life story contains a relationship whose beginning
+AND end are both explainable from records, and the explanation is not obviously
+wrong.
 
-After that: M5 relationships, M6 accounts.
+Out of scope: every other Layer 2 domain. This is a template, not a race.
+
+**Note:** marriage moving in-scope means the M1 birth rule (an adult woman with
+a co-resident adult man) should be replaced by a real partnership model. See
+"Known simplifications".
+
+After that: M6 accounts.
 
 **Binding out-of-scope until an ADR says otherwise:** marriage/divorce,
 relationship depth, businesses as entities, economy, health beyond
@@ -148,6 +173,11 @@ multiple towns, simulation tiers beyond Deep, causal compression.
   a claim about families.
 - Names are not unique, so two living people can share a full name.
 - No economy: pay bands are fixed and there is no inflation.
+- **Population declines over long runs.** Seed 12345 went 100 living to 38 over
+  50 years. Births need an adult woman aged 20-42 in a household with a
+  co-resident adult man, and many people never form one. Not a bug in the code
+  so much as a missing model — M5's partnership system is the right place to
+  fix it. Worth re-checking after M5.
 
 ## Rules that cannot be bent
 

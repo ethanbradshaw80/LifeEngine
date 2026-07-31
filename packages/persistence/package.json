@@ -1,0 +1,17 @@
+{
+  "name": "@life-engine/persistence",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Save format, versioning, validation and migrations. Pure — performs no I/O.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@life-engine/engine": "*",
+    "@life-engine/shared": "*"
+  }
+}

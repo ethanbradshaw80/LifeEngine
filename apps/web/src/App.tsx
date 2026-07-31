@@ -32,10 +32,12 @@ const GOLDEN_HASH_HEX = 'd5a213eb'
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
 export function App() {
-  const { world, version, advance, reset } = useWorld(GOLDEN_SEED)
+  const { world, status, message, lastElapsedMs, saveState, advance, newWorld, save, discardSave } =
+    useWorld(GOLDEN_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
   const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
+  const busy = status === 'working' || status === 'starting'
 
   const determinismOk = useMemo(() => {
     const check = createWorld(makeSeed(GOLDEN_SEED))
@@ -43,9 +45,9 @@ export function App() {
     return worldHashHex(check) === GOLDEN_HASH_HEX
   }, [])
 
-  // Recomputed whenever the world changes. `version` is a render trigger, not
-  // a fact about the world — nothing here is derived from its value.
+  // Recomputed whenever the worker sends a new world snapshot.
   const { people, deadCount } = useMemo(() => {
+    if (!world) return { people: [], deadCount: 0 }
     const living = livingPeople(world)
     const dead = [...world.people.values()].filter((p) => p.deathTick !== null)
 
@@ -59,16 +61,53 @@ export function App() {
             : living
 
     return { people: shown, deadCount: dead.length }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, version, filter])
+  }, [world, filter])
 
-  const selectedStillKnown = selected !== null && world.people.has(selected)
+  const selectedStillKnown = selected !== null && world !== null && world.people.has(selected)
 
   function applySeed() {
     const value = Number.parseInt(seedInput, 10)
     if (!Number.isInteger(value)) return
     setSelected(null)
-    reset(value)
+    newWorld(value)
+  }
+
+  // No world: either still starting, or a load failed.
+  //
+  // The recovery controls matter more than they look. A damaged save is
+  // correctly refused, but without a way out the player is left staring at an
+  // error with a dead app and no button to press. Found by deliberately
+  // corrupting a save and reloading — reasoning about it would not have caught
+  // it, because the failure only appears when there is no world to render.
+  if (!world) {
+    const failed = status === 'error'
+    return (
+      <div className="app">
+        <header className="topbar">
+          <h1>The Life Simulator</h1>
+        </header>
+
+        {failed ? (
+          <>
+            <p className="banner bad">{message ?? 'The saved game could not be opened.'}</p>
+            <section className="controls">
+              <button type="button" className="primary" onClick={() => newWorld(GOLDEN_SEED)}>
+                Start a new world
+              </button>
+              <button type="button" onClick={discardSave}>
+                Delete the damaged save
+              </button>
+            </section>
+            <p className="pad muted small">
+              Starting a new world leaves the damaged save untouched, in case a
+              later version of the game can read it.
+            </p>
+          </>
+        ) : (
+          <p className="pad muted">Starting the simulation…</p>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -94,18 +133,24 @@ export function App() {
       </header>
 
       <section className="controls" aria-label="Time controls">
-        <button type="button" onClick={() => advance(1)}>
+        <button type="button" disabled={busy} onClick={() => advance(1)}>
           + 1 month
         </button>
-        <button type="button" className="primary" onClick={() => advance(12)}>
+        <button type="button" className="primary" disabled={busy} onClick={() => advance(12)}>
           + 1 year
         </button>
-        <button type="button" onClick={() => advance(60)}>
+        <button type="button" disabled={busy} onClick={() => advance(60)}>
           + 5 years
+        </button>
+        <button type="button" disabled={busy} onClick={() => advance(600)}>
+          + 50 years
         </button>
 
         <span className="spacer" />
 
+        <button type="button" disabled={busy || saveState === 'saving'} onClick={save}>
+          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
+        </button>
         <label className="seed">
           Seed
           <input
@@ -117,10 +162,27 @@ export function App() {
             }}
           />
         </label>
-        <button type="button" onClick={applySeed}>
+        <button type="button" disabled={busy} onClick={applySeed}>
           New world
         </button>
       </section>
+
+      {busy && (
+        <p className="banner working">
+          Simulating… the page stays responsive because the engine runs on a
+          background thread.
+        </p>
+      )}
+      {message !== null && !busy && (
+        <p className={status === 'error' ? 'banner bad' : 'banner notice'}>
+          {message}
+          {status === 'error' && (
+            <button type="button" className="link" onClick={discardSave}>
+              delete the saved game
+            </button>
+          )}
+        </p>
+      )}
 
       <div className="columns">
         <section className="list" aria-label="People">
@@ -180,7 +242,8 @@ export function App() {
             : 'DETERMINISM CHECK FAILED — this browser disagrees with Node'}
         </span>
         <span className="muted small">
-          Milestone 2 · the engine holds all state; this page only renders it
+          Milestone 4 · engine on a worker thread · saves in this browser
+          {lastElapsedMs !== null && ` · last step ${lastElapsedMs.toFixed(0)} ms`}
         </span>
       </footer>
     </div>

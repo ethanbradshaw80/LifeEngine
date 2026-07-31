@@ -378,3 +378,41 @@ footer {
     margin-left: 0;
   }
 }
+
+/* --- Milestone 4: worker + save status ---------------------------------- */
+
+.banner {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+}
+
+.banner.working {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+}
+
+.banner.notice {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-left: 3px solid var(--accent);
+}
+
+.banner.bad {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  border-left: 3px solid var(--bad);
+}
+
+.banner .link {
+  margin-left: 0.5rem;
+}
+
+.controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.controls button:disabled:hover {
+  border-color: var(--line);
+}
