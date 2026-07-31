@@ -440,6 +440,16 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
             ? `The household has ${formatMoney(household.savings)} put by.`
             : 'There is nothing put by.',
         )
+        // The number that actually decides this: how long the money lasts.
+        const annualBasics = householdCosts(world, household) * 12
+        if (household.savings > 0 && annualBasics > 0) {
+          const years = Math.floor(household.savings / annualBasics)
+          lines.push(
+            years >= 1
+              ? `At today's costs that carries the household about ${String(years)} year${years === 1 ? '' : 's'}.`
+              : 'At today\'s costs that is less than a year.',
+          )
+        }
       }
       lines.push('You can keep working as long as you live; the question returns each birthday.')
       break

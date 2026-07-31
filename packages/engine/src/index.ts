@@ -68,9 +68,11 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 // Finances
 export {
   canAfford,
+  discretionaryFor,
   householdCosts,
   householdIncome,
   inArrears,
+  monthlyNetOf,
 } from './finances.js'
 export { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
 

@@ -21,6 +21,11 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v5 — M-SPEND. Discretionary spending: households spend 84-92% of the
+ *      surplus above rent and living costs (thrift scales with diligence;
+ *      nothing while in arrears). Savings now accumulate at believable
+ *      rates, so every seed's balances — and everything money touches —
+ *      differ from v4.
  * v4 — M-MONEY. Household finances: wages, rent, living costs, savings,
  *      arrears pressure, estate inheritance. Money now shapes moves, strain
  *      and separations, so every seed's history differs from v3.
@@ -32,7 +37,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 4
+export const SIMULATION_VERSION = 5
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

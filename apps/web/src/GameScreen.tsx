@@ -20,8 +20,7 @@ import {
   familyHomeSince,
   formatDate,
   fullName,
-  householdCosts,
-  householdIncome,
+  monthlyNetOf,
   occupationById,
   spouseOf,
   timelineFor,
@@ -92,9 +91,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
     })
   }
 
-  const monthlyNet = household
-    ? householdIncome(world, household) - householdCosts(world, household)
-    : 0
+  // The TRUE monthly change — after lifestyle spending, not just the bills —
+  // mirroring the ledger exactly so the chip never flatters the household.
+  const monthlyNet = household ? monthlyNetOf(world, household) : 0
 
   return (
     <div className="game">

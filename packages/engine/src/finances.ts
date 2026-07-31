@@ -61,6 +61,55 @@ export function householdCosts(world: World, household: Household): Money {
   return total as Money
 }
 
+/**
+ * Discretionary spending: the life between rent and the bank.
+ *
+ * M-GAME's stat chip exposed what the ledger had been doing quietly: with
+ * only rent and living costs modelled, a working couple banked ~80% of its
+ * income and a six-year-old's family held $414,605 by 1977. Correct
+ * arithmetic, absurd life. People spend most of what clears the basics —
+ * on the car, the kitchen, the holidays this simulation does not itemize —
+ * and save the rest.
+ *
+ * The rate is a household trait, not a constant: thriftier households (by
+ * average adult diligence) keep more. Range: spend 83.7%–92% of surplus,
+ * i.e. save 8–16%. Deterministic, integer arithmetic, no draw — spending
+ * habits are character, not luck.
+ *
+ * A household in arrears spends NOTHING discretionary: families tighten
+ * belts, which is also what makes digging out of debt possible at all.
+ */
+export function discretionaryFor(world: World, household: Household): Money {
+  if (household.savings < 0) return 0 as Money
+
+  const income = householdIncome(world, household)
+  const basics = householdCosts(world, household)
+  const surplus = income - basics
+  if (surplus <= 0) return 0 as Money
+
+  let diligenceTotal = 0
+  let adults = 0
+  for (const memberId of household.memberIds) {
+    const member = world.people.get(memberId)
+    if (!member || member.deathTick !== null) continue
+    if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) {
+      diligenceTotal += member.traits.diligence
+      adults++
+    }
+  }
+  const avgDiligence = adults > 0 ? Math.floor(diligenceTotal / adults) : 500
+  const spendPerMille = 920 - Math.floor(avgDiligence / 12) // 920 down to 837
+
+  return Math.floor((surplus * spendPerMille) / 1000) as Money
+}
+
+/** This month's true change in savings, mirroring runFinances exactly. */
+export function monthlyNetOf(world: World, household: Household): Money {
+  return (householdIncome(world, household) -
+    householdCosts(world, household) -
+    discretionaryFor(world, household)) as Money
+}
+
 export function inArrears(world: World, householdId: EntityId | null): boolean {
   if (householdId === null) return false
   const household = world.households.get(householdId)
@@ -88,10 +137,8 @@ export function runFinances(world: World, tick: Tick): void {
     if (household.dissolvedTick !== null) continue
     if (household.memberIds.length === 0) continue
 
-    const income = householdIncome(world, household)
-    const costs = householdCosts(world, household)
     const before = household.savings
-    const after = (before + income - costs) as Money
+    const after = (before + monthlyNetOf(world, household)) as Money
 
     world.households.set(household.id, { ...household, savings: after })
 

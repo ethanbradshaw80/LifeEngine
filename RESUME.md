@@ -87,6 +87,18 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-SPEND (money tuning) — COMPLETE**
+discretionaryFor() in finances.ts: households spend 83.7-92% of the surplus
+above rent+living (spendPerMille = 920 - avgAdultDiligence/12 — thrift is
+character, deterministic, no draw); NOTHING discretionary while in arrears
+(belt-tightening is what makes digging out possible). monthlyNetOf() mirrors
+the ledger exactly; GameScreen money chip uses it so the UI never flatters
+the household. Retirement stakes now include runway: "At today's costs that
+carries the household about N years." Balances after: year-7 top $48.8k
+(was $414k), median $11.6k; year-60 top $373k, median $35k, 3/36 behind.
+SIMULATION_VERSION 5, golden 6a4dc287. Old saves load with the
+version-change notice (verified live). Solvency test ceiling now $1m.
+
 **M-GAME (game presentation) — COMPLETE** (web only; engine + golden untouched)
 Direction set by Ethan: BitLife-style story-first game, presentation before
 depth. When playing and alive, GameScreen.tsx IS the app: header (deterministic

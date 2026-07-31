@@ -16,10 +16,12 @@ import {
   advanceTicks,
   canAfford,
   createWorld,
+  discretionaryFor,
   householdCosts,
   householdIncome,
   inArrears,
   livingPeople,
+  monthlyNetOf,
   rentFor,
 } from '../src/index.js'
 import { distributeEstate } from '../src/finances.js'
@@ -64,12 +66,45 @@ describe('the ledger', () => {
     const after = world.households.get(household.id)
     if (!after || after.memberIds.length !== household.memberIds.length) return // a member moved/died; arithmetic untestable this tick
 
-    const income = householdIncome(world, after)
-    const costs = householdCosts(world, after)
-    // Note: income/costs read post-tick state; if employment changed this tick
-    // the equation would be off — accepted for a smoke check on tick 1, where
-    // founding adults have no jobs yet to change.
-    expect(after.savings - household.savings).toBe(income - costs)
+    // Note: reads post-tick state; if employment changed this tick the
+    // equation would be off — accepted for a smoke check on tick 1.
+    expect(after.savings - household.savings).toBe(monthlyNetOf(world, after))
+  })
+
+  it('spends most of the surplus and saves the rest', () => {
+    const world = build(12345, 60)
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null || household.savings < 0) continue
+      const surplus = householdIncome(world, household) - householdCosts(world, household)
+      if (surplus <= 0) continue
+      const spent = discretionaryFor(world, household)
+      // Saves between 8% and 17% of the surplus — never all, never nothing.
+      expect(spent).toBeGreaterThan(Math.floor(surplus * 0.82))
+      expect(spent).toBeLessThan(Math.floor(surplus * 0.93))
+    }
+  })
+
+  it('spends nothing discretionary while in arrears', () => {
+    const world = build()
+    const household = [...world.households.values()][0]
+    expect(household).toBeDefined()
+    if (!household) return
+    world.households.set(household.id, { ...household, savings: -10_000 as Money })
+    expect(discretionaryFor(world, world.households.get(household.id)!)).toBe(0)
+  })
+
+  it('keeps lifetime savings believable, not absurd', () => {
+    // The bug this milestone fixes: a working couple used to bank ~80% of
+    // income, holding $414k within a decade. With lifestyle spending, even
+    // the richest household after 60 years stays under $1m — and someone
+    // still has real savings, or thrift means nothing.
+    const world = build(12345, 720)
+    const active = [...world.households.values()].filter(
+      (h) => h.dissolvedTick === null && h.memberIds.length > 0,
+    )
+    const richest = Math.max(...active.map((h) => h.savings))
+    expect(richest).toBeLessThan(1_000_000_00)
+    expect(richest).toBeGreaterThan(5_000_00)
   })
 })
 
@@ -231,7 +266,7 @@ describe('the town stays solvent', () => {
     expect(share).toBeLessThan(0.5)
 
     const richest = Math.max(...active.map((h) => h.savings))
-    expect(richest).toBeLessThan(5_000_000_00) // $5m after 60 small-town years would be absurd
+    expect(richest).toBeLessThan(1_000_000_00) // $1m after 60 small-town years is the new ceiling
     expect(richest).toBeGreaterThan(0)
   })
 })
