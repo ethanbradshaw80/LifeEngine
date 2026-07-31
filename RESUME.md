@@ -66,6 +66,47 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**M-SERVICE-PLAY — COMPLETE** (owner: "we need to be interactive")
+Player never auto-promotes past competitive rank: yearly 'promotion-board'
+pending (deferred ≤2mo if another question held the slot; player.log is the
+dedupe), stakes show own standing/bar/TIG/prior-non-selections ONLY (no
+board-side leak — review-verified); put-in = +40 packet prep; passed-over
+EVENT + record; pass recorded too, and recorded non-selections raise the
+next bar +15 each (why pass exists). 'attend-school' (+60 perf decaying,
+can earn the qual → −50 bar permanently). 'volunteer-deploy' while homeland
+at war (same tour machinery, 'own-choice' record). HIGH_YEAR_TENURE_TIG=72:
+up-or-out at term end, honorable, good-conduct still judged, never mid-term,
+ladder tops exempt. SPC→CPL lateral TIG 6→12 (owner: no mid-career double
+promotions; first-year PVT→PV2→PFC kept — real schedule). TAB VERBS:
+applyForJob (Jobs-tab Apply per row; honest refusal reasons; 'turned-down'
+event; ONE asking/month) + requestEnlistment (Service-tab Enlist via
+enlistmentBar reasons — canEnlist = enlistmentBar()===null, cannot drift).
+Both log-only PendingKinds ('job-application'/'walk-in-enlist', custom-birth
+replay pattern). SIMULATION_VERSION 15, golden d64d83f7, NO schema change.
+military-scope-reviewed twice this arc; all findings fixed.
+
+**L4-M5 — COMPLETE** (awards & veterans; LAYER 4 IS NOW COMPLETE)
+`packages/engine/src/awards.ts` — single writer of world.awards; grant
+functions REFUSE unqualifying events (negative-tested per foundation §11):
+wound recognition "the Crimson Band" (enemy action ONLY — 'wounded-in-action'
+or died-of-'wounds taken in action'; accidents structurally refused),
+campaign medals (3mo in theatre or casualty waiver, judged at tour close,
+posthumous incl.), good conduct (completed term at honorable TERM AVERAGE —
+termPerformanceSum on ServiceRecord), qualification badges. AwardRecord
+keeps qualifyingEventIds (one per medal AND device; idempotent on event id).
+Valor deliberately ABSENT (no documented acts to reference). PENSION:
+provenance not date-range — wounds stamped ailmentServiceConnected at
+inflictWound; HealthRecord.serviceDisability accrues on resolution whenever
+that happens; pensionOf = veteran × serviceDisability×120¢ ≥ threshold 200;
+granted-pension event + record at discharge OR later crossing (never silent
+income). 'Ashkelon' renamed 'Veskarn' (real city caught by review; migration
+renames the nation, old events keep text). L4-M4 contact rate fixed: exposure
+-normalized weights, ~12x spread, cap 200 a true backstop. Schema v14.
+SIMULATION_VERSION 14, golden was 01ccfa5c. Deferred: survivor benefits
+(pension ends at death — explicit decision pending), HYT on TIG not TIS
+(approximation), service families don't move on PCS, branch-blind joint
+bases.
+
 **M-GAMEDEPTH — COMPLETE** (all six owner-feedback items, five commits)
 (4) WAR PACING: geopolitics escalation ~5x rarer with steeper rung curve,
 de-escalation up, NEW Nation.exhaustedUntilTick (ceasefire → 10-20y no new
