@@ -458,45 +458,64 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up
+### Next up — OWNER FEEDBACK 2026-07-31 (M-GAMEDEPTH): fix these before
+### anything else. Direct quotes paraphrased; treat as binding direction.
 
-**Milestone 5 — relationships, one domain done properly.** See
-`docs/MILESTONE_PLAN.md`. The template for how every Layer 2 domain gets built.
+**1. Kids appear to earn money.** A child's game screen shows the household
+pot and monthly net as if it were theirs ("Money $X · +Y/mo" on a
+6-year-old). Engine is correct (money is household-level; nobody under 18
+works — WORKING_AGE guard) but the PRESENTATION lies. Fix: for players under
+~16, label the chip "Family money" (or hide net), and generally make clear
+whose money is whose. Check PersonDetail Money row too.
 
-In scope: typed relationship edges; formation from compatibility, proximity and
-shared context; decay and reinforcement; **marriage and divorce with causal
-records**; household composition changes; UI for viewing relationships; full
-test coverage.
+**2. No custom character creation.** Today you can only possess an existing
+townsperson. Ethan wants to be BROUGHT INTO the world as a brand-new person:
+choose name (given name at least; family = choose or random), sex, maybe a
+trait lean, then be BORN into a family in town (pick a couple or random) and
+play from age 0 (or briefly time-skip to school age). Engine path: a
+createCustomChild(world, {givenName, sex, motherId?}) that uses deliverChild
+machinery with an override for name/sex (careful: keep determinism — the
+custom inputs are player inputs, record them in player.log or a new field so
+replay works; traits still from the child's id stream). UI: "New life" flow
+in the character picker: Custom tab (name/sex/family) + "Random newborn".
 
-Exit criterion: a generated life story contains a relationship whose beginning
-AND end are both explainable from records, and the explanation is not obviously
-wrong.
+**3. No tabs / navigation depth.** The game screen is one feed + 4 chips.
+Wanted: BitLife-style tabs or sections — e.g. Jobs (browse occupations, see
+requirements/pay, apply — NOTE: engine currently only offers jobs via its
+own roll; an "apply" verb would need an engine command, design carefully vs
+the opportunities-are-real principle — maybe "go looking for work" boosts
+next-month odds), Home (household, rent vs move options, family home
+status), Family (tree view already exists in PersonDetail — surface it),
+News (full world-news page with all geopolitics history, not just feed
+cards), Service (service record, tours, when serving), Health (ailments,
+marks, history). Most of this is READ-side UI over existing engine queries —
+cheap wins. Tabs within GameScreen; feed stays the default tab.
 
-Out of scope: every other Layer 2 domain. This is a template, not a race.
+**4. Wars are far too frequent.** "Wars happen literally every year." The
+concurrency cap holds (<¼ of pairs) but FREQUENCY is way too high: a 76-year
+life saw ~23 Republic-involved news items (sanctions/skirmishes/wars).
+Realistic feel: homeland wars should be roughly generational (a few per
+century, not per decade), tension/sanction churn much rarer. Retune
+geopolitics.ts: escalation denominators up ~5-10x again (600_000 → several
+million at peace rungs), de-escalation up, maybe a post-war "exhaustion"
+cooldown per nation (no new escalation for 10-20 years after a ceasefire).
+Keep: wars still END, stability tests still pass; UPDATE the geopolitics
+tests' expectations (they assert began>0 over 200y — keep but lower bounds;
+'starts and ends' ratio stays). New golden + SIMULATION_VERSION 12.
 
-**Note:** marriage moving in-scope means the M1 birth rule (an adult woman with
-a co-resident adult man) should be replaced by a real partnership model. See
-"Known simplifications".
+**5. Standing principle — overall game depth.** The depth-pass principle
+(see M-WOUNDS note) extends to GAME ASPECTS: presentation, navigation,
+character ownership, pacing realism. When a screen is thinner than the
+simulation behind it, that is now a defect. Queued candidates beyond the
+four above: cause of death naming the illness that killed; workplace
+incidents naming the machine; richer courtship/marriage texture; L4-M5
+(awards & veterans) still pending and should follow M-GAMEDEPTH.
 
-After that: M6 accounts.
-
-**Binding out-of-scope until an ADR says otherwise:** marriage/divorce,
-relationship depth, businesses as entities, economy, health beyond
-alive/dead, government, military, crime, media, weather, inheritance,
-multiple towns, simulation tiers beyond Deep, causal compression.
-
-### Known simplifications worth revisiting
-
-- Births require an adult woman and a co-resident adult man in the same
-  household. A deliberate placeholder for Layer 2's relationship systems, not
-  a claim about families.
-- Names are not unique, so two living people can share a full name.
-- No economy: pay bands are fixed and there is no inflation.
-- **Population declines over long runs.** Seed 12345 went 100 living to 38 over
-  50 years. Births need an adult woman aged 20-42 in a household with a
-  co-resident adult man, and many people never form one. Not a bug in the code
-  so much as a missing model — M5's partnership system is the right place to
-  fix it. Worth re-checking after M5.
+Suggested order for the fresh session: (4) war pacing first (small, engine,
+new golden once), then (1) money labeling (tiny), then (3) tabs (pure UI,
+biggest visible win), then (2) custom character (engine + UI, determinism
+care needed). Each its own commit; (4)+(2) touch the engine so mind the
+golden-hash/two-places rule and the id-shift trap.
 
 ## Rules that cannot be bent
 
