@@ -188,6 +188,24 @@ export interface ServiceRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Deployment (L4-M4)
+// ---------------------------------------------------------------------------
+
+export interface Deployment {
+  readonly personId: EntityId
+  /** The war, by its geoRelation pair. */
+  readonly warA: EntityId
+  readonly warB: EntityId
+  /** The enemy nation the theatre faces. */
+  readonly enemyId: EntityId
+  readonly startedAtTick: Tick
+  /** Planned end. Null once returned (closed deployments keep their history). */
+  readonly endsAtTick: Tick
+  readonly returnedAtTick: Tick | null
+  readonly tourNumber: number
+}
+
+// ---------------------------------------------------------------------------
 // Relationships
 //
 // The social graph. Milestone 5 replaced Milestone 1's placeholder friendship
@@ -383,6 +401,11 @@ export type EventType =
   | 'promoted'
   | 'reenlisted'
   | 'discharged'
+  | 'deployed'
+  | 'returned-home'
+  /** Wounded by enemy action on deployment — distinct from civilian injury,
+   *  because award eligibility will read the difference (L4-M5). */
+  | 'wounded-in-action'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'
@@ -420,6 +443,7 @@ export type DecisionType =
   | 'separation'
   | 'convalescence'
   | 'enlistment'
+  | 'deployment'
   | 'geopolitics'
 
 /** Drives retention. Assigned when the record is created. */
@@ -465,6 +489,16 @@ export type FactorId =
   | 'service-tradition'
   | 'term-ended'
   | 'medically-unfit'
+  | 'under-orders'
+  | 'war-demanded-troops'
+  | 'enemy-capability'
+  | 'war-phase'
+  | 'convoy-exposure'
+  | 'direct-combat-exposure'
+  | 'base-attack-exposure'
+  | 'battlefield-accident'
+  | 'battlefield-chaos'
+  | 'tour-complete'
 
 export interface CausalFactor {
   readonly factor: FactorId
@@ -509,6 +543,8 @@ export interface World {
   readonly health: Map<EntityId, HealthRecord>
   /** L4-M3. Keyed by personId. Records SURVIVE discharge. */
   readonly service: Map<EntityId, ServiceRecord>
+  /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
+  readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
    *  therefore deterministic — see docs/DETERMINISM.md §3. */
   readonly relationships: Map<string, Relationship>

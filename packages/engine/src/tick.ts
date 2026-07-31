@@ -24,6 +24,7 @@ import { runFinances } from './finances.js'
 import { runGeopolitics } from './geopolitics.js'
 import { runHealth } from './health.js'
 import { runService } from './service.js'
+import { runDeployments } from './deployment.js'
 import { runRelationships } from './relationships.js'
 import {
   runBirths,
@@ -55,6 +56,9 @@ export function advanceTick(world: World): World {
   // Service after employment: a person who failed to find civilian work this
   // month hears the recruiter with this month's ears.
   runService(world, next)
+  // The war reaches for the serving after the service system has kept its
+  // own books for the month (enlistments, promotions, terms).
+  runDeployments(world, next)
   // Finances directly after employment: this month's wages land before any
   // system reads the balance, so strain and affordability see current money.
   runFinances(world, next)

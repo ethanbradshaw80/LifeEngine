@@ -74,6 +74,15 @@ export {
 export { BRANCH_NAMES, RANKS, SPECIALTIES, specialtyById } from './content.js'
 export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
 
+// Deployment (L4-M4)
+export {
+  currentDeployment,
+  deploymentsOf,
+  isDeployed,
+  threatVectorFor,
+} from './deployment.js'
+export type { ThreatVector } from './deployment.js'
+
 // Legacy
 export {
   childrenIdsOf,
@@ -132,6 +141,7 @@ export type {
   Occupation,
   PendingDecision,
   PendingKind,
+  Deployment,
   Person,
   Place,
   ServiceRecord,

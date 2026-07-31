@@ -1047,35 +1047,56 @@ export function runMortality(world: World, tick: Tick): void {
 
     const cause = accidental ? 'an accident' : age >= 70 ? 'old age' : 'illness'
 
-    setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })
-    world.employment.delete(person.id)
-
-    if (person.householdId !== null) {
-      const householdId = person.householdId
-      removeFromHousehold(world, householdId, person.id)
-      // If the death emptied the household, the pot passes to the deceased's
-      // living children (finances owns how). Grief first, then the will.
-      const household = world.households.get(householdId)
-      if (household && household.memberIds.length === 0) {
-        distributeEstate(world, tick, person, household)
-      }
-    }
-
-    // The relationships domain owns its own state, including what a death does
-    // to it — a marriage ends in widowhood, not divorce (DOMAIN_MAP.md §2).
-    endRelationshipsOnDeath(world, tick, person.id)
-
-    recordEvent(world, tick, { type: 'died', subjectId: person.id, detail: cause })
-    recordDecision(world, tick, {
-      subjectId: person.id,
-      decision: 'death',
-      significance: 'defining',
-      inputs: accidental
+    performDeath(world, tick, person, cause,
+      accidental
         ? [factor('accident', 800)]
         : [factor('old-age', Math.min(1000, age * 10)), factor('frailty', 1000 - person.traits.vitality)],
-      chosen: `died of ${cause} at ${age}`,
-      rejected: [],
-      streamId: Stream.Health,
-    })
+      Stream.Health,
+    )
   }
+}
+
+/**
+ * One death implementation, whatever the cause. A life ends the same way —
+ * the job released, the household informed, the estate passed, the marriage
+ * become widowhood, the record written — whether age takes it or a war does
+ * (L4-M4 extracted this so combat could never invent its own cheaper death).
+ */
+export function performDeath(
+  world: World,
+  tick: Tick,
+  person: Person,
+  cause: string,
+  inputs: readonly CausalFactor[],
+  streamId: number,
+): void {
+  const age = ageAt(person.birthTick, tick)
+  setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })
+  world.employment.delete(person.id)
+
+  if (person.householdId !== null) {
+    const householdId = person.householdId
+    removeFromHousehold(world, householdId, person.id)
+    // If the death emptied the household, the pot passes to the deceased's
+    // living children (finances owns how). Grief first, then the will.
+    const household = world.households.get(householdId)
+    if (household && household.memberIds.length === 0) {
+      distributeEstate(world, tick, person, household)
+    }
+  }
+
+  // The relationships domain owns its own state, including what a death does
+  // to it — a marriage ends in widowhood, not divorce (DOMAIN_MAP.md §2).
+  endRelationshipsOnDeath(world, tick, person.id)
+
+  recordEvent(world, tick, { type: 'died', subjectId: person.id, detail: cause })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'death',
+    significance: 'defining',
+    inputs: [...inputs],
+    chosen: `died of ${cause} at ${age}`,
+    rejected: [],
+    streamId,
+  })
 }

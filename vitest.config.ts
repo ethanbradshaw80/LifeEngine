@@ -6,6 +6,8 @@ export default defineConfig({
     // suite parallel load the big ones brush the 5s default. The limit is for
     // hangs, not for honest work: 60s catches a stuck loop just as well.
     testTimeout: 60_000,
+    // beforeAll hooks grow whole centuries too; same reasoning, same limit.
+    hookTimeout: 60_000,
     include: ['packages/**/*.test.ts', 'apps/**/*.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
     environment: 'node',

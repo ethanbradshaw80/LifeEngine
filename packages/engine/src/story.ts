@@ -146,6 +146,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return event.detail === 'medical'
         ? `${year} — Discharged on medical grounds at ${age}.`
         : `${year} — Left the service at ${age}.`
+    case 'deployed':
+      return `${year} — Deployed to ${event.detail ?? 'the front'} at ${age}.`
+    case 'returned-home':
+      return event.detail === 'evacuated'
+        ? `${year} — Evacuated home.`
+        : `${year} — Came home; the tour was done.`
+    case 'wounded-in-action':
+      return event.detail === 'serious'
+        ? `${year} — Wounded in action, badly.`
+        : `${year} — Wounded in action.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
@@ -203,6 +213,16 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'service-tradition': 'the family had served before',
   'term-ended': 'the term was up',
   'medically-unfit': 'the body would not carry it further',
+  'under-orders': 'the orders came',
+  'war-demanded-troops': 'the war needed people',
+  'enemy-capability': 'the enemy could reach them',
+  'war-phase': 'of where the war stood that month',
+  'convoy-exposure': 'the roads were the job',
+  'direct-combat-exposure': 'the front was the job',
+  'base-attack-exposure': 'the base itself was a target',
+  'battlefield-accident': 'of an accident under way out there',
+  'battlefield-chaos': 'of how badly the moment went',
+  'tour-complete': 'the tour was done',
 }
 
 function joinClauses(parts: readonly string[]): string {

@@ -35,6 +35,7 @@ import {
 } from './content.js'
 import type { ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement } from './content.js'
+import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -258,6 +259,13 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   })
 
   if (termMonthsLeft > 0) return
+
+  // STOP-LOSS: a term does not end in a theatre. The question waits for the
+  // boat home — the army's oldest fine print, and honestly modelled as such.
+  if (isDeployed(world, person.id)) {
+    world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 1 })
+    return
+  }
 
   // Term's end. The player signs or leaves; an NPC's retention is a weighing
   // of the same things (rank earned, other doors), resolved by their own roll.

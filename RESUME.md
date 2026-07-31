@@ -87,6 +87,28 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**L4-M4 (deployment & risk) — COMPLETE**
+`packages/engine/src/deployment.ts` on Stream 10 (the last reserved stream,
+claimed). Homeland wars issue ORDERS (not pendings — deployment is the
+army's decision; 'under-orders' factor says so): callRate by phase, deployed
+share capped 60% of serving, 10-month tours numbered and KEPT FOREVER
+(Deployment[] per person, schema v10). threatVectorFor(war, enemy) — the API
+takes a WAR, which IS the permanent rule: 4 channels (directCombat/convoy/
+baseAttack/accident) from enemy strength × war phase; crossed with specialty
+exposure; ONE channel checked per month; contact ~8%/mo for a rifleman in an
+offensive, single digits rear-echelon; tested contacts < deployedMonths/3
+(foundation §6). Wounds → inflictWound() (health-owned, called by war — the
+distributeEstate pattern); serious wound = evacuated home (tour closed).
+Death: severity>=940 tail → performDeath() — EXTRACTED from runMortality so
+combat gets no cheaper death (job released, estate passed, widowhood, record
+— identical teardown). Record chain: channel + enemy-capability + war-phase
++ battlefield-chaos; event text short ("wounds taken in action") — asymmetry
+per §8. 'wounded-in-action' events distinct from civilian 'was-injured'
+(L4-M5 award eligibility will read the difference). STOP-LOSS: terms hold at
+1 month while deployed; reenlist question waits for home. vitest hookTimeout
+60s (beforeAll centuries hit the 10s default under load — the testTimeout
+lesson's sibling). SIMULATION_VERSION 10, golden 69ee4d2c.
+
 **L4-M3 (service careers) — COMPLETE**
 `packages/engine/src/service.ts` + content: 3 fictional branches (Land
 Forces / Naval Service / Air Guard), 6 specialties with EXPOSURE PROFILES

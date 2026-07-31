@@ -27,7 +27,7 @@ import {
   spouseOf,
   timelineFor,
 } from '@life-engine/engine'
-import { healthOf, isServing, rankTitle, specialtyById } from '@life-engine/engine'
+import { healthOf, isDeployed, isServing, rankTitle, specialtyById } from '@life-engine/engine'
 import type { EventType, Person, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -47,6 +47,9 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   promoted: '🎖️',
   reenlisted: '✍️',
   discharged: '📜',
+  deployed: '🛫',
+  'returned-home': '🛬',
+  'wounded-in-action': '🎗️',
   'left-job': '📦',
   befriended: '🤝',
   'friendship-lapsed': '🍂',
@@ -149,7 +152,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
                   <span className="stat-value">
                     {rankTitle(record.rank)} · {specialtyById(record.specialtyId).title}
                   </span>
-                  <span className="stat-sub">{formatMoney(record.monthlyPay)}/mo · serving</span>
+                  <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
+                    {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
+                  </span>
                 </>
               )
             }

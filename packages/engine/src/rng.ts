@@ -34,7 +34,8 @@ export const Stream = {
   Economy: 8,
   /** Reserved in Milestone 1; claimed at L4-M1. */
   Geopolitics: 9,
-  // 10 reserved — combat resolution (Layer 4)
+  /** Reserved in Milestone 1; claimed at L4-M4. The last reserved stream. */
+  CombatResolution: 10,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

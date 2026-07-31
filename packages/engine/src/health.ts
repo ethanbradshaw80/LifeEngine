@@ -225,6 +225,34 @@ function recoverOrWorsen(
 }
 
 /**
+ * A wound arriving from outside the health system's own tick — battle, for
+ * now. Lives HERE because health records have one writer (the one-owner
+ * rule); the deployment system asks, this module does. Returns false when an
+ * active ailment already occupies the body (the wound then worsens it).
+ */
+export function inflictWound(world: World, tick: Tick, personId: EntityId, severity: number): boolean {
+  const record = world.health.get(personId) ?? freshHealth(personId)
+  if (record.ailment !== null) {
+    const worse = Math.min(1000, record.severity + Math.floor(severity / 2))
+    world.health.set(personId, {
+      ...record,
+      severity: worse,
+      peakSeverity: Math.max(record.peakSeverity, worse),
+    })
+    return false
+  }
+  world.health.set(personId, {
+    ...record,
+    ailment: 'injury',
+    severity,
+    peakSeverity: severity,
+    sinceTick: tick,
+    askedConvalesce: false,
+  })
+  return true
+}
+
+/**
  * The player's answer to a serious ailment. Both roads are real:
  * rest heals a solid step now; pushing on keeps the month's work sharp but
  * lets the ailment linger. Neither is free — that is what makes it a choice.

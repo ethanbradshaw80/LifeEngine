@@ -21,6 +21,10 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v10 — L4-M4. Deployment and risk: homeland wars send the serving to
+ *      theatres; danger computed monthly from the geopolitical state crossed
+ *      with specialty exposure; wounds land on the health model; deaths run
+ *      through performDeath. Lives differ from v9 wherever the Republic fought.
  * v9 — L4-M3. Service careers: enlistment, specialties, ranks, terms,
  *      discharge and reenlistment; veterans carry unlocks home. Employment,
  *      income and life courses differ from v8.
@@ -49,7 +53,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 9
+export const SIMULATION_VERSION = 10
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -93,6 +97,9 @@ export function toSnapshot(world: World): WorldSnapshot {
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
       health: [...world.health.values()].sort((a, b) => a.personId - b.personId),
       service: [...world.service.values()].sort((a, b) => a.personId - b.personId),
+      deployments: [...world.deployments.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([personId, tours]) => ({ personId, tours })),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,
