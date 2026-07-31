@@ -9,15 +9,59 @@
  * The engine is a pure function of (state, seed, inputs) -> new state.
  * Everything that touches the outside world lives in apps/web.
  *
- * This rule is enforced automatically by test/purity.test.ts.
+ * This rule is enforced automatically by test/purity.test.ts and, independently,
+ * by tsconfig.json declaring no ambient type libraries.
  */
 
-/**
- * Simulation behaviour version. Increments whenever a change alters simulation
- * results. Saves record this so it is always knowable whether a save was made
- * by a version that would produce different outcomes. See docs/DETERMINISM.md §7.
- */
-export const SIMULATION_VERSION = 1
+export { SCHEMA_VERSION, SIMULATION_VERSION } from './snapshot.js'
 
-/** Save schema version. Increments when the persisted shape changes. */
-export const SCHEMA_VERSION = 1
+// Time
+export { ageAt, formatDate, formatYear, isBirthdayMonth, monthName, START_YEAR, toDate } from './clock.js'
+export type { SimDate } from './clock.js'
+
+// Randomness
+export { hash32, openStream, Rng, Stream } from './rng.js'
+export type { StreamId } from './rng.js'
+
+// World
+export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
+export { advanceTick, advanceTicks } from './tick.js'
+export { friendsOf, livingPeople } from './systems.js'
+
+// Records
+export { decisionsFor, eventsFor } from './records.js'
+
+// Narrative
+export { explainDecision, explainWhy, fullName, lifeStory, personSummary } from './story.js'
+
+// Persistence surface (serialization only — save/load is Milestone 4)
+export { LOCAL_USER_ID, serialize, toSnapshot, worldHash, worldHashHex } from './snapshot.js'
+export type { SnapshotHeader, WorldSnapshot } from './snapshot.js'
+
+// Content
+export { OCCUPATIONS, occupationById } from './content.js'
+
+// Types
+export type {
+  CausalFactor,
+  CausalRecord,
+  DecisionType,
+  EducationLevel,
+  EducationRecord,
+  EmploymentRecord,
+  EventType,
+  FactorId,
+  Friendship,
+  Household,
+  Occupation,
+  Person,
+  Place,
+  PlaceKind,
+  Sex,
+  Significance,
+  Tier,
+  Town,
+  Traits,
+  World,
+  WorldEvent,
+} from './types.js'
