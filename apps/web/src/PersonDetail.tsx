@@ -1,0 +1,198 @@
+import { useState } from 'react'
+import {
+  ageAt,
+  childrenOf,
+  explainDecision,
+  formatYear,
+  friendsOf,
+  fullName,
+  occupationById,
+  timelineFor,
+} from '@life-engine/engine'
+import type { World } from '@life-engine/engine'
+import type { EntityId } from '@life-engine/shared'
+import { formatMoney } from '@life-engine/shared'
+
+interface Props {
+  readonly world: World
+  readonly personId: EntityId
+  readonly onSelect: (id: EntityId) => void
+}
+
+function NameLink({
+  world,
+  id,
+  onSelect,
+}: {
+  world: World
+  id: EntityId
+  onSelect: (id: EntityId) => void
+}) {
+  const person = world.people.get(id)
+  if (!person) return <span>someone</span>
+  return (
+    <button type="button" className="link" onClick={() => onSelect(id)}>
+      {fullName(person)}
+    </button>
+  )
+}
+
+export function PersonDetail({ world, personId, onSelect }: Props) {
+  // Which timeline entries have their explanation expanded. This is interface
+  // state (what the user has opened), not simulation state — the explanations
+  // themselves are generated from the engine's records every render.
+  const [openExplanations, setOpenExplanations] = useState<ReadonlySet<number>>(new Set())
+
+  const person = world.people.get(personId)
+  if (!person) return <p>That person is not in this world.</p>
+
+  const alive = person.deathTick === null
+  const age = ageAt(person.birthTick, alive ? world.tick : person.deathTick)
+  const job = world.employment.get(personId)
+  const education = world.education.get(personId)
+  const household = person.householdId === null ? null : world.households.get(person.householdId)
+  const housemates = household?.memberIds.filter((id) => id !== personId) ?? []
+  const friends = friendsOf(world, personId)
+  const children = childrenOf(world, personId)
+  const timeline = timelineFor(world, personId)
+
+  function toggle(eventId: number) {
+    setOpenExplanations((open) => {
+      const next = new Set(open)
+      if (next.has(eventId)) next.delete(eventId)
+      else next.add(eventId)
+      return next
+    })
+  }
+
+  return (
+    <article className="detail">
+      <header>
+        <h2>{fullName(person)}</h2>
+        <p className="standfirst">
+          {alive
+            ? `${age} years old · born ${formatYear(person.birthTick)}`
+            : `Died ${formatYear(person.deathTick)} aged ${age} · ${person.causeOfDeath}`}
+        </p>
+      </header>
+
+      <dl className="facts">
+        {alive && job && (
+          <>
+            <dt>Work</dt>
+            <dd>
+              {occupationById(job.occupationId).title} · {formatMoney(job.monthlyPay)} a month
+            </dd>
+          </>
+        )}
+        {alive && !job && (
+          <>
+            <dt>Work</dt>
+            <dd className="muted">
+              {education?.enrolledIn ? `studying (${education.enrolledIn})` : 'not working'}
+            </dd>
+          </>
+        )}
+        {education && education.level !== 'none' && (
+          <>
+            <dt>Schooling</dt>
+            <dd>{education.level}</dd>
+          </>
+        )}
+        {household && (
+          <>
+            <dt>{alive ? 'Home' : 'Lived'}</dt>
+            <dd>
+              {world.places.get(household.placeId)?.name ?? 'unknown'}
+              {housemates.length > 0 && (
+                <>
+                  {' with '}
+                  {housemates.map((id, i) => (
+                    <span key={id}>
+                      {i > 0 && ', '}
+                      <NameLink world={world} id={id} onSelect={onSelect} />
+                    </span>
+                  ))}
+                </>
+              )}
+            </dd>
+          </>
+        )}
+        {person.parentIds.length > 0 && (
+          <>
+            <dt>Parents</dt>
+            <dd>
+              {person.parentIds.map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ' and '}
+                  <NameLink world={world} id={id} onSelect={onSelect} />
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
+        {children.length > 0 && (
+          <>
+            <dt>Children</dt>
+            <dd>
+              {children.map((id, i) => (
+                <span key={id}>
+                  {i > 0 && ', '}
+                  <NameLink world={world} id={id} onSelect={onSelect} />
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
+        <dt>Friends</dt>
+        <dd>
+          {friends.length === 0 ? (
+            <span className="muted">none currently</span>
+          ) : (
+            friends.map((id, i) => (
+              <span key={id}>
+                {i > 0 && ', '}
+                <NameLink world={world} id={id} onSelect={onSelect} />
+              </span>
+            ))
+          )}
+        </dd>
+      </dl>
+
+      <h3>Life</h3>
+      {timeline.length === 0 ? (
+        <p className="muted">Nothing of note has happened yet.</p>
+      ) : (
+        <ol className="timeline">
+          {timeline.map((entry) => (
+            <li key={entry.eventId}>
+              <div className="row">
+                <span className="year">{entry.year}</span>
+                <span className="what">{entry.text}</span>
+                {entry.decision !== null && (
+                  <button
+                    type="button"
+                    className="why"
+                    aria-expanded={openExplanations.has(entry.eventId)}
+                    onClick={() => toggle(entry.eventId)}
+                  >
+                    Why?
+                  </button>
+                )}
+              </div>
+              {entry.decision !== null && openExplanations.has(entry.eventId) && (
+                <p className="explanation">{explainDecision(world, entry.decision)}</p>
+              )}
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <p className="note small">
+        Explanations are assembled from what the simulation recorded at the time.
+        Events with no “Why?” were not decisions — being born, or a friend
+        drifting away, happened to this person rather than being chosen.
+      </p>
+    </article>
+  )
+}

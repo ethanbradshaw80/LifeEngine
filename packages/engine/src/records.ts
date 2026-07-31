@@ -22,6 +22,7 @@ import type {
   WorldEvent,
 } from './types.js'
 
+
 interface EventSpec {
   readonly type: EventType
   readonly subjectId: EntityId
@@ -91,4 +92,49 @@ export function eventsFor(world: World, personId: EntityId): WorldEvent[] {
 
 export function decisionsFor(world: World, personId: EntityId): CausalRecord[] {
   return world.causalRecords.filter((r) => r.subjectId === personId)
+}
+
+/**
+ * Which decision type, if any, explains an event of this type.
+ *
+ * Events say what happened; causal records say why a decision was made. Not
+ * every event has a decision behind it — being born, or a friendship lapsing,
+ * are things that happen to a person rather than choices they made. Those
+ * correctly have no explanation, and the UI must say so rather than invent one.
+ */
+const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
+  hired: 'employment-change',
+  'left-job': 'employment-change',
+  'left-home': 'household-formation',
+  'moved-in-together': 'household-formation',
+  'moved-house': 'move',
+  died: 'death',
+}
+
+/**
+ * The causal record behind an event, or null if the event was not a decision.
+ *
+ * Matched on subject and tick — a decision and the event it produced are always
+ * written in the same tick by the same system.
+ */
+export function decisionForEvent(world: World, event: WorldEvent): CausalRecord | null {
+  const decision = EVENT_EXPLAINED_BY[event.type]
+  if (decision === undefined) return null
+
+  for (const record of world.causalRecords) {
+    if (record.tick === event.tick && record.subjectId === event.subjectId && record.decision === decision) {
+      return record
+    }
+  }
+  return null
+}
+
+/** People whose parents include this person, in id order. */
+export function childrenOf(world: World, personId: EntityId): EntityId[] {
+  const children: EntityId[] = []
+  for (const person of world.people.values()) {
+    if (person.parentIds.includes(personId)) children.push(person.id)
+  }
+  children.sort((a, b) => a - b)
+  return children
 }

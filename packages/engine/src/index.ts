@@ -29,10 +29,11 @@ export { advanceTick, advanceTicks } from './tick.js'
 export { friendsOf, livingPeople } from './systems.js'
 
 // Records
-export { decisionsFor, eventsFor } from './records.js'
+export { childrenOf, decisionForEvent, decisionsFor, eventsFor } from './records.js'
 
 // Narrative
-export { explainDecision, explainWhy, fullName, lifeStory, personSummary } from './story.js'
+export { explainDecision, explainWhy, fullName, lifeStory, personSummary, timelineFor } from './story.js'
+export type { TimelineEntry } from './story.js'
 
 // Persistence surface (serialization only — save/load is Milestone 4)
 export { LOCAL_USER_ID, serialize, toSnapshot, worldHash, worldHashHex } from './snapshot.js'
@@ -40,6 +41,7 @@ export type { SnapshotHeader, WorldSnapshot } from './snapshot.js'
 
 // Content
 export { OCCUPATIONS, occupationById } from './content.js'
+export { friendshipKey } from './types.js'
 
 // Types
 export type {

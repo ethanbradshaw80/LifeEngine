@@ -66,6 +66,18 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**Milestone 2 — COMPLETE**
+Real interface: person list with living/working/children/dead filters, person
+detail (work, schooling, home, parents, children, friends -- all clickable to
+navigate), life timeline, per-event "Why?" explanations, and time controls
+(+1 month / +1 year / +5 years) with a seed box for a new world.
+
+`useWorld.ts` holds the World in a **ref**, not React state, with a `version`
+counter to trigger renders. The engine mutates in place and stays the single
+source of truth -- copying the world into React state would create a second
+copy of the truth, which is exactly what ADR-0012 has to guard against now
+that the UI arrives early. `version` is a render trigger, never a fact.
+
 **Milestone 1 — COMPLETE**
 A deterministic town of ~100 people over 120 monthly ticks with readable life
 stories and causal records. 69 tests pass.
@@ -88,14 +100,19 @@ the same fingerprint and displays pass/fail.
 
 ### Next up
 
-**Milestone 2 — the real interface.** See `docs/MILESTONE_PLAN.md`.
-The current page is a test harness, not the milestone: it needs a person view,
-a timeline, an advance-time control, and a "Why?" view. The binding rule is
-that the UI renders engine state and sends commands — it holds no simulation
-state of its own.
+**Milestone 3 — measure and prove.** See `docs/MILESTONE_PLAN.md`.
+Replace every performance guess in the docs with real numbers: tick time at
+100 / 1,000 / 10,000 people, **browser memory per person and per causal
+record** (the binding constraint, not CPU), save-object growth per simulated
+year. Write `docs/PERFORMANCE_BASELINE.md`, update the estimates in
+`SIMULATION_LEVELS.md` §7, `CAUSAL_RECORDS.md` §5 and
+`ARCHITECTURE_PROPOSAL.md` §6, and create the `performance-reviewer` agent
+(ADR-0007). **Measure only — no optimizing.**
 
-After that: M3 measure and prove, M4 saves + Web Worker, M5 relationships,
-M6 accounts.
+Known already: advancing 5 years blocks the main thread briefly. M4 moves the
+engine to a Web Worker; do not fix it early.
+
+After that: M4 saves + Web Worker, M5 relationships, M6 accounts.
 
 **Binding out-of-scope until an ADR says otherwise:** marriage/divorce,
 relationship depth, businesses as entities, economy, health beyond

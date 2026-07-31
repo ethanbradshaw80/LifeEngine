@@ -16,11 +16,11 @@
  * worth reading, no interface will rescue it.
  */
 
-import type { EntityId } from '@life-engine/shared'
+import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
 import { occupationById } from './content.js'
-import { decisionsFor, eventsFor } from './records.js'
+import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { withArticle } from './text.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 
@@ -176,6 +176,52 @@ export function explainWhy(
     return 'There is no record of why. The simulation did not observe that decision.'
   }
   return explainDecision(world, latest)
+}
+
+// ---------------------------------------------------------------------------
+// Structured timeline
+//
+// lifeStory() returns one block of text, which is right for reading or export.
+// The interface needs the same content as data so it can attach a "Why?"
+// control to the entries that actually have an explanation.
+// ---------------------------------------------------------------------------
+
+export interface TimelineEntry {
+  readonly eventId: number
+  readonly tick: Tick
+  readonly year: string
+  /** One readable sentence describing what happened. */
+  readonly text: string
+  /** The decision behind it, or null if this was not a choice. */
+  readonly decision: CausalRecord | null
+}
+
+/**
+ * A person's life as structured entries, oldest first.
+ *
+ * `decision` is null for events that were not decisions — being born, a
+ * friendship lapsing, a child arriving. The interface must show no "Why?"
+ * control for those rather than inventing a reason.
+ */
+export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
+  const person = world.people.get(personId)
+  if (!person) return []
+
+  const entries: TimelineEntry[] = []
+  for (const event of eventsFor(world, personId)) {
+    const text = describeEvent(world, person, event)
+    if (text === null) continue
+    entries.push({
+      eventId: event.id,
+      tick: event.tick,
+      year: formatYear(event.tick),
+      // The year prefix is already in the rendered line; strip it so the UI can
+      // lay the date out in its own column.
+      text: text.replace(/^\d+ — /, ''),
+      decision: event.subjectId === personId ? decisionForEvent(world, event) : null,
+    })
+  }
+  return entries
 }
 
 /** A person's life, as prose. The milestone's exit criterion. */
