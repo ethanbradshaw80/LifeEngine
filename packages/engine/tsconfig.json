@@ -1,0 +1,13 @@
+{
+  // Engine SOURCE only.
+  //
+  // Note what is absent: "types". With no ambient Node or DOM typings, importing
+  // node:fs or touching `document` from engine source is a TYPE error, not just a
+  // lint failure. That is a second, independent layer of defence for the purity
+  // rule (ADR-0003) — the compiler enforces it even if the purity test is removed.
+  //
+  // Tests need Node APIs to read source files, so they are checked separately by
+  // tsconfig.test.json.
+  "extends": "../../tsconfig.base.json",
+  "include": ["src/**/*.ts"]
+}

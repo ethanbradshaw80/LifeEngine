@@ -1,0 +1,16 @@
+{
+  "name": "@life-engine/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The deterministic simulation. Pure computation: no framework, no DOM, no I/O.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
+  },
+  "dependencies": {
+    "@life-engine/shared": "*"
+  }
+}

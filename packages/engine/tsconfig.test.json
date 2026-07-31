@@ -1,0 +1,10 @@
+{
+  // Engine TESTS. These may use Node APIs — reading files is how the purity test
+  // verifies engine source. The purity rule constrains what ships in src/, not
+  // what verifies it.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["test/**/*.ts"]
+}
