@@ -138,43 +138,56 @@ serious bug.
 
 ---
 
-## 7. Performance expectations
+## 7. Performance — measured
 
-**Unmeasured. These are targets, not predictions, and no code exists.**
+**Measured at Milestone 3. See `PERFORMANCE_BASELINE.md` for method and raw data.**
+Superseded the estimates that previously stood here.
 
-| Target | Value |
-|---|---|
-| Monthly tick, typical mid-game | Under ~100 ms |
-| Deep population | Low hundreds |
-| Medium population | Low thousands |
-| Light population | Tens of thousands |
-| Aggregate | Unbounded — statistics only |
+| Population | ms per tick | ms per simulated year | Heap |
+|---|---|---|---|
+| 100 | 0.27 | 3 | 0.7 MB |
+| 1,000 | 3.20 | 38 | 2.7 MB |
+| 10,000 | **210** | **2,520** | 20 MB |
 
-The tick budget is the number that matters: it determines whether advancing a year
-feels instant or sluggish. Everything else is a means to it.
+Budget: a monthly tick should stay under ~100 ms.
 
-### Browser memory is the binding constraint
+### The measurement changed two assumptions
 
-The simulation runs in the player's browser (ADR-0010). A browser tab has considerably
-less memory headroom than a desktop process, and **a tab that exhausts memory is killed
-without warning** — losing unsaved progress with no error message.
+**1. Cost is super-linear.** Ten times the people costs roughly **66×** the time
+per tick, not ten times. That is the signature of work proportional to *pairs*
+of people. The cause is friendship formation in `systems.ts`, which filters the
+whole living population to build a candidate list for each person.
 
-This makes tiering more important than it would be on desktop, not less. The aggregate
-tier stores no individuals at all, which is where nearly all the leverage is. Memory
-per person, not tick time, is the number most likely to force a design change.
+**Consequence: the Light tier target of tens of thousands is not reachable with
+the current algorithm.** At 10,000 people a single month costs 210 ms and a
+simulated year takes 2.5 seconds. The fix is either this tier system or a
+cohort/spatial index so candidate lookup stops scanning everyone — chosen
+deliberately, not reflexively. Milestone 3 measured and did not tune.
 
-Two consequences to design for now:
+**2. CPU bites before memory does.** This section previously assumed browser
+memory was the binding constraint. It is not, at these sizes: 10,000 people fit
+in about 20 MB, and the whole web page including React measured 11 MB in a real
+browser. The tick loop runs out of budget long before a tab runs out of memory.
 
-- **Deep and Medium populations may need to be smaller than the table above** on
-  low-end devices. The tier thresholds should be configurable rather than constants.
-- **Autosave protects against tab termination.** A player who loses forty simulated
-  years to a silent tab kill will not come back.
+That does not retire the memory concern — saves grow without bound across
+decades and no causal-record compression exists yet — but it reorders the
+priorities. **The tier system is needed for CPU first, memory second.**
 
-Milestone 3 replaces this table with profiled measurements taken in a real browser, not
-in Node. Do not make architectural commitments based on it meanwhile — `CLAUDE.md` §7
-requires profiling evidence over speculation.
+### Still true
 
----
+- A tab that exhausts memory is killed without warning, so autosave still
+  matters.
+- Tier thresholds should be configurable rather than constants, since low-end
+  devices will differ.
+
+### Targets, restated
+
+| Tier | Target population | Status |
+|---|---|---|
+| Deep | Low hundreds | Comfortable today |
+| Medium | Low thousands | Reachable today |
+| Light | Tens of thousands | **Blocked** on the O(n²) friendship lookup |
+| Aggregate | Unbounded — statistics only | No individuals stored |
 
 ## 8. Testing strategy
 

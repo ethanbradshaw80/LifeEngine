@@ -1,10 +1,11 @@
 {
-  // Engine TESTS. These may use Node APIs — reading files is how the purity test
-  // verifies engine source. The purity rule constrains what ships in src/, not
-  // what verifies it.
+  // Engine TESTS and BENCHMARKS. These may use Node APIs — reading files is how
+  // the purity test verifies engine source, and the benchmark needs the wall
+  // clock and the filesystem. The purity rule constrains what ships in src/,
+  // not what verifies or measures it.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["test/**/*.ts"]
+  "include": ["test/**/*.ts", "bench/**/*.ts"]
 }

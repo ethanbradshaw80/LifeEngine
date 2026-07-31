@@ -199,36 +199,49 @@ spec before relying on any edge case not listed here.
 
 ---
 
-## 6. Performance — estimates, not measurements
+## 6. Performance — measured
 
-**No code exists. Nothing has been profiled. These are order-of-magnitude guesses.**
+**Measured at Milestone 3. See `PERFORMANCE_BASELINE.md`.** Replaces the
+order-of-magnitude estimates that previously stood here.
 
-Milestone 1 is 100 people × 120 ticks = 12,000 person-months. Trivial in any language.
+| Population | ms per tick | ms per simulated year | Heap |
+|---|---|---|---|
+| 100 | 0.27 | 3 | 0.7 MB |
+| 1,000 | 3.20 | 38 | 2.7 MB |
+| 10,000 | 210 | 2,520 | 20 MB |
 
-The real constraint is now **browser memory**, not CPU. A browser tab has considerably
-less headroom than a desktop process, and a tab that exhausts memory is killed without
-warning. This tightens the case for the tiering in `SIMULATION_LEVELS.md`: the majority
-of the population must be aggregate statistics rather than objects.
+Verified in a real browser: advancing 5 years at ~100 people took **14 ms** once
+warm, against 16 ms predicted from the Node figures. They agree, so the Node
+numbers can be trusted as a guide to browser behaviour at this scale.
 
-TypeScript running in a modern JS engine is roughly in the same order of magnitude as
-C# for this workload and far faster than Python — but that is a general expectation, not
-a measurement of this code.
+**TypeScript is fast enough.** The stack choice in §3 is vindicated at the scale
+the game actually runs. Nothing here suggests the language was the wrong call.
 
-**Milestone 3 measures this and replaces the guesses.** Make no architectural
-commitments based on this section.
+### The estimate that was wrong
+
+§6 previously said browser **memory** would be the binding constraint. It is
+not. Ten thousand people fit in about 20 MB, and the entire web page including
+React measured 11 MB.
+
+**CPU is the constraint, and specifically one algorithm.** Cost is super-linear:
+ten times the people costs roughly 66× the time per tick. Friendship formation
+in `systems.ts` filters the whole living population per person, which is work
+proportional to pairs rather than people. At 10,000 people a tick costs 210 ms
+against a ~100 ms budget.
+
+Not fixed — Milestone 3 measures and does not tune. Recorded so the fix is
+chosen deliberately: either the tier system in `SIMULATION_LEVELS.md`, or an
+index so candidate lookup stops scanning everyone.
 
 ### Long ticks and the UI
 
-Simulating many years could block the browser's main thread and freeze the page. The
-planned mitigation is to run the engine in a **Web Worker** — a background thread —
-so the interface stays responsive. This works precisely *because* the engine is pure:
-a worker cannot touch the DOM anyway.
+Simulating many years blocks the browser's main thread. At the current scale
+this is minor — five years takes 14 ms — but it grows with population and with
+the length of a run.
 
-Deferred to Milestone 4, once there is a measured problem to solve. Noted here so the
-engine is not built in a way that forecloses it: **keep engine state serializable**,
-since it must cross the worker boundary.
-
----
+The planned mitigation is to run the engine in a **Web Worker** at Milestone 4.
+This works precisely *because* the engine is pure: a worker cannot touch the DOM
+anyway. Keep engine state serializable, since it must cross the worker boundary.
 
 ## 7. Persistence and the multi-user path
 

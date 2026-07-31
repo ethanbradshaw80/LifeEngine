@@ -14,7 +14,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "dev": "npm run dev --workspace apps/web",
     "build": "npm run build --workspace apps/web",
-    "check": "npm run typecheck && npm run test"
+    "check": "npm run typecheck && npm run test",
+    "bench": "vitest run --config vitest.bench.config.ts"
   },
   "engines": {
     "node": ">=20"

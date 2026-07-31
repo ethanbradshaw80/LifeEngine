@@ -87,14 +87,29 @@ managed services. Impact is not reducible at all.
 If a monthly tick is slow, advancing a year is tedious and the game is unpleasant
 regardless of how good the simulation is.
 
-*Changed by the web pivot.* **Memory, not CPU, is now the binding constraint.** A
-browser tab has far less headroom than a desktop process, and a tab that exhausts
-memory is killed without warning — losing unsaved progress. This tightens the case for
-aggressive tiering.
+*~~Assumed at the web pivot: memory, not CPU, is the binding constraint, because a
+browser tab has less headroom than a desktop process.~~* Kept visible because the
+correction below is the point — this was reasoned from first principles and was
+wrong, which is why Milestone 3 exists.
 
-*Mitigation.* Simulation tiers, with most of the population as aggregate statistics
-rather than objects. A tick-time budget. Web Worker at Milestone 4 so a long tick does
-not freeze the page. Milestone 3 measures memory per person before Layer 2 is built.
+*MEASURED at Milestone 3.* Memory is not the
+binding constraint at these sizes — 10,000 people fit in ~20 MB and the whole
+page measured 11 MB in a browser. **CPU is**, and specifically one algorithm:
+friendship formation is O(n²) in population, so ten times the people costs ~66×
+the time per tick. At 10,000 people a tick takes 210 ms against a ~100 ms budget.
+
+*Still true from the old framing.* A tab that exhausts memory is killed without
+warning, so autosave matters. Memory is simply not what runs out first.
+
+*Current standing.* At the shipped scale of ~100 people the game is comfortably
+fast (0.27 ms per tick; five years advances in 14 ms in a real browser). The risk
+is real but not yet biting.
+
+*Mitigation.* Simulation tiers, with most of the population as aggregate
+statistics rather than objects — now justified by measurement rather than
+expectation. A tick-time budget. Web Worker at Milestone 4. The O(n²) lookup
+needs an index or the tier system before Light-tier populations are attempted;
+`performance-reviewer` exists to catch the next one.
 
 ---
 

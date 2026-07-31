@@ -66,6 +66,26 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**Milestone 3 — COMPLETE**
+`npm run bench` writes `docs/PERFORMANCE_BASELINE.md`. Every performance guess in
+the docs is now a measurement. `performance-reviewer` agent created (ADR-0007).
+
+**The headline finding: the tick loop is O(n squared) in population.** Ten times
+the people costs ~66x the time per tick. Cause: friendship formation in
+`systems.ts` filters the whole living population per person. At 10,000 people a
+tick costs 210 ms against a ~100 ms budget.
+
+**NOT FIXED — deliberately.** M3 measures; it does not tune. The fix is either
+the tier system or a cohort index, and it should be chosen deliberately. Route
+the next tick-loop change through `performance-reviewer`.
+
+Second finding: **CPU bites before memory.** The docs assumed browser memory was
+the binding constraint; 10,000 people fit in ~20 MB and the whole page measured
+11 MB. Priorities reordered in `SIMULATION_LEVELS.md` §7.
+
+At the shipped ~100 people the game is fast: 0.27 ms/tick, 5 years in 14 ms in a
+real browser.
+
 **Milestone 2 — COMPLETE**
 Real interface: person list with living/working/children/dead filters, person
 detail (work, schooling, home, parents, children, friends -- all clickable to
@@ -100,19 +120,21 @@ the same fingerprint and displays pass/fail.
 
 ### Next up
 
-**Milestone 3 — measure and prove.** See `docs/MILESTONE_PLAN.md`.
-Replace every performance guess in the docs with real numbers: tick time at
-100 / 1,000 / 10,000 people, **browser memory per person and per causal
-record** (the binding constraint, not CPU), save-object growth per simulated
-year. Write `docs/PERFORMANCE_BASELINE.md`, update the estimates in
-`SIMULATION_LEVELS.md` §7, `CAUSAL_RECORDS.md` §5 and
-`ARCHITECTURE_PROPOSAL.md` §6, and create the `performance-reviewer` agent
-(ADR-0007). **Measure only — no optimizing.**
+**Milestone 4 — saves and responsiveness.** See `docs/MILESTONE_PLAN.md`.
+Resolves ADR-0004. In scope: choose the serialized save shape; header carrying
+schemaVersion, simulationVersion, seed **and `userId`** (valued `"local"` until
+M6); IndexedDB read/write from `apps/web`; checksum + graceful refusal of
+corrupt saves; one real migration from the M1 shape tested against a committed
+old save; move the engine into a **Web Worker**; handle `BigInt` in
+serialization before Layer 4 needs it.
 
-Known already: advancing 5 years blocks the main thread briefly. M4 moves the
-engine to a Web Worker; do not fix it early.
+`toSnapshot()` / `serialize()` in `snapshot.ts` already produce plain JSON-safe
+data with the header, so the shape work is mostly done. Engine state is already
+serializable, which the worker boundary requires.
 
-After that: M4 saves + Web Worker, M5 relationships, M6 accounts.
+Out of scope: cloud sync, accounts, named save slots.
+
+After that: M5 relationships, M6 accounts.
 
 **Binding out-of-scope until an ADR says otherwise:** marriage/divorce,
 relationship depth, businesses as entities, economy, health beyond

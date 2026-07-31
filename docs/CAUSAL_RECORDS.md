@@ -98,29 +98,38 @@ closing" — not a fifty-factor weight vector.
 
 ---
 
-## 5. Growth budget
+## 5. Growth — measured
 
-Rough order-of-magnitude reasoning, **not a measurement.** No code exists yet.
+**Measured at Milestone 3. See `PERFORMANCE_BASELINE.md`.** Replaces the
+order-of-magnitude guess that previously stood here.
 
-If a deeply-simulated person generates on the order of a few Major-or-above records
-per simulated year, and a compact record is on the order of a hundred bytes, then a
-thousand deep-simulated people over a hundred years lands somewhere in the tens of
-megabytes before compression. Survivable, but not something to leave unmeasured.
+At 100 people over 10 simulated years:
 
-Only **deep-tier** people produce full causal records at all. Medium tier produces
+| | |
+|---|---|
+| Causal records written | 168 |
+| Events written | 457 |
+| Serialized save | 168 KB |
+| Serialized bytes per person | ~1,700 |
+| Save growth | **~8 KB per simulated year** |
+
+Extrapolating that growth rate to an 80-year lifetime gives roughly 0.6 MB for a
+100-person town — comfortable. At 10,000 people the save reached 8.6 MB after a
+single decade, which is not.
+
+**Compression is not urgent at the current scale, and is unavoidable at the
+target scale.** The significance tiers in §4 remain the plan; the tier field is
+already written on every record, so compression can be added without a save
+migration.
+
+Only **deep-tier** people produce full causal records. Medium tier produces
 Defining records only. Light and aggregate tiers produce none — see
 `SIMULATION_LEVELS.md`.
 
-**Milestone 3 includes measuring actual record growth and replacing this estimate with
-real numbers** — measured in a browser, where memory is the binding constraint
-(ADR-0010). Save-file growth and causal-record growth are tracked as R-04 and R-05 in
-`RISK_REGISTER.md`.
-
-Because causal records accumulate for the life of a save and are held in browser
-memory, they are a leading candidate for the first thing that has to be trimmed. Design
-the compression path before it is needed, not after a tab gets killed.
-
----
+**Measured caveat.** Records and events are held in browser memory for the life
+of a save, so they are a leading candidate for the first thing that has to be
+trimmed. Design the compression path before it is needed, not after a tab gets
+killed.
 
 ## 6. Generating explanations
 
