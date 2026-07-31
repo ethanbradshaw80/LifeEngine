@@ -87,6 +87,23 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**L4-PLANNING — COMPLETE** (docs only; engine, golden, tests untouched)
+`docs/LAYER4_PLAN.md`: Layer 4 entered military-first (ADR-0017, Proposed —
+NEEDS ETHAN'S APPROVAL before L4-M1 starts). Five vertical milestones:
+L4-M1 geopolitics (fictional nations, relationship state machine on Stream 9
+— reserved since M1 — surfacing as news cards; no player mechanics),
+L4-M2 health prerequisite (injury/recovery/disability — the one gap the §17
+foreclosure audit found), L4-M3 service careers (enlistment pending kind,
+ServiceRecord per the employment pattern, occupational specialties),
+L4-M4 deployment & risk (danger = VECTOR from geopolitical state, never a
+country lookup — the permanent rule, enforced by test), L4-M5 awards &
+veterans (strict eligibility in code). THE ARCHITECTURAL RULE: foreign
+nations are aggregate-tier ONLY, no individual foreign person ever (O(n²)
+measured lesson). military-scope-reviewer agent created (mandatory on
+military changes; enforces the 7 rules incl. tone-both-directions and
+asymmetric information). Deferred within L4: units/lineage, schools,
+Reserve/Guard, officers, POW/MIA, ribbon-rack UI, war economics.
+
 **M-DEPTH2 (career depth & town content) — COMPLETE**
 annualReview() in systems.ts: on each job anniversary, pay closes part of the
 gap to the occupation ceiling scaled by performance (perf/6500 of headroom;

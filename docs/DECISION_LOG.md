@@ -32,6 +32,7 @@ Reversibility · Review trigger.
 | 0014 | **Web security reviewer added** | Accepted |
 | 0015 | **Product stages gated on criteria; monetization deferred** | **Accepted** |
 | 0016 | **Accounts deferred until the game is playable** | Accepted |
+| 0017 | **Layer 4 entered military-first; nations aggregate-only** | Proposed |
 
 ---
 
@@ -450,6 +451,49 @@ unchanged and still gate on M6 when it happens.
 **Reversibility.** Trivial — it is a reordering.
 
 **Review trigger.** M-PLAY complete and the game is genuinely playable.
+
+---
+
+## ADR-0017 — Layer 4 entered military-first; nations are aggregate-only
+
+**Status:** Proposed — requires owner approval
+**Date:** 2026-07-31
+
+**Context.** Layers 1–3 are built and playable (simulation v6, 168 tests).
+The owner directed Layer 4 planning, whose deepest and most-specified domain
+— military service and war — was the heart of the original bootstrap (§8, its
+largest section). The bootstrap did not order Layer 4's seven domains.
+
+**Decision.**
+
+1. Layer 4 is entered **military-first**: geopolitics → health prerequisite →
+   service careers → deployment and risk → awards and veterans, per
+   `LAYER4_PLAN.md`. Economy, government, crime, media, and transportation are
+   deferred within the layer; war's economic and political consequences are
+   narrative events until their domains exist.
+2. **Foreign nations are aggregate-tier only.** No individual foreign person
+   is ever simulated. Grounded in measurement, not taste: the tick loop is
+   O(n²) in people and 10,000 already cost 210 ms/tick (Milestone 3).
+3. The health model (injury, recovery, permanent disability) is pulled
+   forward as a prerequisite — the one genuine gap the §17 foreclosure audit
+   found in Layers 1–3.
+4. The `military-scope-reviewer` agent is created now, per ADR-0007's
+   deferred trigger, and is mandatory on military-touching changes.
+
+**Rationale.** This is the motivation trade `MILESTONE_PLAN.md` explicitly
+reserved from day one, taken deliberately rather than drifted into. The
+foundation doc's boundaries (fixed 2026-07-30, before any code) survived the
+audit almost intact, which is what a foundation phase is for.
+
+**Consequences.** Wars will initially move markets that do not exist; accepted
+and stated in the plan. Each L4 milestone bumps SIMULATION_VERSION and ships
+into the playable game.
+
+**Reversibility.** High — it is a sequencing plan. The aggregate-nations rule
+is the exception: reversing it later would be a performance rewrite, which is
+exactly why it is fixed now.
+
+**Review trigger.** After L4-M1 ships, reassess the remaining sequence.
 
 ---
 
