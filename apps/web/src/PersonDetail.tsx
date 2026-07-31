@@ -130,7 +130,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
         })()}
         {alive && household && (
           <>
-            <dt>Money</dt>
+            <dt>{age < 18 ? 'Family money' : 'Money'}</dt>
             <dd>
               {formatMoney(household.savings)}
               {household.savings < 0 && <span className="muted"> (behind)</span>}

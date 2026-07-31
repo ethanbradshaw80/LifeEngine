@@ -169,7 +169,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
           })()}
         </div>
         <div className="stat">
-          <span className="stat-label">Money</span>
+          {/* Money is household-level and nobody under 18 works; a child's
+              chip says whose pot this actually is (owner feedback). */}
+          <span className="stat-label">{age < 18 ? 'Family money' : 'Money'}</span>
           <span className={household && household.savings < 0 ? 'stat-value bad' : 'stat-value'}>
             {household ? formatMoney(household.savings) : '—'}
           </span>
