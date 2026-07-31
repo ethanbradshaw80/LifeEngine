@@ -39,6 +39,7 @@ export {
 
 // Player
 export {
+  applyForJob,
   awaitingPlayer,
   createCustomLife,
   describePending,
@@ -47,6 +48,7 @@ export {
   motherCandidates,
   playerIsAlive,
   playerPerson,
+  requestEnlistment,
   resolvePending,
   setPlayer,
 } from './player.js'
@@ -70,6 +72,8 @@ export type { InjuryContext } from './wounds.js'
 
 // Service (L4-M3)
 export {
+  boardStandingFor,
+  enlistmentBar,
   isServing,
   isVeteran,
   pensionOf,

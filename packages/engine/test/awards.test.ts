@@ -204,7 +204,8 @@ describe('a grown world decorates only from the record', () => {
           case 'good-conduct':
             expect(
               qualifying.type === 'reenlisted' ||
-                (qualifying.type === 'discharged' && qualifying.detail === 'end of term'),
+                (qualifying.type === 'discharged' &&
+                  (qualifying.detail === 'end of term' || qualifying.detail === 'high-year tenure')),
             ).toBe(true)
             break
           case 'qualification-badge':

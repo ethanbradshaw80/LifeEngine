@@ -67,7 +67,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = '01ccfa5c'
+export const GOLDEN_HASH_HEX = 'd64d83f7'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -140,7 +140,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":14')
+    expect(text).toContain('"simulationVersion":15')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

@@ -35,6 +35,10 @@ export interface WorldController {
   play: (personId: number | null, heir?: boolean) => void
   /** Be born: create a custom newborn in an existing family and play it. */
   createLife: (spec: CreateLifeSpec) => void
+  /** Ask after work at a trade, from the Jobs tab. The town answers. */
+  applyJob: (occupationId: string) => void
+  /** Walk into the recruiting office, from the Service tab. */
+  requestEnlist: () => void
   /** Answer the pending decision. */
   choose: (choice: string) => void
   save: () => void
@@ -147,6 +151,17 @@ export function useWorld(initialSeed: number): WorldController {
     [send],
   )
 
+  const applyJob = useCallback(
+    (occupationId: string) => {
+      send({ type: 'apply-job', occupationId })
+    },
+    [send],
+  )
+
+  const requestEnlist = useCallback(() => {
+    send({ type: 'request-enlist' })
+  }, [send])
+
   const choose = useCallback(
     (choice: string) => {
       send({ type: 'choose', choice })
@@ -184,6 +199,8 @@ export function useWorld(initialSeed: number): WorldController {
     newWorld,
     play,
     createLife,
+    applyJob,
+    requestEnlist,
     choose,
     save,
     discardSave,

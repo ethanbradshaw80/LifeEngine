@@ -111,9 +111,11 @@ export function grantCampaignMedal(
 
 /**
  * Good conduct: a full enlistment term served honorably. The qualifying
- * event is the moment the term closed — reenlistment, or an end-of-term
- * discharge. A term cut short (medical, or anything else) does not qualify;
- * earlier completed terms keep the medals they earned.
+ * event is the moment the term closed — reenlistment, an end-of-term
+ * discharge, or a high-year-tenure separation (the term WAS served in full;
+ * being passed over is not dishonor). A term cut short — medical, or
+ * anything else — does not qualify; earlier completed terms keep the medals
+ * they earned.
  */
 export function grantGoodConduct(
   world: World,
@@ -124,7 +126,13 @@ export function grantGoodConduct(
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
-  if (qualifying.type === 'discharged' && qualifying.detail !== 'end of term') return null
+  if (
+    qualifying.type === 'discharged' &&
+    qualifying.detail !== 'end of term' &&
+    qualifying.detail !== 'high-year tenure'
+  ) {
+    return null
+  }
   if (performance < GOOD_CONDUCT_PERFORMANCE) return null
 
   return grant(world, tick, personId, {

@@ -16,8 +16,10 @@
 
 import {
   advanceTicks,
+  applyForJob,
   createCustomLife,
   createWorld,
+  requestEnlistment,
   resolvePending,
   setPlayer,
   SIMULATION_VERSION,
@@ -42,6 +44,8 @@ export type WorkerRequest =
   | { readonly type: 'play'; readonly personId: number | null; readonly heir?: boolean }
   | { readonly type: 'choose'; readonly choice: string }
   | { readonly type: 'create-life'; readonly spec: CreateLifeSpec }
+  | { readonly type: 'apply-job'; readonly occupationId: string }
+  | { readonly type: 'request-enlist' }
 
 export type WorkerResponse =
   | {
@@ -111,6 +115,28 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         // then the clock is free again. The next 'advance' resumes the life.
         resolvePending(world, request.choice)
         send(0)
+        return
+      }
+
+      case 'apply-job': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to work in.' })
+          return
+        }
+        // The engine answers honestly either way; a "no" travels back as a
+        // notice so the player hears it even though the world barely moved.
+        const result = applyForJob(world, request.occupationId)
+        send(0, result.hired ? undefined : result.reason)
+        return
+      }
+
+      case 'request-enlist': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to serve in.' })
+          return
+        }
+        const result = requestEnlistment(world)
+        send(0, result.asked ? undefined : result.reason)
         return
       }
 

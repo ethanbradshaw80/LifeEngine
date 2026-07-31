@@ -892,6 +892,49 @@ ul.welcome-points li + li {
   color: var(--muted);
 }
 
+.job-list li {
+  grid-template-areas:
+    'title pay'
+    'req action';
+}
+
+.job-list .apply {
+  grid-area: action;
+  justify-self: end;
+  padding: 0.15rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.job-list .apply:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.enlist-now {
+  margin-top: 0.6rem;
+  padding: 0.55rem 1.4rem;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.action-notice {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.85rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
 .feed-empty {
   color: var(--muted);
   text-align: center;

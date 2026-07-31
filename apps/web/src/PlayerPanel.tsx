@@ -227,6 +227,9 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   convalesce: { rest: 'Rest and heal', 'push-on': 'Push on' },
   enlist: { accept: 'Enlist', decline: 'Not for me' },
   reenlist: { stay: 'Sign again', leave: 'Come home' },
+  'promotion-board': { 'put-in': 'Put your name in', pass: 'Let it go by' },
+  'attend-school': { attend: 'Take the slot', pass: 'Pass' },
+  'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
 }
 
 function optionLabel(kind: string, option: string): string {

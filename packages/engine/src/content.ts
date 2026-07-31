@@ -278,6 +278,13 @@ export function servicePay(branch: ServiceBranch, rank: number): Money {
 /** Standard enlistment term, months. */
 export const SERVICE_TERM_MONTHS = 48
 
+/**
+ * Up or out (M-SERVICE-PLAY): months in the same grade before the service
+ * separates a passed-over member at term's end. Six years in grade without
+ * advancement ends a career — honorably, but it ends.
+ */
+export const HIGH_YEAR_TENURE_TIG = 72
+
 /** Below this service-connected disability, no pension (L4-M5). */
 export const PENSION_THRESHOLD = 200
 /** Monthly cents per point of service-connected disability. */

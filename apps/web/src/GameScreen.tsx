@@ -43,7 +43,7 @@ import {
   timelineFor,
   veteranUnlocks,
 } from '@life-engine/engine'
-import { BRANCH_NAMES, healthOf, isDeployed, isServing, rankTitle, specialtyById } from '@life-engine/engine'
+import { BRANCH_NAMES, enlistmentBar, healthOf, isDeployed, isServing, rankTitle, specialtyById } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -70,6 +70,8 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'changed-post': '🧳',
   awarded: '🏅',
   'granted-pension': '🏛️',
+  'passed-over': '⏳',
+  'turned-down': '🚪',
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',
@@ -125,6 +127,11 @@ interface Props {
   readonly onAdvance: (months: number) => void
   readonly onStop: () => void
   readonly onInspect: (id: EntityId) => void
+  /** Tab verbs (M-SERVICE-PLAY): ask after work; walk into the recruiter. */
+  readonly onApplyJob: (occupationId: string) => void
+  readonly onRequestEnlist: () => void
+  /** The world's short answer to the last action ("no place this month"). */
+  readonly notice: string | null
 }
 
 function PersonLink({
@@ -145,7 +152,7 @@ function PersonLink({
   )
 }
 
-export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }: Props) {
+export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
   const feedRef = useRef<HTMLDivElement | null>(null)
@@ -532,6 +539,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
                       <span className="job-pay">
                         {formatMoney(occupation.minMonthlyPay)}–{formatMoney(occupation.maxMonthlyPay)}
                       </span>
+                      {!mine && age >= 18 && !isServing(world, person.id) && (
+                        <button
+                          type="button"
+                          className="apply"
+                          disabled={busy}
+                          onClick={() => onApplyJob(occupation.id)}
+                        >
+                          Apply
+                        </button>
+                      )}
                     </li>
                   )
                 })
@@ -604,15 +621,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
           {(() => {
             const record = world.service.get(person.id)
             if (!record) {
+              const bar = enlistmentBar(world, person, world.tick)
               return (
-                <p className="feed-empty">
-                  No service record.
-                  <br />
-                  <span className="muted small">
-                    Service begins with an enlistment — the question comes at
-                    eighteen, or when a recruiter knocks.
-                  </span>
-                </p>
+                <div className="feed-empty">
+                  <p>No service record.</p>
+                  {bar === null ? (
+                    <>
+                      <p className="muted small">The recruiting office is open, and you qualify.</p>
+                      <button type="button" className="enlist-now" disabled={busy} onClick={onRequestEnlist}>
+                        🪖 Enlist
+                      </button>
+                    </>
+                  ) : (
+                    <p className="muted small">{bar}</p>
+                  )}
+                </div>
               )
             }
             const tours = deploymentsOf(world, person.id)
@@ -779,6 +802,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
           })()}
         </div>
       )}
+
+      {notice !== null && <div className="action-notice">{notice}</div>}
 
       <footer className="action-bar">
         <button type="button" disabled={busy} onClick={() => onAdvance(1)}>

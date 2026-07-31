@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v15 — M-SERVICE-PLAY. The career answers to the player: competitive
+ *      stripes come only through the board question; schools and
+ *      qualifications raise real standing; volunteering for the rotation;
+ *      high-year tenure separates the passed-over at term's end; tab verbs
+ *      (job applications, walk-in enlistment) resolved in-engine. NPC
+ *      careers also differ (up-or-out, slower E-4 lateral).
  * v14 — L4-M5. Awards and veterans: wound recognition strictly from enemy
  *      action, campaign credit from qualifying tours, good conduct from
  *      completed honorable terms, qualification badges; disability pensions
@@ -71,7 +77,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 14
+export const SIMULATION_VERSION = 15
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -31,6 +31,7 @@ import {
   BRANCH_NAMES,
   BRANCH_RANKS,
   COMPETITIVE_FROM,
+  HIGH_YEAR_TENURE_TIG,
   JUNIOR_TIG_MONTHS,
   PENSION_CENTS_PER_POINT,
   PENSION_THRESHOLD,
@@ -39,6 +40,7 @@ import {
   SPECIALTIES,
   specialtyById,
 } from './content.js'
+import { activeWars, homeland } from './geopolitics.js'
 import type { ServiceBranch, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement } from './content.js'
 import { isDeployed } from './deployment.js'
@@ -80,6 +82,63 @@ export function rankTitle(branch: string, rank: number): string {
   return ladder[Math.max(0, Math.min(ladder.length - 1, rank))] ?? ladder[0] ?? 'PVT'
 }
 
+/** The gates on the NEXT competitive step, or null when the next step is
+ *  junior (time-based) or the ladder is topped out. */
+export function competitiveGates(
+  branch: ServiceBranch,
+  rank: number,
+  holdsQual: boolean,
+): { readonly targetRank: number; readonly tigNeeded: number; readonly bar: number } | null {
+  const ladder = BRANCH_RANKS[branch]
+  const competitiveFrom = COMPETITIVE_FROM[branch]
+  if (rank >= ladder.length - 1) return null
+  if (rank + 1 < competitiveFrom) return null
+  const grades = BRANCH_GRADES[branch]
+  const stepsUp = rank + 1 - competitiveFrom
+  // A same-grade lateral (SPC→CPL) is an appointment, not a grade board —
+  // quicker than a board, but it waits on a billet, not on the calendar
+  // alone (owner: two mid-career promotions in a year reads wrong).
+  const sameGrade = grades[rank + 1] === grades[rank]
+  const tigNeeded = sameGrade ? 12 : 12 + stepsUp * 6
+  const bar = 520 + stepsUp * 70 - (holdsQual ? 50 : 0)
+  return { targetRank: rank + 1, tigNeeded, bar }
+}
+
+/**
+ * The player's standing before the board, for the stakes screen and the
+ * board resolution — everything here is what the person themselves would
+ * know. Null when not serving or the next step is not competitive.
+ */
+export function boardStandingFor(
+  world: World,
+  personId: EntityId,
+): {
+  readonly targetTitle: string
+  readonly timeInGrade: number
+  readonly tigNeeded: number
+  readonly bar: number
+  readonly performance: number
+  /** Recorded non-selections for this same rank — the file the board reads. */
+  readonly priorPassOvers: number
+} | null {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return null
+  const specialty = specialtyById(record.specialtyId)
+  const gates = competitiveGates(specialty.branch, record.rank, record.qualifications.includes(specialty.qualification))
+  if (!gates) return null
+  const targetTitle = rankTitle(record.branch, gates.targetRank)
+  return {
+    targetTitle,
+    timeInGrade: world.tick - record.rankSinceTick,
+    tigNeeded: gates.tigNeeded,
+    bar: gates.bar,
+    performance: record.performance,
+    priorPassOvers: world.events.filter(
+      (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === targetTitle,
+    ).length,
+  }
+}
+
 /**
  * Monthly disability pension, in cents. Paid to living veterans for
  * SERVICE-CONNECTED disability: harm from wounds stamped at infliction as
@@ -111,15 +170,28 @@ function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
   return SPECIALTIES.filter((sp) => meetsRequirement(level, sp.requires))
 }
 
-function canEnlist(world: World, person: Person, tick: Tick): boolean {
+/**
+ * Why enlistment is closed to this person right now — or null when the door
+ * is open. The Service tab shows the reason instead of a dead button
+ * (M-SERVICE-PLAY): the recruiter's "no" is information, not a mystery.
+ */
+export function enlistmentBar(world: World, person: Person, tick: Tick): string | null {
   const age = ageAt(person.birthTick, tick)
-  if (age < ENLIST_MIN_AGE || age > ENLIST_MAX_AGE) return false
-  if (world.service.has(person.id)) return false // one career per life, for now
-  if (isSeverelyAiling(world, person.id)) return false
-  if ((world.health.get(person.id)?.disability ?? 0) >= MEDICAL_LIMIT) return false
+  if (age < ENLIST_MIN_AGE) return 'Not yet eighteen.'
+  if (age > ENLIST_MAX_AGE) return 'Past enlistment age — the office takes volunteers at eighteen to twenty-six.'
+  if (world.service.has(person.id)) return 'One service career per life; the record stands.'
+  if (isSeverelyAiling(world, person.id)) return 'The body would not pass the medical today.'
+  if ((world.health.get(person.id)?.disability ?? 0) >= MEDICAL_LIMIT) {
+    return 'The medical exam reads the record of old harm, and refuses.'
+  }
   const education = world.education.get(person.id)
-  if (education?.enrolledIn !== null && education !== undefined) return false
-  return eligibleSpecialties(world, person).length > 0
+  if (education?.enrolledIn !== null && education !== undefined) return 'Still in school.'
+  if (eligibleSpecialties(world, person).length === 0) return 'No specialty is open at this schooling.'
+  return null
+}
+
+function canEnlist(world: World, person: Person, tick: Tick): boolean {
+  return enlistmentBar(world, person, tick) === null
 }
 
 // ---------------------------------------------------------------------------
@@ -286,30 +358,28 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   let rank = record.rank
   let rankSinceTick = record.rankSinceTick
   const timeInGrade = tick - record.rankSinceTick
+  const isPlayer = person.id === world.player.personId
   if (rank < ladder.length - 1) {
     const competitiveFrom = COMPETITIVE_FROM[branch]
-    const grades = BRANCH_GRADES[branch]
     const holdsQual = record.qualifications.includes(specialty.qualification)
     let promote = false
     if (rank + 1 < competitiveFrom) {
       const due = JUNIOR_TIG_MONTHS[branch][rank] ?? 6
       promote = timeInGrade >= due && performance >= 300
-    } else {
-      // The board ranks. A same-grade lateral (SPC→CPL, both E-4) is an
-      // appointment, not a grade board, and comes quicker — otherwise the
-      // mandatory rung would push a first sergeant's stripes past year six,
-      // which is not how it works. A held qualification counts toward the
+    } else if (!isPlayer) {
+      // The board ranks, NPC path. A held qualification counts toward the
       // bar (promotion points, the real mechanism), and the wait shortens
       // the further past the bar the work is — the draw stands in for slot
-      // timing, not for merit.
-      const stepsUp = rank + 1 - competitiveFrom
-      const sameGrade = grades[rank + 1] === grades[rank]
-      const tigNeeded = sameGrade ? 6 : 12 + stepsUp * 6
-      const bar = 520 + stepsUp * 70 - (holdsQual ? 50 : 0)
-      promote =
-        timeInGrade >= tigNeeded &&
-        performance >= bar &&
-        rng.chance(2 + Math.floor(Math.max(0, performance - bar) / 60), 24)
+      // timing, not for merit. THE PLAYER never promotes through this
+      // branch: their stripes come only through the board question
+      // (M-SERVICE-PLAY) — put in for, not received.
+      const gates = competitiveGates(branch, rank, holdsQual)
+      if (gates) {
+        promote =
+          timeInGrade >= gates.tigNeeded &&
+          performance >= gates.bar &&
+          rng.chance(2 + Math.floor(Math.max(0, performance - gates.bar) / 60), 24)
+      }
     }
     if (promote) {
       rank += 1
@@ -388,6 +458,72 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
+  // --- The player's own hands on the career (M-SERVICE-PLAY). -------------
+  // Service used to happen TO the player; these are the handles. Only the
+  // player draws here (guarded), so a world played by nobody is untouched.
+  if (isPlayer && !deployed && monthsIn > schoolDone) {
+    // The board's question, yearly once eligible. Deterministic cadence —
+    // eligibility is a fact, not a roll. DEFERRED, NEVER LOST: if another
+    // question held the month (a wound's convalescence, say), the ask
+    // retries for two more months; the player's own log is the dedupe, so
+    // an answered board never re-asks inside its year.
+    const gates = competitiveGates(branch, rank, record.qualifications.includes(specialty.qualification))
+    if (gates) {
+      const over = timeInGrade - gates.tigNeeded
+      const askedRecently = world.player.log.some(
+        (entry) => entry.kind === 'promotion-board' && tick - entry.tick < 10,
+      )
+      if (over >= 0 && over % 12 <= 2 && !askedRecently) {
+        raisePending(world, {
+          tick,
+          kind: 'promotion-board',
+          personId: person.id,
+          otherId: null,
+          occupationId: null,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: ['put-in', 'pass'],
+        })
+      }
+    }
+    // A school slot opens now and then — the way to train, and to earn the
+    // rating the board counts.
+    if (rng.chance(1, 36)) {
+      raisePending(world, {
+        tick,
+        kind: 'attend-school',
+        personId: person.id,
+        otherId: null,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['attend', 'pass'],
+      })
+    }
+    // The rotation list, while the Republic fights. Orders can still come
+    // regardless — volunteering just stops waiting for them.
+    const home = homeland(world)
+    if (
+      home !== undefined &&
+      activeWars(world).some((w) => w.a === home.id || w.b === home.id) &&
+      rng.chance(1, 6)
+    ) {
+      raisePending(world, {
+        tick,
+        kind: 'volunteer-deploy',
+        personId: person.id,
+        otherId: null,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+    }
+  }
+
   const termMonthsLeft = record.termMonthsLeft - 1
 
   world.service.set(person.id, {
@@ -410,6 +546,18 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // boat home — the army's oldest fine print, and honestly modelled as such.
   if (isDeployed(world, person.id)) {
     world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 1 })
+    return
+  }
+
+  // HIGH-YEAR TENURE: up or out. Six years in the same grade and the
+  // service does not offer another term — player and NPC alike, because
+  // this is the army's decision, not a question. The term itself was served
+  // in full, so good conduct is still judged (the grant accepts this
+  // discharge). Nobody sits at SPC for forty years any more.
+  if (rank < ladder.length - 1 && tick - rankSinceTick >= HIGH_YEAR_TENURE_TIG) {
+    discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
+      factor('time-in-grade', 1000),
+    ])
     return
   }
 

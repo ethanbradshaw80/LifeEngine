@@ -432,6 +432,23 @@ export type PendingKind =
   | 'specialty'
   /** Term's end: sign again, or hang it up. */
   | 'reenlist'
+  /** The board meets (M-SERVICE-PLAY): put your name in, or let it go by.
+   *  For the PLAYER, competitive rank comes only through this door —
+   *  stripes are put in for, not received. */
+  | 'promotion-board'
+  /** A slot at an advanced school opened: take it, or pass. */
+  | 'attend-school'
+  /** The unit is taking names for the next rotation. The orders system
+   *  can still call regardless — volunteering just stops waiting. */
+  | 'volunteer-deploy'
+  /**
+   * LOG-ONLY (like 'custom-birth'): the player asked after work at a
+   * particular trade — a tab verb, recorded so replay stays exact. Never a
+   * live question.
+   */
+  | 'job-application'
+  /** LOG-ONLY: the player walked into the recruiting office themselves. */
+  | 'walk-in-enlist'
   /**
    * A custom life brought into the world at the picker. NEVER raised as a
    * live question — createCustomLife writes the log entry directly, so the
@@ -531,6 +548,12 @@ export type EventType =
   | 'awarded'
   /** The pension board recognized service-connected disability (L4-M5). */
   | 'granted-pension'
+  /** Went before the promotion board and was not selected (M-SERVICE-PLAY).
+   *  Non-selection is on the record, like selection is. */
+  | 'passed-over'
+  /** Asked after work and the town said no (M-SERVICE-PLAY). The answer is
+   *  part of the story, like the asking was. */
+  | 'turned-down'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'

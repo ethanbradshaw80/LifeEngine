@@ -163,7 +163,9 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'discharged':
       return event.detail === 'medical'
         ? `${year} — Discharged on medical grounds at ${age}.`
-        : `${year} — Left the service at ${age}.`
+        : event.detail === 'high-year tenure'
+          ? `${year} — The service did not offer another term; separated at ${age}.`
+          : `${year} — Left the service at ${age}.`
     case 'began-training':
       return `${year} — Reported to ${event.detail ?? 'training'}.`
     case 'completed-training':
@@ -176,6 +178,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Posted to ${event.detail ?? 'a new station'}.`
     case 'awarded':
       return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
+    case 'passed-over':
+      return `${year} — Went before the ${event.detail ?? 'promotion'} board; not selected.`
+    case 'turned-down':
+      return `${year} — Asked after work as ${event.detail !== null ? withArticle(event.detail) : 'something new'}; no place this time.`
     case 'granted-pension': {
       const cents = event.detail === null ? null : Number.parseInt(event.detail, 10)
       const sum = cents !== null && Number.isFinite(cents) ? formatMoney(cents as never) : 'a pension'

@@ -196,6 +196,64 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
   }
 }
 
+/**
+ * A hand raised for the rotation (M-SERVICE-PLAY). Same tour machinery as
+ * orders — the war a volunteer gets is no kinder — but the record says
+ * 'own-choice' where orders say 'under-orders', because that difference is
+ * the truth of the moment and a life story should keep it. Returns false
+ * when there is no war, no training, or no standing to go.
+ */
+export function volunteerForDeployment(world: World, tick: Tick, personId: EntityId): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  const wars = activeWars(world).filter((w) => w.a === home.id || w.b === home.id)
+  const war = wars[0]
+  if (!war) return false
+
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || person.deathTick !== null) return false
+  if (!record || record.dischargedAtTick !== null) return false
+  if (isDeployed(world, personId)) return false
+  const trained = 2 + specialtyById(record.specialtyId).schoolMonths
+  if (tick - record.enlistedAtTick < trained) return false
+
+  const enemyId = war.a === home.id ? war.b : war.a
+  const history = world.deployments.get(personId) ?? []
+  const deployment: Deployment = {
+    personId,
+    warA: war.a,
+    warB: war.b,
+    enemyId,
+    startedAtTick: tick,
+    endsAtTick: (tick + TOUR_MONTHS) as Tick,
+    returnedAtTick: null,
+    tourNumber: history.length + 1,
+  }
+  world.deployments.set(personId, [...history, deployment])
+
+  const enemy = world.nations.get(enemyId)
+  recordEvent(world, tick, {
+    type: 'deployed',
+    subjectId: personId,
+    otherId: enemyId,
+    detail: enemy ? `the ${enemy.name} front` : 'the front',
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'deployment',
+    significance: 'defining',
+    inputs: [
+      factor('own-choice', 1000),
+      factor('war-demanded-troops', Math.min(1000, world.nations.get(enemyId)?.strength ?? 300)),
+    ],
+    chosen: `volunteered for ${enemy ? `the ${enemy.name} front` : 'the front'}`,
+    rejected: ['to wait for orders'],
+    streamId: Stream.CombatResolution,
+  })
+  return true
+}
+
 /** A month in theatre for everyone out there — and the way home at tour's end. */
 function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
   const deployedIds: EntityId[] = []

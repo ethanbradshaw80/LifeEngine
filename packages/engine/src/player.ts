@@ -20,20 +20,28 @@
  *    same life exactly.
  */
 
-import type { EntityId } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { occupationById } from './content.js'
+import { educationRank, OCCUPATIONS, occupationById } from './content.js'
+import type { ServiceBranch } from './content.js'
 import { withArticle } from './text.js'
 import { householdCosts, householdIncome, inArrears } from './finances.js'
+import { volunteerForDeployment } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
-import { applyConvalescence } from './health.js'
+import { applyConvalescence, isSeverelyAiling } from './health.js'
+import { grantQualificationBadge } from './awards.js'
 import {
+  boardStandingFor,
   discharge as dischargeService,
   enlistPerson,
+  enlistmentBar,
+  isServing,
   rankTitle,
   reenlist as reenlistService,
+  veteranUnlocks,
 } from './service.js'
+import { placesOfKind } from './worldgen.js'
 import {
   BRANCH_NAMES,
   meetsRequirement,
@@ -43,8 +51,8 @@ import {
   specialtyById,
 } from './content.js'
 import { rentFor } from './content.js'
-import { factor, recordDecision } from './records.js'
-import { Stream } from './rng.js'
+import { factor, recordDecision, recordEvent } from './records.js'
+import { openStream, Stream } from './rng.js'
 import {
   performSeparation,
   promoteToCourting,
@@ -183,6 +191,112 @@ export function createCustomLife(world: World, spec: CustomLifeSpec): EntityId |
 
   setPlayer(world, childId)
   return childId
+}
+
+// ---------------------------------------------------------------------------
+// Tab verbs (M-SERVICE-PLAY): actions the player INITIATES, resolved by the
+// same machinery the world already uses. Each verb logs itself (the
+// custom-birth pattern) so seed + log still replays the world exactly; each
+// answers honestly, including "no".
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask after work at a particular trade, now, from the Jobs tab. Being
+ * qualified gets you considered; the town still has to have a place. A "no"
+ * goes in the feed like a "yes" does — asking is part of the story.
+ */
+export function applyForJob(world: World, occupationId: string): { hired: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { hired: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { hired: false, reason: 'A decision is already waiting.' }
+  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
+  if (!occupation) return { hired: false, reason: 'No such trade in town.' }
+
+  const tick = world.tick
+  const age = ageAt(person.birthTick, tick)
+  if (age < 18) return { hired: false, reason: 'Not yet eighteen.' }
+  if (isServing(world, person.id)) {
+    return { hired: false, reason: 'The uniform is a full-time career; leave the service first.' }
+  }
+  const education = world.education.get(person.id)
+  if (education?.enrolledIn !== null && education !== undefined && educationRank(education.enrolledIn) > 2) {
+    return { hired: false, reason: 'Full-time study fills the days.' }
+  }
+  if (isSeverelyAiling(world, person.id)) {
+    return { hired: false, reason: 'Too ill or hurt to take new work this month.' }
+  }
+  const current = world.employment.get(person.id)
+  if (current?.occupationId === occupationId) {
+    return { hired: false, reason: 'This is already the work they do.' }
+  }
+  // One asking a month: the same month re-rolls the same answer, and a life
+  // story should not carry ten identical rejections dated the same day.
+  if (world.player.log.some((entry) => entry.kind === 'job-application' && entry.tick === tick)) {
+    return { hired: false, reason: 'One asking a month. The town knows where to find you.' }
+  }
+
+  // The asking is a player input — logged before the answer, so replay
+  // walks the same road.
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick,
+    kind: 'job-application',
+    choice: occupationId,
+  })
+  world.player.nextDecisionId += 1
+
+  const unlocked = veteranUnlocks(world, person.id)
+  const qualified =
+    meetsRequirement(education?.level ?? 'none', occupation.requires) || unlocked.includes(occupation.id)
+  if (!qualified) {
+    return { hired: false, reason: `${occupation.title} asks for ${occupation.requires === 'college' ? 'college' : occupation.requires === 'trade' ? 'trade school' : 'more schooling'} — the papers are not there.` }
+  }
+
+  const workplaces = placesOfKind(world, 'workplace')
+  if (workplaces.length === 0) return { hired: false, reason: 'No workplace stands in town.' }
+
+  const rng = openStream(world.seed, Stream.Employment, person.id, tick + 9999)
+  // Asking beats waiting for the town to come to you — but a big step up
+  // from today's wage is a harder door, and none of it is a sure thing.
+  const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
+  const stretch = current !== undefined && occupation.minMonthlyPay > Math.floor(current.monthlyPay * 13 / 10) ? 150 : 0
+  if (!rng.chance(450 + Math.floor(drive / 4) - stretch, 1000)) {
+    recordEvent(world, tick, { type: 'turned-down', subjectId: person.id, detail: occupation.title })
+    return { hired: false, reason: `No place for ${withArticle(occupation.title)} this month. The asking is on the record.` }
+  }
+
+  const workplace = rng.pick(workplaces)
+  const pay = rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay) as Money
+  hirePerson(world, tick, person, occupation, workplace.id, pay, [
+    factor('own-choice', 1000),
+    factor('qualified-for-role', 500 + educationRank(education?.level ?? 'none') * 100),
+  ])
+  return { hired: true, reason: '' }
+}
+
+/**
+ * Walk into the recruiting office, now, from the Service tab. Eligible, the
+ * which-uniform question follows immediately; barred, the reason comes back
+ * in plain words instead of a silent dead end.
+ */
+export function requestEnlistment(world: World): { asked: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { asked: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { asked: false, reason: 'A decision is already waiting.' }
+
+  const bar = enlistmentBar(world, person, world.tick)
+  if (bar !== null) return { asked: false, reason: bar }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'walk-in-enlist',
+    choice: 'asked',
+  })
+  world.player.nextDecisionId += 1
+
+  askSpecialty(world, world.tick, person.id)
+  return { asked: true, reason: '' }
 }
 
 /** Called by systems at a player choice point. Halts the clock. */
@@ -365,10 +479,138 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'promotion-board': {
+      // Stripes are put in for. Putting in comes with putting in the work
+      // (+40 on the month), and the answer — either answer — goes on the
+      // record. 'pass' means not considered: an own choice, no roll.
+      if (choice === 'put-in') {
+        const record = world.service.get(person.id)
+        const standing = boardStandingFor(world, person.id)
+        if (record && record.dischargedAtTick === null && standing && standing.timeInGrade >= standing.tigNeeded) {
+          const rng = openStream(world.seed, Stream.Employment, person.id, pending.tick + 5666)
+          const prepped = record.performance + 40
+          // The board reads the file: each recorded non-selection for this
+          // rank raises what it takes. That is what makes 'pass' a real
+          // choice — an unready packet costs the next one.
+          const barWithFile = standing.bar + standing.priorPassOvers * 15
+          const selected =
+            prepped >= barWithFile &&
+            rng.chance(2 + Math.floor(Math.max(0, prepped - barWithFile) / 60), 24)
+          if (selected) {
+            const newRank = record.rank + 1
+            world.service.set(person.id, {
+              ...record,
+              rank: newRank,
+              rankSinceTick: pending.tick,
+              monthlyPay: servicePay(record.branch as ServiceBranch, newRank),
+            })
+            recordEvent(world, pending.tick, {
+              type: 'promoted',
+              subjectId: person.id,
+              detail: rankTitle(record.branch, newRank),
+            })
+            recordDecision(world, pending.tick, {
+              subjectId: person.id,
+              decision: 'promotion',
+              significance: 'notable',
+              inputs: [
+                factor('own-choice', 1000),
+                factor('strong-performance', record.performance),
+                factor('time-in-grade', Math.min(1000, standing.timeInGrade * 10)),
+              ],
+              chosen: `made ${rankTitle(record.branch, newRank)}`,
+              rejected: [],
+              streamId: Stream.Employment,
+            })
+          } else {
+            recordEvent(world, pending.tick, {
+              type: 'passed-over',
+              subjectId: person.id,
+              detail: standing.targetTitle,
+            })
+            recordDecision(world, pending.tick, {
+              subjectId: person.id,
+              decision: 'promotion',
+              significance: 'notable',
+              inputs: [factor('own-choice', 1000), factor('strong-performance', record.performance)],
+              chosen: `went before the ${standing.targetTitle} board; not selected`,
+              rejected: [],
+              streamId: Stream.Employment,
+            })
+          }
+        }
+      } else {
+        // Letting it go by is a choice too, and it is on the record — the
+        // stakes text promises exactly that, so the code keeps the promise.
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'promotion',
+          significance: 'notable',
+          inputs: [factor('own-choice', 1000)],
+          chosen: 'let the board go by',
+          rejected: ['to put in'],
+          streamId: Stream.Employment,
+        })
+      }
+      break
+    }
+
+    case 'attend-school': {
+      if (choice === 'attend') {
+        const record = world.service.get(person.id)
+        if (record && record.dischargedAtTick === null) {
+          const specialty = specialtyById(record.specialtyId)
+          // One event, not a same-tick begin-and-end: a short course fits
+          // inside the month, and the feed should not pretend otherwise.
+          recordEvent(world, pending.tick, { type: 'completed-training', subjectId: person.id, detail: 'an advanced course' })
+          const performance = Math.min(1000, record.performance + 60)
+          world.service.set(person.id, { ...record, performance })
+          // The school can also earn the trade's rating — which counts
+          // toward the board (the training-to-promotion path the owner
+          // asked for, and the real one).
+          if (!record.qualifications.includes(specialty.qualification) && performance >= 500) {
+            const qualEvent = recordEvent(world, pending.tick, {
+              type: 'earned-qualification',
+              subjectId: person.id,
+              detail: specialty.qualification,
+            })
+            world.service.set(person.id, {
+              ...world.service.get(person.id)!,
+              qualifications: [...record.qualifications, specialty.qualification],
+            })
+            grantQualificationBadge(world, pending.tick, person.id, qualEvent, specialty.qualification)
+          }
+          recordDecision(world, pending.tick, {
+            subjectId: person.id,
+            decision: 'enlistment',
+            significance: 'notable',
+            inputs: [factor('own-choice', 1000), factor('ambition', person.traits.ambition)],
+            chosen: 'took a slot at an advanced school',
+            rejected: ['to let it go by'],
+            streamId: Stream.Employment,
+          })
+        }
+      }
+      break
+    }
+
+    case 'volunteer-deploy': {
+      if (choice === 'accept') {
+        volunteerForDeployment(world, pending.tick, person.id)
+      }
+      break
+    }
+
     case 'custom-birth': {
       // Never a live question: createCustomLife writes the log entry itself.
       // Reaching here means a corrupted pending — refuse loudly.
       throw new Error('custom-birth is a log entry, not a live decision')
+    }
+
+    case 'job-application':
+    case 'walk-in-enlist': {
+      // Log-only, like custom-birth: the tab verbs write these themselves.
+      throw new Error(`${pending.kind} is a log entry, not a live decision`)
     }
 
     case 'reenlist': {
@@ -504,8 +746,20 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'A recruiter for the Republic has your name. Enlist?'
     case 'specialty':
       return 'Which uniform? Your schooling opens these doors.'
+    case 'promotion-board': {
+      const standing = boardStandingFor(world, pending.personId)
+      return `The ${standing?.targetTitle ?? 'promotion'} board meets. Put your name in?`
+    }
+    case 'attend-school':
+      return 'A slot at an advanced school has opened. Take it?'
+    case 'volunteer-deploy':
+      return 'The unit is taking names for the next rotation. Volunteer?'
     case 'custom-birth':
       return 'A new life begins.' // log-only; never shown as a question
+    case 'job-application':
+      return 'Asked after work.' // log-only
+    case 'walk-in-enlist':
+      return 'Walked into the recruiting office.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(record.branch, record.rank) : 'soldier'
@@ -710,6 +964,49 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         lines.push('Pushing on keeps the job sharp and the body slow to mend — and mending badly can leave a lasting mark.')
         const job = world.employment.get(person.id)
         if (job) lines.push(`You are working as ${withArticle(occupationById(job.occupationId).title)}.`)
+      }
+      break
+    }
+
+    case 'promotion-board': {
+      // Everything here is what the person themselves would know: their own
+      // standing, their own time in grade. The board's slot arithmetic stays
+      // the board's.
+      const standing = boardStandingFor(world, pending.personId)
+      if (standing) {
+        lines.push(`Your standing is ${String(standing.performance)} against a bar around ${String(standing.bar)}.`)
+        lines.push(`${String(standing.timeInGrade)} months in grade; the board asks ${String(standing.tigNeeded)}.`)
+        if (standing.priorPassOvers > 0) {
+          lines.push(
+            `The file shows ${String(standing.priorPassOvers)} prior non-selection${standing.priorPassOvers === 1 ? '' : 's'}; the board reads it.`,
+          )
+        }
+        lines.push('An unready packet goes in the file the next board reads. Letting it go by is quieter — and a choice on the record too.')
+      }
+      break
+    }
+
+    case 'attend-school': {
+      lines.push('A school sharpens the work — and can earn the rating the board counts.')
+      lines.push('The slot is this month or not at all.')
+      break
+    }
+
+    case 'volunteer-deploy': {
+      const home = homeland(world)
+      const war = home === undefined ? undefined : activeWars(world).find((w) => w.a === home.id || w.b === home.id)
+      if (war && home) {
+        const enemy = world.nations.get(war.a === home.id ? war.b : war.a)
+        if (enemy) lines.push(`The war is with ${enemy.name}${war.warPhase !== null ? `, in its ${war.warPhase}` : ''}.`)
+      }
+      lines.push('A tour is ten months. Your term holds while you are out there — the boat home comes first.')
+      lines.push('Orders can still find you either way; volunteering only stops the waiting.')
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        const children = household.memberIds.filter((id) =>
+          world.people.get(id)?.parentIds.includes(person.id),
+        ).length
+        if (children > 0) lines.push(`${String(children)} ${children === 1 ? 'child' : 'children'} at home.`)
       }
       break
     }
