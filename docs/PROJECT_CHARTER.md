@@ -117,13 +117,24 @@ ADR.
 | Any user seeing another user's world | Same reason. Sharing, social feeds, and leaderboards all fall here |
 | Runtime generative AI | Output is neither deterministic nor free, and the simulation must reproduce exactly |
 | A network round-trip per tick | The simulation runs locally; the server stores saves. A dead server must not stop play |
-| Microtransactions or live-service | Distorts every design decision away from believability |
+| Microtransactions | Distorts every design decision away from believability |
+| Retention mechanics — daily rewards, streaks, engagement loops | Same reason. The world continues because it is a simulation, not to make you log in |
 | 3D graphics or an asset pipeline | Enormous cost, near-zero contribution to a simulation-driven game |
 | Real named people, brands, or units | Privacy, publicity-rights, trademark, and IP exposure |
 | Mod support | Revisit at Layer 5 only if the engine is stable and someone actually wants it |
 | Real-time or action gameplay | The simulation advances in monthly ticks; twitch mechanics do not fit |
 | Historical accuracy about real wars | The geopolitical system is fictional and generated. Modelling real conflicts invites both factual and ethical problems |
 | Writing our own authentication | Password hashing, sessions, and reset flows are easy to get dangerously wrong. Use a maintained provider |
+
+### Open, not decided
+
+**Monetization.** Free, optional support, one-time purchase, or subscription — all
+remain open (ADR-0015). Decided at public beta using real hosting-cost data, not now.
+
+The non-goals above constrain the *design*, not the price. A subscription is not
+microtransactions. But the pressure a subscription creates — to add retention mechanics,
+to keep people logging in — is exactly what those non-goals exist to resist, so whatever
+model is chosen, the design constraints stand unchanged.
 
 ### Now required *(previously rejected)*
 

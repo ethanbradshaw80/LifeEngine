@@ -30,6 +30,7 @@ Reversibility · Review trigger.
 | 0012 | **UI from Milestone 2** | Proposed |
 | 0013 | **Offline-only constraint replaced** | Proposed |
 | 0014 | **Web security reviewer added** | Accepted |
+| 0015 | **Product stages gated on criteria; monetization deferred** | Proposed |
 
 ---
 
@@ -363,9 +364,66 @@ on other people.
 
 ---
 
+## ADR-0015 — Product stages gated on criteria; monetization deferred
+
+**Status:** Proposed
+**Date:** 2026-07-30
+
+**Context.** The technical documents covered building the game and said nothing about
+releasing it. External review raised the gap and proposed a five-stage roadmap:
+prototype → closed alpha (25) → closed beta (250) → public beta → 1.0, with 1.0
+carrying marketing, subscription, analytics, Discord, and a feedback system.
+
+The gap was real. Two aspects of the proposal needed resolving before adoption.
+
+**Options considered.**
+
+1. Adopt as proposed, with player counts as stage boundaries.
+2. Adopt with **criteria-based gates**, counts as targets rather than triggers.
+3. Defer a roadmap entirely until closer to release.
+
+**Decision.** Option 2, with three amendments:
+
+- **Stages gate on criteria, not counts or dates.** A player count is a size, not a
+  decision. Each stage defines what must be true to enter and what must be learned to
+  exit. See `PRODUCT_ROADMAP.md`.
+- **A "private showing" stage is inserted** between prototype and closed alpha: 3–5
+  people you know, in person, at Milestone 5. Going from one player to twenty-five in
+  one step skips the cheapest feedback available.
+- **Monetization is an explicit open question, not a 1.0 feature.** Decided at public
+  beta, using real hosting-cost data from closed beta.
+
+**Rationale for deferring monetization.** A subscription creates payment processing,
+refunds and chargebacks, jurisdiction-dependent tax obligations, terms of service, and
+a standing obligation to keep the service running while people pay. It also pulls
+against `PROJECT_CHARTER.md` §5, which rejects live-service design because it distorts
+decisions away from believability. A subscription is not microtransactions, but the
+retention pressure it creates is what that non-goal exists to resist. Choosing a model
+now would be a guess about a business that does not exist.
+
+**Consequences.**
+
+- **Migration discipline becomes an obligation at closed alpha,** not a good practice.
+  Breaking saves for 250 beta players is unrecoverable. This is why M4 builds migration
+  infrastructure before M6 needs it — the ordering was already correct and is now
+  load-bearing.
+- **Account deletion and basic analytics become closed-alpha entry criteria**, not 1.0
+  features. Both are far cheaper before there are users.
+- Discord and a feedback system are recorded as **ongoing operational costs**, not
+  features — they compete directly with the 10 hours a week allocated to building.
+- No engineering scope is added before Milestone 6.
+
+**Reversibility.** High. This is a plan, not an architecture. Monetization remains fully
+open by design.
+
+**Review trigger.** Closed alpha exit — revisit the later stages using what the first
+25 players actually did, and decide monetization at public beta.
+
+---
+
 ## Pending owner approval
 
-**ADR-0008, 0009, 0010, 0011, 0012, 0013.**
+**ADR-0008, 0009, 0010, 0011, 0012, 0013, 0015.**
 
 **No code should be written until ADR-0009 is Accepted** — it is the least reversible
 decision in this log.

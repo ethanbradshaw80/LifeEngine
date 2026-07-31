@@ -156,6 +156,26 @@ broken save. See R-21.
 
 ---
 
+## 12 · Product and release *(closed alpha onward)*
+
+Introduced by ADR-0015. **All deferred — none is needed before Milestone 6.**
+
+| # | Document | Purpose | Depends on | Status | Pri | Pre-proto |
+|---|---|---|---|---|---|---|
+| 12.0 | `PRODUCT_ROADMAP.md` | Stage gates from prototype to 1.0 | — | **Written** | P1 | No |
+| 12.1 | `ANALYTICS.md` | What is measured, and what is deliberately not | 11.3 | Deferred | P1 | No |
+| 12.2 | `FEEDBACK_CHANNELS.md` | In-app reporting, changelog, triage | 12.0 | Deferred | P1 | No |
+| 12.3 | `COMMUNITY_GUIDELINES.md` | Moderation norms, written before needed | 12.0 | Deferred | P1 | No |
+| 12.4 | `MONETIZATION.md` | Open question — decided at public beta | 12.0 | Deferred | P2 | No |
+| 12.5 | `LAUNCH_CHECKLIST.md` | Entry criteria per stage, as a checklist | 12.0 | Deferred | P2 | No |
+
+**12.3 deserves early thought despite being deferred.** The design covers war,
+casualties, mental illness, addiction, crime, and inequality. A community around it will
+discuss those topics, and some participants will have lived them. The care Law 10
+demands of the simulation applies to the space around it.
+
+---
+
 ## Required before Milestone 1 completes
 
 **1.2, 1.3, 1.4, 1.6, 2.1, 2.2** — plus 1.1 and 1.5, already written.

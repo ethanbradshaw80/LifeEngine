@@ -261,13 +261,27 @@ most likely to expose flaws in the causal-record design while it is still cheap 
 
 **Exit criteria.** Two separate accounts each hold their own saves and cannot see each
 other's. Password reset works. Security review passed. A restore from backup has been
-performed successfully, not merely configured.
+performed successfully, not merely configured. **Account deletion works**, and basic
+analytics are in place — both are closed-alpha entry criteria per
+`PRODUCT_ROADMAP.md` §5, and both are far cheaper to build before there are users.
 
 **Out of scope.** Social features. Sharing. Leaderboards. Anything involving one user
 seeing another's world — that is multiplayer, and it remains rejected.
 
 **Estimate.** 6–10 weeks. Wide, because it is mostly unfamiliar territory and the
 security work should not be rushed.
+
+---
+
+## Getting it in front of people
+
+This document covers *building*. `PRODUCT_ROADMAP.md` covers *releasing* — prototype
+(M2), private showing (M5), closed alpha (M6), then beta and 1.0.
+
+One consequence reaches back into this plan: **breaking the save format stops being
+free at closed alpha.** Before players, a broken save costs nothing. After closed beta,
+it costs 250 people their progress. That is why M4 builds migration infrastructure
+before M6 needs it — the ordering was already right and is now load-bearing (R-25).
 
 ---
 

@@ -87,6 +87,7 @@ life-engine/
     ├── CAUSAL_RECORDS.md        # How the engine explains why things happened
     ├── MILITARY_AND_WAR_FOUNDATION.md
     ├── MILESTONE_PLAN.md        # Small vertical milestones with exit criteria
+    ├── PRODUCT_ROADMAP.md       # How it reaches players: alpha, beta, 1.0
     ├── RISK_REGISTER.md         # Ranked risks and mitigations
     ├── DESIGN_INDEX.md          # Index of all design specs eventually required
     ├── TECHNICAL_INDEX.md       # Index of all technical specs eventually required

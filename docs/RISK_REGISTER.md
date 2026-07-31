@@ -274,6 +274,57 @@ is the one most likely to determine whether the finished game is actually fun.
 
 ## Low
 
+### R-24 · Support and community burden consumes development time
+**Likelihood: High · Impact: Medium**
+*Introduced by `PRODUCT_ROADMAP.md`. Dormant until closed alpha.*
+
+Discord, feedback channels, and player support are permanent obligations, not features.
+They compete directly with the ~10 hours a week allocated to building — and unlike
+development, they arrive on other people's schedules. This is a plausible route to
+R-02 (insufficient resources) becoming acute.
+
+*Mitigation.* Prefer an in-app feedback form and a public changelog over a Discord until
+there is a community to serve. Set written expectations about response times. Treat
+community as a decision with a cost, not a default.
+
+*Warning sign.* A week where all available hours went to answering messages.
+
+---
+
+### R-25 · Breaking saves after real players exist
+**Likelihood: Medium · Impact: High**
+*Introduced by `PRODUCT_ROADMAP.md` §8. Dormant until closed alpha.*
+
+Before players, breaking the save format costs nothing. After closed beta, it costs 250
+people their progress, and most do not come back. The ratchet tightens at every stage
+and never loosens.
+
+*Mitigation.* Migration infrastructure at M4, before accounts at M6 — the ordering is
+deliberate. From closed alpha onward, every schema change ships with a migration tested
+against a **real** save exported from the prior stage, not a fixture. Alpha players are
+told in writing that saves may be reset; beta players are not told that, and so it must
+not happen.
+
+*Relationship to R-16.* R-16 is the engineering burden of maintaining migrations. R-25
+is the consequence of getting one wrong once players exist.
+
+---
+
+### R-26 · Monetization creates obligations that outlast interest
+**Likelihood: Low · Impact: Medium**
+*Introduced by ADR-0015. Fully avoidable — this risk only exists if subscription is chosen.*
+
+A subscription creates payment processing, refunds, jurisdiction-dependent tax
+obligations, and a standing commitment to keep the service running while people pay.
+On a solo hobby project, that commitment can outlive enthusiasm for it — and shutting
+down a paid service is materially worse than shutting down a free one.
+
+*Mitigation.* ADR-0015 defers the decision to public beta, with real cost data. One-time
+purchase and free-with-optional-support carry far lighter obligations. If a subscription
+is chosen, decide in advance what happens if the project ends.
+
+---
+
 ### R-22 · Hosting cost and provider dependency
 **Likelihood: Medium · Impact: Medium**
 *Introduced by the web pivot. Dormant until Milestone 6.*
@@ -346,9 +397,9 @@ Low likelihood *only because* these controls exist. Without them this would be H
 | Priority | Risks |
 |---|---|
 | **Critical** | R-01 scope · R-02 resources · R-18 motivation |
-| **High** | R-03 tick cost and memory · R-06 continuity · R-09 cycles · R-13 sensitive topics · R-14 war · R-16 migrations · **R-21 data breach** |
-| **Medium** | R-04 · R-05 · R-07 · R-08 · R-10 · R-11 · R-12 · R-15 · R-17 · **R-22 hosting** · **R-23 runtime types** |
-| **Low** | R-19 · R-20 |
+| **High** | R-03 tick cost and memory · R-06 continuity · R-09 cycles · R-13 sensitive topics · R-14 war · R-16 migrations · **R-21 data breach** · **R-25 breaking saves** |
+| **Medium** | R-04 · R-05 · R-07 · R-08 · R-10 · R-11 · R-12 · R-15 · R-17 · R-22 hosting · R-23 runtime types · **R-24 support burden** |
+| **Low** | R-19 · R-20 · **R-26 monetization** |
 
 ### What the web pivot changed
 
@@ -368,3 +419,16 @@ time, and staying interested.
 The web pivot **improved** the most dangerous of the three. It also added a category
 that did not previously exist — but that category stays entirely dormant until
 Milestone 6, roughly a year out.
+
+### What the product roadmap added
+
+| Risk | Note |
+|---|---|
+| R-24 support burden | **New, Medium.** The most likely route to R-02 becoming acute |
+| R-25 breaking saves | **New, High.** Consequence-of-failure counterpart to R-16 |
+| R-26 monetization | **New, Low.** Only exists if subscription is chosen; ADR-0015 defers it |
+
+All three are dormant until closed alpha — roughly a year out. Their value now is that
+they shape decisions being made today: migration infrastructure at M4, and account
+deletion and analytics as alpha entry criteria rather than 1.0 features. Both are far
+cheaper to build before there are users than after.
