@@ -12,6 +12,7 @@ import { ageAt } from '../src/clock.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { decisionsFor, eventsFor } from '../src/records.js'
 import { livingPeople } from '../src/systems.js'
+import { FEMALE_GIVEN_NAMES, MALE_GIVEN_NAMES } from '../src/content.js'
 import { lifeStory, personSummary } from '../src/story.js'
 import type { World } from '../src/types.js'
 
@@ -92,6 +93,18 @@ describe('invariants that must never break', () => {
     }
   })
 
+  it('gives everyone a given name matching their sex', () => {
+    // Newborns once drew their name list and their sex independently, which
+    // produced girls called Peter. Found by reading a life story.
+    for (const person of world.people.values()) {
+      const expected = person.sex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES
+      expect(
+        expected as readonly string[],
+        `${person.givenName} is ${person.sex}`,
+      ).toContain(person.givenName)
+    }
+  })
+
   it('never lets a person be their own parent', () => {
     for (const person of world.people.values()) {
       expect(person.parentIds).not.toContain(person.id)
@@ -107,10 +120,13 @@ describe('invariants that must never break', () => {
     }
   })
 
-  it('has no friendship referencing a dead person', () => {
-    for (const friendship of world.friendships.values()) {
-      expect(world.people.get(friendship.a)?.deathTick).toBeNull()
-      expect(world.people.get(friendship.b)?.deathTick).toBeNull()
+  it('has no live relationship referencing a dead person', () => {
+    for (const relationship of world.relationships.values()) {
+      // Former spouses are history and are kept deliberately: a widow's
+      // marriage still happened.
+      if (relationship.type === 'former-spouse') continue
+      expect(world.people.get(relationship.a)?.deathTick).toBeNull()
+      expect(world.people.get(relationship.b)?.deathTick).toBeNull()
     }
   })
 
@@ -143,8 +159,8 @@ describe('lives are varied, not uniform', () => {
     expect(left.length).toBeGreaterThan(0)
   })
 
-  it('forms friendships', () => {
-    expect(world.friendships.size).toBeGreaterThan(10)
+  it('forms relationships', () => {
+    expect(world.relationships.size).toBeGreaterThan(10)
   })
 
   it('sends some people to further education', () => {

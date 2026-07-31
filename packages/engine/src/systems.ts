@@ -13,6 +13,8 @@ import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import {
   educationRank,
+  FEMALE_GIVEN_NAMES,
+  MALE_GIVEN_NAMES,
   meetsRequirement,
   OCCUPATIONS,
   occupationById,
@@ -26,10 +28,11 @@ import type {
   EmploymentRecord,
   Household,
   Person,
+  Sex,
   World,
 } from './types.js'
-import { friendshipKey } from './types.js'
 import { withArticle } from './text.js'
+import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relationships.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -44,8 +47,6 @@ const RETIREMENT_AGE = 66
 const LEAVE_HOME_AGE = 19
 /** Months a household must exist before it will consider moving again. */
 const SETTLING_MONTHS = 24
-const FRIENDSHIP_END_STRENGTH = 120
-const MAX_FRIENDS = 8
 const CHILDBEARING_MIN_AGE = 20
 const CHILDBEARING_MAX_AGE = 42
 
@@ -371,77 +372,6 @@ function considerBetterJob(
 }
 
 // ---------------------------------------------------------------------------
-// Friendship
-// ---------------------------------------------------------------------------
-
-export function runFriendship(world: World, tick: Tick): void {
-  const living = livingPeople(world)
-  if (living.length < 2) return
-
-  const friendCounts = new Map<EntityId, number>()
-  for (const friendship of world.friendships.values()) {
-    friendCounts.set(friendship.a, (friendCounts.get(friendship.a) ?? 0) + 1)
-    friendCounts.set(friendship.b, (friendCounts.get(friendship.b) ?? 0) + 1)
-  }
-
-  // Decay first, so a friendship formed this tick is not immediately decayed.
-  for (const [key, friendship] of world.friendships) {
-    const next = friendship.strength - 3
-    if (next < FRIENDSHIP_END_STRENGTH) {
-      world.friendships.delete(key)
-      recordEvent(world, tick, {
-        type: 'friendship-lapsed',
-        subjectId: friendship.a,
-        otherId: friendship.b,
-      })
-    } else {
-      world.friendships.set(key, { ...friendship, strength: next })
-    }
-  }
-
-  for (const person of living) {
-    const age = ageAt(person.birthTick, tick)
-    if (age < 5) continue
-    if ((friendCounts.get(person.id) ?? 0) >= MAX_FRIENDS) continue
-
-    const rng = openStream(world.seed, Stream.Relationships, person.id, tick)
-    if (!rng.chance(person.traits.sociability, 30_000)) continue
-
-    // Candidates: similar age, alive, not already a friend.
-    const candidates = living.filter((other) => {
-      if (other.id === person.id) return false
-      if (world.friendships.has(friendshipKey(person.id, other.id))) return false
-      const otherAge = ageAt(other.birthTick, tick)
-      return Math.abs(otherAge - age) <= 8
-    })
-    if (candidates.length === 0) continue
-
-    const other = rng.pick(candidates)
-    const strength = 300 + rng.nextInt(0, 400)
-    world.friendships.set(friendshipKey(person.id, other.id), {
-      a: person.id < other.id ? person.id : other.id,
-      b: person.id < other.id ? other.id : person.id,
-      strength,
-      formedAtTick: tick,
-    })
-    friendCounts.set(person.id, (friendCounts.get(person.id) ?? 0) + 1)
-    friendCounts.set(other.id, (friendCounts.get(other.id) ?? 0) + 1)
-
-    recordEvent(world, tick, { type: 'befriended', subjectId: person.id, otherId: other.id })
-  }
-}
-
-export function friendsOf(world: World, personId: EntityId): EntityId[] {
-  const friends: EntityId[] = []
-  for (const friendship of world.friendships.values()) {
-    if (friendship.a === personId) friends.push(friendship.b)
-    else if (friendship.b === personId) friends.push(friendship.a)
-  }
-  friends.sort((a, b) => a - b)
-  return friends
-}
-
-// ---------------------------------------------------------------------------
 // Households: leaving home, partnering, moving
 // ---------------------------------------------------------------------------
 
@@ -457,6 +387,14 @@ export function runHouseholds(world: World, tick: Tick): void {
     if (!household) continue
 
     const rng = openStream(world.seed, Stream.LifeEventTiming, person.id, tick)
+
+    // Couples who live apart may move in together.
+    //
+    // Without this, household formation only ever fired for someone still
+    // living with their parents, so anyone who moved out alone could never
+    // pair up. Over fifty years that produced eight couples living separately,
+    // one marriage and almost no children — the population quietly collapsed.
+    if (moveInWithPartner(world, tick, person, rng)) continue
     const job = world.employment.get(person.id)
     const stillWithParents = person.parentIds.some((id) => household.memberIds.includes(id))
 
@@ -464,7 +402,9 @@ export function runHouseholds(world: World, tick: Tick): void {
     if (stillWithParents && job) {
       if (!rng.chance(60 + Math.floor(person.traits.ambition / 20), 1000)) continue
 
-      const partnerId = findPartner(world, person, tick, rng)
+      // Who they pair with is owned by the relationships domain, not decided
+      // here. Households react to relationships; they do not create them.
+      const partnerId = eligibleCohabitant(world, person.id)
       const newHouseholdId = allocateId(world)
       const home = rng.pick(neighbourhoods)
 
@@ -548,33 +488,96 @@ export function runHouseholds(world: World, tick: Tick): void {
 }
 
 /**
- * A partner is drawn from close friends of similar age who have also left
- * home or are old enough to. There is no marriage system in Milestone 1 —
- * this is household formation, which is explicitly in scope, and nothing more.
+ * Merge two households when a courting or married couple live apart.
+ *
+ * The person with fewer people depending on them moves; ties break on the lower
+ * entity id so the outcome never depends on iteration order.
  */
-function findPartner(world: World, person: Person, tick: Tick, rng: Rng): EntityId | null {
-  if (!rng.chance(55, 100)) return null
+function moveInWithPartner(world: World, tick: Tick, person: Person, rng: Rng): boolean {
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return false
 
-  const age = ageAt(person.birthTick, tick)
-  const candidates: EntityId[] = []
+  const partner = world.people.get(partnerId)
+  if (!partner || partner.deathTick !== null) return false
+  if (person.householdId === null || partner.householdId === null) return false
+  if (person.householdId === partner.householdId) return false
+  if (ageAt(partner.birthTick, tick) < LEAVE_HOME_AGE) return false
 
-  for (const friendId of friendsOf(world, person.id)) {
-    const friend = world.people.get(friendId)
-    if (!friend || friend.deathTick !== null) continue
-    if (friend.sex === person.sex) continue // simplification: see note below
-    const friendAge = ageAt(friend.birthTick, tick)
-    if (friendAge < LEAVE_HOME_AGE || Math.abs(friendAge - age) > 8) continue
-    const friendship = world.friendships.get(friendshipKey(person.id, friendId))
-    if (!friendship || friendship.strength < 400) continue
-    // Do not pull someone out of a household they already formed as an adult.
-    const theirHousehold = friend.householdId === null ? null : world.households.get(friend.householdId)
-    if (theirHousehold && !friend.parentIds.some((id) => theirHousehold.memberIds.includes(id))) continue
-    candidates.push(friendId)
-  }
+  const tie = relationshipBetween(world, person.id, partnerId)
+  if (!tie) return false
 
-  if (candidates.length === 0) return null
-  candidates.sort((a, b) => a - b)
-  return rng.pick(candidates)
+  // Only one of the pair should act. The lower id decides, so the same couple
+  // is not processed twice in the same month.
+  if (person.id > partnerId) return false
+
+  // Stronger and longer attachments move in sooner.
+  const months = tick - tie.typeSinceTick
+  const appetite = Math.floor(tie.strength / 8) + Math.min(60, months)
+  if (!rng.chance(appetite, 1_400)) return false
+
+  const personHome = world.households.get(person.householdId)
+  const partnerHome = world.households.get(partner.householdId)
+  if (!personHome || !partnerHome) return false
+
+  const personDependents = personHome.memberIds.filter((id) =>
+    world.people.get(id)?.parentIds.includes(person.id),
+  ).length
+  const partnerDependents = partnerHome.memberIds.filter((id) =>
+    world.people.get(id)?.parentIds.includes(partnerId),
+  ).length
+
+  const moverIsPerson =
+    personDependents < partnerDependents ||
+    (personDependents === partnerDependents && person.id < partnerId)
+
+  const moverId = moverIsPerson ? person.id : partnerId
+  const destination = moverIsPerson ? partnerHome : personHome
+  const mover = world.people.get(moverId)
+  if (!mover || mover.householdId === null) return false
+
+  removeFromHousehold(world, mover.householdId, moverId)
+  addToHousehold(world, destination.id, moverId)
+  setPerson(world, { ...mover, householdId: destination.id })
+
+  recordEvent(world, tick, {
+    type: 'moved-in-together',
+    subjectId: moverId,
+    otherId: moverIsPerson ? partnerId : person.id,
+    placeId: destination.placeId,
+  })
+  recordDecision(world, tick, {
+    subjectId: moverId,
+    decision: 'household-formation',
+    significance: 'defining',
+    inputs: [
+      factor('close-friendship', tie.strength, moverIsPerson ? partnerId : person.id),
+      factor('years-together', months),
+    ],
+    chosen: `moved in with ${moverIsPerson ? partner.givenName : person.givenName}`,
+    rejected: ['to keep living apart'],
+    streamId: Stream.LifeEventTiming,
+  })
+  return true
+}
+
+/**
+ * The partner a person would move in with, if any.
+ *
+ * Reads the relationships graph; it never creates a tie. Courtship and marriage
+ * are the relationships domain's business, and households only react to them.
+ */
+function eligibleCohabitant(world: World, personId: EntityId): EntityId | null {
+  const partnerId = partnerOf(world, personId)
+  if (partnerId === null) return null
+
+  const partner = world.people.get(partnerId)
+  if (!partner || partner.deathTick !== null) return null
+
+  // Do not pull someone out of a household they already established as an adult.
+  const theirHome = partner.householdId === null ? null : world.households.get(partner.householdId)
+  if (theirHome && !partner.parentIds.some((id) => theirHome.memberIds.includes(id))) return null
+
+  return partnerId
 }
 
 // ---------------------------------------------------------------------------
@@ -596,14 +599,15 @@ export function runBirths(world: World, tick: Tick): void {
     if (!household) continue
     if (person.parentIds.some((id) => household.memberIds.includes(id))) continue // still at home
 
-    const partnerId = household.memberIds.find((id) => {
-      if (id === person.id) return false
-      const member = world.people.get(id)
-      if (!member || member.deathTick !== null) return false
-      if (member.sex === person.sex) return false
-      return ageAt(member.birthTick, tick) >= WORKING_AGE
-    })
-    if (partnerId === undefined) continue
+    // Milestone 5: a birth needs an actual partnership, not merely two adults
+    // who happen to share a roof. That was the Milestone 1 placeholder, and it
+    // is why the population used to decline — most people never formed such a
+    // household by accident.
+    const partnerId = partnerOf(world, person.id)
+    if (partnerId === null) continue
+    if (!household.memberIds.includes(partnerId)) continue
+    const partnerPerson = world.people.get(partnerId)
+    if (!partnerPerson || partnerPerson.deathTick !== null) continue
 
     const childrenAtHome = household.memberIds.filter((id) => {
       const member = world.people.get(id)
@@ -620,15 +624,16 @@ export function runBirths(world: World, tick: Tick): void {
     const traitRng = openStream(world.seed, Stream.PersonTraits, childId, 0)
     const partner = world.people.get(partnerId)
 
+    // Sex is decided FIRST, then the name is drawn from the matching list.
+    // These used to be two independent draws, which produced girls called Peter
+    // — spotted while reading a life story, not by any test.
+    const childSex: Sex = rng.chance(1, 2) ? 'female' : 'male'
+
     world.people.set(childId, {
       id: childId,
-      givenName: rng.pick(
-        rng.chance(1, 2)
-          ? (['Mary', 'Jennifer', 'Sarah', 'Emily', 'Laura', 'Karen', 'Rebecca', 'Anne'] as const)
-          : (['James', 'Robert', 'Michael', 'David', 'Peter', 'Daniel', 'Alan', 'Frank'] as const),
-      ),
+      givenName: rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
       familyName: partner?.familyName ?? person.familyName,
-      sex: rng.chance(1, 2) ? 'female' : 'male',
+      sex: childSex,
       birthTick: tick,
       deathTick: null,
       causeOfDeath: null,
@@ -701,9 +706,9 @@ export function runMortality(world: World, tick: Tick): void {
 
     if (person.householdId !== null) removeFromHousehold(world, person.householdId, person.id)
 
-    for (const [key, friendship] of world.friendships) {
-      if (friendship.a === person.id || friendship.b === person.id) world.friendships.delete(key)
-    }
+    // The relationships domain owns its own state, including what a death does
+    // to it — a marriage ends in widowhood, not divorce (DOMAIN_MAP.md §2).
+    endRelationshipsOnDeath(world, tick, person.id)
 
     recordEvent(world, tick, { type: 'died', subjectId: person.id, detail: cause })
     recordDecision(world, tick, {

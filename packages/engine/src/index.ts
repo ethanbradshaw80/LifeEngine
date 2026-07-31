@@ -26,7 +26,16 @@ export type { StreamId } from './rng.js'
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
 export { advanceTick, advanceTicks } from './tick.js'
-export { friendsOf, livingPeople } from './systems.js'
+export { livingPeople } from './systems.js'
+export {
+  compatibility,
+  friendsOf,
+  other,
+  partnerOf,
+  relationshipBetween,
+  relationshipsOf,
+  spouseOf,
+} from './relationships.js'
 
 // Records
 export { childrenOf, decisionForEvent, decisionsFor, eventsFor } from './records.js'
@@ -41,7 +50,7 @@ export type { SnapshotHeader, WorldSnapshot } from './snapshot.js'
 
 // Content
 export { OCCUPATIONS, occupationById } from './content.js'
-export { friendshipKey } from './types.js'
+export { friendshipKey, relationshipKey } from './types.js'
 
 // Types
 export type {
@@ -53,7 +62,8 @@ export type {
   EmploymentRecord,
   EventType,
   FactorId,
-  Friendship,
+  Relationship,
+  RelationshipType,
   Household,
   Occupation,
   Person,

@@ -109,6 +109,9 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'moved-in-together': 'household-formation',
   'moved-house': 'move',
   died: 'death',
+  'started-courting': 'courtship',
+  married: 'marriage',
+  divorced: 'separation',
 }
 
 /**

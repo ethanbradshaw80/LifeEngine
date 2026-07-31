@@ -21,6 +21,7 @@ import { formatMoney } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
 import { occupationById } from './content.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
+import { spouseOf } from './relationships.js'
 import { withArticle } from './text.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 
@@ -66,6 +67,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         return `${year} — Drifted apart from ${nameOf(world, event.subjectId)}.`
       case 'moved-in-together':
         return `${year} — Moved in with ${nameOf(world, event.subjectId)}.`
+      case 'started-courting':
+        return `${year} — Began courting ${nameOf(world, event.subjectId)}.`
+      case 'married':
+        return `${year} — Married ${nameOf(world, event.subjectId)}.`
+      case 'divorced':
+        return `${year} — Separated from ${nameOf(world, event.subjectId)}.`
       case 'had-child':
         return null // rendered from the parent's side
       default:
@@ -98,6 +105,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Moved in with ${nameOf(world, event.otherId)}.`
     case 'moved-house':
       return `${year} — Moved to ${placeName(world, event.placeId)}.`
+    case 'started-courting':
+      return `${year} — At ${age}, began courting ${nameOf(world, event.otherId)}.`
+    case 'courtship-ended':
+      return `${year} — Stopped seeing ${nameOf(world, event.otherId)}.`
+    case 'married':
+      return `${year} — Married ${nameOf(world, event.otherId)} at ${age}.`
+    case 'divorced':
+      return `${year} — Separated from ${nameOf(world, event.otherId)}.`
+    case 'widowed':
+      return `${year} — ${nameOf(world, event.otherId)} died. Left widowed at ${age}.`
     case 'had-child':
       return `${year} — ${nameOf(world, event.otherId)} was born.`
     case 'died':
@@ -123,6 +140,16 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'old-age': 'age',
   frailty: 'poor health',
   accident: 'an accident',
+  'compatible-personality': 'they suited each other',
+  'shared-home': 'they shared a home',
+  'shared-workplace': 'they worked together',
+  'lived-nearby': 'they lived nearby',
+  'years-together': 'of how long they had been together',
+  'strong-attachment': '{they} was very attached',
+  'drifted-apart': 'they had drifted apart',
+  'financial-strain': 'money was tight',
+  'lost-work': '{they} was out of work',
+  'wanted-family': '{they} wanted a family',
 }
 
 function joinClauses(parts: readonly string[]): string {
@@ -314,10 +341,12 @@ export function personSummary(world: World, personId: EntityId): string {
   const occupation = job ? occupationById(job.occupationId).title : null
 
   if (!alive) return `${fullName(person)}, died at ${age} (${person.causeOfDeath})`
-  if (occupation) return `${fullName(person)}, ${age}, ${occupation}`
+
+  const married = spouseOf(world, personId) !== null ? ', married' : ''
+  if (occupation) return `${fullName(person)}, ${age}, ${occupation}${married}`
   const education = world.education.get(personId)
   if (education?.enrolledIn) return `${fullName(person)}, ${age}, in ${education.enrolledIn} school`
-  return `${fullName(person)}, ${age}`
+  return `${fullName(person)}, ${age}${married}`
 }
 
 /** Where the pronoun helper is needed by callers building their own prose. */

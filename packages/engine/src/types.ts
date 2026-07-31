@@ -133,24 +133,40 @@ export interface EmploymentRecord {
 }
 
 // ---------------------------------------------------------------------------
-// Friendship
+// Relationships
 //
-// A minimal social graph. Milestone 1 has friendship formation and decay only;
-// relationship depth is explicitly out of scope.
+// The social graph. Milestone 5 replaced Milestone 1's placeholder friendship
+// model with typed edges that can change type over a lifetime.
+//
+// KINSHIP IS NOT STORED HERE. Parent and child links live on Person.parentIds,
+// because they are facts about a person rather than a relationship that can
+// form, decay or end. Storing them twice would create two writers for the same
+// truth (DOMAIN_MAP.md §1).
 // ---------------------------------------------------------------------------
 
-export interface Friendship {
+export type RelationshipType = 'friend' | 'courting' | 'spouse' | 'former-spouse'
+
+export interface Relationship {
   readonly a: EntityId
   readonly b: EntityId
-  /** 0-1000. Decays without contact; below FRIENDSHIP_END_STRENGTH it lapses. */
+  readonly type: RelationshipType
+  /** 0-1000. Decays without contact, is reinforced by shared circumstances. */
   readonly strength: number
+  /** When these two first connected, whatever the type was then. */
   readonly formedAtTick: Tick
+  /** When the CURRENT type began — the wedding date for a spouse. */
+  readonly typeSinceTick: Tick
+  /** Set when a marriage ends. A former spouse is history, not a live tie. */
+  readonly endedAtTick: Tick | null
 }
 
 /** Stable key for an unordered pair. Always lower id first, so lookup is symmetric. */
-export function friendshipKey(a: EntityId, b: EntityId): string {
+export function relationshipKey(a: EntityId, b: EntityId): string {
   return a < b ? `${a}:${b}` : `${b}:${a}`
 }
+
+/** @deprecated Milestone 1 name, kept so existing call sites keep compiling. */
+export const friendshipKey = relationshipKey
 
 // ---------------------------------------------------------------------------
 // Events — WHAT happened
@@ -165,6 +181,11 @@ export type EventType =
   | 'left-job'
   | 'befriended'
   | 'friendship-lapsed'
+  | 'started-courting'
+  | 'courtship-ended'
+  | 'married'
+  | 'divorced'
+  | 'widowed'
   | 'left-home'
   | 'moved-in-together'
   | 'moved-house'
@@ -191,7 +212,14 @@ export interface WorldEvent {
 // phrasing. The explanation is generated on demand from these facts.
 // ---------------------------------------------------------------------------
 
-export type DecisionType = 'employment-change' | 'household-formation' | 'move' | 'death'
+export type DecisionType =
+  | 'employment-change'
+  | 'household-formation'
+  | 'move'
+  | 'death'
+  | 'courtship'
+  | 'marriage'
+  | 'separation'
 
 /** Drives retention. Assigned when the record is created. */
 export type Significance = 'notable' | 'major' | 'defining'
@@ -211,6 +239,16 @@ export type FactorId =
   | 'old-age'
   | 'frailty'
   | 'accident'
+  | 'compatible-personality'
+  | 'shared-home'
+  | 'shared-workplace'
+  | 'lived-nearby'
+  | 'years-together'
+  | 'strong-attachment'
+  | 'drifted-apart'
+  | 'financial-strain'
+  | 'lost-work'
+  | 'wanted-family'
 
 export interface CausalFactor {
   readonly factor: FactorId
@@ -251,9 +289,9 @@ export interface World {
   readonly households: Map<EntityId, Household>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
-  /** Keyed by friendshipKey(). Map iteration is insertion-ordered and
+  /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
    *  therefore deterministic — see docs/DETERMINISM.md §3. */
-  readonly friendships: Map<string, Friendship>
+  readonly relationships: Map<string, Relationship>
 
   readonly events: WorldEvent[]
   readonly causalRecords: CausalRecord[]

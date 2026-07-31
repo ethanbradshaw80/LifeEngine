@@ -34,8 +34,12 @@ export const GOLDEN_TICKS = 120
  * but it always requires a SIMULATION_VERSION bump, never a quiet edit of this
  * constant. Quietly updating it converts "reproducible" into "reproducible
  * except when it isn't", which is worthless.
+ *
+ * Last changed at Milestone 5, with SIMULATION_VERSION raised to 2: the
+ * relationships domain replaced the placeholder friendship model, so every
+ * seed produces a different world than it did under v1.
  */
-export const GOLDEN_HASH_HEX = 'd5a213eb'
+export const GOLDEN_HASH_HEX = 'c67a53ef'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -108,7 +112,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":1')
+    expect(text).toContain('"simulationVersion":2')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

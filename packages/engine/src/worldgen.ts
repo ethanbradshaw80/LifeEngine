@@ -20,6 +20,7 @@ import type {
   Traits,
   World,
 } from './types.js'
+import { relationshipKey } from './types.js'
 import {
   CIVIC_NAMES,
   FAMILY_NAMES,
@@ -133,7 +134,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     households: new Map(),
     education: new Map(),
     employment: new Map(),
-    friendships: new Map(),
+    relationships: new Map(),
     events: [],
     causalRecords: [],
   }
@@ -195,6 +196,26 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     }
 
     if (memberIds.length === 0) break
+
+    // Founding couples are married from tick 0. Without this the first
+    // generation would be two strangers sharing a house, and the Milestone 5
+    // birth rule — which requires an actual partnership — would stop them ever
+    // having children. Their wedding predates the simulation, so formedAtTick
+    // is 0 rather than invented.
+    const [firstAdult, secondAdult] = adultIds
+    if (adultCount === 2 && firstAdult !== undefined && secondAdult !== undefined) {
+      const a = firstAdult < secondAdult ? firstAdult : secondAdult
+      const b = firstAdult < secondAdult ? secondAdult : firstAdult
+      world.relationships.set(relationshipKey(a, b), {
+        a,
+        b,
+        type: 'spouse',
+        strength: 620 + genRng.nextInt(0, 300),
+        formedAtTick: makeTick(0),
+        typeSinceTick: makeTick(0),
+        endedAtTick: null,
+      })
+    }
 
     const household: Household = {
       id: householdId,

@@ -21,8 +21,11 @@ import type { Seed, Tick } from '@life-engine/shared'
  *      schemaVersion, simulationVersion, seed, tick, userId.
  * v2 — Milestone 4. `{ header, world }`. Header gains a checksum for corruption
  *      detection and `savedAtTick`. Body renamed to `world`.
+ * v3 — Milestone 5. `world.friendships` becomes `world.relationships`, with a
+ *      `type` on every edge ('friend' | 'courting' | 'spouse' | 'former-spouse')
+ *      plus `typeSinceTick` and `endedAtTick`.
  */
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

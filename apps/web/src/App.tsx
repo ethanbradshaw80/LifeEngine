@@ -27,7 +27,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = 'd5a213eb'
+const GOLDEN_HASH_HEX = 'c67a53ef'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 

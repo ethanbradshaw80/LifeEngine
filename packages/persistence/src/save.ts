@@ -7,12 +7,12 @@
  * server (ADR-0003, ADR-0010).
  */
 
-import { friendshipKey, toSnapshot } from '@life-engine/engine'
+import { relationshipKey, toSnapshot } from '@life-engine/engine'
 import type {
   CausalRecord,
   EducationRecord,
   EmploymentRecord,
-  Friendship,
+  Relationship,
   Household,
   Person,
   Place,
@@ -141,9 +141,9 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     employment.set(record.personId, record)
   }
 
-  const friendships = new Map<string, Friendship>()
-  for (const friendship of body['friendships'] as Friendship[]) {
-    friendships.set(friendshipKey(friendship.a, friendship.b), friendship)
+  const relationships = new Map<string, Relationship>()
+  for (const relationship of body['relationships'] as Relationship[]) {
+    relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
   }
 
   return {
@@ -158,7 +158,7 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     households,
     education,
     employment,
-    friendships,
+    relationships,
     events: body['events'] as WorldEvent[],
     causalRecords: body['causalRecords'] as CausalRecord[],
   }

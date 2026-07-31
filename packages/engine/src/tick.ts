@@ -7,8 +7,8 @@
  *
  *   - schooling resolves before job seeking, so a graduate can be hired in the
  *     month they qualify rather than waiting one extra tick;
- *   - friendships form before household decisions, since partnering draws on
- *     the friendship graph;
+ *   - relationships resolve before household decisions, since who moves in with
+ *     whom is decided by the relationships domain and merely acted on here;
  *   - births happen before mortality, so a child born this month exists even
  *     if a parent dies in the same month;
  *   - mortality runs LAST, so someone who dies this month still did whatever
@@ -20,11 +20,11 @@
 
 import type { Tick } from '@life-engine/shared'
 import { tick as makeTick } from '@life-engine/shared'
+import { runRelationships } from './relationships.js'
 import {
   runBirths,
   runEducation,
   runEmployment,
-  runFriendship,
   runHouseholds,
   runMortality,
 } from './systems.js'
@@ -37,7 +37,7 @@ export function advanceTick(world: World): World {
 
   runEducation(world, next)
   runEmployment(world, next)
-  runFriendship(world, next)
+  runRelationships(world, next)
   runHouseholds(world, next)
   runBirths(world, next)
   runMortality(world, next)

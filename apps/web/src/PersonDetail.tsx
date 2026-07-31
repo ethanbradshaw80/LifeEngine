@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   ageAt,
   childrenOf,
   explainDecision,
   formatYear,
-  friendsOf,
   fullName,
   occupationById,
+  other,
+  relationshipsOf,
   timelineFor,
 } from '@life-engine/engine'
+import type { Relationship, RelationshipType } from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -52,9 +54,13 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
   const education = world.education.get(personId)
   const household = person.householdId === null ? null : world.households.get(person.householdId)
   const housemates = household?.memberIds.filter((id) => id !== personId) ?? []
-  const friends = friendsOf(world, personId)
   const children = childrenOf(world, personId)
   const timeline = timelineFor(world, personId)
+
+  // Grouped by type so a marriage does not sit in a list of acquaintances.
+  const ties = relationshipsOf(world, personId)
+  const byType = (type: RelationshipType): Relationship[] =>
+    ties.filter((tie) => tie.type === type)
 
   function toggle(eventId: number) {
     setOpenExplanations((open) => {
@@ -144,15 +150,40 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             </dd>
           </>
         )}
+        {(['spouse', 'courting', 'former-spouse'] as const).map((type) => {
+          const group = byType(type)
+          if (group.length === 0) return null
+          const label =
+            type === 'spouse' ? 'Married to' : type === 'courting' ? 'Courting' : 'Formerly married'
+          return (
+            <Fragment key={type}>
+              <dt>{label}</dt>
+              <dd>
+                {group.map((tie, i) => (
+                  <span key={`${tie.a}:${tie.b}`}>
+                    {i > 0 && ', '}
+                    <NameLink world={world} id={other(tie, personId)} onSelect={onSelect} />
+                    <span className="muted small">
+                      {' '}
+                      since {formatYear(tie.typeSinceTick)}
+                      {tie.endedAtTick !== null && ` — ended ${formatYear(tie.endedAtTick)}`}
+                    </span>
+                  </span>
+                ))}
+              </dd>
+            </Fragment>
+          )
+        })}
+
         <dt>Friends</dt>
         <dd>
-          {friends.length === 0 ? (
+          {byType('friend').length === 0 ? (
             <span className="muted">none currently</span>
           ) : (
-            friends.map((id, i) => (
-              <span key={id}>
+            byType('friend').map((tie, i) => (
+              <span key={`${tie.a}:${tie.b}`}>
                 {i > 0 && ', '}
-                <NameLink world={world} id={id} onSelect={onSelect} />
+                <NameLink world={world} id={other(tie, personId)} onSelect={onSelect} />
               </span>
             ))
           )}

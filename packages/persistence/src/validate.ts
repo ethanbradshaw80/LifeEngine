@@ -89,7 +89,7 @@ export const REQUIRED_WORLD_ARRAYS = [
   'households',
   'education',
   'employment',
-  'friendships',
+  'relationships',
   'events',
   'causalRecords',
 ] as const

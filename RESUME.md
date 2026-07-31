@@ -87,6 +87,40 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**Milestone 5 — COMPLETE**
+The relationships domain (`packages/engine/src/relationships.ts`) — the template
+for every remaining Layer 2 domain. Typed edges: friend / courting / spouse /
+former-spouse, with strength, formedAtTick, typeSinceTick, endedAtTick.
+Friendship forms from compatibility + proximity (shared home/work/street, never
+a random pick); strong friendships become courtships; courtships become
+marriages; marriages erode under modelled strain (habituation + mismatch +
+joblessness) and can end in separation or widowhood. Every transition writes a
+causal record at decision time. Kinship stays on Person.parentIds — never
+duplicated into the graph.
+
+Save schema v3 (friendships → typed relationships; migration keeps every old
+edge as 'friend' — inventing marriages would be fabricating history).
+SIMULATION_VERSION = 2. Golden hash c67a53ef (in determinism.test.ts AND
+App.tsx — keep in step). UI shows Married to / Courting / Formerly married
+with dates, and Why? on marriage/separation events.
+
+Three bugs found and fixed this milestone, all worth remembering:
+1. **Iteration-order nondeterminism.** Courtship depends on who is already
+   paired, so Map insertion order changed outcomes after save/load. All
+   relationship loops now iterate sortedRelationships() (sorted by a,b).
+   Caught by the save-load-continue test.
+2. **Population collapse.** Couples never moved in together — household
+   formation only fired for people living with parents, so births starved
+   (town of 100 → 38 in 50 yrs). Fix: moveInWithPartner() in systems.ts.
+   Births now require partnerOf(), not accidental cohabitation.
+3. **Girls named Peter.** Newborn name list and sex were independent draws.
+   Sex first, then matching name list. Regression test in simulation.test.ts.
+
+Divorce is rare by design (courtship selects hard for compatibility; every
+married pair scores 721-916). Most separations hit founding couples. Only seed
+4242/720 ticks of 8 tried produced a full in-sim arc (wed AND separated) — the
+exit-criterion test uses it deliberately; see comment in relationships.test.ts.
+
 **Milestone 3 — COMPLETE**
 `npm run bench` writes `docs/PERFORMANCE_BASELINE.md`. Every performance guess in
 the docs is now a measurement. `performance-reviewer` agent created (ADR-0007).

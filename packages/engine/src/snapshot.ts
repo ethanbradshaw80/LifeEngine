@@ -16,7 +16,17 @@ import type { Seed, Tick } from '@life-engine/shared'
 import type { World } from './types.js'
 
 export const SCHEMA_VERSION = 1
-export const SIMULATION_VERSION = 1
+/**
+ * Simulation behaviour version.
+ *
+ * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
+ *      shared housing.
+ * v2 — Milestone 5. The relationships domain: compatibility-driven friendship,
+ *      courtship, marriage, divorce and widowhood, and births that require an
+ *      actual partnership. Results differ from v1 for every seed, which is what
+ *      a version bump is for (docs/DETERMINISM.md §7).
+ */
+export const SIMULATION_VERSION = 2
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -58,7 +68,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
-      friendships: [...world.friendships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
+      relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,
     },

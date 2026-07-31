@@ -61,7 +61,55 @@ const V1_TO_V2: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2]
+/**
+ * v2 → v3 (Milestone 5).
+ *
+ * The relationships domain replaced the placeholder friendship model. Every
+ * stored friendship becomes a typed edge.
+ *
+ * Every old friendship becomes `type: 'friend'` — the only honest choice. A v2
+ * save recorded no relationship type, so claiming any of these people were
+ * married would be inventing history the simulation never observed. Some of
+ * them would have gone on to marry, and after this migration they still can:
+ * the courtship system will pick them up from their existing strength.
+ *
+ * `typeSinceTick` is set to the original `formedAtTick`, which is true — the
+ * friendship began then and has been a friendship ever since.
+ */
+const V2_TO_V3: Migration = {
+  from: 2,
+  to: 3,
+  describe: 'friendships → typed relationships',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+
+    const oldFriendships = Array.isArray(world['friendships']) ? world['friendships'] : []
+    const relationships = oldFriendships.map((entry) => {
+      const friendship = requireObject(entry, 'save.world.friendships[]')
+      const formedAtTick = requireInteger(friendship, 'formedAtTick', 'friendship')
+      return {
+        a: requireInteger(friendship, 'a', 'friendship'),
+        b: requireInteger(friendship, 'b', 'friendship'),
+        type: 'friend',
+        strength: requireInteger(friendship, 'strength', 'friendship'),
+        formedAtTick,
+        typeSinceTick: formedAtTick,
+        endedAtTick: null,
+      }
+    })
+
+    const nextWorld: Record<string, unknown> = { ...world, relationships }
+    delete nextWorld['friendships']
+
+    return {
+      header: { ...header, schemaVersion: 3, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

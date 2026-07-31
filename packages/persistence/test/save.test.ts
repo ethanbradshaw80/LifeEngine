@@ -66,7 +66,7 @@ describe('round trip', () => {
     expect(restored.households.size).toBe(original.households.size)
     expect(restored.education.size).toBe(original.education.size)
     expect(restored.employment.size).toBe(original.employment.size)
-    expect(restored.friendships.size).toBe(original.friendships.size)
+    expect(restored.relationships.size).toBe(original.relationships.size)
     expect(restored.events.length).toBe(original.events.length)
     expect(restored.causalRecords.length).toBe(original.causalRecords.length)
     expect(restored.tick).toBe(original.tick)
@@ -123,7 +123,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(1)
+    expect(loaded.migrationsApplied.length).toBe(2) // v1→v2→v3, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     expect(loaded.world.seed).toBe(777)
@@ -143,6 +143,18 @@ describe('migration from a real v1 save', () => {
     advanceTicks(loaded.world, 24)
     expect(loaded.world.people.size).toBeGreaterThanOrEqual(before)
     expect(loaded.world.tick).toBe(84)
+  })
+
+  it('carries friendships across the v3 relationship change without inventing marriages', () => {
+    const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
+    // A v2 save recorded no relationship type, so every migrated edge must be a
+    // plain friendship. Claiming any of these people were married would be
+    // history the simulation never observed.
+    for (const relationship of loaded.world.relationships.values()) {
+      expect(relationship.type).toBe('friend')
+      expect(relationship.typeSinceTick).toBe(relationship.formedAtTick)
+      expect(relationship.endedAtTick).toBeNull()
+    }
   })
 
   it('re-saving a migrated world yields the current schema', () => {
