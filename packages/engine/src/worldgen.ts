@@ -137,6 +137,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     relationships: new Map(),
     events: [],
     causalRecords: [],
+    player: { personId: null, pending: null, log: [], nextDecisionId: 1 },
   }
 
   const genRng = openStream(seed, Stream.WorldGeneration, 0, 0)

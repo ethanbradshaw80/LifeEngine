@@ -30,6 +30,10 @@ export interface WorldController {
   readonly saveState: 'unsaved' | 'saving' | 'saved' | 'failed'
   advance: (months: number) => void
   newWorld: (seed: number) => void
+  /** Start or stop living as a person. Null returns to watching the town. */
+  play: (personId: number | null) => void
+  /** Answer the pending decision. */
+  choose: (choice: string) => void
   save: () => void
   discardSave: () => void
 }
@@ -110,6 +114,20 @@ export function useWorld(initialSeed: number): WorldController {
     [send],
   )
 
+  const play = useCallback(
+    (personId: number | null) => {
+      send({ type: 'play', personId })
+    },
+    [send],
+  )
+
+  const choose = useCallback(
+    (choice: string) => {
+      send({ type: 'choose', choice })
+    },
+    [send],
+  )
+
   const save = useCallback(() => {
     if (!world) return
     setSaveState('saving')
@@ -138,6 +156,8 @@ export function useWorld(initialSeed: number): WorldController {
     saveState,
     advance,
     newWorld,
+    play,
+    choose,
     save,
     discardSave,
   }

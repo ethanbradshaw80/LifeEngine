@@ -108,5 +108,9 @@ export function validateWorldBody(value: unknown): Record<string, unknown> {
     requireArray(body, name, 'save.world')
   }
 
+  // v4: the player block. Its inner shape is trusted post-checksum, but its
+  // presence is structural — a world without it cannot be hydrated.
+  requireObject(requireField(body, 'player', 'save.world'), 'save.world.player')
+
   return body
 }

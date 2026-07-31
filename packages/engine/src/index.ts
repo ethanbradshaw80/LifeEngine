@@ -37,6 +37,17 @@ export {
   spouseOf,
 } from './relationships.js'
 
+// Player
+export {
+  awaitingPlayer,
+  describePending,
+  heirsOf,
+  playerIsAlive,
+  playerPerson,
+  resolvePending,
+  setPlayer,
+} from './player.js'
+
 // Records
 export { childrenOf, decisionForEvent, decisionsFor, eventsFor } from './records.js'
 
@@ -66,8 +77,12 @@ export type {
   RelationshipType,
   Household,
   Occupation,
+  PendingDecision,
+  PendingKind,
   Person,
   Place,
+  PlayerChoice,
+  PlayerState,
   PlaceKind,
   Sex,
   Significance,

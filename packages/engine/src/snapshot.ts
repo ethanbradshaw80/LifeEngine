@@ -71,6 +71,12 @@ export function toSnapshot(world: World): WorldSnapshot {
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,
+      player: {
+        personId: world.player.personId,
+        pending: world.player.pending,
+        log: world.player.log,
+        nextDecisionId: world.player.nextDecisionId,
+      },
     },
   }
 }

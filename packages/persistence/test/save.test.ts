@@ -123,7 +123,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(2) // v1→v2→v3, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(3) // v1→v2→v3→v4, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     expect(loaded.world.seed).toBe(777)

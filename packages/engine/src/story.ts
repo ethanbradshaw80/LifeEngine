@@ -150,6 +150,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'financial-strain': 'money was tight',
   'lost-work': '{they} was out of work',
   'wanted-family': '{they} wanted a family',
+  'own-choice': 'they chose it themselves',
 }
 
 function joinClauses(parts: readonly string[]): string {

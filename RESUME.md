@@ -87,6 +87,31 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-PLAY (playable character) — COMPLETE** (ADR-0016 deferred accounts/M6)
+It is a GAME now. `packages/engine/src/player.ts` + interceptions in
+systems.ts/relationships.ts: the player is one person in the world, not a
+special entity. At each choice point the simulation already models (education
+at 18, job offers, moving out, courtship, marriage), if the person is the
+player the system raises a PendingDecision and the clock HALTS (Law 5) instead
+of rolling. resolvePending() applies the answer through the SAME code the
+auto path uses (hirePerson/enrolPlayer/performMoveOut/promoteToCourting/
+promoteToSpouse — extracted shared helpers), records an 'own-choice' factor,
+and appends to world.player.log. Same seed + same answers = byte-identical
+world (tested). Playing nobody = pure simulation, byte-identical to golden.
+Death halts the run; UI shows lifeStory retrospective + heirsOf() to continue
+as a child. Schema v4 (world.player), migrationsApplied for v1 saves is now 3.
+Golden hash e6f86483 (shape-only change; SIMULATION_VERSION stays 2 — NPC
+behaviour identical, asserted by the playing-nobody test).
+
+UI: worker gained 'play'/'choose' messages; useWorld gained play()/choose();
+PlayerPanel.tsx has CharacterPicker (living ≤25), DecisionPrompt (modal over
+paused world), Retrospective (life story + heir picker). Player chip in
+topbar; ▶ marker in list. Verified live: played Donna Ingram from age 0 to
+death at 97 — 6 decisions answered, retrospective correct, continued as her
+son David Okafor. Known cosmetic non-issue: two Rules-of-Hooks console errors
+are HMR artifacts from editing useWorld with the page open; count never grows
+on fresh loads, production build unaffected.
+
 **Milestone 5 — COMPLETE**
 The relationships domain (`packages/engine/src/relationships.ts`) — the template
 for every remaining Layer 2 domain. Typed edges: friend / courting / spouse /

@@ -31,6 +31,7 @@ Reversibility · Review trigger.
 | 0013 | **Offline-only constraint replaced** | **Accepted** |
 | 0014 | **Web security reviewer added** | Accepted |
 | 0015 | **Product stages gated on criteria; monetization deferred** | **Accepted** |
+| 0016 | **Accounts deferred until the game is playable** | Accepted |
 
 ---
 
@@ -418,6 +419,37 @@ open by design.
 
 **Review trigger.** Closed alpha exit — revisit the later stages using what the first
 25 players actually did, and decide monetization at public beta.
+
+---
+
+## ADR-0016 — Accounts deferred until the game is playable
+
+**Status:** Accepted (owner decision, 2026-07-31)
+**Date:** 2026-07-31
+
+**Context.** Milestones 0–5 are complete. The plan's next milestone was M6,
+accounts and cloud saves — the first milestone with a hosting bill, a security
+surface, and other people's data. But the product is still a simulation
+*viewer*: there is no player character, and the charter's product vision — "the
+player begins as one person within a world" — is not yet true of anything.
+
+**Decision.** M6 is deferred until there is an actual playable game. The next
+milestone is **M-PLAY: the playable character** — pick a person, live their
+life through the decisions the simulation currently makes for them, die, see
+the retrospective (Law 8), and optionally continue as an heir.
+
+**Rationale.** Accounts protect progress people care about. Nobody cares about
+progress in a game that cannot be played. Building auth first would spend the
+riskiest effort on the least-proven part, inverted. Everything M6 needs
+(`userId` on every save, migration discipline) is already in place and keeps.
+
+**Consequences.** `MILESTONE_PLAN.md` ordering changes; no engineering scope is
+lost, only resequenced. The alpha entry criteria in `PRODUCT_ROADMAP.md` §5 are
+unchanged and still gate on M6 when it happens.
+
+**Reversibility.** Trivial — it is a reordering.
+
+**Review trigger.** M-PLAY complete and the game is genuinely playable.
 
 ---
 

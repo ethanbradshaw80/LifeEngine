@@ -24,8 +24,10 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v3 — Milestone 5. `world.friendships` becomes `world.relationships`, with a
  *      `type` on every edge ('friend' | 'courting' | 'spouse' | 'former-spouse')
  *      plus `typeSinceTick` and `endedAtTick`.
+ * v4 — M-PLAY. `world.player` — who is being played, any pending decision, and
+ *      the complete choice log (part of the deterministic record).
  */
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

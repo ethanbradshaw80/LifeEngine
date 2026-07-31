@@ -33,6 +33,8 @@ import type {
 } from './types.js'
 import { withArticle } from './text.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relationships.js'
+import { hasAnswered, raisePending } from './player.js'
+import type { CausalFactor, Occupation } from './types.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -177,12 +179,37 @@ export function runEducation(world: World, tick: Tick): void {
 
     // After secondary: trade or college, driven by curiosity and diligence.
     if (record.level === 'secondary' && age >= 18 && age <= 24) {
+      // The player is asked once, at 18, rather than rolled for: this is the
+      // first fork in a life and it should never happen off-screen. An NPC's
+      // appetite roll decides the same question for them.
+      if (person.id === world.player.personId) {
+        if (!hasAnswered(world, 'education')) {
+          raisePending(world, {
+            tick,
+            kind: 'education',
+            personId: person.id,
+            otherId: null,
+            occupationId: null,
+            workplaceId: null,
+            monthlyPay: null,
+            placeId: null,
+            options: ['college', 'trade', 'work'],
+          })
+        }
+        continue
+      }
       const appetite = Math.floor((person.traits.curiosity * 2 + person.traits.diligence) / 3)
       if (!rng.chance(appetite, 4000)) continue
       const choice: EducationLevel = rng.chance(person.traits.curiosity, 1400) ? 'college' : 'trade'
       enrol(world, tick, person, choice, rng)
     }
   }
+}
+
+/** Player answer applied through the same enrolment code NPCs use. */
+export function enrolPlayer(world: World, tick: Tick, person: Person, level: EducationLevel): void {
+  const rng = openStream(world.seed, Stream.Education, person.id, tick)
+  enrol(world, tick, person, level, rng)
 }
 
 function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, rng: Rng): void {
@@ -256,37 +283,76 @@ export function runEmployment(world: World, tick: Tick): void {
     const workplace = rng.pick(workplaces)
     const pay = rng.nextIntInclusive(chosen.minMonthlyPay, chosen.maxMonthlyPay) as Money
 
-    world.employment.set(person.id, {
-      personId: person.id,
-      occupationId: chosen.id,
-      workplaceId: workplace.id,
-      monthlyPay: pay,
-      startedAtTick: tick,
-      performance: Math.floor((person.traits.diligence + 500) / 2),
-    })
+    // The roll decided an opportunity exists this month. For the player it
+    // becomes an offer they can refuse; refused, it is gone (Law 5).
+    if (person.id === world.player.personId) {
+      raisePending(world, {
+        tick,
+        kind: 'job-offer',
+        personId: person.id,
+        otherId: null,
+        occupationId: chosen.id,
+        workplaceId: workplace.id,
+        monthlyPay: pay,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+      continue
+    }
 
+    const rejected = eligible
+      .filter((o) => o.id !== chosen.id)
+      .map((o) => `to take work as ${withArticle(o.title)}`)
+    hirePerson(world, tick, person, chosen, workplace.id, pay, [
+      factor('qualified-for-role', 500 + educationRank(education.level) * 100),
+      factor('ambition', person.traits.ambition),
+      factor('higher-pay', Math.floor(typicalPay(chosen) / 1000)),
+    ], rejected.slice(0, 3))
+  }
+}
+
+/** One hiring implementation for both the automatic path and player choices. */
+export function hirePerson(
+  world: World,
+  tick: Tick,
+  person: Person,
+  occupation: Occupation,
+  workplaceId: EntityId,
+  pay: Money,
+  inputs: readonly CausalFactor[],
+  rejected: readonly string[] = [],
+): void {
+  const previous = world.employment.get(person.id)
+  if (previous) {
     recordEvent(world, tick, {
-      type: 'hired',
+      type: 'left-job',
       subjectId: person.id,
-      placeId: workplace.id,
-      detail: chosen.title,
-    })
-
-    const rejected = eligible.filter((o) => o.id !== chosen.id).map((o) => o.title)
-    recordDecision(world, tick, {
-      subjectId: person.id,
-      decision: 'employment-change',
-      significance: 'major',
-      inputs: [
-        factor('qualified-for-role', 500 + educationRank(education.level) * 100),
-        factor('ambition', person.traits.ambition),
-        factor('higher-pay', Math.floor(typicalPay(chosen) / 1000)),
-      ],
-      chosen: `took work as ${withArticle(chosen.title)}`,
-      rejected: rejected.slice(0, 3).map((title) => `to take work as ${withArticle(title)}`),
-      streamId: Stream.Employment,
+      detail: occupationById(previous.occupationId).title,
     })
   }
+  world.employment.set(person.id, {
+    personId: person.id,
+    occupationId: occupation.id,
+    workplaceId,
+    monthlyPay: pay,
+    startedAtTick: tick,
+    performance: previous?.performance ?? Math.floor((person.traits.diligence + 500) / 2),
+  })
+  recordEvent(world, tick, {
+    type: 'hired',
+    subjectId: person.id,
+    placeId: workplaceId,
+    detail: occupation.title,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs,
+    chosen: `took work as ${withArticle(occupation.title)}`,
+    rejected: [...rejected],
+    streamId: Stream.Employment,
+  })
 }
 
 function driftPerformance(world: World, person: Person, job: EmploymentRecord, rng: Rng): void {
@@ -340,35 +406,28 @@ function considerBetterJob(
   const workplace = workplaces.length > 0 ? rng.pick(workplaces) : null
   if (!workplace || workplaceCount === 0) return
 
-  world.employment.set(person.id, {
-    personId: person.id,
-    occupationId: target.id,
-    workplaceId: workplace.id,
-    monthlyPay: pay,
-    startedAtTick: tick,
-    performance: job.performance,
-  })
+  // A better opening exists. The player decides whether to take it; an NPC's
+  // ambition already decided for them when the roll passed.
+  if (person.id === world.player.personId) {
+    raisePending(world, {
+      tick,
+      kind: 'job-offer',
+      personId: person.id,
+      otherId: null,
+      occupationId: target.id,
+      workplaceId: workplace.id,
+      monthlyPay: pay,
+      placeId: null,
+      options: ['accept', 'decline'],
+    })
+    return
+  }
 
-  recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: current.title })
-  recordEvent(world, tick, {
-    type: 'hired',
-    subjectId: person.id,
-    placeId: workplace.id,
-    detail: target.title,
-  })
-  recordDecision(world, tick, {
-    subjectId: person.id,
-    decision: 'employment-change',
-    significance: 'major',
-    inputs: [
-      factor('higher-pay', Math.floor((pay - job.monthlyPay) / 100)),
-      factor('ambition', person.traits.ambition),
-      factor('qualified-for-role', 400),
-    ],
-    chosen: `moved to work as ${withArticle(target.title)}`,
-    rejected: [`to stay as ${withArticle(current.title)}`],
-    streamId: Stream.Employment,
-  })
+  hirePerson(world, tick, person, target, workplace.id, pay, [
+    factor('higher-pay', Math.floor((pay - job.monthlyPay) / 100)),
+    factor('ambition', person.traits.ambition),
+    factor('qualified-for-role', 400),
+  ], [`to stay as ${withArticle(current.title)}`])
 }
 
 // ---------------------------------------------------------------------------
@@ -402,57 +461,26 @@ export function runHouseholds(world: World, tick: Tick): void {
     if (stillWithParents && job) {
       if (!rng.chance(60 + Math.floor(person.traits.ambition / 20), 1000)) continue
 
-      // Who they pair with is owned by the relationships domain, not decided
-      // here. Households react to relationships; they do not create them.
-      const partnerId = eligibleCohabitant(world, person.id)
-      const newHouseholdId = allocateId(world)
       const home = rng.pick(neighbourhoods)
 
-      removeFromHousehold(world, household.id, person.id)
-      const members: EntityId[] = [person.id]
-      if (partnerId !== null) {
-        const partner = world.people.get(partnerId)
-        if (partner !== undefined) {
-          if (partner.householdId !== null) removeFromHousehold(world, partner.householdId, partnerId)
-          members.push(partnerId)
-          setPerson(world, { ...partner, householdId: newHouseholdId })
-        }
-      }
-
-      world.households.set(newHouseholdId, {
-        id: newHouseholdId,
-        placeId: home.id,
-        memberIds: members,
-        formedTick: tick,
-        dissolvedTick: null,
-      })
-      setPerson(world, { ...person, householdId: newHouseholdId })
-
-      recordEvent(world, tick, { type: 'left-home', subjectId: person.id, placeId: home.id })
-      if (partnerId !== null) {
-        recordEvent(world, tick, {
-          type: 'moved-in-together',
-          subjectId: person.id,
-          otherId: partnerId,
+      // The urge and the destination are simulated either way; only who says
+      // yes differs. The player can stay home as long as they like.
+      if (person.id === world.player.personId) {
+        raisePending(world, {
+          tick,
+          kind: 'move-out',
+          personId: person.id,
+          otherId: null,
+          occupationId: null,
+          workplaceId: null,
+          monthlyPay: null,
           placeId: home.id,
+          options: ['accept', 'decline'],
         })
+        continue
       }
 
-      const inputs = [factor('reached-adulthood', 600), factor('has-income', 500)]
-      if (partnerId !== null) inputs.push(factor('close-friendship', 800, partnerId))
-
-      recordDecision(world, tick, {
-        subjectId: person.id,
-        decision: 'household-formation',
-        significance: 'defining',
-        inputs,
-        chosen:
-          partnerId === null
-            ? `moved out to ${home.name}`
-            : `moved to ${home.name} with someone close`,
-        rejected: ['to stay in the family home'],
-        streamId: Stream.LifeEventTiming,
-      })
+      performMoveOut(world, tick, person, home.id, [])
       continue
     }
 
@@ -558,6 +586,74 @@ function moveInWithPartner(world: World, tick: Tick, person: Person, rng: Rng): 
     streamId: Stream.LifeEventTiming,
   })
   return true
+}
+
+/**
+ * One move-out implementation for both the automatic path and player choices.
+ * Extra inputs (the player's 'own-choice') are listed first in the record.
+ */
+export function performMoveOut(
+  world: World,
+  tick: Tick,
+  person: Person,
+  placeId: EntityId,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const household = householdOf(world, person)
+  if (!household) return
+  const home = world.places.get(placeId)
+  if (!home) return
+
+  // Who they pair with is owned by the relationships domain, not decided
+  // here. Households react to relationships; they do not create them.
+  const partnerId = eligibleCohabitant(world, person.id)
+  const newHouseholdId = allocateId(world)
+
+  removeFromHousehold(world, household.id, person.id)
+  const members: EntityId[] = [person.id]
+  if (partnerId !== null) {
+    const partner = world.people.get(partnerId)
+    if (partner !== undefined) {
+      if (partner.householdId !== null) removeFromHousehold(world, partner.householdId, partnerId)
+      members.push(partnerId)
+      setPerson(world, { ...partner, householdId: newHouseholdId })
+    }
+  }
+
+  world.households.set(newHouseholdId, {
+    id: newHouseholdId,
+    placeId: home.id,
+    memberIds: members,
+    formedTick: tick,
+    dissolvedTick: null,
+  })
+  setPerson(world, { ...person, householdId: newHouseholdId })
+
+  recordEvent(world, tick, { type: 'left-home', subjectId: person.id, placeId: home.id })
+  if (partnerId !== null) {
+    recordEvent(world, tick, {
+      type: 'moved-in-together',
+      subjectId: person.id,
+      otherId: partnerId,
+      placeId: home.id,
+    })
+  }
+
+  const inputs = [...extraInputs, factor('reached-adulthood', 600), factor('has-income', 500)]
+  if (partnerId !== null) inputs.push(factor('close-friendship', 800, partnerId))
+
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'household-formation',
+    significance: 'defining',
+    inputs,
+    chosen:
+      partnerId === null
+        ? `moved out to ${home.name}`
+        : `moved to ${home.name} with someone close`,
+    rejected: ['to stay in the family home'],
+    streamId: Stream.LifeEventTiming,
+  })
 }
 
 /**

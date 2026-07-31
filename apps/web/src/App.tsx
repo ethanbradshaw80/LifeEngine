@@ -4,6 +4,7 @@ import {
   ageAt,
   createWorld,
   formatDate,
+  fullName,
   livingPeople,
   personSummary,
   worldHashHex,
@@ -11,6 +12,7 @@ import {
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
 import { PersonDetail } from './PersonDetail.js'
+import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
 import { useWorld } from './useWorld.js'
 
 /**
@@ -27,17 +29,38 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = 'c67a53ef'
+const GOLDEN_HASH_HEX = 'e6f86483'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
 export function App() {
-  const { world, status, message, lastElapsedMs, saveState, advance, newWorld, save, discardSave } =
-    useWorld(GOLDEN_SEED)
+  const {
+    world,
+    status,
+    message,
+    lastElapsedMs,
+    saveState,
+    advance,
+    newWorld,
+    play,
+    choose,
+    save,
+    discardSave,
+  } = useWorld(GOLDEN_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
   const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
+  // Whether the character picker is open. Pure interface state — what the user
+  // is looking at, not a fact about the world.
+  const [picking, setPicking] = useState(false)
   const busy = status === 'working' || status === 'starting'
+
+  // Everything below reads the player FROM THE WORLD. The interface never
+  // keeps its own idea of who is being played (ADR-0012).
+  const playerId = world?.player.personId ?? null
+  const playerPerson = playerId === null ? undefined : world?.people.get(playerId)
+  const pending = world?.player.pending ?? null
+  const playerDead = playerPerson !== undefined && playerPerson.deathTick !== null
 
   const determinismOk = useMemo(() => {
     const check = createWorld(makeSeed(GOLDEN_SEED))
@@ -119,6 +142,17 @@ export function App() {
             {world.town.name} · {formatDate(world.tick)}
           </p>
         </div>
+        {playerPerson && (
+          <button
+            type="button"
+            className={playerDead ? 'player-chip dead' : 'player-chip'}
+            onClick={() => setSelected(playerPerson.id)}
+            title="Show my life"
+          >
+            ▶ {fullName(playerPerson)}
+            {!playerDead && `, ${ageAt(playerPerson.birthTick, world.tick)}`}
+          </button>
+        )}
         <div className="stats">
           <span>
             <strong>{livingPeople(world).length}</strong> living
@@ -148,6 +182,15 @@ export function App() {
 
         <span className="spacer" />
 
+        {playerId === null ? (
+          <button type="button" className="primary" disabled={busy} onClick={() => setPicking(true)}>
+            Live a life
+          </button>
+        ) : (
+          <button type="button" disabled={busy} onClick={() => play(null)}>
+            Stop playing
+          </button>
+        )}
         <button type="button" disabled={busy || saveState === 'saving'} onClick={save}>
           {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
         </button>
@@ -212,6 +255,7 @@ export function App() {
                     className={selected === person.id ? 'selected' : ''}
                     onClick={() => setSelected(person.id)}
                   >
+                    {person.id === playerId ? '▶ ' : ''}
                     {personSummary(world, person.id)}
                   </button>
                 </li>
@@ -235,6 +279,34 @@ export function App() {
         </section>
       </div>
 
+      {picking && !busy && (
+        <CharacterPicker
+          world={world}
+          onPlay={(id) => {
+            setPicking(false)
+            setSelected(id)
+            play(id)
+          }}
+          onCancel={() => setPicking(false)}
+        />
+      )}
+
+      {pending !== null && !busy && (
+        <DecisionPrompt world={world} pending={pending} onChoose={choose} />
+      )}
+
+      {playerDead && playerId !== null && !busy && (
+        <Retrospective
+          world={world}
+          personId={playerId}
+          onPlayHeir={(heirId) => {
+            setSelected(heirId)
+            play(heirId)
+          }}
+          onWatch={() => play(null)}
+        />
+      )}
+
       <footer>
         <span className={determinismOk ? 'check ok' : 'check bad'}>
           {determinismOk
@@ -242,7 +314,8 @@ export function App() {
             : 'DETERMINISM CHECK FAILED — this browser disagrees with Node'}
         </span>
         <span className="muted small">
-          Milestone 4 · engine on a worker thread · saves in this browser
+          {playerId === null ? 'Watching the town' : 'Living a life'} · engine on a
+          worker thread · saves in this browser
           {lastElapsedMs !== null && ` · last step ${lastElapsedMs.toFixed(0)} ms`}
         </span>
       </footer>

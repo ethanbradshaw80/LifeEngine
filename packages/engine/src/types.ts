@@ -169,6 +169,68 @@ export function relationshipKey(a: EntityId, b: EntityId): string {
 export const friendshipKey = relationshipKey
 
 // ---------------------------------------------------------------------------
+// The player
+//
+// The player is one person inside the simulation, not a special entity. The
+// person keeps their id, traits, relationships and records; the ONLY thing
+// that changes is who answers their major decisions. When a system reaches a
+// choice point for the player's person, it emits a PendingDecision and the
+// clock halts instead of rolling (Law 5: "major events may pause progression
+// for a player decision").
+//
+// Player choices are part of the deterministic record: same seed + same
+// simulation version + same choice sequence ⇒ the same world, byte for byte.
+// That is why every resolved choice is appended to `log` and serialized
+// (docs/DETERMINISM.md §8 — a save is recoverable from seed + decisions).
+// ---------------------------------------------------------------------------
+
+export type PendingKind =
+  /** At 18: college, trade school, or straight to work. */
+  | 'education'
+  /** A job offer — accept or decline. */
+  | 'job-offer'
+  /** Old enough, earning, still at home: move out or stay. */
+  | 'move-out'
+  /** A close friendship could become more. */
+  | 'courtship'
+  /** A courtship could become a marriage. */
+  | 'marriage'
+
+export interface PendingDecision {
+  readonly id: number
+  readonly tick: Tick
+  readonly kind: PendingKind
+  /** Always the player's person. */
+  readonly personId: EntityId
+  /** The other person involved, for courtship and marriage. */
+  readonly otherId: EntityId | null
+  readonly occupationId: string | null
+  readonly workplaceId: EntityId | null
+  readonly monthlyPay: Money | null
+  /** Destination neighbourhood for a move. */
+  readonly placeId: EntityId | null
+  /** Valid answers, e.g. ['accept','decline'] or ['college','trade','work']. */
+  readonly options: readonly string[]
+}
+
+export interface PlayerChoice {
+  readonly decisionId: number
+  readonly tick: Tick
+  readonly kind: PendingKind
+  readonly choice: string
+}
+
+export interface PlayerState {
+  /** Null means nobody is being played — the world is a pure simulation. */
+  personId: EntityId | null
+  /** While non-null the clock is halted awaiting an answer. */
+  pending: PendingDecision | null
+  /** Every answered decision, in order. Part of the save. */
+  readonly log: PlayerChoice[]
+  nextDecisionId: number
+}
+
+// ---------------------------------------------------------------------------
 // Events — WHAT happened
 // ---------------------------------------------------------------------------
 
@@ -249,6 +311,7 @@ export type FactorId =
   | 'financial-strain'
   | 'lost-work'
   | 'wanted-family'
+  | 'own-choice'
 
 export interface CausalFactor {
   readonly factor: FactorId
@@ -295,4 +358,5 @@ export interface World {
 
   readonly events: WorldEvent[]
   readonly causalRecords: CausalRecord[]
+  readonly player: PlayerState
 }

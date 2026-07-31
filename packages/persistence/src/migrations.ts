@@ -109,7 +109,34 @@ const V2_TO_V3: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3]
+/**
+ * v3 → v4 (M-PLAY).
+ *
+ * Adds `world.player`. A v3 save was a pure simulation — nobody was being
+ * played — so the honest default is exactly that: no player, no pending
+ * decision, an empty choice log. Nothing is dropped.
+ */
+const V3_TO_V4: Migration = {
+  from: 3,
+  to: 4,
+  describe: 'add player state (nobody played, empty choice log)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+
+    const nextWorld: Record<string, unknown> = {
+      ...world,
+      player: { personId: null, pending: null, log: [], nextDecisionId: 1 },
+    }
+
+    return {
+      header: { ...header, schemaVersion: 4, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

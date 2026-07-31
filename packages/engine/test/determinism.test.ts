@@ -38,8 +38,14 @@ export const GOLDEN_TICKS = 120
  * Last changed at Milestone 5, with SIMULATION_VERSION raised to 2: the
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
+ *
+ * Changed again at M-PLAY (schema v4): the serialized world gained the
+ * `player` block, so the hash of the bytes moved. SIMULATION_VERSION stayed
+ * at 2 deliberately — with nobody being played, the simulation behaves
+ * identically; only the serialized shape differs. The playable tests assert
+ * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = 'c67a53ef'
+export const GOLDEN_HASH_HEX = 'e6f86483'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))

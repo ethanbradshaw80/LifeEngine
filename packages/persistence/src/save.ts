@@ -16,6 +16,7 @@ import type {
   Household,
   Person,
   Place,
+  PlayerState,
   Town,
   World,
   WorldEvent,
@@ -161,5 +162,6 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     relationships,
     events: body['events'] as WorldEvent[],
     causalRecords: body['causalRecords'] as CausalRecord[],
+    player: body['player'] as PlayerState,
   }
 }

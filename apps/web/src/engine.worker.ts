@@ -14,15 +14,18 @@
  * messages sent back here can change anything.
  */
 
-import { advanceTicks, createWorld, SIMULATION_VERSION } from '@life-engine/engine'
+import { advanceTicks, createWorld, resolvePending, setPlayer, SIMULATION_VERSION } from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
 import { fromSaveFile } from '@life-engine/persistence'
 import { seed as makeSeed } from '@life-engine/shared'
+import type { EntityId } from '@life-engine/shared'
 
 export type WorkerRequest =
   | { readonly type: 'new'; readonly seed: number }
   | { readonly type: 'advance'; readonly months: number }
   | { readonly type: 'load'; readonly save: unknown }
+  | { readonly type: 'play'; readonly personId: number | null }
+  | { readonly type: 'choose'; readonly choice: string }
 
 export type WorkerResponse =
   | {
@@ -70,6 +73,28 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const started = performance.now()
         advanceTicks(world, request.months)
         send(performance.now() - started)
+        return
+      }
+
+      case 'play': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to play in.' })
+          return
+        }
+        setPlayer(world, request.personId as EntityId | null)
+        send(0)
+        return
+      }
+
+      case 'choose': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to choose in.' })
+          return
+        }
+        // Applies the answer through the same code the automatic path uses,
+        // then the clock is free again. The next 'advance' resumes the life.
+        resolvePending(world, request.choice)
+        send(0)
         return
       }
 

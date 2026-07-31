@@ -21,8 +21,9 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { raisePending } from './player.js'
 import { openStream, Stream } from './rng.js'
-import type { Person, Relationship, World } from './types.js'
+import type { CausalFactor, Person, Relationship, World } from './types.js'
 import { relationshipKey } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -336,7 +337,7 @@ function formFriendships(world: World, tick: Tick, living: Person[]): void {
 
 /** Strong friendships between eligible adults may become courtships. */
 function advanceCourtships(world: World, tick: Tick): void {
-  for (const [key, relationship] of sortedRelationships(world)) {
+  for (const [, relationship] of sortedRelationships(world)) {
     if (relationship.type !== 'friend') continue
     if (relationship.strength < COURTSHIP_MIN_STRENGTH) continue
 
@@ -349,34 +350,68 @@ function advanceCourtships(world: World, tick: Tick): void {
     const match = compatibility(a, b)
     if (!rng.chance(match, 6_000)) continue
 
-    world.relationships.set(key, {
-      ...relationship,
-      type: 'courting',
-      typeSinceTick: tick,
-    })
+    // The moment exists either way; the player gets to answer it. Declining
+    // leaves the friendship as it was — the moment may or may not come again.
+    const playerId = world.player.personId
+    if (playerId !== null && (playerId === relationship.a || playerId === relationship.b)) {
+      raisePending(world, {
+        tick,
+        kind: 'courtship',
+        personId: playerId,
+        otherId: playerId === relationship.a ? relationship.b : relationship.a,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+      continue
+    }
 
-    recordEvent(world, tick, {
-      type: 'started-courting',
-      subjectId: relationship.a,
-      otherId: relationship.b,
-    })
-    recordDecision(world, tick, {
-      subjectId: relationship.a,
-      decision: 'courtship',
-      significance: 'major',
-      inputs: [
-        factor('compatible-personality', match, relationship.b),
-        factor('strong-attachment', relationship.strength),
-      ],
-      chosen: `began courting`,
-      rejected: ['to stay friends'],
-      streamId: Stream.Relationships,
-    })
+    promoteToCourting(world, tick, relationship, [])
   }
 }
 
+/** One courtship implementation for both the automatic path and player choices. */
+export function promoteToCourting(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const a = world.people.get(relationship.a)
+  const b = world.people.get(relationship.b)
+  if (!a || !b) return
+  const match = compatibility(a, b)
+
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    type: 'courting',
+    typeSinceTick: tick,
+  })
+
+  recordEvent(world, tick, {
+    type: 'started-courting',
+    subjectId: relationship.a,
+    otherId: relationship.b,
+  })
+  recordDecision(world, tick, {
+    subjectId: relationship.a,
+    decision: 'courtship',
+    significance: 'major',
+    inputs: [
+      ...extraInputs,
+      factor('compatible-personality', match, relationship.b),
+      factor('strong-attachment', relationship.strength),
+    ],
+    chosen: 'began courting',
+    rejected: ['to stay friends'],
+    streamId: Stream.Relationships,
+  })
+}
+
 function considerMarriage(world: World, tick: Tick): void {
-  for (const [key, relationship] of sortedRelationships(world)) {
+  for (const [, relationship] of sortedRelationships(world)) {
     if (relationship.type !== 'courting') continue
     if (relationship.strength < MARRIAGE_MIN_STRENGTH) continue
     if (tick - relationship.typeSinceTick < MARRIAGE_MIN_COURTSHIP_MONTHS) continue
@@ -396,33 +431,67 @@ function considerMarriage(world: World, tick: Tick): void {
     const appetite = 60 + earners * 45 + Math.min(90, monthsTogether)
     if (!rng.chance(appetite, 1_200)) continue
 
-    world.relationships.set(key, {
-      ...relationship,
-      type: 'spouse',
-      typeSinceTick: tick,
-      strength: Math.min(1000, relationship.strength + 40),
-    })
+    const playerId = world.player.personId
+    if (playerId !== null && (playerId === relationship.a || playerId === relationship.b)) {
+      raisePending(world, {
+        tick,
+        kind: 'marriage',
+        personId: playerId,
+        otherId: playerId === relationship.a ? relationship.b : relationship.a,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+      continue
+    }
 
-    recordEvent(world, tick, {
-      type: 'married',
-      subjectId: relationship.a,
-      otherId: relationship.b,
-    })
-    recordDecision(world, tick, {
-      subjectId: relationship.a,
-      decision: 'marriage',
-      significance: 'defining',
-      inputs: [
-        factor('strong-attachment', relationship.strength, relationship.b),
-        factor('years-together', Math.floor(monthsTogether / TICKS_PER_YEAR) * 100 + monthsTogether),
-        factor('compatible-personality', compatibility(a, b)),
-        ...(earners > 0 ? [factor('has-income', earners * 300)] : []),
-      ],
-      chosen: 'married',
-      rejected: ['to stay unmarried'],
-      streamId: Stream.Relationships,
-    })
+    promoteToSpouse(world, tick, relationship, [])
   }
+}
+
+/** One marriage implementation for both the automatic path and player choices. */
+export function promoteToSpouse(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const a = world.people.get(relationship.a)
+  const b = world.people.get(relationship.b)
+  if (!a || !b) return
+  const monthsTogether = tick - relationship.typeSinceTick
+  const earners =
+    (world.employment.has(relationship.a) ? 1 : 0) + (world.employment.has(relationship.b) ? 1 : 0)
+
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    type: 'spouse',
+    typeSinceTick: tick,
+    strength: Math.min(1000, relationship.strength + 40),
+  })
+
+  recordEvent(world, tick, {
+    type: 'married',
+    subjectId: relationship.a,
+    otherId: relationship.b,
+  })
+  recordDecision(world, tick, {
+    subjectId: relationship.a,
+    decision: 'marriage',
+    significance: 'defining',
+    inputs: [
+      ...extraInputs,
+      factor('strong-attachment', relationship.strength, relationship.b),
+      factor('years-together', Math.floor(monthsTogether / TICKS_PER_YEAR) * 100 + monthsTogether),
+      factor('compatible-personality', compatibility(a, b)),
+      ...(earners > 0 ? [factor('has-income', earners * 300)] : []),
+    ],
+    chosen: 'married',
+    rejected: ['to stay unmarried'],
+    streamId: Stream.Relationships,
+  })
 }
 
 /**
