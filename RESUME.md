@@ -503,7 +503,37 @@ Keep: wars still END, stability tests still pass; UPDATE the geopolitics
 tests' expectations (they assert began>0 over 200y — keep but lower bounds;
 'starts and ends' ratio stays). New golden + SIMULATION_VERSION 12.
 
-**5. Standing principle — overall game depth.** The depth-pass principle
+**5. Military realism (OWNER, 2026-07-31, from playing a rifleman term).**
+Two failures observed firsthand: (a) a full 4-year term where NOTHING
+happened — no basic training, no schools, no exercises, no PCS, just silence
+until the reenlistment question; (b) rank progression is wrong — he was
+promoted straight past ranks ("I got spotted at corporal... didn't even go
+PVT → PFC → SPC"). Direction: model on the REAL US military structure. The
+fictional-world constraint (foundation §3) covers nations/units/insignia,
+NOT structure — the foundation explicitly says "preserve authentic
+structure, progression, meaning."
+
+Fix spec:
+- RANKS per branch, US-style ladders: Land Forces (Army): PVT (E-1), PV2,
+  PFC, SPC, CPL, SGT, SSG, SFC, MSG; Naval Service: SR, SA, SN, PO3, PO2,
+  PO1, CPO; Air Guard: AB, Amn, A1C, SrA, SSgt, TSgt, MSgt. Store rank as
+  index; titles resolved per branch (rankTitle(branch, rank)).
+- Junior promotions are TIME-BASED like reality (TIS/TIG): E-1→E-2 ~6 months,
+  E-2→E-3 ~12 months, E-3→E-4 ~24-30 months — near-automatic unless
+  performance is poor. Competitive (performance-gated, slower, can be passed
+  over) from E-5 up. NO skipping ranks, ever. Monthly check, not annual —
+  the current annual review caused the observed jump.
+- SERVICE TEXTURE so a term is a lived four years: enlistment → basic
+  training event (~10 weeks) → occupational school event (AIT-equivalent,
+  length varies by specialty) → first unit posting; then periodic events:
+  field exercises, qualification badges (marksmanship for rifleman), a PCS
+  move mid-term, occasional additional schools. Events + feed cards; some
+  earn record entries (quals feed L4-M5 awards/badges).
+- Pay should track rank realistically (per-rank pay table, not base+step).
+This folds INTO or directly follows M-GAMEDEPTH; it also feeds L4-M5
+(badges/quals are award-system inputs).
+
+**6. Standing principle — overall game depth.** The depth-pass principle
 (see M-WOUNDS note) extends to GAME ASPECTS: presentation, navigation,
 character ownership, pacing realism. When a screen is thinner than the
 simulation behind it, that is now a defect. Queued candidates beyond the
