@@ -730,6 +730,36 @@ ul.welcome-points li + li {
   text-overflow: ellipsis;
 }
 
+.tab-bar {
+  display: flex;
+  gap: 0.35rem;
+  padding-bottom: 0.6rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-bar button {
+  flex: 0 0 auto;
+  padding: 0.32rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tab-bar button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
 .feed {
   flex: 1;
   overflow-y: auto;
@@ -738,6 +768,77 @@ ul.welcome-points li + li {
   background: var(--panel);
   padding: 0.7rem 0.8rem 0.9rem;
   scroll-behavior: smooth;
+}
+
+/* Non-story tabs share the feed's box, minus the auto-scroll behaviour. */
+.panel {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.8rem 0.9rem 1rem;
+}
+
+.panel h3 {
+  margin: 1rem 0 0.45rem;
+  font-size: 0.95rem;
+}
+
+.panel h3:first-child {
+  margin-top: 0;
+}
+
+.news-year {
+  width: fit-content;
+  margin: 0.7rem auto 0.35rem;
+  padding: 0.05rem 0.75rem;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.job-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.job-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'title pay'
+    'req pay';
+  align-items: baseline;
+  column-gap: 0.6rem;
+  padding: 0.4rem 0.2rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+
+.job-list li.current {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 6px;
+}
+
+.job-list .job-title {
+  grid-area: title;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.job-list li .small {
+  grid-area: req;
+}
+
+.job-list .job-pay {
+  grid-area: pay;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 
 .feed-empty {
