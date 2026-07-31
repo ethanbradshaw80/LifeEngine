@@ -357,7 +357,54 @@ const V11_TO_V12: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12]
+/**
+ * v12 → v13 (M-GAMEDEPTH, military realism).
+ *
+ * Service records move from the old six-step shared ladder onto per-branch
+ * US-style ladders. Old rank indexes are remapped by rough grade equivalence
+ * so nobody is demoted or jumped by the migration. The time-in-grade clock
+ * (`rankSinceTick`) starts at the save's own tick — when they actually made
+ * rank was never recorded, and unrecorded history is not invented.
+ * `qualifications` start empty for the same reason.
+ */
+const V12_TO_V13: Migration = {
+  from: 12,
+  to: 13,
+  describe: 'move service ranks onto branch ladders (time-in-grade starts now)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const tick = requireInteger(header, 'tick', 'save.header')
+    const service = Array.isArray(world['service']) ? world['service'] : []
+
+    // Mapped by PAY GRADE equivalence so nobody is demoted or bumped a
+    // grade: old corporal was E-4, so it lands on PO3/SrA (E-4), not on
+    // PO2/SSgt (E-5). Two old ranks may share a landing spot; that is the
+    // honest cost of moving between ladders of different lengths.
+    const remap: Record<string, readonly number[]> = {
+      'land-forces': [0, 2, 3, 4, 5, 8],
+      'naval-service': [0, 2, 3, 3, 4, 6],
+      'air-guard': [0, 2, 3, 3, 4, 6],
+    }
+
+    const migrated = service.map((entry) => {
+      const record = requireObject(entry, 'save.world.service[]')
+      const branch = typeof record['branch'] === 'string' ? record['branch'] : 'land-forces'
+      const oldRank = typeof record['rank'] === 'number' ? record['rank'] : 0
+      const ladder = remap[branch] ?? remap['land-forces'] ?? [0]
+      const rank = ladder[Math.max(0, Math.min(ladder.length - 1, oldRank))] ?? 0
+      return { ...record, rank, rankSinceTick: tick, qualifications: [] }
+    })
+
+    const nextWorld: Record<string, unknown> = { ...world, service: migrated }
+    return {
+      header: { ...header, schemaVersion: 13, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

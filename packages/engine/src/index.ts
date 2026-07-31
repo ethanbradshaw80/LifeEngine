@@ -76,7 +76,7 @@ export {
   servicePayOf,
   veteranUnlocks,
 } from './service.js'
-export { BRANCH_NAMES, RANKS, SPECIALTIES, specialtyById } from './content.js'
+export { BRANCH_NAMES, BRANCH_RANKS, SPECIALTIES, specialtyById } from './content.js'
 export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
 
 // Deployment (L4-M4)

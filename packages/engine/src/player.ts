@@ -31,12 +31,12 @@ import { applyConvalescence } from './health.js'
 import {
   discharge as dischargeService,
   enlistPerson,
+  rankTitle,
   reenlist as reenlistService,
 } from './service.js'
 import {
   BRANCH_NAMES,
   meetsRequirement,
-  RANKS,
   SERVICE_TERM_MONTHS,
   servicePay,
   SPECIALTIES,
@@ -508,7 +508,7 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'A new life begins.' // log-only; never shown as a question
     case 'reenlist': {
       const record = world.service.get(pending.personId)
-      const title = record ? RANKS[record.rank] ?? 'soldier' : 'soldier'
+      const title = record ? rankTitle(record.branch, record.rank) : 'soldier'
       return `Your term is up, ${title}. Sign for another four years?`
     }
     default: {
@@ -671,7 +671,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       break
     }
     case 'enlist': {
-      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(SPECIALTIES[0]?.basePay ?? (0 as never))} a month, with rank raises.`)
+      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(servicePay('land-forces', 0))} a month, and rises with rank.`)
       lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
       const wars = activeWars(world)
       const home = homeland(world)
@@ -688,7 +688,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const sp = SPECIALTIES.find((x) => x.id === id)
         if (!sp) continue
         const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
-        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${formatMoney(servicePay(sp, 0))}/mo${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
+        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
       }
       break
     }
@@ -697,7 +697,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const record = world.service.get(pending.personId)
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${RANKS[record.rank] ?? 'recruit'}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(record.branch, record.rank)}, ${formatMoney(record.monthlyPay)} a month.`)
         lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
       }
       break

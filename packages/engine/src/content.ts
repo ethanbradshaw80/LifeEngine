@@ -136,10 +136,58 @@ export const BRANCH_NAMES: Readonly<Record<ServiceBranch, string>> = {
   'air-guard': 'the Air Guard',
 }
 
-/** Enlisted ranks, junior to senior. One track for M3; officers arrive later. */
-export const RANKS: readonly string[] = [
-  'recruit', 'private', 'specialist', 'corporal', 'sergeant', 'master sergeant',
+/**
+ * Enlisted ladders, junior to senior, one per branch — modelled on the real
+ * US structure (M-GAMEDEPTH owner direction). The fictional-world constraint
+ * covers nations, units and insignia, NOT structure: the foundation says
+ * "preserve authentic structure, progression, meaning." Officers arrive later.
+ *
+ * A record stores an INDEX into its branch's ladder; titles resolve through
+ * rankTitle(branch, rank). No rank is ever skipped.
+ */
+export const BRANCH_RANKS: Readonly<Record<ServiceBranch, readonly string[]>> = {
+  'land-forces': ['PVT', 'PV2', 'PFC', 'SPC', 'CPL', 'SGT', 'SSG', 'SFC', 'MSG'],
+  'naval-service': ['SR', 'SA', 'SN', 'PO3', 'PO2', 'PO1', 'CPO'],
+  'air-guard': ['AB', 'Amn', 'A1C', 'SrA', 'SSgt', 'TSgt', 'MSgt'],
+}
+
+/**
+ * Pay grade (E-1..E-8) for each ladder index. Pay reads the GRADE, not the
+ * index: SPC and CPL are both E-4, exactly as in life.
+ */
+export const BRANCH_GRADES: Readonly<Record<ServiceBranch, readonly number[]>> = {
+  'land-forces': [1, 2, 3, 4, 4, 5, 6, 7, 8],
+  'naval-service': [1, 2, 3, 4, 5, 6, 7],
+  'air-guard': [1, 2, 3, 4, 5, 6, 7],
+}
+
+/** Monthly pay by pay grade, E-1 first. A pay table, not base+step. */
+const PAY_BY_GRADE: readonly number[] = [
+  dollars(1_100), dollars(1_180), dollars(1_270), dollars(1_390),
+  dollars(1_560), dollars(1_790), dollars(2_060), dollars(2_360),
 ]
+
+/**
+ * The first ladder index that takes a promotion board. Everything below is
+ * time-in-grade — near-automatic, the way junior enlisted promotion works.
+ */
+export const COMPETITIVE_FROM: Readonly<Record<ServiceBranch, number>> = {
+  'land-forces': 4, // CPL and above
+  'naval-service': 3, // PO3 and above
+  'air-guard': 4, // SSgt and above
+}
+
+/**
+ * Months in grade before the next junior promotion is due, indexed by the
+ * CURRENT rank. E-1→E-2 at ~6 months, E-3 by the first year, E-4 around the
+ * second or third — no skipping, checked monthly, delayed only by poor
+ * performance.
+ */
+export const JUNIOR_TIG_MONTHS: Readonly<Record<ServiceBranch, readonly number[]>> = {
+  'land-forces': [6, 6, 12],
+  'naval-service': [6, 6],
+  'air-guard': [6, 6, 16],
+}
 
 /**
  * How a specialty spends its days — which threats it is exposed to when a
@@ -159,8 +207,10 @@ export interface ServiceSpecialty {
   readonly title: string
   readonly branch: ServiceBranch
   readonly requires: EducationLevel
-  /** Monthly base pay at the lowest rank, in cents. */
-  readonly basePay: Money
+  /** Months of occupational school after basic training (AIT-equivalent). */
+  readonly schoolMonths: number
+  /** The qualification this trade can earn, in words. L4-M5 reads these. */
+  readonly qualification: string
   readonly exposure: ExposureProfile
   /** Civilian occupations this specialty's training unlocks for veterans. */
   readonly civilianUnlocks: readonly string[]
@@ -169,37 +219,37 @@ export interface ServiceSpecialty {
 export const SPECIALTIES: readonly ServiceSpecialty[] = [
   {
     id: 'rifleman', title: 'rifleman', branch: 'land-forces', requires: 'none',
-    basePay: dollars(1150),
+    schoolMonths: 2, qualification: 'expert marksman',
     exposure: { directCombat: 850, convoy: 300, baseAttack: 300, accident: 300 },
     civilianUnlocks: [],
   },
   {
     id: 'transport', title: 'transport driver', branch: 'land-forces', requires: 'primary',
-    basePay: dollars(1200),
+    schoolMonths: 2, qualification: 'master driver',
     exposure: { directCombat: 150, convoy: 850, baseAttack: 250, accident: 450 },
     civilianUnlocks: [],
   },
   {
     id: 'mechanic', title: 'field mechanic', branch: 'land-forces', requires: 'primary',
-    basePay: dollars(1350),
+    schoolMonths: 4, qualification: 'master mechanic',
     exposure: { directCombat: 80, convoy: 200, baseAttack: 350, accident: 400 },
     civilianUnlocks: ['machinist', 'electrician', 'carpenter'],
   },
   {
     id: 'medic', title: 'medic', branch: 'land-forces', requires: 'secondary',
-    basePay: dollars(1450),
+    schoolMonths: 4, qualification: 'field trauma certification',
     exposure: { directCombat: 350, convoy: 400, baseAttack: 300, accident: 250 },
     civilianUnlocks: ['nurse'],
   },
   {
     id: 'signals', title: 'signals operator', branch: 'air-guard', requires: 'secondary',
-    basePay: dollars(1400),
+    schoolMonths: 4, qualification: 'senior signals rating',
     exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
     civilianUnlocks: ['clerk'],
   },
   {
     id: 'deckhand', title: 'deckhand', branch: 'naval-service', requires: 'none',
-    basePay: dollars(1200),
+    schoolMonths: 2, qualification: 'seamanship rating',
     exposure: { directCombat: 120, convoy: 60, baseAttack: 500, accident: 550 },
     civilianUnlocks: ['millhand'],
   },
@@ -211,9 +261,15 @@ export function specialtyById(id: string): ServiceSpecialty {
   return found
 }
 
-/** Pay rises a fixed step per rank — a pay TABLE, not a lookup of danger. */
-export function servicePay(specialty: ServiceSpecialty, rank: number): Money {
-  return (specialty.basePay + rank * dollars(180)) as Money
+/**
+ * Monthly pay for a rank: the branch ladder index resolves to a pay GRADE,
+ * the grade to the table. All E-1s earn the same whatever their trade — pay
+ * tracks rank, exactly as in life. Never a lookup of danger.
+ */
+export function servicePay(branch: ServiceBranch, rank: number): Money {
+  const grades = BRANCH_GRADES[branch]
+  const grade = grades[Math.max(0, Math.min(grades.length - 1, rank))] ?? 1
+  return (PAY_BY_GRADE[grade - 1] ?? PAY_BY_GRADE[0] ?? 0) as Money
 }
 
 /** Standard enlistment term, months. */

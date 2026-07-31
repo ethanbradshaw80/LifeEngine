@@ -164,6 +164,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return event.detail === 'medical'
         ? `${year} — Discharged on medical grounds at ${age}.`
         : `${year} — Left the service at ${age}.`
+    case 'began-training':
+      return `${year} — Reported to ${event.detail ?? 'training'}.`
+    case 'completed-training':
+      return `${year} — Finished ${event.detail ?? 'training'}.`
+    case 'field-exercise':
+      return `${year} — Out on ${event.detail ?? 'an exercise'}.`
+    case 'earned-qualification':
+      return `${year} — Qualified: ${event.detail ?? 'a new rating'}.`
+    case 'changed-post':
+      return `${year} — Posted to ${event.detail ?? 'a new station'}.`
     case 'deployed':
       return `${year} — Deployed to ${event.detail ?? 'the front'} at ${age}.`
     case 'returned-home':
@@ -227,6 +237,9 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'service-tradition': 'the family had served before',
   'term-ended': 'the term was up',
   'medically-unfit': 'the body would not carry it further',
+  'time-in-grade': '{they} had put in the time',
+  'strong-performance': 'the work spoke for itself',
+  'holds-qualification': 'the qualification counted',
   'under-orders': 'the orders came',
   'war-demanded-troops': 'the war needed people',
   'enemy-capability': 'the enemy could reach them',

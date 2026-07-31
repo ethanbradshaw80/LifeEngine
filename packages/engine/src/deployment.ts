@@ -108,6 +108,14 @@ function deployablePeople(world: World): Person[] {
     if (person.deathTick !== null) continue
     if (!isServing(world, person.id)) continue
     if (isDeployed(world, person.id)) continue
+    // Nobody deploys out of the schoolhouse: the training pipeline (basic,
+    // then the trade school) finishes before orders can find you. Without
+    // this gate a recruit could "finish basic training" in a theatre.
+    const record = world.service.get(person.id)
+    if (record) {
+      const trained = 2 + specialtyById(record.specialtyId).schoolMonths
+      if (world.tick - record.enlistedAtTick < trained) continue
+    }
     eligible.push(person)
   }
   eligible.sort((a, b) => a.id - b.id)

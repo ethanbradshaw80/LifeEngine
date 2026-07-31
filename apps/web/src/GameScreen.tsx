@@ -62,6 +62,11 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   promoted: '🎖️',
   reenlisted: '✍️',
   discharged: '📜',
+  'began-training': '🥾',
+  'completed-training': '📗',
+  'field-exercise': '⛺',
+  'earned-qualification': '🎯',
+  'changed-post': '🧳',
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',
@@ -215,7 +220,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
               return (
                 <>
                   <span className="stat-value">
-                    {rankTitle(record.rank)} · {specialtyById(record.specialtyId).title}
+                    {rankTitle(record.branch, record.rank)} · {specialtyById(record.specialtyId).title}
                   </span>
                   <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
@@ -615,9 +620,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
                   <dt>Branch</dt>
                   <dd>{BRANCH_NAMES[record.branch as ServiceBranch] ?? record.branch}</dd>
                   <dt>Rank</dt>
-                  <dd>{rankTitle(record.rank)}</dd>
+                  <dd>{rankTitle(record.branch, record.rank)}</dd>
                   <dt>Specialty</dt>
                   <dd>{specialtyById(record.specialtyId).title}</dd>
+                  {record.qualifications.length > 0 && (
+                    <>
+                      <dt>Qualifications</dt>
+                      <dd>{record.qualifications.join(', ')}</dd>
+                    </>
+                  )}
                   <dt>Status</dt>
                   <dd>
                     {record.dischargedAtTick === null ? (

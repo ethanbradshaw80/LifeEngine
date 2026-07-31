@@ -112,6 +112,7 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'started-courting': 'courtship',
   married: 'marriage',
   divorced: 'separation',
+  promoted: 'promotion',
 }
 
 /**

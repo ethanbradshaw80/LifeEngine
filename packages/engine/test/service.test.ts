@@ -11,7 +11,8 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { RANKS, specialtyById } from '../src/content.js'
+import { BRANCH_RANKS, servicePay, specialtyById } from '../src/content.js'
+import type { ServiceBranch } from '../src/content.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, resolvePending, setPlayer } from '../src/player.js'
 import { isServing, isVeteran, veteranUnlocks } from '../src/service.js'
@@ -37,17 +38,107 @@ describe('the peacetime career', () => {
     expect(enlisted).toBeLessThan(everyone / 4)
   })
 
-  it('promotions happen, in order, within the rank table', () => {
+  it('promotions happen, in order, within each branch ladder', () => {
     const world = grownWorld(900)
     const promoted = world.events.filter((e) => e.type === 'promoted')
     expect(promoted.length).toBeGreaterThan(0)
+
+    const allTitles = new Set(Object.values(BRANCH_RANKS).flat())
     for (const event of promoted) {
-      expect(RANKS).toContain(event.detail)
+      expect(allTitles.has(event.detail ?? ''), `${event.detail ?? ''} is not a rank`).toBe(true)
     }
     for (const record of world.service.values()) {
+      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
       expect(record.rank).toBeGreaterThanOrEqual(0)
-      expect(record.rank).toBeLessThan(RANKS.length)
+      expect(record.rank).toBeLessThan(ladder.length)
     }
+  })
+
+  it('NEVER skips a rank — every promotion is exactly one step', () => {
+    // The owner watched a rifleman get "spotted at corporal" without ever
+    // being PV2. This is the regression test for that playtest finding.
+    const world = grownWorld(900)
+    const byPerson = new Map<number, string[]>()
+    for (const event of world.events) {
+      if (event.type !== 'promoted') continue
+      const list = byPerson.get(event.subjectId) ?? []
+      list.push(event.detail ?? '')
+      byPerson.set(event.subjectId, list)
+    }
+    expect(byPerson.size).toBeGreaterThan(0)
+    for (const [personId, titles] of byPerson) {
+      const record = world.service.get(personId as never)
+      if (!record) continue
+      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
+      let previous = 0 // everyone starts at the bottom
+      for (const title of titles) {
+        const index = ladder.indexOf(title)
+        expect(index, `${title} is not on the ${record.branch} ladder`).toBeGreaterThan(-1)
+        expect(index, `promotion skipped a rank: ${titles.join(' → ')}`).toBe(previous + 1)
+        previous = index
+      }
+    }
+  })
+
+  it('junior promotion runs on time in grade, monthly, not an annual jump', () => {
+    const world = createWorld(makeSeed(12345))
+    const teen = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) < 18)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (!teen) throw new Error('no teenager')
+    // A diligent soldier, so the time-based gates are what we measure.
+    world.people.set(teen.id, { ...teen, traits: { ...teen.traits, diligence: 700 } })
+    setPlayer(world, teen.id)
+
+    for (let i = 0; i < 200 && !awaitingPlayer(world); i++) advanceTick(world)
+    resolvePending(world, 'enlist')
+    resolvePending(world, world.player.pending?.options[0] ?? 'rifleman')
+    const enlistedAt = world.service.get(teen.id)?.enlistedAtTick ?? world.tick
+
+    // Serve nine months, answering nothing else the safest way.
+    while (world.tick - enlistedAt < 9) {
+      if (awaitingPlayer(world)) {
+        const pending = world.player.pending
+        if (!pending) break
+        resolvePending(world, pending.options[pending.options.length - 1] ?? 'decline')
+        continue
+      }
+      advanceTick(world)
+    }
+
+    const record = world.service.get(teen.id)
+    expect(record).toBeDefined()
+    // E-1 to E-2 lands at ~6 months in grade — not at the one-year review.
+    expect(record?.rank).toBe(1)
+  })
+
+  it('a term is a lived four years: training, school, a posting on the record', () => {
+    const world = grownWorld(900)
+    const enlistees = new Set(
+      world.events.filter((e) => e.type === 'enlisted').map((e) => e.subjectId),
+    )
+    expect(enlistees.size).toBeGreaterThan(0)
+
+    for (const personId of enlistees) {
+      const events = world.events.filter((e) => e.subjectId === personId)
+      const began = events.filter((e) => e.type === 'began-training')
+      // Everyone reports to basic the day they enlist.
+      expect(began.some((e) => e.detail === 'basic training')).toBe(true)
+    }
+
+    // Across a fifty-year town, the texture of service exists: schools finish,
+    // postings move, exercises happen.
+    expect(world.events.some((e) => e.type === 'completed-training')).toBe(true)
+    expect(world.events.some((e) => e.type === 'changed-post')).toBe(true)
+    expect(world.events.some((e) => e.type === 'field-exercise')).toBe(true)
+  })
+
+  it('pay tracks the pay grade, and SPC and CPL earn the same E-4 pay', () => {
+    expect(servicePay('land-forces', 3)).toBe(servicePay('land-forces', 4))
+    // Sergeant out-earns specialist; the table rises with grade.
+    expect(servicePay('land-forces', 5)).toBeGreaterThan(servicePay('land-forces', 4))
+    // All branches pay the same at the bottom: pay is rank, not trade.
+    expect(servicePay('naval-service', 0)).toBe(servicePay('land-forces', 0))
   })
 
   it('the serving hold no civilian job, and their pay reaches home', () => {
@@ -102,6 +193,8 @@ describe('veterans', () => {
       branch: 'land-forces',
       specialtyId: 'mechanic',
       rank: 2,
+      rankSinceTick: -12 as never,
+      qualifications: [],
       enlistedAtTick: -48 as never,
       baseId: person.id,
       monthlyPay: 150_000 as never,

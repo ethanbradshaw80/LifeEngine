@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v13 — M-GAMEDEPTH. Military realism: per-branch US-style rank ladders,
+ *      monthly time-in-grade promotions (competitive from the board ranks,
+ *      never skipped), grade-based pay table, and service texture — basic
+ *      training, occupational school, exercises, qualifications, PCS moves.
+ *      Service careers and incomes differ from v12 for every seed.
  * v12 — M-GAMEDEPTH. War pacing: escalation ~5x rarer, de-escalation
  *      stronger, and nations exhausted by a war start nothing new for 10-20
  *      years. Homeland wars become generational. Geo history differs from
@@ -60,7 +65,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 12
+export const SIMULATION_VERSION = 13
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

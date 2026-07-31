@@ -208,8 +208,14 @@ export interface ServiceRecord {
   readonly personId: EntityId
   readonly branch: string
   readonly specialtyId: string
-  /** Index into RANKS. */
+  /** Index into the BRANCH's own ladder (BRANCH_RANKS). Never skips. */
   readonly rank: number
+  /** When the current rank was pinned on — time in grade drives junior
+   *  promotions, the way it actually works. */
+  readonly rankSinceTick: Tick
+  /** Qualifications earned, in words ("expert marksman"). Append-only;
+   *  L4-M5's award system reads these. */
+  readonly qualifications: readonly string[]
   readonly enlistedAtTick: Tick
   /** The current posting. */
   readonly baseId: EntityId
@@ -453,6 +459,13 @@ export type EventType =
   | 'discharged'
   | 'deployed'
   | 'returned-home'
+  /** Service texture (M-GAMEDEPTH): a term is a lived four years, not
+   *  silence until the reenlistment question. */
+  | 'began-training'
+  | 'completed-training'
+  | 'field-exercise'
+  | 'earned-qualification'
+  | 'changed-post'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
@@ -493,6 +506,9 @@ export type DecisionType =
   | 'separation'
   | 'convalescence'
   | 'enlistment'
+  /** A rank pinned on — its own kind, so "why did they enlist?" and "why
+   *  were they promoted?" never answer each other's question. */
+  | 'promotion'
   | 'deployment'
   | 'geopolitics'
 
@@ -539,6 +555,9 @@ export type FactorId =
   | 'service-tradition'
   | 'term-ended'
   | 'medically-unfit'
+  | 'time-in-grade'
+  | 'strong-performance'
+  | 'holds-qualification'
   | 'under-orders'
   | 'war-demanded-troops'
   | 'enemy-capability'

@@ -26,14 +26,17 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import {
+  BRANCH_GRADES,
   BRANCH_NAMES,
-  RANKS,
+  BRANCH_RANKS,
+  COMPETITIVE_FROM,
+  JUNIOR_TIG_MONTHS,
   SERVICE_TERM_MONTHS,
   servicePay,
   SPECIALTIES,
   specialtyById,
 } from './content.js'
-import type { ServiceSpecialty } from './content.js'
+import type { ServiceBranch, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement } from './content.js'
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
@@ -68,8 +71,10 @@ export function servicePayOf(world: World, personId: EntityId): number {
   return record !== undefined && record.dischargedAtTick === null ? record.monthlyPay : 0
 }
 
-export function rankTitle(rank: number): string {
-  return RANKS[Math.max(0, Math.min(RANKS.length - 1, rank))] ?? 'recruit'
+/** The branch's own title for a ladder index — 'PFC', 'PO2', 'SSgt'. */
+export function rankTitle(branch: string, rank: number): string {
+  const ladder = BRANCH_RANKS[branch as ServiceBranch] ?? BRANCH_RANKS['land-forces']
+  return ladder[Math.max(0, Math.min(ladder.length - 1, rank))] ?? ladder[0] ?? 'PVT'
 }
 
 /** Civilian occupations a veteran's training opened. Empty for non-veterans. */
@@ -123,9 +128,11 @@ export function enlistPerson(
     branch: specialty.branch,
     specialtyId: specialty.id,
     rank: 0,
+    rankSinceTick: tick,
+    qualifications: [],
     enlistedAtTick: tick,
     baseId: base.id,
-    monthlyPay: servicePay(specialty, 0),
+    monthlyPay: servicePay(specialty.branch, 0),
     performance: Math.floor((person.traits.diligence + 500) / 2),
     termMonthsLeft: SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
@@ -138,11 +145,18 @@ export function enlistPerson(
     placeId: base.id,
     detail: specialty.title,
   })
+  // The first thing service is, is training: ten weeks of basic before the
+  // trade. Part of the record from day one — a term is a lived four years.
+  recordEvent(world, tick, {
+    type: 'began-training',
+    subjectId: person.id,
+    detail: 'basic training',
+  })
   recordDecision(world, tick, {
     subjectId: person.id,
     decision: 'enlistment',
     significance: 'defining',
-    inputs: [...extraInputs, factor('steady-pay', Math.floor(specialty.basePay / 1000))],
+    inputs: [...extraInputs, factor('steady-pay', Math.floor(servicePay(specialty.branch, 0) / 1000))],
     chosen: `enlisted in ${BRANCH_NAMES[specialty.branch]} as a ${specialty.title}`,
     rejected: ['civilian life'],
     streamId: Stream.Employment,
@@ -234,27 +248,133 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   const pull = person.traits.diligence - record.performance
   const performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
 
-  // Annual review on the service anniversary: promotion closes the rank
-  // ladder step by step, earned by recorded performance — never by luck.
-  let rank = record.rank
+  const specialty = specialtyById(record.specialtyId)
+  const branch = specialty.branch
+  const ladder = BRANCH_RANKS[branch]
   const monthsIn = tick - record.enlistedAtTick
-  if (monthsIn > 0 && monthsIn % TICKS_PER_YEAR === 0 && rank < RANKS.length - 1 && performance >= 480 + rank * 60) {
-    rank += 1
-    recordEvent(world, tick, {
-      type: 'promoted',
-      subjectId: person.id,
-      detail: rankTitle(rank),
-    })
+  const schoolDone = 2 + specialty.schoolMonths // basic (~10 weeks) then the trade school
+  const deployed = isDeployed(world, person.id)
+
+  // --- Promotion, checked MONTHLY, one step at a time, never skipped. ------
+  // Junior ranks go on time in grade — near-automatic unless the work is
+  // poor, which is how it actually works. From the board ranks up it is
+  // competitive: a real wait, a real performance bar, and being passed over
+  // is a thing that happens. The old annual review promoted straight past
+  // ranks; the owner noticed from inside the uniform.
+  let rank = record.rank
+  let rankSinceTick = record.rankSinceTick
+  const timeInGrade = tick - record.rankSinceTick
+  if (rank < ladder.length - 1) {
+    const competitiveFrom = COMPETITIVE_FROM[branch]
+    const grades = BRANCH_GRADES[branch]
+    const holdsQual = record.qualifications.includes(specialty.qualification)
+    let promote = false
+    if (rank + 1 < competitiveFrom) {
+      const due = JUNIOR_TIG_MONTHS[branch][rank] ?? 6
+      promote = timeInGrade >= due && performance >= 300
+    } else {
+      // The board ranks. A same-grade lateral (SPC→CPL, both E-4) is an
+      // appointment, not a grade board, and comes quicker — otherwise the
+      // mandatory rung would push a first sergeant's stripes past year six,
+      // which is not how it works. A held qualification counts toward the
+      // bar (promotion points, the real mechanism), and the wait shortens
+      // the further past the bar the work is — the draw stands in for slot
+      // timing, not for merit.
+      const stepsUp = rank + 1 - competitiveFrom
+      const sameGrade = grades[rank + 1] === grades[rank]
+      const tigNeeded = sameGrade ? 6 : 12 + stepsUp * 6
+      const bar = 520 + stepsUp * 70 - (holdsQual ? 50 : 0)
+      promote =
+        timeInGrade >= tigNeeded &&
+        performance >= bar &&
+        rng.chance(2 + Math.floor(Math.max(0, performance - bar) / 60), 24)
+    }
+    if (promote) {
+      rank += 1
+      rankSinceTick = tick
+      recordEvent(world, tick, {
+        type: 'promoted',
+        subjectId: person.id,
+        detail: rankTitle(branch, rank),
+      })
+      recordDecision(world, tick, {
+        subjectId: person.id,
+        decision: 'promotion',
+        significance: 'notable',
+        inputs: [
+          factor('time-in-grade', Math.min(1000, timeInGrade * 10)),
+          factor('strong-performance', performance),
+          ...(holdsQual && rank >= competitiveFrom ? [factor('holds-qualification', 400)] : []),
+        ],
+        chosen: `made ${rankTitle(branch, rank)}`,
+        rejected: [],
+        streamId: Stream.Employment,
+      })
+    }
   }
 
-  const specialty = specialtyById(record.specialtyId)
+  // --- Service texture: the term is a lived four years. --------------------
+  // The training pipeline is deterministic (everyone does basic, everyone
+  // does their school); exercises and qualifications are the texture of the
+  // years after, and a posting moves mid-term. None of it while deployed —
+  // the deployment system owns those months.
+  let baseId = record.baseId
+  const qualifications = [...record.qualifications]
+  if (monthsIn === 2) {
+    recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: 'basic training' })
+    recordEvent(world, tick, { type: 'began-training', subjectId: person.id, detail: `${specialty.title} school` })
+  } else if (monthsIn === schoolDone) {
+    recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
+    recordEvent(world, tick, {
+      type: 'changed-post',
+      subjectId: person.id,
+      placeId: record.baseId,
+      detail: world.places.get(record.baseId)?.name ?? 'a home station',
+    })
+  } else if (!deployed && monthsIn > schoolDone) {
+    // PCS: a permanent change of station lands mid-term, then on a slow cycle.
+    if (monthsIn % 36 === 30) {
+      const bases = placesOfKind(world, 'base')
+      const next = bases.find((b) => b.id !== baseId)
+      if (next) {
+        baseId = next.id
+        recordEvent(world, tick, {
+          type: 'changed-post',
+          subjectId: person.id,
+          placeId: next.id,
+          detail: next.name,
+        })
+      }
+    } else if (rng.chance(1, 14)) {
+      const flavour =
+        branch === 'naval-service' ? 'a sea patrol' : branch === 'air-guard' ? 'a readiness exercise' : 'a field exercise'
+      recordEvent(world, tick, { type: 'field-exercise', subjectId: person.id, detail: flavour })
+    } else if (
+      !qualifications.includes(specialty.qualification) &&
+      performance >= 550 &&
+      rng.chance(1, 20)
+    ) {
+      // A qualification is EARNED — performance-gated, once, on the record.
+      // L4-M5's badge and award eligibility will read these entries.
+      qualifications.push(specialty.qualification)
+      recordEvent(world, tick, {
+        type: 'earned-qualification',
+        subjectId: person.id,
+        detail: specialty.qualification,
+      })
+    }
+  }
+
   const termMonthsLeft = record.termMonthsLeft - 1
 
   world.service.set(person.id, {
     ...record,
     rank,
+    rankSinceTick,
+    qualifications,
+    baseId,
     performance,
-    monthlyPay: servicePay(specialty, rank),
+    monthlyPay: servicePay(branch, rank),
     termMonthsLeft,
   })
 
@@ -277,7 +397,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       otherId: null,
       occupationId: null,
       workplaceId: null,
-      monthlyPay: servicePay(specialty, rank),
+      monthlyPay: servicePay(branch, rank),
       placeId: null,
       options: ['stay', 'leave'],
     })
@@ -298,7 +418,7 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return
   world.service.set(person.id, { ...record, termMonthsLeft: SERVICE_TERM_MONTHS })
-  recordEvent(world, tick, { type: 'reenlisted', subjectId: person.id, detail: rankTitle(record.rank) })
+  recordEvent(world, tick, { type: 'reenlisted', subjectId: person.id, detail: rankTitle(record.branch, record.rank) })
 }
 
 export function discharge(
