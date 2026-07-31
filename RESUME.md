@@ -87,6 +87,30 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-LEGACY (generational play) — COMPLETE**
+`packages/engine/src/legacy.ts` — all READ-side queries over existing records
+(kinship from parentIds, money from 'inherited' events): familyTreeOf (2 up,
+2 down + siblings), legacySummaryOf (inherited / leftToHeirs sums that agree
+with events to the cent — tested), descendantGenerations, familyHomeSince
+(20+ years standing AND a generation raised there), lineageOf /
+playsDescendantLine. PlayerState.lineage records SUCCESSIONS only: setPlayer
+(id, asHeir=true) appends the dead predecessor; switching to an unrelated
+person records nothing (abandonment ≠ succession — tested). Schema v6
+(migration adds empty lineage: unrecorded history stays unrecorded).
+SIMULATION_VERSION still 4 (shape-only change); golden a96231d9.
+
+UI: PersonDetail family block (Grandparents/Parents/Siblings/Children/
+Grandchildren, † for the dead, all clickable), "the family home since YYYY"
+on the Home row, Retrospective legacy chips (children/grandchildren/
+inherited/left) + "The Nth life of this line". Verified live: Ronald Gaines
+died (3 children, 5 grandchildren chips), continued as Rebecca Gaines, her
+panel showed parents † and "Cedar Flats · the family home since 1991".
+
+Flaky-test lesson recorded in legacy.test.ts: first lineage test started
+with a founding CHILD — she lived 75 years, never got one courtship moment,
+died heirless. Believable life, flaky test. Start lineage tests from a
+founding PARENT whose children exist at tick 0.
+
 **M-MONEY (household finances) — COMPLETE**
 `packages/engine/src/finances.ts` — one pot per roof, integer cents, single
 writer of `household.savings`. Monthly: wages in, rent (`rentFor(desirability)`,

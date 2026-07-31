@@ -14,12 +14,15 @@ import {
   describeStakes,
   fullName,
   heirsOf,
+  legacySummaryOf,
   lifeStory,
+  lineageOf,
   livingPeople,
   personSummary,
 } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
+import { formatMoney } from '@life-engine/shared'
 
 // ---------------------------------------------------------------------------
 // Character picker
@@ -147,11 +150,30 @@ interface RetrospectiveProps {
 export function Retrospective({ world, personId, onPlayHeir, onWatch }: RetrospectiveProps) {
   const person = world.people.get(personId)
   const heirs = heirsOf(world, personId)
+  const legacy = legacySummaryOf(world, personId)
+  // lineageOf includes the current (just-finished) life at the end.
+  const lifeNumber = lineageOf(world).length
 
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="A life, remembered">
       <div className="sheet wide">
         <h2>{person ? `${fullName(person)}'s life` : 'A life'}</h2>
+        {lifeNumber > 1 && (
+          <p className="muted small">
+            The {lifeNumber === 2 ? 'second' : lifeNumber === 3 ? 'third' : `${lifeNumber}th`} life
+            of this line.
+          </p>
+        )}
+        <div className="legacy-row">
+          {legacy.childCount > 0 && (
+            <span>
+              {legacy.childCount} {legacy.childCount === 1 ? 'child' : 'children'}
+            </span>
+          )}
+          {legacy.grandchildCount > 0 && <span>{legacy.grandchildCount} grandchildren</span>}
+          {legacy.inherited > 0 && <span>inherited {formatMoney(legacy.inherited)}</span>}
+          {legacy.leftToHeirs > 0 && <span>left {formatMoney(legacy.leftToHeirs)}</span>}
+        </div>
         {/* Law 8: the retrospective is generated from the records of the life
             actually lived — the same lifeStory the tests hold to account. */}
         <pre className="story">{lifeStory(world, personId)}</pre>

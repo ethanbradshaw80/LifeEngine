@@ -82,6 +82,7 @@ export function toSnapshot(world: World): WorldSnapshot {
         pending: world.player.pending,
         log: world.player.log,
         nextDecisionId: world.player.nextDecisionId,
+        lineage: world.player.lineage,
       },
     },
   }

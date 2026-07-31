@@ -542,3 +542,18 @@ ul.stakes {
 ul.stakes li + li {
   margin-top: 0.2rem;
 }
+
+.legacy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0.2rem 0 0.8rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legacy-row span {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}

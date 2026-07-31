@@ -39,6 +39,8 @@ export const GOLDEN_TICKS = 120
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
  *
+ * Changed at M-LEGACY (schema v6): player.lineage joined the serialized
+ * shape. Shape-only — behaviour and SIMULATION_VERSION (4) unchanged.
  * Changed at M-MONEY (SIMULATION_VERSION 4): household finances shape moves,
  * strain and separations, so every seed's history differs from v3.
  * Changed at M-DEPTH with SIMULATION_VERSION 3: births moved to a fresh RNG
@@ -50,7 +52,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = '58c84c3c'
+export const GOLDEN_HASH_HEX = 'a96231d9'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))

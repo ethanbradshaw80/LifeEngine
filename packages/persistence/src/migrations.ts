@@ -186,7 +186,35 @@ const V4_TO_V5: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5]
+/**
+ * v5 → v6 (M-LEGACY).
+ *
+ * The player state gains `lineage`. An old save has lived no completed lives
+ * that were recorded, so the honest default is empty — history that was not
+ * written down is not reconstructed (Law 3 applies to metadata too).
+ */
+const V5_TO_V6: Migration = {
+  from: 5,
+  to: 6,
+  describe: 'add player lineage (empty — unrecorded history stays unrecorded)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const player = requireObject(requireField(world, 'player', 'save.world'), 'save.world.player')
+
+    const nextWorld: Record<string, unknown> = {
+      ...world,
+      player: { ...player, lineage: [] },
+    }
+
+    return {
+      header: { ...header, schemaVersion: 6, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

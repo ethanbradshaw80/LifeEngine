@@ -49,6 +49,22 @@ export {
   setPlayer,
 } from './player.js'
 
+// Legacy
+export {
+  childrenIdsOf,
+  descendantGenerations,
+  familyHomeSince,
+  familyTreeOf,
+  grandchildrenIdsOf,
+  grandparentIdsOf,
+  isDescendantOf,
+  legacySummaryOf,
+  lineageOf,
+  playsDescendantLine,
+  siblingIdsOf,
+} from './legacy.js'
+export type { FamilyTree, LegacySummary } from './legacy.js'
+
 // Finances
 export {
   canAfford,

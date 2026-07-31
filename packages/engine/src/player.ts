@@ -46,12 +46,26 @@ import {
 } from './systems.js'
 import type { PendingDecision, PendingKind, World } from './types.js'
 
-/** Begin playing a living person. Clears any stale pending decision. */
-export function setPlayer(world: World, personId: EntityId | null): void {
+/**
+ * Begin playing a living person. Clears any stale pending decision.
+ *
+ * `asHeir` continues the LINE: the previous (dead) player joins the lineage,
+ * so the save remembers every life this dynasty has lived. Picking a fresh
+ * unrelated person starts a new story and the old line ends with its last
+ * life un-appended — a deliberate asymmetry: lineage records successions,
+ * not abandonments.
+ */
+export function setPlayer(world: World, personId: EntityId | null, asHeir = false): void {
   if (personId !== null) {
     const person = world.people.get(personId)
     if (!person) throw new Error(`No person ${personId} in this world`)
     if (person.deathTick !== null) throw new Error(`${person.givenName} is not alive`)
+  }
+  if (asHeir && world.player.personId !== null && personId !== null) {
+    const previous = world.people.get(world.player.personId)
+    if (previous && previous.deathTick !== null) {
+      world.player.lineage.push(previous.id)
+    }
   }
   world.player.personId = personId
   world.player.pending = null

@@ -30,8 +30,9 @@ export interface WorldController {
   readonly saveState: 'unsaved' | 'saving' | 'saved' | 'failed'
   advance: (months: number) => void
   newWorld: (seed: number) => void
-  /** Start or stop living as a person. Null returns to watching the town. */
-  play: (personId: number | null) => void
+  /** Start or stop living as a person. Null returns to watching the town.
+   *  `heir: true` continues the line — the finished life joins the lineage. */
+  play: (personId: number | null, heir?: boolean) => void
   /** Answer the pending decision. */
   choose: (choice: string) => void
   save: () => void
@@ -115,8 +116,8 @@ export function useWorld(initialSeed: number): WorldController {
   )
 
   const play = useCallback(
-    (personId: number | null) => {
-      send({ type: 'play', personId })
+    (personId: number | null, heir = false) => {
+      send({ type: 'play', personId, heir })
     },
     [send],
   )

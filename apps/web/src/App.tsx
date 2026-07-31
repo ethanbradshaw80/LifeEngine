@@ -29,7 +29,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '58c84c3c'
+const GOLDEN_HASH_HEX = 'a96231d9'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -301,7 +301,7 @@ export function App() {
           personId={playerId}
           onPlayHeir={(heirId) => {
             setSelected(heirId)
-            play(heirId)
+            play(heirId, true)
           }}
           onWatch={() => play(null)}
         />

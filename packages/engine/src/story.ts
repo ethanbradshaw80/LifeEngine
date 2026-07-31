@@ -22,6 +22,7 @@ import { ageAt, formatYear } from './clock.js'
 import { occupationById } from './content.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
+import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 
@@ -327,6 +328,36 @@ export function lifeStory(world: World, personId: EntityId): string {
     lines.push('Nothing of note has happened yet.')
   } else {
     lines.push(...timeline)
+  }
+
+  // The legacy of a finished life (Law 8). Only lines that are true: a
+  // childless life shows no children line, not a zero.
+  if (!alive) {
+    const legacy = legacySummaryOf(world, personId)
+    const legacyLines: string[] = []
+    if (legacy.childCount > 0) {
+      legacyLines.push(
+        `${subjectPronoun(person)} raised ${legacy.childCount} ${legacy.childCount === 1 ? 'child' : 'children'}` +
+          (legacy.grandchildCount > 0
+            ? ` and saw ${legacy.grandchildCount} ${legacy.grandchildCount === 1 ? 'grandchild' : 'grandchildren'}.`
+            : '.'),
+      )
+    }
+    if (legacy.inherited > 0) {
+      legacyLines.push(`Inherited ${formatMoney(legacy.inherited)} across a lifetime.`)
+    }
+    if (legacy.leftToHeirs > 0) {
+      legacyLines.push(`Left ${formatMoney(legacy.leftToHeirs)} to the next generation.`)
+    }
+    if (legacy.generations >= 2) {
+      legacyLines.push(`The family ${person.familyName} line runs ${legacy.generations} generations on.`)
+    }
+    if (legacyLines.length > 0) {
+      lines.push('')
+      lines.push('Legacy')
+      lines.push('------')
+      lines.push(...legacyLines)
+    }
   }
 
   const decisions = decisionsFor(world, personId)

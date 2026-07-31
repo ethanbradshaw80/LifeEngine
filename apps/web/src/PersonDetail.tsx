@@ -1,8 +1,9 @@
 import { Fragment, useState } from 'react'
 import {
   ageAt,
-  childrenOf,
   explainDecision,
+  familyHomeSince,
+  familyTreeOf,
   formatYear,
   fullName,
   householdCosts,
@@ -57,7 +58,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
   const education = world.education.get(personId)
   const household = person.householdId === null ? null : world.households.get(person.householdId)
   const housemates = household?.memberIds.filter((id) => id !== personId) ?? []
-  const children = childrenOf(world, personId)
+  const tree = familyTreeOf(world, personId)
   const timeline = timelineFor(world, personId)
 
   // Grouped by type so a marriage does not sit in a list of acquaintances.
@@ -127,6 +128,11 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             <dt>{alive ? 'Home' : 'Lived'}</dt>
             <dd>
               {world.places.get(household.placeId)?.name ?? 'unknown'}
+              {familyHomeSince(world, household) !== null && (
+                <span className="muted small">
+                  {' '}· the family home since {formatYear(familyHomeSince(world, household) ?? household.formedTick)}
+                </span>
+              )}
               {housemates.length > 0 && (
                 <>
                   {' with '}
@@ -141,31 +147,29 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             </dd>
           </>
         )}
-        {person.parentIds.length > 0 && (
-          <>
-            <dt>Parents</dt>
-            <dd>
-              {person.parentIds.map((id, i) => (
-                <span key={id}>
-                  {i > 0 && ' and '}
-                  <NameLink world={world} id={id} onSelect={onSelect} />
-                </span>
-              ))}
-            </dd>
-          </>
-        )}
-        {children.length > 0 && (
-          <>
-            <dt>Children</dt>
-            <dd>
-              {children.map((id, i) => (
-                <span key={id}>
-                  {i > 0 && ', '}
-                  <NameLink world={world} id={id} onSelect={onSelect} />
-                </span>
-              ))}
-            </dd>
-          </>
+        {(
+          [
+            ['Grandparents', tree.grandparents],
+            ['Parents', tree.parents],
+            ['Siblings', tree.siblings],
+            ['Children', tree.children],
+            ['Grandchildren', tree.grandchildren],
+          ] as const
+        ).map(([label, ids]) =>
+          ids.length === 0 ? null : (
+            <Fragment key={label}>
+              <dt>{label}</dt>
+              <dd>
+                {ids.map((id, i) => (
+                  <span key={id}>
+                    {i > 0 && ', '}
+                    <NameLink world={world} id={id} onSelect={onSelect} />
+                    {world.people.get(id)?.deathTick !== null && <span className="muted"> †</span>}
+                  </span>
+                ))}
+              </dd>
+            </Fragment>
+          ),
         )}
         {(['spouse', 'courting', 'former-spouse'] as const).map((type) => {
           const group = byType(type)

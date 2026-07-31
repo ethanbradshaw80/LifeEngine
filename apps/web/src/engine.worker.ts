@@ -24,7 +24,7 @@ export type WorkerRequest =
   | { readonly type: 'new'; readonly seed: number }
   | { readonly type: 'advance'; readonly months: number }
   | { readonly type: 'load'; readonly save: unknown }
-  | { readonly type: 'play'; readonly personId: number | null }
+  | { readonly type: 'play'; readonly personId: number | null; readonly heir?: boolean }
   | { readonly type: 'choose'; readonly choice: string }
 
 export type WorkerResponse =
@@ -81,7 +81,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           post({ type: 'error', message: 'No world to play in.' })
           return
         }
-        setPlayer(world, request.personId as EntityId | null)
+        setPlayer(world, request.personId as EntityId | null, request.heir === true)
         send(0)
         return
       }

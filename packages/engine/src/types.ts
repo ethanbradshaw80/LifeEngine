@@ -243,6 +243,12 @@ export interface PlayerState {
   /** Every answered decision, in order. Part of the save. */
   readonly log: PlayerChoice[]
   nextDecisionId: number
+  /**
+   * COMPLETED lives played in this save, in order. Appended when the player
+   * continues as an heir, so the game knows it is the third life of a line
+   * and the retrospective can say so. Part of the save.
+   */
+  readonly lineage: EntityId[]
 }
 
 // ---------------------------------------------------------------------------
