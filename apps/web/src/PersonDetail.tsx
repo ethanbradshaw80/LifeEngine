@@ -5,9 +5,12 @@ import {
   explainDecision,
   formatYear,
   fullName,
+  householdCosts,
+  householdIncome,
   occupationById,
   other,
   relationshipsOf,
+  rentFor,
   timelineFor,
 } from '@life-engine/engine'
 import type { Relationship, RelationshipType } from '@life-engine/engine'
@@ -103,6 +106,20 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
           <>
             <dt>Schooling</dt>
             <dd>{education.level}</dd>
+          </>
+        )}
+        {alive && household && (
+          <>
+            <dt>Money</dt>
+            <dd>
+              {formatMoney(household.savings)}
+              {household.savings < 0 && <span className="muted"> (behind)</span>}
+              <span className="muted small">
+                {' '}· {formatMoney(householdIncome(world, household))} in ·{' '}
+                {formatMoney(householdCosts(world, household))} out ·{' '}
+                {formatMoney(rentFor(world.places.get(household.placeId)?.desirability ?? 0))} rent
+              </span>
+            </dd>
           </>
         )}
         {household && (

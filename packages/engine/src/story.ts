@@ -117,6 +117,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — ${nameOf(world, event.otherId)} died. Left widowed at ${age}.`
     case 'had-child':
       return `${year} — ${nameOf(world, event.otherId)} was born.`
+    case 'fell-behind':
+      return `${year} — Money ran short; the household fell behind.`
+    case 'back-in-the-black':
+      return `${year} — The household got back on its feet.`
+    case 'inherited': {
+      const amount = event.detail === null ? null : Number.parseInt(event.detail, 10)
+      const sum = amount !== null && Number.isFinite(amount) ? formatMoney(amount as never) : 'an inheritance'
+      return `${year} — Inherited ${sum} from ${nameOf(world, event.otherId)}.`
+    }
     case 'died':
       return `${year} — Died at ${age}, of ${event.detail}.`
     default:
@@ -151,6 +160,8 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'lost-work': '{they} was out of work',
   'wanted-family': '{they} wanted a family',
   'own-choice': 'they chose it themselves',
+  'in-arrears': 'the household had fallen behind',
+  'cheaper-rent': 'the rent was cheaper there',
 }
 
 function joinClauses(parts: readonly string[]): string {

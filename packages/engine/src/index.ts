@@ -49,6 +49,15 @@ export {
   setPlayer,
 } from './player.js'
 
+// Finances
+export {
+  canAfford,
+  householdCosts,
+  householdIncome,
+  inArrears,
+} from './finances.js'
+export { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
+
 // Records
 export { childrenOf, decisionForEvent, decisionsFor, eventsFor } from './records.js'
 

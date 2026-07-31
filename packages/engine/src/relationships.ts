@@ -17,11 +17,12 @@
  * a marriage ending as to a job change: the game must be able to say why.
  */
 
-import type { EntityId, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { raisePending } from './player.js'
+import { inArrears } from './finances.js'
 import { openStream, Stream } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
 import { relationshipKey } from './types.js'
@@ -253,6 +254,11 @@ function decayAndReinforce(world: World, tick: Tick): void {
         const idle = (world.employment.has(a.id) ? 0 : 1) + (world.employment.has(b.id) ? 0 : 1)
         change -= idle * 3
       }
+      // Money trouble is its own strain, distinct from joblessness: a
+      // household can be employed and still drowning, and that is the month
+      // that tells (M-MONEY; the record's 'financial-strain' factor now has
+      // a real ledger behind it).
+      if (inArrears(world, a.householdId)) change -= 3
     }
 
     const strength = Math.max(0, Math.min(1000, relationship.strength + change))
@@ -511,6 +517,7 @@ function considerSeparation(world: World, tick: Tick): void {
     if (!a || !b || a.deathTick !== null || b.deathTick !== null) continue
 
     const bothOutOfWork = !world.employment.has(a.id) && !world.employment.has(b.id)
+    const moneyTrouble = inArrears(world, a.householdId)
     const resilience = Math.floor((a.traits.resilience + b.traits.resilience) / 2)
 
     // Resilient couples hold on longer. Strain makes separation likelier, never
@@ -518,7 +525,8 @@ function considerSeparation(world: World, tick: Tick): void {
     // never fire on a couple who are doing fine.
     const pressure =
       (DIVORCE_STRENGTH_THRESHOLD - relationship.strength) +
-      (bothOutOfWork ? 120 : 0) -
+      (bothOutOfWork ? 120 : 0) +
+      (moneyTrouble ? 80 : 0) -
       Math.floor(resilience / 14)
     if (pressure <= 0) continue
 
@@ -560,6 +568,7 @@ export function performSeparation(
   const b = world.people.get(relationship.b)
   if (!a || !b) return
   const bothOutOfWork = !world.employment.has(a.id) && !world.employment.has(b.id)
+  const moneyTrouble = inArrears(world, a.householdId)
 
   world.relationships.set(relationshipKey(relationship.a, relationship.b), {
     ...relationship,
@@ -579,7 +588,7 @@ export function performSeparation(
     factor('drifted-apart', 1000 - relationship.strength, relationship.b),
     factor('years-together', tick - relationship.formedAtTick),
   ]
-  if (bothOutOfWork) inputs.push(factor('financial-strain', 400))
+  if (bothOutOfWork || moneyTrouble) inputs.push(factor('financial-strain', moneyTrouble ? 600 : 400))
 
   recordDecision(world, tick, {
     subjectId: relationship.a,
@@ -659,9 +668,13 @@ function splitHousehold(world: World, tick: Tick, aId: EntityId, bId: EntityId):
   const destination = rng.pick(neighbourhoods)
 
   const newHouseholdId = allocate(world)
+  // The pot splits evenly on separation — debts too, so leaving a failing
+  // marriage does not leave one side holding the whole hole.
+  const half = Math.floor(household.savings / 2) as Money
   world.households.set(household.id, {
     ...household,
     memberIds: household.memberIds.filter((id) => id !== leaverId),
+    savings: (household.savings - half) as Money,
   })
   world.households.set(newHouseholdId, {
     id: newHouseholdId,
@@ -669,6 +682,7 @@ function splitHousehold(world: World, tick: Tick, aId: EntityId, bId: EntityId):
     memberIds: [leaverId],
     formedTick: tick,
     dissolvedTick: null,
+    savings: half,
   })
   world.people.set(leaverId, { ...leaver, householdId: newHouseholdId })
 

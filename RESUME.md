@@ -87,6 +87,32 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-MONEY (household finances) — COMPLETE**
+`packages/engine/src/finances.ts` — one pot per roof, integer cents, single
+writer of `household.savings`. Monthly: wages in, rent (`rentFor(desirability)`,
+$242-$682) + living costs ($210/adult, $120/child) out. Negative = arrears, a
+modelled state: fell-behind / back-in-the-black events at the crossings;
+sustained arrears (4 months of shortfall deep) pushes a cheaper-rent move —
+asked if the player lives there (reuses 'move-house' kind, prompt words it
+"Money is short"), automatic otherwise. Arrears strains marriages (replaces
+part of the joblessness proxy; 'financial-strain' factor now has a ledger
+behind it). Move-out and move-up are affordability-gated (canAfford = rent +
+one adult's living margin). Divorce splits the pot AND debts evenly. Death
+that empties a household passes the estate to living children, split exactly,
+eldest takes the remainder cent, debts never inherited (distributeEstate,
+called from mortality). Founding households start unequal (1-9 months of
+income, Law 10). Move-out grants one month of the mover's wages, NOT a share
+of the family pot (would drain founders in a generation).
+
+Stakes now carry money: job offers show pay vs current + household shortfall/
+arrears; move-out shows rent vs wage; move-house shows rent delta; retirement
+shows what's put by; child shows arrears warning. UI Money row: savings · in ·
+out · rent. Schema v5 (migration computes 4 months of own wages from the
+save's employment records). SIMULATION_VERSION 4, golden 58c84c3c. Full-arc
+seed for the M5 exit test moved to 44/900 ticks (money stabilized dual-earner
+marriages; 3 of 20 seeds have an arc — believable, not broken). Town solvency
+test: <50% of households behind at year 60, richest < $5m.
+
 **M-DEPTH (playable-life depth) — COMPLETE**
 Four new decision kinds, same interception pattern (roll creates the moment;
 player answers it): **child** (couple decides; deliverChild() keys all RNG on

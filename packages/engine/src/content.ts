@@ -71,6 +71,34 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(2800), maxMonthlyPay: dollars(4600) },
 ]
 
+// ---------------------------------------------------------------------------
+// Prices
+//
+// One price level for the whole run — there is no inflation model yet, and
+// wages are likewise flat. What matters at this layer is the RATIO of rent
+// and living costs to wages, because that is what makes a job offer or a
+// move genuinely consequential.
+// ---------------------------------------------------------------------------
+
+/** Cheapest conceivable monthly rent, for the least desirable street. */
+export const RENT_FLOOR = dollars(160)
+/** Added rent per point of neighbourhood desirability (0-1000 scale). */
+const RENT_PER_DESIRABILITY_CENTS = 55
+
+/** Monthly cost of keeping an adult fed, clothed and warm. */
+export const LIVING_COST_ADULT = dollars(210)
+/** Children cost less per head. School is public and free. */
+export const LIVING_COST_CHILD = dollars(120)
+
+/**
+ * Monthly rent for a neighbourhood. Desirability 150 → ~$242; 950 → ~$682.
+ * Against wages of $900-$5,200 a month, a single labourer can afford the
+ * bottom of town and a college couple the top, which is the intended shape.
+ */
+export function rentFor(desirability: number): Money {
+  return (RENT_FLOOR + desirability * RENT_PER_DESIRABILITY_CENTS) as Money
+}
+
 /** How much schooling a level represents. Used to test whether a person qualifies. */
 const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   none: 0,

@@ -6,7 +6,7 @@
  * names, same ages, same houses.
  */
 
-import type { EntityId, Seed, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Seed, Tick } from '@life-engine/shared'
 import { entityId, tick as makeTick, TICKS_PER_YEAR } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Rng } from './rng.js'
@@ -21,6 +21,7 @@ import type {
   World,
 } from './types.js'
 import { relationshipKey } from './types.js'
+import { foundingSavings } from './finances.js'
 import {
   CIVIC_NAMES,
   FAMILY_NAMES,
@@ -224,9 +225,21 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
       memberIds,
       formedTick: makeTick(0),
       dissolvedTick: null,
+      // Filled in below, once employment exists to base it on.
+      savings: 0 as Money,
     }
     world.households.set(householdId, household)
     created += memberIds.length
+  }
+
+  // Founding savings: unequal by design (Law 10). Employment has not started
+  // yet, so this is the fallback range in foundingSavings — a family may
+  // start with a few hundred dollars or a couple of thousand.
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    world.households.set(household.id, {
+      ...household,
+      savings: foundingSavings(world, household),
+    })
   }
 
   return world

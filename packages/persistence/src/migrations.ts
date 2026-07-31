@@ -136,7 +136,57 @@ const V3_TO_V4: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4]
+/**
+ * v4 → v5 (M-MONEY).
+ *
+ * Households gain `savings`. The stored world never tracked money, so any
+ * default is an assumption — this one is stated and computed from the save's
+ * OWN data: four months of the household's wages, summed from its members'
+ * employment records. A household of earners resumes comfortable; a household
+ * of none resumes with a small cushion rather than instant arrears, because
+ * punishing a player for our schema change would be absurd.
+ */
+const V4_TO_V5: Migration = {
+  from: 4,
+  to: 5,
+  describe: 'add household savings (four months of own wages)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+
+    const payByPerson = new Map<number, number>()
+    const employment = Array.isArray(world['employment']) ? world['employment'] : []
+    for (const entry of employment) {
+      const record = requireObject(entry, 'save.world.employment[]')
+      payByPerson.set(
+        requireInteger(record, 'personId', 'employment'),
+        requireInteger(record, 'monthlyPay', 'employment'),
+      )
+    }
+
+    const MONTHS_OF_CUSHION = 4
+    const NO_EARNER_CUSHION_CENTS = 60_000 // $600
+
+    const households = Array.isArray(world['households']) ? world['households'] : []
+    const migrated = households.map((entry) => {
+      const household = requireObject(entry, 'save.world.households[]')
+      const memberIds = Array.isArray(household['memberIds']) ? (household['memberIds'] as number[]) : []
+      let income = 0
+      for (const memberId of memberIds) income += payByPerson.get(memberId) ?? 0
+      const savings = income > 0 ? income * MONTHS_OF_CUSHION : NO_EARNER_CUSHION_CENTS
+      return { ...household, savings }
+    })
+
+    const nextWorld: Record<string, unknown> = { ...world, households: migrated }
+
+    return {
+      header: { ...header, schemaVersion: 5, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

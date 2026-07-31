@@ -21,6 +21,9 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v4 — M-MONEY. Household finances: wages, rent, living costs, savings,
+ *      arrears pressure, estate inheritance. Money now shapes moves, strain
+ *      and separations, so every seed's history differs from v3.
  * v3 — M-DEPTH. Births moved to deliverChild() on a fresh RNG stream so a
  *      player-decided birth produces the identical child the automatic path
  *      would have; NPC children therefore differ from v2 for every seed.
@@ -29,7 +32,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 3
+export const SIMULATION_VERSION = 4
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

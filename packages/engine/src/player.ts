@@ -25,6 +25,8 @@ import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { occupationById } from './content.js'
 import { withArticle } from './text.js'
+import { householdCosts, householdIncome, inArrears } from './finances.js'
+import { rentFor } from './content.js'
 import { factor, recordDecision } from './records.js'
 import { Stream } from './rng.js'
 import {
@@ -281,7 +283,15 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'child':
       return `You and ${other ? other.givenName : 'your partner'} could grow the family. Have a child?`
     case 'move-house': {
-      const where = pending.placeId === null ? 'a better street' : (world.places.get(pending.placeId)?.name ?? 'a better street')
+      const target = pending.placeId === null ? undefined : world.places.get(pending.placeId)
+      const household = person?.householdId == null ? undefined : world.households.get(person.householdId)
+      const current = household ? world.places.get(household.placeId) : undefined
+      const where = target?.name ?? 'a better street'
+      // The same decision kind serves moving up and moving down; which one
+      // this is shows in the words, and the stakes carry the numbers.
+      if (target && current && target.desirability < current.desirability) {
+        return `Money is short. Move to ${where}, where the rent is cheaper?`
+      }
       return `A place in ${where} is within reach. Move the household?`
     }
     case 'retirement':
@@ -325,6 +335,15 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           lines.push(`It pays ${formatMoney(pending.monthlyPay)} a month. You have no wages today.`)
         }
       }
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        const shortfall = householdCosts(world, household) - householdIncome(world, household)
+        if (household.savings < 0) {
+          lines.push(`The household is ${formatMoney(-household.savings as never)} behind.`)
+        } else if (shortfall > 0) {
+          lines.push(`The household runs ${formatMoney(shortfall as never)} short each month right now.`)
+        }
+      }
       break
     }
     case 'move-out': {
@@ -332,6 +351,11 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       if (household) {
         const others = household.memberIds.filter((id) => id !== person.id).length
         lines.push(`You live with ${others} ${others === 1 ? 'person' : 'people'} now.`)
+      }
+      const target = pending.placeId === null ? undefined : world.places.get(pending.placeId)
+      const job = world.employment.get(person.id)
+      if (target && job) {
+        lines.push(`Rent in ${target.name} is ${formatMoney(rentFor(target.desirability))} a month against your ${formatMoney(job.monthlyPay)}.`)
       }
       break
     }
@@ -359,6 +383,9 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           world.people.get(id)?.parentIds.includes(person.id),
         ).length
         lines.push(children === 0 ? 'It would be your first.' : `You have ${children} at home already.`)
+        if (inArrears(world, household.id)) {
+          lines.push('The household is already behind on money.')
+        }
       }
       break
     }
@@ -366,9 +393,19 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const household = person.householdId === null ? undefined : world.households.get(person.householdId)
       const target = pending.placeId === null ? undefined : world.places.get(pending.placeId)
       const current = household ? world.places.get(household.placeId) : undefined
-      if (current && target) {
-        lines.push(`${target.name} is a better street than ${current.name}.`)
-        if (household && household.memberIds.length > 1) {
+      if (current && target && household) {
+        const rentNow = rentFor(current.desirability)
+        const rentThen = rentFor(target.desirability)
+        if (target.desirability > current.desirability) {
+          lines.push(`${target.name} is a better street than ${current.name}.`)
+          lines.push(`Rent rises from ${formatMoney(rentNow)} to ${formatMoney(rentThen)} a month.`)
+        } else {
+          lines.push(`Rent falls from ${formatMoney(rentNow)} to ${formatMoney(rentThen)} a month.`)
+          if (household.savings < 0) {
+            lines.push(`The household is ${formatMoney(-household.savings as never)} behind; staying digs deeper.`)
+          }
+        }
+        if (household.memberIds.length > 1) {
           lines.push(`The whole household of ${household.memberIds.length} moves with you.`)
         }
       }
@@ -381,6 +418,14 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const started = job.startedAtTick
         const years = Math.floor((pending.tick - started) / TICKS_PER_YEAR)
         if (years >= 1) lines.push(`You have held this job ${String(years)} year${years === 1 ? '' : 's'}.`)
+      }
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        lines.push(
+          household.savings > 0
+            ? `The household has ${formatMoney(household.savings)} put by.`
+            : 'There is nothing put by.',
+        )
       }
       lines.push('You can keep working as long as you live; the question returns each birthday.')
       break

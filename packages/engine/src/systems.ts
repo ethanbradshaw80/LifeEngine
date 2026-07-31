@@ -35,6 +35,7 @@ import { withArticle } from './text.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
+import { canAfford, distributeEstate, householdIncome } from './finances.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -489,11 +490,15 @@ export function runHouseholds(world: World, tick: Tick): void {
     const job = world.employment.get(person.id)
     const stillWithParents = person.parentIds.some((id) => household.memberIds.includes(id))
 
-    // Leave the parental home once there is an income.
+    // Leave the parental home once there is an income — and only to a street
+    // the wage can actually carry. A labourer does not move out into Kestrel
+    // Hill; if nothing is affordable, they stay home and save.
     if (stillWithParents && job) {
       if (!rng.chance(60 + Math.floor(person.traits.ambition / 20), 1000)) continue
 
-      const home = rng.pick(neighbourhoods)
+      const affordable = neighbourhoods.filter((p) => canAfford(job.monthlyPay, p.desirability))
+      if (affordable.length === 0) continue
+      const home = rng.pick(affordable)
 
       // The urge and the destination are simulated either way; only who says
       // yes differs. The player can stay home as long as they like.
@@ -525,7 +530,10 @@ export function runHouseholds(world: World, tick: Tick): void {
       if (tick - household.formedTick < SETTLING_MONTHS) continue
       if (!rng.chanceInTenThousand(60)) continue
 
-      const better = neighbourhoods.filter((p) => p.desirability > current.desirability + 100)
+      const income = householdIncome(world, household)
+      const better = neighbourhoods.filter(
+        (p) => p.desirability > current.desirability + 100 && canAfford(income, p.desirability),
+      )
       if (better.length === 0) continue
 
       const target = rng.pick(better)
@@ -730,12 +738,18 @@ export function performMoveOut(
     }
   }
 
+  // A person leaves home with one month of their own wages in hand — a
+  // stake from the family, not a share of the family pot. Splitting the
+  // parents' savings on every move-out would drain founding households in a
+  // generation.
+  const moverPay = world.employment.get(person.id)?.monthlyPay ?? 0
   world.households.set(newHouseholdId, {
     id: newHouseholdId,
     placeId: home.id,
     memberIds: members,
     formedTick: tick,
     dissolvedTick: null,
+    savings: moverPay as Money,
   })
   setPerson(world, { ...person, householdId: newHouseholdId })
 
@@ -947,7 +961,16 @@ export function runMortality(world: World, tick: Tick): void {
     setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })
     world.employment.delete(person.id)
 
-    if (person.householdId !== null) removeFromHousehold(world, person.householdId, person.id)
+    if (person.householdId !== null) {
+      const householdId = person.householdId
+      removeFromHousehold(world, householdId, person.id)
+      // If the death emptied the household, the pot passes to the deceased's
+      // living children (finances owns how). Grief first, then the will.
+      const household = world.households.get(householdId)
+      if (household && household.memberIds.length === 0) {
+        distributeEstate(world, tick, person, household)
+      }
+    }
 
     // The relationships domain owns its own state, including what a death does
     // to it — a marriage ends in widowhood, not divorce (DOMAIN_MAP.md §2).

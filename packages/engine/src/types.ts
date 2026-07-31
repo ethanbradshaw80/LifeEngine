@@ -91,6 +91,13 @@ export interface Household {
   readonly formedTick: Tick
   /** Null while active. */
   readonly dissolvedTick: Tick | null
+  /**
+   * The household's money, in integer cents (ADR-0008). One pot per roof:
+   * wages come in, rent and living costs go out, monthly, in the finances
+   * system — the single writer of this field. Negative means arrears, which
+   * has consequences; it is not clamped away.
+   */
+  readonly savings: Money
 }
 
 // ---------------------------------------------------------------------------
@@ -260,6 +267,12 @@ export type EventType =
   | 'moved-in-together'
   | 'moved-house'
   | 'had-child'
+  /** The household could not cover the month; savings went negative. */
+  | 'fell-behind'
+  /** Savings recovered above zero after arrears. */
+  | 'back-in-the-black'
+  /** Money passed to this person from a parent's estate. */
+  | 'inherited'
 
 export interface WorldEvent {
   readonly id: number
@@ -320,6 +333,8 @@ export type FactorId =
   | 'lost-work'
   | 'wanted-family'
   | 'own-choice'
+  | 'in-arrears'
+  | 'cheaper-rent'
 
 export interface CausalFactor {
   readonly factor: FactorId

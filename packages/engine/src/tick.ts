@@ -20,6 +20,7 @@
 
 import type { Tick } from '@life-engine/shared'
 import { tick as makeTick } from '@life-engine/shared'
+import { runFinances } from './finances.js'
 import { runRelationships } from './relationships.js'
 import {
   runBirths,
@@ -40,6 +41,9 @@ export function advanceTick(world: World): World {
 
   runEducation(world, next)
   runEmployment(world, next)
+  // Finances directly after employment: this month's wages land before any
+  // system reads the balance, so strain and affordability see current money.
+  runFinances(world, next)
   runRelationships(world, next)
   runHouseholds(world, next)
   runBirths(world, next)

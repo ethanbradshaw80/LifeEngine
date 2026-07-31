@@ -33,9 +33,10 @@ let world: World
  * the run has ended. Most separations therefore fall on the FOUNDING couples,
  * who were married at tick 0 and so have no wedding record to pair with.
  *
- * Across eight seeds run for sixty years, exactly one produced a full arc.
- * Seed 4242 is that one, so the exit criterion is tested on a run that actually
- * contains what it is asking about. Picking a seed that reaches the code under
+ * Under M-MONEY dynamics, dual-earner marriages are stable — they never fall
+ * into arrears, so the money strains never bite them — and full arcs got
+ * rarer: three seeds in twenty, run for seventy-five years, contain one.
+ * Seed 44 is one of those three. Picking a seed that reaches the code under
  * test is not the same as tuning numbers until a result appears — the
  * behaviour itself was not changed to make this pass.
  */
@@ -46,8 +47,8 @@ beforeAll(() => {
   world = createWorld(makeSeed(12345))
   advanceTicks(world, 600)
 
-  worldWithFullArc = createWorld(makeSeed(4242))
-  advanceTicks(worldWithFullArc, 720)
+  worldWithFullArc = createWorld(makeSeed(44))
+  advanceTicks(worldWithFullArc, 900)
 })
 
 describe('the relationship graph', () => {

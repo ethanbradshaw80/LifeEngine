@@ -39,6 +39,8 @@ export const GOLDEN_TICKS = 120
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
  *
+ * Changed at M-MONEY (SIMULATION_VERSION 4): household finances shape moves,
+ * strain and separations, so every seed's history differs from v3.
  * Changed at M-DEPTH with SIMULATION_VERSION 3: births moved to a fresh RNG
  * stream (deliverChild) so player-decided and automatic births produce the
  * identical child; NPC children differ from v2 for every seed.
@@ -48,7 +50,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = 'e34b0a16'
+export const GOLDEN_HASH_HEX = '58c84c3c'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -121,7 +123,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":3')
+    expect(text).toContain('"simulationVersion":4')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

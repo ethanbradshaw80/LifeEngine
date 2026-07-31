@@ -26,8 +26,11 @@ import type { Seed, Tick } from '@life-engine/shared'
  *      plus `typeSinceTick` and `endedAtTick`.
  * v4 — M-PLAY. `world.player` — who is being played, any pending decision, and
  *      the complete choice log (part of the deterministic record).
+ * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
+ *      four months of their own wages — computed from the save's employment
+ *      records, not invented.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1
