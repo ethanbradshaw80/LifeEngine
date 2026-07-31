@@ -1,6 +1,6 @@
 # Architecture Proposal
 
-**Status:** Recommendation made. Pending owner approval.
+**Status: ACCEPTED 2026-07-30.** Approved by the owner. This is the architecture.
 **Revision 2 — 2026-07-30.** Supersedes revision 1 (Windows desktop / C#).
 **Supersedes:** the iOS / Swift / SwiftUI assumption in `LIFE_ENGINE_BOOTSTRAP.md`.
 
@@ -298,4 +298,4 @@ written to run server-side unchanged.
 
 1. Install Node.js (not currently on this machine) and verify `node --version`.
 2. Configure `git config --global user.name` and `user.email`.
-3. Owner approves this proposal and the ADRs it generated.
+3. ~~Owner approves this proposal and the ADRs it generated.~~ **Done — 2026-07-30.**

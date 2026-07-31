@@ -245,7 +245,8 @@ choice as a way to create one.
 
 ## 11. Monetization — an open question, not a decision
 
-**Recorded as ADR-0015, status `Proposed`. Do not treat subscription as settled.**
+**ADR-0015 is Accepted — and what it accepts is that this stays undecided.** Approving
+the roadmap did not approve a subscription. Do not treat monetization as settled.
 
 A subscription is not a feature. It is an ongoing commitment involving payment
 processing, refunds and chargebacks, sales tax or VAT obligations that vary by

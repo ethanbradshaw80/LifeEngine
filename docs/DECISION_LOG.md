@@ -23,14 +23,14 @@ Reversibility · Review trigger.
 | 0005 | ~~No UI before Milestone 5~~ | **Superseded by 0012** |
 | 0006 | Godot and Unity rejected | Accepted *(moot)* |
 | 0007 | Reduced foundation agent set | Amended by 0014 |
-| 0008 | Money as integer minor units | Proposed |
-| 0009 | **Web application, TypeScript** | Proposed |
-| 0010 | **Simulation in the browser; multi-user ready, shipped later** | Proposed |
-| 0011 | **React + Vite; no full-stack framework yet** | Proposed |
-| 0012 | **UI from Milestone 2** | Proposed |
-| 0013 | **Offline-only constraint replaced** | Proposed |
+| 0008 | Money as integer minor units | **Accepted** |
+| 0009 | **Web application, TypeScript** | **Accepted** |
+| 0010 | **Simulation in the browser; multi-user ready, shipped later** | **Accepted** |
+| 0011 | **React + Vite; no full-stack framework yet** | **Accepted** |
+| 0012 | **UI from Milestone 2** | **Accepted** |
+| 0013 | **Offline-only constraint replaced** | **Accepted** |
 | 0014 | **Web security reviewer added** | Accepted |
-| 0015 | **Product stages gated on criteria; monetization deferred** | Proposed |
+| 0015 | **Product stages gated on criteria; monetization deferred** | **Accepted** |
 
 ---
 
@@ -138,7 +138,7 @@ review. ADR-0014 adds a fifth.
 
 ## ADR-0008 — Money as integer minor units; floating point restricted
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-30
 
 **Context.** Law 11 requires reproducibility. Floating-point arithmetic accumulates
@@ -165,7 +165,7 @@ site where rounding occurs.
 
 ## ADR-0009 — Web application, TypeScript end to end
 
-**Status:** Proposed — requires owner approval
+**Status:** Accepted
 **Date:** 2026-07-30
 **Supersedes:** ADR-0001, ADR-0002
 
@@ -210,7 +210,7 @@ TypeScript — demonstrated with profiling evidence, not suspected.
 
 ## ADR-0010 — Simulation runs in the browser; multi-user ready, shipped later
 
-**Status:** Proposed — requires owner approval
+**Status:** Accepted
 **Date:** 2026-07-30
 
 **Context.** The engine must eventually support multiple users with separate accounts
@@ -251,7 +251,7 @@ the design.
 
 ## ADR-0011 — React + Vite; no full-stack framework yet
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-30
 
 **Context.** Next.js would supply routing, API routes, and a mature auth ecosystem —
@@ -275,7 +275,7 @@ cheap to revisit.
 
 ## ADR-0012 — User interface from Milestone 2
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-30
 **Supersedes:** ADR-0005
 
@@ -306,7 +306,7 @@ guarded by rule rather than by delay.
 
 ## ADR-0013 — The offline-only constraint is replaced
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-30
 
 **Context.** `LIFE_ENGINE_BOOTSTRAP.md` §12 requires that ordinary gameplay work
@@ -366,7 +366,7 @@ on other people.
 
 ## ADR-0015 — Product stages gated on criteria; monetization deferred
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-07-30
 
 **Context.** The technical documents covered building the game and said nothing about
@@ -421,9 +421,31 @@ open by design.
 
 ---
 
-## Pending owner approval
+## Approval status
 
-**ADR-0008, 0009, 0010, 0011, 0012, 0013, 0015.**
+**All ADRs are Accepted as of 2026-07-30.** Nothing is outstanding.
 
-**No code should be written until ADR-0009 is Accepted** — it is the least reversible
-decision in this log.
+ADR-0008, 0009, 0010, 0011, 0012, 0013, and 0015 were approved together by the owner
+after review.
+
+### What this authorizes
+
+Implementation may begin at Milestone 0 (`MILESTONE_PLAN.md`), once Node.js is installed
+and git identity is configured globally.
+
+### What it does not authorize
+
+Gameplay beyond the current milestone's in-scope list. Milestone out-of-scope lists
+remain binding, and changing one still requires a new ADR.
+
+### The decisions now hardest to reverse
+
+| ADR | Decision | Cost to reverse |
+|---|---|---|
+| 0009 | TypeScript | A rewrite |
+| 0003 | Engine purity | Easy to keep, a rewrite to retrofit |
+| 0008 | Integer money | Poor once financial data exists in saves |
+| 0010 | `userId` in every save | Cheap now, a migration later |
+
+Determinism (Law 11) is not an ADR because it is not optional. It cannot be retrofitted
+at any price, and it must be built in from the first commit.

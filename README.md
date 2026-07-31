@@ -138,11 +138,12 @@ Layer 1, Layer 1 should still be a finished, working thing.
 | Item | State |
 |---|---|
 | Foundation documentation | Complete |
-| Architecture recommendation | Complete — **pending owner approval** |
-| Node.js installed | No |
+| Architecture | **Approved 2026-07-30** |
+| All ADRs | **Accepted** — none outstanding |
+| Node.js installed | **No — this is the blocker** |
 | Engine code | Not started |
 | Gameplay | Not started |
-| First executable milestone | Defined, not authorized |
+| First executable milestone | **Authorized** |
 
-Six ADRs are `Proposed` and awaiting approval. ADR-0009 (TypeScript) is the least
-reversible; no code should be written until it is accepted.
+The architecture is settled and Milestone 0 is authorized. The only thing standing
+between here and the first line of code is the two prerequisites above.
