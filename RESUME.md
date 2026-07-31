@@ -88,8 +88,7 @@ deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
 **L4-PLANNING — COMPLETE** (docs only; engine, golden, tests untouched)
-`docs/LAYER4_PLAN.md`: Layer 4 entered military-first (ADR-0017, Proposed —
-NEEDS ETHAN'S APPROVAL before L4-M1 starts). Five vertical milestones:
+`docs/LAYER4_PLAN.md`: Layer 4 entered military-first (ADR-0017, **Accepted** 2026-07-31). Five vertical milestones:
 L4-M1 geopolitics (fictional nations, relationship state machine on Stream 9
 — reserved since M1 — surfacing as news cards; no player mechanics),
 L4-M2 health prerequisite (injury/recovery/disability — the one gap the §17

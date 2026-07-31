@@ -32,7 +32,7 @@ Reversibility · Review trigger.
 | 0014 | **Web security reviewer added** | Accepted |
 | 0015 | **Product stages gated on criteria; monetization deferred** | **Accepted** |
 | 0016 | **Accounts deferred until the game is playable** | Accepted |
-| 0017 | **Layer 4 entered military-first; nations aggregate-only** | Proposed |
+| 0017 | **Layer 4 entered military-first; nations aggregate-only** | **Accepted** |
 
 ---
 
@@ -456,7 +456,7 @@ unchanged and still gate on M6 when it happens.
 
 ## ADR-0017 — Layer 4 entered military-first; nations are aggregate-only
 
-**Status:** Proposed — requires owner approval
+**Status:** Accepted (owner approval, 2026-07-31)
 **Date:** 2026-07-31
 
 **Context.** Layers 1–3 are built and playable (simulation v6, 168 tests).
