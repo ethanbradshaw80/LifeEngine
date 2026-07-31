@@ -36,6 +36,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'started-school': '📚',
   'finished-school': '🎓',
   hired: '💼',
+  'got-raise': '💵',
   'left-job': '📦',
   befriended: '🤝',
   'friendship-lapsed': '🍂',

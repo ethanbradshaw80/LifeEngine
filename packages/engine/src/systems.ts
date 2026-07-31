@@ -277,6 +277,7 @@ export function runEmployment(world: World, tick: Tick): void {
 
     if (job) {
       driftPerformance(world, person, job, rng)
+      annualReview(world, tick, person)
       considerBetterJob(world, tick, person, job, rng, workplaces.length)
       continue
     }
@@ -385,6 +386,43 @@ export function retirePerson(
     chosen: 'retired',
     rejected: ['to keep working'],
     streamId: Stream.Employment,
+  })
+}
+
+/**
+ * The annual review: pay creeps toward the occupation's ceiling, faster for
+ * good work. M-DEPTH2 — before this, pay was set at hire and never moved,
+ * which made a forty-year career financially identical to forty first years.
+ *
+ * Deliberately NO random draw: performance already carries the noise (it
+ * drifts stochastically each month), and a raise that follows from recorded
+ * performance is explainable in a way a payroll lottery is not. Poor work
+ * (under 350) earns nothing — the review happens; the raise does not.
+ *
+ * Not a player decision: nobody decides to receive a raise. It lands in the
+ * feed like weather.
+ */
+function annualReview(world: World, tick: Tick, person: Person): void {
+  const job = world.employment.get(person.id)
+  if (!job) return
+  const monthsIn = tick - job.startedAtTick
+  if (monthsIn < TICKS_PER_YEAR || monthsIn % TICKS_PER_YEAR !== 0) return
+
+  const occupation = occupationById(job.occupationId)
+  const headroom = occupation.maxMonthlyPay - job.monthlyPay
+  if (headroom <= 0 || job.performance < 350) return
+
+  // Top performance closes ~15% of the remaining gap a year; adequate ~5%.
+  const raise = Math.floor((headroom * job.performance) / 6500)
+  if (raise < Math.floor(job.monthlyPay / 100)) return // under 1%: not worth an event
+
+  const newPay = (job.monthlyPay + raise) as Money
+  world.employment.set(person.id, { ...job, monthlyPay: newPay })
+  recordEvent(world, tick, {
+    type: 'got-raise',
+    subjectId: person.id,
+    placeId: job.workplaceId,
+    detail: String(newPay),
   })
 }
 

@@ -92,6 +92,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Finished ${event.detail === 'college' ? 'college' : event.detail} at ${age}.`
     case 'hired':
       return `${year} — Took work as ${withArticle(event.detail ?? 'labourer')} at ${placeName(world, event.placeId)}.`
+    case 'got-raise': {
+      const pay = event.detail === null ? null : Number.parseInt(event.detail, 10)
+      return pay !== null && Number.isFinite(pay)
+        ? `${year} — A raise: ${formatMoney(pay as never)} a month now.`
+        : `${year} — A raise.`
+    }
     case 'left-job':
       if (event.detail === 'retired') return `${year} — Retired at ${age}.`
       if (event.detail === 'let go') return `${year} — Lost the job.`

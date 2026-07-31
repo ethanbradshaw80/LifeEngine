@@ -87,6 +87,23 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-DEPTH2 (career depth & town content) — COMPLETE**
+annualReview() in systems.ts: on each job anniversary, pay closes part of the
+gap to the occupation ceiling scaled by performance (perf/6500 of headroom;
+nothing under 350 perf; skipped under 1% — no event noise). Deliberately NO
+random draw: performance already carries the noise, and a raise that follows
+from recorded performance is explainable; a payroll lottery is not. Not a
+player decision (nobody decides to receive a raise) — lands in the feed as a
+💵 card: "A raise: $2,140 a month now." Six new occupations (cook,
+bookkeeper, carpenter, foreman, pharmacist, doctor — doctor tops at $6k) and
+four new workplaces (the diner, the savings bank, Halloran's garage, the
+courthouse). SIMULATION_VERSION 6, golden 075cdc27.
+
+Test lesson (recurring pattern — this is the second): the retirement re-ask
+test cast a frail 66-year-old who died one tick before her second birthday
+question. Recast with vitality>=750. When a test needs someone to SURVIVE,
+filter on vitality; when it needs heirs, start from a founding parent.
+
 **M-SPEND (money tuning) — COMPLETE**
 discretionaryFor() in finances.ts: households spend 83.7-92% of the surplus
 above rent+living (spendPerMille = 920 - avgAdultDiligence/12 — thrift is

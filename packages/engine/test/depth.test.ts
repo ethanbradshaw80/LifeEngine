@@ -141,11 +141,15 @@ describe('retirement is the player\'s call', () => {
   function workingElder(world: World) {
     // Hand-build the situation: take a founding 64-year-old with a job, or
     // give one a job directly. The employment map is the authority.
+    // High vitality on purpose: the question returns on the NEXT birthday,
+    // so the test needs an elder likely to see it. Margaret (vitality-poor)
+    // died eleven ticks after her first review and one tick before her
+    // second, which is a fine life and a broken test.
     const elder = livingPeople(world).find((p) => {
       const age = ageAt(p.birthTick, world.tick)
-      return age >= 63 && age <= 65
+      return age >= 60 && age <= 65 && p.traits.vitality >= 750
     })
-    if (!elder) throw new Error('no 63-65 year old in the founding town')
+    if (!elder) throw new Error('no robust 60-65 year old in the founding town')
     if (!world.employment.has(elder.id)) {
       world.employment.set(elder.id, {
         personId: elder.id,

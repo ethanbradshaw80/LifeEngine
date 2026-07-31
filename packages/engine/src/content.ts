@@ -43,6 +43,7 @@ export const NEIGHBOURHOOD_NAMES: readonly string[] = [
 export const WORKPLACE_NAMES: readonly string[] = [
   'the paper mill', 'the rail depot', 'the grain elevator', 'the county hospital',
   'the machine shop', 'the grocery on Main', 'the lumber yard', 'the telephone exchange',
+  "the diner on Second Street", 'the savings bank', "Halloran's garage", 'the courthouse',
 ]
 
 export const CIVIC_NAMES: readonly string[] = ['the town hall', 'the public library']
@@ -69,6 +70,13 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(2400), maxMonthlyPay: dollars(3800) },
   { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(3000), maxMonthlyPay: dollars(5200) },
   { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(2800), maxMonthlyPay: dollars(4600) },
+  // M-DEPTH2: a town needs more ways to earn a living than ten.
+  { id: 'cook', title: 'cook', requires: 'none', minMonthlyPay: dollars(950), maxMonthlyPay: dollars(1600) },
+  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(1500), maxMonthlyPay: dollars(2300) },
+  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(2100), maxMonthlyPay: dollars(3400) },
+  { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(2000), maxMonthlyPay: dollars(3000) },
+  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(2900), maxMonthlyPay: dollars(4400) },
+  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(3600), maxMonthlyPay: dollars(6000) },
 ]
 
 // ---------------------------------------------------------------------------

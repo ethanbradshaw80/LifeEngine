@@ -17,6 +17,7 @@ import {
   canAfford,
   createWorld,
   discretionaryFor,
+  occupationById,
   householdCosts,
   householdIncome,
   inArrears,
@@ -248,6 +249,37 @@ describe('inheritance', () => {
   it('estates flow in a long simulation', () => {
     const world = build(12345, 720)
     expect(world.events.filter((e) => e.type === 'inherited').length).toBeGreaterThan(0)
+  })
+})
+
+describe('careers progress', () => {
+  it('long-employed decent performers earn raises within the band', () => {
+    const world = build(12345, 300)
+    const raises = world.events.filter((e) => e.type === 'got-raise')
+    expect(raises.length).toBeGreaterThan(5)
+
+    for (const event of raises) {
+      const pay = Number.parseInt(event.detail ?? '0', 10)
+      expect(Number.isInteger(pay)).toBe(true)
+      expect(pay).toBeGreaterThan(0)
+    }
+
+    // Nobody's pay ever exceeds their occupation's ceiling.
+    for (const record of world.employment.values()) {
+      const occupation = occupationById(record.occupationId)
+      expect(record.monthlyPay).toBeLessThanOrEqual(occupation.maxMonthlyPay)
+      expect(record.monthlyPay).toBeGreaterThanOrEqual(occupation.minMonthlyPay)
+    }
+  })
+
+  it('the new occupations actually get worked', () => {
+    const world = build(12345, 600)
+    const held = new Set<string>()
+    for (const event of world.events) {
+      if (event.type === 'hired' && event.detail !== null) held.add(event.detail)
+    }
+    // Across fifty years the town should have hired into a broad spread.
+    expect(held.size).toBeGreaterThanOrEqual(8)
   })
 })
 

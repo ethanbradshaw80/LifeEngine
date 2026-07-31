@@ -261,6 +261,8 @@ export type EventType =
   | 'started-school'
   | 'finished-school'
   | 'hired'
+  /** An annual review moved the pay. detail carries the new monthly cents. */
+  | 'got-raise'
   | 'left-job'
   | 'befriended'
   | 'friendship-lapsed'

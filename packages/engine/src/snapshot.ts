@@ -21,6 +21,9 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v6 — M-DEPTH2. Careers progress: annual performance reviews move pay
+ *      toward the occupation ceiling; six new occupations and four new
+ *      workplaces. Hiring pools and incomes differ from v5 for every seed.
  * v5 — M-SPEND. Discretionary spending: households spend 84-92% of the
  *      surplus above rent and living costs (thrift scales with diligence;
  *      nothing while in arrears). Savings now accumulate at believable
@@ -37,7 +40,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 5
+export const SIMULATION_VERSION = 6
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
