@@ -22,11 +22,26 @@
 
 import type { EntityId } from '@life-engine/shared'
 import { ageAt } from './clock.js'
+import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { occupationById } from './content.js'
+import { withArticle } from './text.js'
 import { factor, recordDecision } from './records.js'
 import { Stream } from './rng.js'
-import { promoteToCourting, promoteToSpouse, relationshipBetween } from './relationships.js'
-import { enrolPlayer, hirePerson, performMoveOut } from './systems.js'
+import {
+  performSeparation,
+  promoteToCourting,
+  promoteToSpouse,
+  reconcile,
+  relationshipBetween,
+} from './relationships.js'
+import {
+  deliverChild,
+  enrolPlayer,
+  hirePerson,
+  moveHouse,
+  performMoveOut,
+  retirePerson,
+} from './systems.js'
 import type { PendingDecision, PendingKind, World } from './types.js'
 
 /** Begin playing a living person. Clears any stale pending decision. */
@@ -157,6 +172,60 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'child': {
+      if (choice === 'accept' && pending.otherId !== null) {
+        // deliverChild expects the mother first; the player may be either parent.
+        const other = world.people.get(pending.otherId)
+        if (other) {
+          const motherId = person.sex === 'female' ? person.id : pending.otherId
+          const fatherId = person.sex === 'female' ? pending.otherId : person.id
+          void other
+          deliverChild(world, pending.tick, motherId, fatherId)
+          recordDecision(world, pending.tick, {
+            subjectId: person.id,
+            decision: 'household-formation',
+            significance: 'defining',
+            inputs: [factor('own-choice', 1000), factor('wanted-family', 800)],
+            chosen: 'grew the family',
+            rejected: ['not yet'],
+            streamId: Stream.LifeEventTiming,
+          })
+        }
+      }
+      break
+    }
+
+    case 'move-house': {
+      if (choice === 'accept' && pending.placeId !== null) {
+        moveHouse(world, pending.tick, person, pending.placeId, [factor('own-choice', 1000)])
+      }
+      break
+    }
+
+    case 'retirement': {
+      if (choice === 'retire') {
+        retirePerson(world, pending.tick, person, [
+          factor('own-choice', 1000),
+          factor('old-age', 500),
+        ])
+      }
+      // 'keep-working' needs no action; the question returns next birthday.
+      break
+    }
+
+    case 'separation': {
+      const tie =
+        pending.otherId === null ? undefined : relationshipBetween(world, person.id, pending.otherId)
+      if (tie && tie.type === 'spouse') {
+        if (choice === 'separate') {
+          performSeparation(world, pending.tick, tie, [factor('own-choice', 1000)])
+        } else {
+          reconcile(world, pending.tick, tie)
+        }
+      }
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -195,9 +264,11 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'education':
       return `You are ${age} and finished with secondary school. What next?`
     case 'job-offer': {
-      const title = pending.occupationId ? occupationById(pending.occupationId).title : 'a job'
+      const role = pending.occupationId
+        ? withArticle(occupationById(pending.occupationId).title)
+        : 'a job'
       const where = pending.workplaceId === null ? '' : ` at ${world.places.get(pending.workplaceId)?.name ?? 'a workplace'}`
-      return `There is an opening for a ${title}${where}. Take it?`
+      return `There is an opening for ${role}${where}. Take it?`
     }
     case 'move-out': {
       const where = pending.placeId === null ? 'town' : (world.places.get(pending.placeId)?.name ?? 'town')
@@ -207,9 +278,132 @@ export function describePending(world: World, pending: PendingDecision): string 
       return `You and ${other ? `${other.givenName} ${other.familyName}` : 'someone'} have grown close. See where it goes?`
     case 'marriage':
       return `Marry ${other ? `${other.givenName} ${other.familyName}` : 'your partner'}?`
+    case 'child':
+      return `You and ${other ? other.givenName : 'your partner'} could grow the family. Have a child?`
+    case 'move-house': {
+      const where = pending.placeId === null ? 'a better street' : (world.places.get(pending.placeId)?.name ?? 'a better street')
+      return `A place in ${where} is within reach. Move the household?`
+    }
+    case 'retirement':
+      return `You are ${age}. Retire, or keep working?`
+    case 'separation':
+      return `Things with ${other ? other.givenName : 'your spouse'} have grown distant. What do you do?`
     default: {
       const never: never = pending.kind
       return String(never)
     }
   }
+}
+
+/**
+ * The STAKES of a pending decision: short factual lines the player should see
+ * before answering. Everything here is read from world state — the same facts
+ * the records will cite — never invented for drama. An empty array is honest
+ * when there is nothing more to say.
+ */
+export function describeStakes(world: World, pending: PendingDecision): string[] {
+  const person = world.people.get(pending.personId)
+  if (!person) return []
+  const other = pending.otherId === null ? undefined : world.people.get(pending.otherId)
+  const lines: string[] = []
+
+  switch (pending.kind) {
+    case 'education': {
+      lines.push('College opens the best-paid work: teaching, engineering, accountancy.')
+      lines.push('Trade school is two years, not four, and leads to solid skilled work.')
+      lines.push('Working now means wages immediately, and the education question is closed.')
+      break
+    }
+    case 'job-offer': {
+      if (pending.monthlyPay !== null) {
+        const current = world.employment.get(person.id)
+        if (current) {
+          const diff = pending.monthlyPay - current.monthlyPay
+          lines.push(`You earn ${formatMoney(current.monthlyPay)} a month now; this pays ${formatMoney(pending.monthlyPay)}.`)
+          if (diff < 0) lines.push('That is a pay cut.')
+        } else {
+          lines.push(`It pays ${formatMoney(pending.monthlyPay)} a month. You have no wages today.`)
+        }
+      }
+      break
+    }
+    case 'move-out': {
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        const others = household.memberIds.filter((id) => id !== person.id).length
+        lines.push(`You live with ${others} ${others === 1 ? 'person' : 'people'} now.`)
+      }
+      break
+    }
+    case 'courtship': {
+      if (other) {
+        const otherAge = ageAt(other.birthTick, pending.tick)
+        const job = world.employment.get(other.id)
+        lines.push(`${other.givenName} is ${otherAge}${job ? ' and working' : ''}.`)
+        lines.push('Courting closes the door on other courtships while it lasts.')
+      }
+      break
+    }
+    case 'marriage': {
+      const tie = pending.otherId === null ? undefined : relationshipBetween(world, person.id, pending.otherId)
+      if (tie) {
+        const years = Math.floor((pending.tick - tie.typeSinceTick) / TICKS_PER_YEAR)
+        lines.push(years >= 1 ? `You have been courting ${String(years)} year${years === 1 ? '' : 's'}.` : 'The courtship is young.')
+      }
+      break
+    }
+    case 'child': {
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        const children = household.memberIds.filter((id) =>
+          world.people.get(id)?.parentIds.includes(person.id),
+        ).length
+        lines.push(children === 0 ? 'It would be your first.' : `You have ${children} at home already.`)
+      }
+      break
+    }
+    case 'move-house': {
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      const target = pending.placeId === null ? undefined : world.places.get(pending.placeId)
+      const current = household ? world.places.get(household.placeId) : undefined
+      if (current && target) {
+        lines.push(`${target.name} is a better street than ${current.name}.`)
+        if (household && household.memberIds.length > 1) {
+          lines.push(`The whole household of ${household.memberIds.length} moves with you.`)
+        }
+      }
+      break
+    }
+    case 'retirement': {
+      const job = world.employment.get(person.id)
+      if (job) {
+        lines.push(`Retiring ends your ${formatMoney(job.monthlyPay)} a month.`)
+        const started = job.startedAtTick
+        const years = Math.floor((pending.tick - started) / TICKS_PER_YEAR)
+        if (years >= 1) lines.push(`You have held this job ${String(years)} year${years === 1 ? '' : 's'}.`)
+      }
+      lines.push('You can keep working as long as you live; the question returns each birthday.')
+      break
+    }
+    case 'separation': {
+      const tie = pending.otherId === null ? undefined : relationshipBetween(world, person.id, pending.otherId)
+      if (tie) {
+        const years = Math.floor((pending.tick - tie.formedAtTick) / TICKS_PER_YEAR)
+        if (years >= 1) lines.push(`You have been together ${String(years)} years.`)
+      }
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household && other) {
+        const children = household.memberIds.filter((id) => {
+          const member = world.people.get(id)
+          return member ? member.parentIds.includes(person.id) && member.parentIds.includes(other.id) : false
+        }).length
+        if (children > 0) lines.push(`${children} ${children === 1 ? 'child lives' : 'children live'} at home. One of you moves out; they stay.`)
+      }
+      lines.push('Staying is a real attempt — it restores some closeness, but the strains remain.')
+      break
+    }
+    default:
+      break
+  }
+  return lines
 }

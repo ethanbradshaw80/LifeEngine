@@ -21,12 +21,15 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v3 — M-DEPTH. Births moved to deliverChild() on a fresh RNG stream so a
+ *      player-decided birth produces the identical child the automatic path
+ *      would have; NPC children therefore differ from v2 for every seed.
  * v2 — Milestone 5. The relationships domain: compatibility-driven friendship,
  *      courtship, marriage, divorce and widowhood, and births that require an
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 2
+export const SIMULATION_VERSION = 3
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

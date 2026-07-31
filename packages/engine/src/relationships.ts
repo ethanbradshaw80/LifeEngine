@@ -502,7 +502,7 @@ export function promoteToSpouse(
  * is never the sole cause.
  */
 function considerSeparation(world: World, tick: Tick): void {
-  for (const [key, relationship] of sortedRelationships(world)) {
+  for (const [, relationship] of sortedRelationships(world)) {
     if (relationship.type !== 'spouse') continue
     if (relationship.strength > DIVORCE_STRENGTH_THRESHOLD) continue
 
@@ -525,37 +525,102 @@ function considerSeparation(world: World, tick: Tick): void {
     const rng = openStream(world.seed, Stream.Relationships, relationship.a, tick + 303)
     if (!rng.chance(pressure, 9_000)) continue
 
-    world.relationships.set(key, {
-      ...relationship,
-      type: 'former-spouse',
-      typeSinceTick: tick,
-      endedAtTick: tick,
-    })
+    // The breaking point is simulated for everyone; the player answers it
+    // themselves. Choosing to stay is a real act, not a dismissal — see
+    // reconcile() — so a played marriage can be fought for in a way an NPC
+    // marriage cannot. That asymmetry is the point of playing.
+    const playerId = world.player.personId
+    if (playerId !== null && (playerId === relationship.a || playerId === relationship.b)) {
+      raisePending(world, {
+        tick,
+        kind: 'separation',
+        personId: playerId,
+        otherId: playerId === relationship.a ? relationship.b : relationship.a,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['stay', 'separate'],
+      })
+      continue
+    }
 
-    recordEvent(world, tick, {
-      type: 'divorced',
-      subjectId: relationship.a,
-      otherId: relationship.b,
-    })
-
-    const inputs = [
-      factor('drifted-apart', 1000 - relationship.strength, relationship.b),
-      factor('years-together', tick - relationship.formedAtTick),
-    ]
-    if (bothOutOfWork) inputs.push(factor('financial-strain', 400))
-
-    recordDecision(world, tick, {
-      subjectId: relationship.a,
-      decision: 'separation',
-      significance: 'defining',
-      inputs,
-      chosen: 'separated',
-      rejected: ['to stay together'],
-      streamId: Stream.Relationships,
-    })
-
-    splitHousehold(world, tick, relationship.a, relationship.b)
+    performSeparation(world, tick, relationship, [])
   }
+}
+
+/** One separation implementation for both the automatic path and player choices. */
+export function performSeparation(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const a = world.people.get(relationship.a)
+  const b = world.people.get(relationship.b)
+  if (!a || !b) return
+  const bothOutOfWork = !world.employment.has(a.id) && !world.employment.has(b.id)
+
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    type: 'former-spouse',
+    typeSinceTick: tick,
+    endedAtTick: tick,
+  })
+
+  recordEvent(world, tick, {
+    type: 'divorced',
+    subjectId: relationship.a,
+    otherId: relationship.b,
+  })
+
+  const inputs = [
+    ...extraInputs,
+    factor('drifted-apart', 1000 - relationship.strength, relationship.b),
+    factor('years-together', tick - relationship.formedAtTick),
+  ]
+  if (bothOutOfWork) inputs.push(factor('financial-strain', 400))
+
+  recordDecision(world, tick, {
+    subjectId: relationship.a,
+    decision: 'separation',
+    significance: 'defining',
+    inputs,
+    chosen: 'separated',
+    rejected: ['to stay together'],
+    streamId: Stream.Relationships,
+  })
+
+  splitHousehold(world, tick, relationship.a, relationship.b)
+}
+
+/**
+ * The player chose to stay. Staying is modelled, not merely deferred: the
+ * attempt itself restores some strength, the way a couple who decide to try
+ * again genuinely are closer for a while. The strain model still applies —
+ * a badly-matched marriage will reach this point again.
+ */
+export function reconcile(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+): void {
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    strength: Math.min(1000, relationship.strength + 160),
+  })
+  recordDecision(world, tick, {
+    subjectId: world.player.personId ?? relationship.a,
+    decision: 'separation',
+    significance: 'defining',
+    inputs: [
+      factor('own-choice', 1000),
+      factor('years-together', tick - relationship.formedAtTick),
+    ],
+    chosen: 'chose to stay and try again',
+    rejected: ['to separate'],
+    streamId: Stream.Relationships,
+  })
 }
 
 /**

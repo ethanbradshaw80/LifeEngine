@@ -87,6 +87,22 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-DEPTH (playable-life depth) — COMPLETE**
+Four new decision kinds, same interception pattern (roll creates the moment;
+player answers it): **child** (couple decides; deliverChild() keys all RNG on
+(mother,tick)+childId so accept produces the IDENTICAL child the auto path
+would have — tested by twin-world comparison), **move-house** (destination
+shown), **retirement** (asked yearly on birthday from 66; keep-working forever
+is allowed; NPC auto-retires), **separation** (stay = reconcile(): +160
+strength and an own-choice record — a played marriage can be fought for, NPCs'
+cannot; that asymmetry is the point). describeStakes() returns fact lines the
+UI shows before answering (pay compared vs current, children affected, years
+together). SIMULATION_VERSION 3 (births moved to fresh 8888 stream); golden
+e34b0a16. Two bugs fixed: isBirthdayMonth never matched for founders
+(negative birthTick, sign-preserving %— first use of an M1 helper caught it);
+"a office clerk" grammar via withArticle. depth.test.ts builds scenarios by
+hand (weakened marriage, hand-given job) instead of simulating decades.
+
 **M-PLAY (playable character) — COMPLETE** (ADR-0016 deferred accounts/M6)
 It is a GAME now. `packages/engine/src/player.ts` + interceptions in
 systems.ts/relationships.ts: the player is one person in the world, not a

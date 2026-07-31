@@ -39,13 +39,16 @@ export const GOLDEN_TICKS = 120
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
  *
- * Changed again at M-PLAY (schema v4): the serialized world gained the
+ * Changed at M-DEPTH with SIMULATION_VERSION 3: births moved to a fresh RNG
+ * stream (deliverChild) so player-decided and automatic births produce the
+ * identical child; NPC children differ from v2 for every seed.
+ * Changed at M-PLAY (schema v4): the serialized world gained the
  * `player` block, so the hash of the bytes moved. SIMULATION_VERSION stayed
  * at 2 deliberately — with nobody being played, the simulation behaves
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = 'e6f86483'
+export const GOLDEN_HASH_HEX = 'e34b0a16'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -118,7 +121,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":2')
+    expect(text).toContain('"simulationVersion":3')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

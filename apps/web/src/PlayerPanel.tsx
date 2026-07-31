@@ -11,6 +11,7 @@
 import {
   ageAt,
   describePending,
+  describeStakes,
   fullName,
   heirsOf,
   lifeStory,
@@ -80,6 +81,10 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'move-out': { accept: 'Move out', decline: 'Stay home' },
   courtship: { accept: 'See where it goes', decline: 'Stay friends' },
   marriage: { accept: 'Marry them', decline: 'Not yet' },
+  child: { accept: 'Have a child', decline: 'Not now' },
+  'move-house': { accept: 'Move', decline: 'Stay put' },
+  retirement: { retire: 'Retire', 'keep-working': 'Keep working' },
+  separation: { stay: 'Stay and try again', separate: 'Separate' },
 }
 
 function optionLabel(kind: string, option: string): string {
@@ -93,11 +98,20 @@ interface PromptProps {
 }
 
 export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
+  // The stakes come from the engine — the same facts the records will cite.
+  const stakes = describeStakes(world, pending)
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="A decision">
       <div className="sheet">
         <p className="muted small">The world is paused. This one is yours.</p>
         <h2>{describePending(world, pending)}</h2>
+        {stakes.length > 0 && (
+          <ul className="stakes">
+            {stakes.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        )}
         <div className="sheet-actions">
           {pending.options.map((option) => (
             <button

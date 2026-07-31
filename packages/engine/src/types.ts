@@ -195,6 +195,14 @@ export type PendingKind =
   | 'courtship'
   /** A courtship could become a marriage. */
   | 'marriage'
+  /** The couple could start (or grow) a family. */
+  | 'child'
+  /** A better neighbourhood is affordable. */
+  | 'move-house'
+  /** Retirement age, still working: stop or carry on. */
+  | 'retirement'
+  /** The marriage has grown distant: separate, or try again. */
+  | 'separation'
 
 export interface PendingDecision {
   readonly id: number

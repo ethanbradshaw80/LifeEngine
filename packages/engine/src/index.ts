@@ -41,6 +41,7 @@ export {
 export {
   awaitingPlayer,
   describePending,
+  describeStakes,
   heirsOf,
   playerIsAlive,
   playerPerson,

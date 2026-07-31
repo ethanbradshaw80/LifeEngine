@@ -10,7 +10,7 @@
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
-import { ageAt } from './clock.js'
+import { ageAt, isBirthdayMonth } from './clock.js'
 import {
   educationRank,
   FEMALE_GIVEN_NAMES,
@@ -243,17 +243,29 @@ export function runEmployment(world: World, tick: Tick): void {
 
     // Retirement.
     if (job && age >= RETIREMENT_AGE) {
-      world.employment.delete(person.id)
-      recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'retired' })
-      recordDecision(world, tick, {
-        subjectId: person.id,
-        decision: 'employment-change',
-        significance: 'major',
-        inputs: [factor('old-age', 900)],
-        chosen: 'retired',
-        rejected: ['to keep working'],
-        streamId: Stream.Employment,
-      })
+      // The player is asked, once a year on their birthday, and may keep
+      // working as long as they live. An NPC retires when the age arrives;
+      // modelling every NPC's retirement appetite would be depth nobody sees.
+      if (person.id === world.player.personId) {
+        if (isBirthdayMonth(person.birthTick, tick)) {
+          raisePending(world, {
+            tick,
+            kind: 'retirement',
+            personId: person.id,
+            otherId: null,
+            occupationId: job.occupationId,
+            workplaceId: job.workplaceId,
+            monthlyPay: job.monthlyPay,
+            placeId: null,
+            options: ['retire', 'keep-working'],
+          })
+        }
+        // A working player past retirement age still does their job.
+        const rngWorking = openStream(world.seed, Stream.Employment, person.id, tick)
+        driftPerformance(world, person, job, rngWorking)
+        continue
+      }
+      retirePerson(world, tick, person, [factor('old-age', 900)])
       continue
     }
 
@@ -351,6 +363,26 @@ export function hirePerson(
     inputs,
     chosen: `took work as ${withArticle(occupation.title)}`,
     rejected: [...rejected],
+    streamId: Stream.Employment,
+  })
+}
+
+/** One retirement implementation for both the automatic path and player choices. */
+export function retirePerson(
+  world: World,
+  tick: Tick,
+  person: Person,
+  inputs: readonly CausalFactor[],
+): void {
+  world.employment.delete(person.id)
+  recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'retired' })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs,
+    chosen: 'retired',
+    rejected: ['to keep working'],
     streamId: Stream.Employment,
   })
 }
@@ -497,6 +529,24 @@ export function runHouseholds(world: World, tick: Tick): void {
       if (better.length === 0) continue
 
       const target = rng.pick(better)
+
+      // A better street is affordable. The player decides whether the family
+      // moves; for an NPC the desirability gap already decided.
+      if (person.id === world.player.personId) {
+        raisePending(world, {
+          tick,
+          kind: 'move-house',
+          personId: person.id,
+          otherId: null,
+          occupationId: null,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: target.id,
+          options: ['accept', 'decline'],
+        })
+        continue
+      }
+
       world.households.set(household.id, { ...household, placeId: target.id })
       recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId: target.id })
       recordDecision(world, tick, {
@@ -589,7 +639,67 @@ function moveInWithPartner(world: World, tick: Tick, person: Person, rng: Rng): 
 }
 
 /**
+ * Relocate a household. Used by the player's move-house resolution.
+ */
+export function moveHouse(
+  world: World,
+  tick: Tick,
+  person: Person,
+  placeId: EntityId,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const household = householdOf(world, person)
+  const target = world.places.get(placeId)
+  if (!household || !target) return
+  const current = world.places.get(household.placeId)
+
+  world.households.set(household.id, { ...household, placeId })
+  recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'move',
+    significance: 'major',
+    inputs: [
+      ...extraInputs,
+      factor('better-neighbourhood', target.desirability - (current?.desirability ?? 0)),
+    ],
+    chosen: `moved to ${target.name}`,
+    rejected: [current ? `to stay in ${current.name}` : 'to stay put'],
+    streamId: Stream.LifeEventTiming,
+  })
+}
+
+/**
  * One move-out implementation for both the automatic path and player choices.
+export function moveHouse(
+  world: World,
+  tick: Tick,
+  person: Person,
+  placeId: EntityId,
+  extraInputs: readonly CausalFactor[],
+): void {
+  const household = householdOf(world, person)
+  const target = world.places.get(placeId)
+  if (!household || !target) return
+  const current = world.places.get(household.placeId)
+
+  world.households.set(household.id, { ...household, placeId })
+  recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'move',
+    significance: 'major',
+    inputs: [
+      ...extraInputs,
+      factor('better-neighbourhood', target.desirability - (current?.desirability ?? 0)),
+    ],
+    chosen: `moved to ${target.name}`,
+    rejected: [current ? `to stay in ${current.name}` : 'to stay put'],
+    streamId: Stream.LifeEventTiming,
+  })
+}
+
+/** One move-out implementation for both the automatic path and player choices.
  * Extra inputs (the player's 'own-choice') are listed first in the record.
  */
 export function performMoveOut(
@@ -716,49 +826,86 @@ export function runBirths(world: World, tick: Tick): void {
     if (base <= 0) continue
     if (!rng.chanceInTenThousand(base)) continue
 
-    const childId = allocateId(world)
-    const traitRng = openStream(world.seed, Stream.PersonTraits, childId, 0)
-    const partner = world.people.get(partnerId)
+    // The moment is real either way; the player couple decides. For everyone
+    // else the roll IS the decision, as it always was.
+    if (person.id === world.player.personId || partnerId === world.player.personId) {
+      const playerId = world.player.personId
+      if (playerId === null) continue
+      raisePending(world, {
+        tick,
+        kind: 'child',
+        personId: playerId,
+        otherId: playerId === person.id ? partnerId : person.id,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+      continue
+    }
 
-    // Sex is decided FIRST, then the name is drawn from the matching list.
-    // These used to be two independent draws, which produced girls called Peter
-    // — spotted while reading a life story, not by any test.
-    const childSex: Sex = rng.chance(1, 2) ? 'female' : 'male'
-
-    world.people.set(childId, {
-      id: childId,
-      givenName: rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
-      familyName: partner?.familyName ?? person.familyName,
-      sex: childSex,
-      birthTick: tick,
-      deathTick: null,
-      causeOfDeath: null,
-      tier: 'deep',
-      traits: {
-        sociability: traitRng.nextBellInt(0, 1000),
-        diligence: traitRng.nextBellInt(0, 1000),
-        ambition: traitRng.nextBellInt(0, 1000),
-        resilience: traitRng.nextBellInt(0, 1000),
-        curiosity: traitRng.nextBellInt(0, 1000),
-        vitality: traitRng.nextBellInt(200, 1000),
-      },
-      householdId: household.id,
-      parentIds: [person.id, partnerId],
-    })
-
-    world.education.set(childId, {
-      personId: childId,
-      level: 'none',
-      enrolledIn: null,
-      enrolledAtTick: null,
-      completesAtTick: null,
-      attainment: 500,
-    })
-
-    addToHousehold(world, household.id, childId)
-    recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
-    recordEvent(world, tick, { type: 'had-child', subjectId: person.id, otherId: childId })
+    deliverChild(world, tick, person.id, partnerId)
   }
+}
+
+/**
+ * One birth implementation for both the automatic path and player choices.
+ *
+ * `motherId` must be the female partner — the caller has already verified the
+ * pairing. All randomness is keyed on (mother, tick) and on the child's own
+ * id, so a birth resolved from a player decision after the tick produces
+ * exactly the child the automatic path would have produced during it.
+ */
+export function deliverChild(world: World, tick: Tick, motherId: EntityId, partnerId: EntityId): void {
+  const mother = world.people.get(motherId)
+  const partner = world.people.get(partnerId)
+  if (!mother || mother.householdId === null) return
+  const household = world.households.get(mother.householdId)
+  if (!household) return
+
+  const rng = openStream(world.seed, Stream.LifeEventTiming, motherId, tick + 8888)
+  const childId = allocateId(world)
+  const traitRng = openStream(world.seed, Stream.PersonTraits, childId, 0)
+
+  // Sex is decided FIRST, then the name is drawn from the matching list.
+  // These used to be two independent draws, which produced girls called Peter
+  // — spotted while reading a life story, not by any test.
+  const childSex: Sex = rng.chance(1, 2) ? 'female' : 'male'
+
+  world.people.set(childId, {
+    id: childId,
+    givenName: rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
+    familyName: partner?.familyName ?? mother.familyName,
+    sex: childSex,
+    birthTick: tick,
+    deathTick: null,
+    causeOfDeath: null,
+    tier: 'deep',
+    traits: {
+      sociability: traitRng.nextBellInt(0, 1000),
+      diligence: traitRng.nextBellInt(0, 1000),
+      ambition: traitRng.nextBellInt(0, 1000),
+      resilience: traitRng.nextBellInt(0, 1000),
+      curiosity: traitRng.nextBellInt(0, 1000),
+      vitality: traitRng.nextBellInt(200, 1000),
+    },
+    householdId: household.id,
+    parentIds: [motherId, partnerId],
+  })
+
+  world.education.set(childId, {
+    personId: childId,
+    level: 'none',
+    enrolledIn: null,
+    enrolledAtTick: null,
+    completesAtTick: null,
+    attainment: 500,
+  })
+
+  addToHousehold(world, household.id, childId)
+  recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
+  recordEvent(world, tick, { type: 'had-child', subjectId: motherId, otherId: childId })
 }
 
 // ---------------------------------------------------------------------------

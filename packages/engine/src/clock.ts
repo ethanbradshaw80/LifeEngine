@@ -63,7 +63,16 @@ export function ageAt(birthTick: Tick, atTick: Tick): number {
   return Math.floor((atTick - birthTick) / TICKS_PER_YEAR)
 }
 
-/** True in the person's birth month — used for once-a-year checks. */
+/**
+ * True in the person's birth month — used for once-a-year checks.
+ *
+ * Computed as elapsed-months-since-birth, not by comparing raw modulos: the
+ * founding generation has NEGATIVE birth ticks (born before the simulation
+ * began), and JavaScript's % keeps the sign, so `birthTick % 12` is negative
+ * for them and a raw comparison never matches. Written in Milestone 1, first
+ * USED at M-DEPTH for the retirement question — where a test with a played
+ * 64-year-old founder caught it immediately.
+ */
 export function isBirthdayMonth(birthTick: Tick, atTick: Tick): boolean {
-  return atTick % TICKS_PER_YEAR === birthTick % TICKS_PER_YEAR
+  return (atTick - birthTick) % TICKS_PER_YEAR === 0
 }

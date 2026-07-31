@@ -530,3 +530,15 @@ pre.story {
   max-height: 45vh;
   overflow-y: auto;
 }
+
+ul.stakes {
+  margin: 0.4rem 0 0.2rem;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+ul.stakes li + li {
+  margin-top: 0.2rem;
+}
