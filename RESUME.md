@@ -66,6 +66,35 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**M-GAMEDEPTH — COMPLETE** (all six owner-feedback items, five commits)
+(4) WAR PACING: geopolitics escalation ~5x rarer with steeper rung curve,
+de-escalation up, NEW Nation.exhaustedUntilTick (ceasefire → 10-20y no new
+escalation, deterministic from weariness). Homeland wars generational: 1-1.5
+per century, ~1 per 76y life; homeland news items ~10-14/life (was ~23).
+Schema v12. (1) MONEY LABELS: under-18 chip/row says "Family money".
+(3) TABS: GameScreen has 📖Story 🏠Home 👪Family 💼Jobs 📰News 🪖Service
+🩺Health — all READ-side over existing queries; Jobs is a browse-only
+catalog (no "apply" verb — engine design deferred, see note in commit
+29b5881). (2) CUSTOM LIFE: createCustomLife(world, spec) — born as a newborn
+to an eligible couple (birthEligible extracted from runBirths, identical),
+deliverChild gained no-draw overrides, spec logged as 'custom-birth' in
+player.log (replay-exact, tested); UI "Be born" tab in CharacterPicker
+(name/family name/sex/family, blanks = world decides) + "Take over a life".
+(5) MILITARY REALISM: per-branch US-style ladders (BRANCH_RANKS, index +
+rankTitle(branch,rank)), MONTHLY promotions — junior by time-in-grade
+(6/12/24-30mo), competitive from board ranks (TIG + perf bar + draw scaled
+by margin; SPC→CPL lateral quick; quals count toward the bar), NEVER skips
+(regression test); per-grade pay table (basePay REMOVED from specialties);
+term texture: basic (2mo) → specialty school (schoolMonths) → posting →
+exercises/quals/PCS-at-30mo; deployment waits for training. ServiceRecord
++= rankSinceTick, qualifications. 'promotion' DecisionType + Why? wiring.
+Schema v13 (rank remap by grade equivalence). military-scope-reviewer ran
+(should-fix, all substantive findings fixed; accepted: no non-selection
+records, joint bases branch-blind, families don't follow PCS).
+SIMULATION_VERSION 13, golden 9e1808d6. 235 tests.
+KNOWN ENV QUIRK: editing useWorld.ts with the page open corrupts the live
+session via HMR (Rules-of-Hooks console errors, dead clicks) — reload fixes.
+
 **Milestone 4 — COMPLETE**
 Saves and responsiveness. Resolves ADR-0004.
 
@@ -458,94 +487,38 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — OWNER FEEDBACK 2026-07-31 (M-GAMEDEPTH): fix these before
-### anything else. Direct quotes paraphrased; treat as binding direction.
+### Next up — L4-M5 (awards & veterans), then depth-pass candidates
 
-**1. Kids appear to earn money.** A child's game screen shows the household
-pot and monthly net as if it were theirs ("Money $X · +Y/mo" on a
-6-year-old). Engine is correct (money is household-level; nobody under 18
-works — WORKING_AGE guard) but the PRESENTATION lies. Fix: for players under
-~16, label the chip "Family money" (or hide net), and generally make clear
-whose money is whose. Check PersonDetail Money row too.
+M-GAMEDEPTH is done (all six owner items — see its block above). What's
+queued, in suggested order:
 
-**2. No custom character creation.** Today you can only possess an existing
-townsperson. Ethan wants to be BROUGHT INTO the world as a brand-new person:
-choose name (given name at least; family = choose or random), sex, maybe a
-trait lean, then be BORN into a family in town (pick a couple or random) and
-play from age 0 (or briefly time-skip to school age). Engine path: a
-createCustomChild(world, {givenName, sex, motherId?}) that uses deliverChild
-machinery with an override for name/sex (careful: keep determinism — the
-custom inputs are player inputs, record them in player.log or a new field so
-replay works; traits still from the child's id stream). UI: "New life" flow
-in the character picker: Custom tab (name/sex/family) + "Random newborn".
+**1. L4-M5 — awards & veterans** (the last planned Layer 4 milestone).
+Strict eligibility IN CODE with a negative test per the foundation: wound
+recognition requires a qualifying wound from enemy action
+('wounded-in-action' events are already distinct from civilian
+'was-injured' for exactly this); campaign credit requires qualifying
+service against conflict and dates (Deployment[] has war pair, enemy,
+tour dates). Qualifications on ServiceRecord are the badge inputs.
+military-scope-reviewer is MANDATORY. Inputs the review flagged for this
+milestone: model the promotion board better than a draw if boards become
+visible; consider non-selection records; L4-M4's contact rate saturates
+~91%/tour for a rifleman in an offensive — revisit against foundation §6
+("most military work is not combat").
 
-**3. No tabs / navigation depth.** The game screen is one feed + 4 chips.
-Wanted: BitLife-style tabs or sections — e.g. Jobs (browse occupations, see
-requirements/pay, apply — NOTE: engine currently only offers jobs via its
-own roll; an "apply" verb would need an engine command, design carefully vs
-the opportunities-are-real principle — maybe "go looking for work" boosts
-next-month odds), Home (household, rent vs move options, family home
-status), Family (tree view already exists in PersonDetail — surface it),
-News (full world-news page with all geopolitics history, not just feed
-cards), Service (service record, tours, when serving), Health (ailments,
-marks, history). Most of this is READ-side UI over existing engine queries —
-cheap wins. Tabs within GameScreen; feed stays the default tab.
+**2. Depth-pass candidates (standing principle: a screen thinner than the
+simulation behind it is a defect):** cause of death naming the illness
+that killed (performDeath 'illness' → active ailmentKind); workplace
+incidents naming the machine; richer courtship/marriage texture; Jobs tab
+"go looking for work" engine verb (design vs opportunities-are-real);
+service families following a PCS (households currently stay put);
+branch-appropriate base assignment (bases are joint-use today — adding a
+base shifts nation ids, mind the id-shift trap and the golden).
 
-**4. Wars are far too frequent.** "Wars happen literally every year." The
-concurrency cap holds (<¼ of pairs) but FREQUENCY is way too high: a 76-year
-life saw ~23 Republic-involved news items (sanctions/skirmishes/wars).
-Realistic feel: homeland wars should be roughly generational (a few per
-century, not per decade), tension/sanction churn much rarer. Retune
-geopolitics.ts: escalation denominators up ~5-10x again (600_000 → several
-million at peace rungs), de-escalation up, maybe a post-war "exhaustion"
-cooldown per nation (no new escalation for 10-20 years after a ceasefire).
-Keep: wars still END, stability tests still pass; UPDATE the geopolitics
-tests' expectations (they assert began>0 over 200y — keep but lower bounds;
-'starts and ends' ratio stays). New golden + SIMULATION_VERSION 12.
-
-**5. Military realism (OWNER, 2026-07-31, from playing a rifleman term).**
-Two failures observed firsthand: (a) a full 4-year term where NOTHING
-happened — no basic training, no schools, no exercises, no PCS, just silence
-until the reenlistment question; (b) rank progression is wrong — he was
-promoted straight past ranks ("I got spotted at corporal... didn't even go
-PVT → PFC → SPC"). Direction: model on the REAL US military structure. The
-fictional-world constraint (foundation §3) covers nations/units/insignia,
-NOT structure — the foundation explicitly says "preserve authentic
-structure, progression, meaning."
-
-Fix spec:
-- RANKS per branch, US-style ladders: Land Forces (Army): PVT (E-1), PV2,
-  PFC, SPC, CPL, SGT, SSG, SFC, MSG; Naval Service: SR, SA, SN, PO3, PO2,
-  PO1, CPO; Air Guard: AB, Amn, A1C, SrA, SSgt, TSgt, MSgt. Store rank as
-  index; titles resolved per branch (rankTitle(branch, rank)).
-- Junior promotions are TIME-BASED like reality (TIS/TIG): E-1→E-2 ~6 months,
-  E-2→E-3 ~12 months, E-3→E-4 ~24-30 months — near-automatic unless
-  performance is poor. Competitive (performance-gated, slower, can be passed
-  over) from E-5 up. NO skipping ranks, ever. Monthly check, not annual —
-  the current annual review caused the observed jump.
-- SERVICE TEXTURE so a term is a lived four years: enlistment → basic
-  training event (~10 weeks) → occupational school event (AIT-equivalent,
-  length varies by specialty) → first unit posting; then periodic events:
-  field exercises, qualification badges (marksmanship for rifleman), a PCS
-  move mid-term, occasional additional schools. Events + feed cards; some
-  earn record entries (quals feed L4-M5 awards/badges).
-- Pay should track rank realistically (per-rank pay table, not base+step).
-This folds INTO or directly follows M-GAMEDEPTH; it also feeds L4-M5
-(badges/quals are award-system inputs).
-
-**6. Standing principle — overall game depth.** The depth-pass principle
-(see M-WOUNDS note) extends to GAME ASPECTS: presentation, navigation,
-character ownership, pacing realism. When a screen is thinner than the
-simulation behind it, that is now a defect. Queued candidates beyond the
-four above: cause of death naming the illness that killed; workplace
-incidents naming the machine; richer courtship/marriage texture; L4-M5
-(awards & veterans) still pending and should follow M-GAMEDEPTH.
-
-Suggested order for the fresh session: (4) war pacing first (small, engine,
-new golden once), then (1) money labeling (tiny), then (3) tabs (pure UI,
-biggest visible win), then (2) custom character (engine + UI, determinism
-care needed). Each its own commit; (4)+(2) touch the engine so mind the
-golden-hash/two-places rule and the id-shift trap.
+**3. Small polish debt:** enlist option label lowercase in the education
+fork prompt ('enlist' vs 'Go to college' — OPTION_LABELS in
+PlayerPanel.tsx); preview tooling wants a launch.json at the USER level
+which project rules forbid — start the dev server from apps/web in a
+background shell and preview by URL instead.
 
 ## Rules that cannot be bent
 
