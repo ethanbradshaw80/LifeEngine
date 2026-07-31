@@ -136,6 +136,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return event.detail === 'marked'
         ? `${year} — Recovered, but never quite the same.`
         : `${year} — Back on ${objectPronoun(person) === 'her' ? 'her' : 'his'} feet.`
+    case 'enlisted':
+      return `${year} — Enlisted as a ${event.detail ?? 'recruit'} at ${age}.`
+    case 'promoted':
+      return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'reenlisted':
+      return `${year} — Signed for another term.`
+    case 'discharged':
+      return event.detail === 'medical'
+        ? `${year} — Discharged on medical grounds at ${age}.`
+        : `${year} — Left the service at ${age}.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
@@ -188,6 +198,11 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'heavy-casualties': 'of the cost in lives',
   'old-grudge': 'of an old grudge',
   'long-peace': 'the quiet had held a long time',
+  'steady-pay': 'the pay was steady',
+  'way-out-of-town': 'it was a way out of town',
+  'service-tradition': 'the family had served before',
+  'term-ended': 'the term was up',
+  'medically-unfit': 'the body would not carry it further',
 }
 
 function joinClauses(parts: readonly string[]): string {

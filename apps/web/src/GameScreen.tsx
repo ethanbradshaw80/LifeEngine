@@ -27,7 +27,7 @@ import {
   spouseOf,
   timelineFor,
 } from '@life-engine/engine'
-import { healthOf } from '@life-engine/engine'
+import { healthOf, isServing, rankTitle, specialtyById } from '@life-engine/engine'
 import type { EventType, Person, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -43,6 +43,10 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'was-injured': '🩹',
   'fell-ill': '🤒',
   recovered: '💪',
+  enlisted: '🪖',
+  promoted: '🎖️',
+  reenlisted: '✍️',
+  discharged: '📜',
   'left-job': '📦',
   befriended: '🤝',
   'friendship-lapsed': '🍂',
@@ -137,10 +141,27 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
       <section className="stat-strip" aria-label="Your life at a glance">
         <div className="stat">
           <span className="stat-label">Work</span>
-          <span className="stat-value">
-            {job ? `${occupationById(job.occupationId).title}` : age < 18 ? 'growing up' : 'none'}
-          </span>
-          {job && <span className="stat-sub">{formatMoney(job.monthlyPay)}/mo</span>}
+          {(() => {
+            const record = world.service.get(person.id)
+            if (record && isServing(world, person.id)) {
+              return (
+                <>
+                  <span className="stat-value">
+                    {rankTitle(record.rank)} · {specialtyById(record.specialtyId).title}
+                  </span>
+                  <span className="stat-sub">{formatMoney(record.monthlyPay)}/mo · serving</span>
+                </>
+              )
+            }
+            return (
+              <>
+                <span className="stat-value">
+                  {job ? `${occupationById(job.occupationId).title}` : age < 18 ? 'growing up' : 'none'}
+                </span>
+                {job && <span className="stat-sub">{formatMoney(job.monthlyPay)}/mo</span>}
+              </>
+            )
+          })()}
         </div>
         <div className="stat">
           <span className="stat-label">Money</span>

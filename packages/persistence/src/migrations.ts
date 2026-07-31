@@ -277,7 +277,27 @@ const V7_TO_V8: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8]
+/**
+ * v8 → v9 (L4-M3). The world gains service records — empty for old saves:
+ * nobody's service was recorded because nobody could serve. Unrecorded
+ * history stays unrecorded.
+ */
+const V8_TO_V9: Migration = {
+  from: 8,
+  to: 9,
+  describe: 'add service records (empty — no service predates the service)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const nextWorld: Record<string, unknown> = { ...world, service: [] }
+    return {
+      header: { ...header, schemaVersion: 9, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

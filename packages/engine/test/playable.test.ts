@@ -89,7 +89,8 @@ describe('the clock and the player', () => {
     expect(pending?.personId).toBe(teen.id)
     // The first fork in a founding teenager's life is the education question.
     expect(pending?.kind).toBe('education')
-    expect(pending?.options).toEqual(['college', 'trade', 'work'])
+    // L4-M3: the fork may also offer the uniform when the person qualifies.
+    expect(pending?.options.slice(0, 3)).toEqual(['college', 'trade', 'work'])
   })
 
   it('does not advance while a decision is pending', () => {

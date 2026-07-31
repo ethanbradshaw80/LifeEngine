@@ -37,6 +37,7 @@ import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdIncome } from './finances.js'
 import { freshHealth, isSeverelyAiling, mortalityFromHealth } from './health.js'
+import { educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -195,7 +196,11 @@ export function runEducation(world: World, tick: Tick): void {
             workplaceId: null,
             monthlyPay: null,
             placeId: null,
-            options: ['college', 'trade', 'work'],
+            // The fork at eighteen offers the uniform beside the classroom
+            // when the person qualifies (L4-M3).
+            options: educationOffersEnlistment(world, person, tick)
+              ? ['college', 'trade', 'work', 'enlist']
+              : ['college', 'trade', 'work'],
           })
         }
         continue
@@ -237,6 +242,10 @@ export function runEmployment(world: World, tick: Tick): void {
   if (workplaces.length === 0) return
 
   for (const person of livingPeople(world)) {
+    // The uniform is a full-time career: no civilian hiring, hopping or
+    // retirement mechanics while serving (L4-M3; the service system owns it).
+    if (isServing(world, person.id)) continue
+
     const age = ageAt(person.birthTick, tick)
     const education = world.education.get(person.id)
     if (!education) continue
@@ -286,8 +295,12 @@ export function runEmployment(world: World, tick: Tick): void {
     // Too ill or hurt to take new work this month.
     if (isSeverelyAiling(world, person.id)) continue
 
-    // Unemployed: look for work.
-    const eligible = OCCUPATIONS.filter((o) => meetsRequirement(education.level, o.requires))
+    // Unemployed: look for work. A veteran's specialty opens doors their
+    // schooling alone would not — the mechanic comes home a machinist.
+    const unlocked = veteranUnlocks(world, person.id)
+    const eligible = OCCUPATIONS.filter(
+      (o) => meetsRequirement(education.level, o.requires) || unlocked.includes(o.id),
+    )
     if (eligible.length === 0) continue
 
     // Hiring is not guaranteed — ambition and diligence improve the odds.

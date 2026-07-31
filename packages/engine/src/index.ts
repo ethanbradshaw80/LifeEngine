@@ -63,6 +63,17 @@ export type { NewsItem } from './geopolitics.js'
 // Health (L4-M2)
 export { healthOf, isSeverelyAiling, SEVERE_AILMENT } from './health.js'
 
+// Service (L4-M3)
+export {
+  isServing,
+  isVeteran,
+  rankTitle,
+  servicePayOf,
+  veteranUnlocks,
+} from './service.js'
+export { BRANCH_NAMES, RANKS, SPECIALTIES, specialtyById } from './content.js'
+export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
+
 // Legacy
 export {
   childrenIdsOf,
@@ -123,6 +134,7 @@ export type {
   PendingKind,
   Person,
   Place,
+  ServiceRecord,
   PlayerChoice,
   PlayerState,
   PlaceKind,

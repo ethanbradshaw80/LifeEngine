@@ -25,6 +25,7 @@ import { foundingSavings } from './finances.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
 import {
+  BASE_NAMES,
   CIVIC_NAMES,
   FAMILY_NAMES,
   FEMALE_GIVEN_NAMES,
@@ -105,6 +106,8 @@ function makePlaces(world: World, rng: Rng): void {
     placeIds.push(id)
   }
 
+
+
   ;(world.town as { placeIds: readonly EntityId[] }).placeIds = placeIds
 }
 
@@ -138,6 +141,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     education: new Map(),
     employment: new Map(),
     health: new Map(),
+    service: new Map(),
     relationships: new Map(),
     events: [],
     causalRecords: [],
@@ -245,6 +249,16 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
       ...household,
       savings: foundingSavings(world, household),
     })
+  }
+
+  // L4-M3: the Republic's installations — allocated AFTER the founding
+  // population for the same reason nations are (below): person ids seed trait
+  // streams, and id-shifting reshuffles the whole town. Nothing during person
+  // generation needs a base to exist.
+  for (const name of BASE_NAMES) {
+    const id = allocateId(world)
+    world.places.set(id, { id, name, kind: 'base', desirability: 500 })
+    ;(world.town as { placeIds: readonly EntityId[] }).placeIds = [...world.town.placeIds, id]
   }
 
   // The wider world is generated LAST, so nations take ids above every

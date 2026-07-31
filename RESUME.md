@@ -87,6 +87,33 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**L4-M3 (service careers) — COMPLETE**
+`packages/engine/src/service.ts` + content: 3 fictional branches (Land
+Forces / Naval Service / Air Guard), 6 specialties with EXPOSURE PROFILES
+(directCombat/convoy/baseAttack/accident weights — what a job DOES, never
+how dangerous a place is; these are L4-M4's inputs), 6 enlisted ranks,
+2 domestic bases (Fort Calder, Redharbor Station — allocated AFTER the
+population, same id-shift trap as nations, hit AGAIN and fixed the same
+way). ServiceRecord per person; RECORDS SURVIVE DISCHARGE (foundation §10 —
+the artifact a descendant finds). Enlistment: player gets 'enlist' as a 4th
+education-fork option at 18 (when canEnlist: age 18-26, fit, disability<400,
+qualified) + recruiter knocks while young/jobless; accept → chained
+'specialty' pending (follow-up raised AFTER commit — see resolvePending
+tail). NPC propensity jobless 110 / employed 16 per 12k/mo (first tune: 1
+enlistment in 50 years — town hires its young too fast; door must be audible
+over a paycheck). Service pay → householdIncome; serving = no civilian
+employment (guard in runEmployment); annual promotion by performance
+(480+rank*60 threshold); 48-month terms → player 'reenlist' pending
+(stay/leave), NPC retention 380+rank*90 /1000; medical discharge at
+disability>=400. Veterans: specialty civilianUnlocks open occupations
+schooling wouldn't (mechanic→machinist/electrician/carpenter, medic→nurse).
+Enlist stakes read activeWars — "The Republic is at war. Service now will
+not be quiet." Schema v10? NO — v9 (empty service map; no service predates
+the service). SIMULATION_VERSION 9, golden 9daf6e86. Work chip shows
+"corporal · medic — serving". PYTHON PATCH LESSON: str.replace replaces ALL
+occurrences — an anchor matching two switches put stakes cases inside
+resolvePending AND describePending; always use unique anchors or count=1.
+
 **L4-M2 (health) — COMPLETE**
 `packages/engine/src/health.ts`: one HealthRecord per person (ailment
 injury|illness, severity 0-1000, peakSeverity, permanent disability that

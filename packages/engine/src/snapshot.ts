@@ -21,6 +21,9 @@ export const SCHEMA_VERSION = 1
  *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
+ * v9 — L4-M3. Service careers: enlistment, specialties, ranks, terms,
+ *      discharge and reenlistment; veterans carry unlocks home. Employment,
+ *      income and life courses differ from v8.
  * v8 — L4-M2. Health: ailments with recovery, permanent disability, health-
  *      aware employment and mortality, and most fatal accidents becoming
  *      survivable injuries. Deaths and work histories differ from v7.
@@ -46,7 +49,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 8
+export const SIMULATION_VERSION = 9
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -89,6 +92,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
       health: [...world.health.values()].sort((a, b) => a.personId - b.personId),
+      service: [...world.service.values()].sort((a, b) => a.personId - b.personId),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,

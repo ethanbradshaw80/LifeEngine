@@ -41,6 +41,8 @@ export const GOLDEN_TICKS = 120
  *
  * Changed at M-LEGACY (schema v6): player.lineage joined the serialized
  * shape. Shape-only — behaviour and SIMULATION_VERSION (4) unchanged.
+ * Changed at L4-M3 (SIMULATION_VERSION 9): service careers — enlistments
+ * rewrote work histories and incomes for every seed.
  * Changed at L4-M2 (SIMULATION_VERSION 8): health — ailments, disability,
  * survivable accidents. Deaths and work histories differ from v7.
  * Changed at L4-M1 (SIMULATION_VERSION 7): the world beyond the town —
@@ -61,7 +63,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = '2e05c9c8'
+export const GOLDEN_HASH_HEX = '9daf6e86'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -134,7 +136,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":8')
+    expect(text).toContain('"simulationVersion":9')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

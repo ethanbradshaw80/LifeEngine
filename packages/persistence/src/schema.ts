@@ -29,6 +29,8 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v9 — L4-M3. `world.service` — service records, which survive discharge.
+ *      Migrated worlds have no serving history: none was recorded.
  * v8 — L4-M2. `world.health` — one record per person: ailment, severity,
  *      permanent disability. Migrated people are well and unmarked.
  * v7 — L4-M1. `world.nations` and `world.geoRelations` — the world beyond
@@ -36,7 +38,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

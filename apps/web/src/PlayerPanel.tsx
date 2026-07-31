@@ -89,6 +89,9 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'move-house': { accept: 'Move', decline: 'Stay put' },
   retirement: { retire: 'Retire', 'keep-working': 'Keep working' },
   separation: { stay: 'Stay and try again', separate: 'Separate' },
+  convalesce: { rest: 'Rest and heal', 'push-on': 'Push on' },
+  enlist: { accept: 'Enlist', decline: 'Not for me' },
+  reenlist: { stay: 'Sign again', leave: 'Come home' },
 }
 
 function optionLabel(kind: string, option: string): string {

@@ -117,6 +117,110 @@ export function rentFor(desirability: number): Money {
   return (RENT_FLOOR + desirability * RENT_PER_DESIRABILITY_CENTS) as Money
 }
 
+// ---------------------------------------------------------------------------
+// Military service (L4-M3)
+//
+// All fictional (MILITARY_AND_WAR_FOUNDATION §3): the Republic's forces, not
+// any real military. Exposure profiles are CONTENT — static facts about what
+// a specialty does — and are the seed of L4-M4's danger vectors: infantry and
+// convoy drivers deployed to the same theatre must not have the same war
+// (foundation §7). No profile is a danger rating; danger is computed later,
+// from the geopolitical state, per the permanent rule.
+// ---------------------------------------------------------------------------
+
+export type ServiceBranch = 'land-forces' | 'naval-service' | 'air-guard'
+
+export const BRANCH_NAMES: Readonly<Record<ServiceBranch, string>> = {
+  'land-forces': 'the Land Forces',
+  'naval-service': 'the Naval Service',
+  'air-guard': 'the Air Guard',
+}
+
+/** Enlisted ranks, junior to senior. One track for M3; officers arrive later. */
+export const RANKS: readonly string[] = [
+  'recruit', 'private', 'specialist', 'corporal', 'sergeant', 'master sergeant',
+]
+
+/**
+ * How a specialty spends its days — which threats it is exposed to when a
+ * theatre turns dangerous. 0-1000 relative weights, NOT probabilities and NOT
+ * danger ratings: a convoy weight of 800 means "this job is on the roads",
+ * and what the roads are like is the geopolitical state's business.
+ */
+export interface ExposureProfile {
+  readonly directCombat: number
+  readonly convoy: number
+  readonly baseAttack: number
+  readonly accident: number
+}
+
+export interface ServiceSpecialty {
+  readonly id: string
+  readonly title: string
+  readonly branch: ServiceBranch
+  readonly requires: EducationLevel
+  /** Monthly base pay at the lowest rank, in cents. */
+  readonly basePay: Money
+  readonly exposure: ExposureProfile
+  /** Civilian occupations this specialty's training unlocks for veterans. */
+  readonly civilianUnlocks: readonly string[]
+}
+
+export const SPECIALTIES: readonly ServiceSpecialty[] = [
+  {
+    id: 'rifleman', title: 'rifleman', branch: 'land-forces', requires: 'none',
+    basePay: dollars(1150),
+    exposure: { directCombat: 850, convoy: 300, baseAttack: 300, accident: 300 },
+    civilianUnlocks: [],
+  },
+  {
+    id: 'transport', title: 'transport driver', branch: 'land-forces', requires: 'primary',
+    basePay: dollars(1200),
+    exposure: { directCombat: 150, convoy: 850, baseAttack: 250, accident: 450 },
+    civilianUnlocks: [],
+  },
+  {
+    id: 'mechanic', title: 'field mechanic', branch: 'land-forces', requires: 'primary',
+    basePay: dollars(1350),
+    exposure: { directCombat: 80, convoy: 200, baseAttack: 350, accident: 400 },
+    civilianUnlocks: ['machinist', 'electrician', 'carpenter'],
+  },
+  {
+    id: 'medic', title: 'medic', branch: 'land-forces', requires: 'secondary',
+    basePay: dollars(1450),
+    exposure: { directCombat: 350, convoy: 400, baseAttack: 300, accident: 250 },
+    civilianUnlocks: ['nurse'],
+  },
+  {
+    id: 'signals', title: 'signals operator', branch: 'air-guard', requires: 'secondary',
+    basePay: dollars(1400),
+    exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
+    civilianUnlocks: ['clerk'],
+  },
+  {
+    id: 'deckhand', title: 'deckhand', branch: 'naval-service', requires: 'none',
+    basePay: dollars(1200),
+    exposure: { directCombat: 120, convoy: 60, baseAttack: 500, accident: 550 },
+    civilianUnlocks: ['millhand'],
+  },
+]
+
+export function specialtyById(id: string): ServiceSpecialty {
+  const found = SPECIALTIES.find((sp) => sp.id === id)
+  if (!found) throw new Error(`Unknown specialty: ${id}`)
+  return found
+}
+
+/** Pay rises a fixed step per rank — a pay TABLE, not a lookup of danger. */
+export function servicePay(specialty: ServiceSpecialty, rank: number): Money {
+  return (specialty.basePay + rank * dollars(180)) as Money
+}
+
+/** Standard enlistment term, months. */
+export const SERVICE_TERM_MONTHS = 48
+
+export const BASE_NAMES: readonly string[] = ['Fort Calder', 'Redharbor Station']
+
 /** How much schooling a level represents. Used to test whether a person qualifies. */
 const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   none: 0,

@@ -26,7 +26,22 @@ import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { occupationById } from './content.js'
 import { withArticle } from './text.js'
 import { householdCosts, householdIncome, inArrears } from './finances.js'
+import { activeWars, homeland } from './geopolitics.js'
 import { applyConvalescence } from './health.js'
+import {
+  discharge as dischargeService,
+  enlistPerson,
+  reenlist as reenlistService,
+} from './service.js'
+import {
+  BRANCH_NAMES,
+  meetsRequirement,
+  RANKS,
+  SERVICE_TERM_MONTHS,
+  servicePay,
+  SPECIALTIES,
+  specialtyById,
+} from './content.js'
 import { rentFor } from './content.js'
 import { factor, recordDecision } from './records.js'
 import { Stream } from './rng.js'
@@ -148,6 +163,7 @@ export function resolvePending(world: World, choice: string): void {
         })
       }
       // 'work' needs no action — the employment system will offer jobs.
+      // 'enlist' is applied by the follow-up specialty question below.
       break
     }
 
@@ -260,6 +276,44 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'enlist': {
+      // Accepting the door does not put on the uniform yet: the SPECIALTY
+      // choice follows, raised after this one commits (see below).
+      break
+    }
+
+    case 'specialty': {
+      const specialty = SPECIALTIES.find((sp) => sp.id === choice)
+      if (specialty) {
+        enlistPerson(world, pending.tick, person, specialty, [factor('own-choice', 1000)])
+      }
+      break
+    }
+
+    case 'reenlist': {
+      const record = world.service.get(person.id)
+      if (record && record.dischargedAtTick === null) {
+        if (choice === 'stay') {
+          reenlistService(world, pending.tick, person)
+          recordDecision(world, pending.tick, {
+            subjectId: person.id,
+            decision: 'enlistment',
+            significance: 'major',
+            inputs: [factor('own-choice', 1000), factor('steady-pay', Math.floor(record.monthlyPay / 1000))],
+            chosen: 'signed for another term',
+            rejected: ['to leave the service'],
+            streamId: Stream.Employment,
+          })
+        } else {
+          dischargeService(world, pending.tick, person, record, 'end of term', [
+            factor('own-choice', 1000),
+            factor('term-ended', 600),
+          ])
+        }
+      }
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -267,6 +321,36 @@ export function resolvePending(world: World, choice: string): void {
   }
 
   commit(world, pending, choice)
+
+  // Follow-up questions: an accepted enlistment immediately asks WHICH
+  // uniform. Raised after commit so the pending slot is free again.
+  if (pending.kind === 'enlist' && choice === 'accept') {
+    askSpecialty(world, pending.tick, person.id)
+  }
+  if (pending.kind === 'education' && choice === 'enlist') {
+    askSpecialty(world, pending.tick, person.id)
+  }
+}
+
+/** The specialty menu: every branch role this person's schooling admits. */
+function askSpecialty(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
+  const person = world.people.get(personId)
+  if (!person) return
+  const education = world.education.get(personId)
+  const level = education?.level ?? 'none'
+  const options = SPECIALTIES.filter((sp) => meetsRequirement(level, sp.requires)).map((sp) => sp.id)
+  if (options.length === 0) return
+  raisePending(world, {
+    tick,
+    kind: 'specialty',
+    personId,
+    otherId: null,
+    occupationId: null,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options,
+  })
 }
 
 function commit(world: World, pending: PendingDecision, choice: string): void {
@@ -334,6 +418,15 @@ export function describePending(world: World, pending: PendingDecision): string 
       const record = world.health.get(pending.personId)
       const what = record?.ailment === 'injury' ? 'The injury is serious' : 'The illness is serious'
       return `${what}. How do you carry it?`
+    }
+    case 'enlist':
+      return 'A recruiter for the Republic has your name. Enlist?'
+    case 'specialty':
+      return 'Which uniform? Your schooling opens these doors.'
+    case 'reenlist': {
+      const record = world.service.get(pending.personId)
+      const title = record ? RANKS[record.rank] ?? 'soldier' : 'soldier'
+      return `Your term is up, ${title}. Sign for another four years?`
     }
     default: {
       const never: never = pending.kind
@@ -494,6 +587,72 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push('Staying is a real attempt — it restores some closeness, but the strains remain.')
       break
     }
+    case 'enlist': {
+      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(SPECIALTIES[0]?.basePay ?? (0 as never))} a month, with rank raises.`)
+      lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
+      const wars = activeWars(world)
+      const home = homeland(world)
+      if (home && wars.some((w) => w.a === home.id || w.b === home.id)) {
+        lines.push('The Republic is at war. Service now will not be quiet.')
+      } else if (wars.length > 0) {
+        lines.push(`There is war abroad — ${String(wars.length)} conflict${wars.length === 1 ? '' : 's'} in the news. The Republic is not in them today.`)
+      }
+      break
+    }
+
+    case 'specialty': {
+      for (const id of pending.options) {
+        const sp = SPECIALTIES.find((x) => x.id === id)
+        if (!sp) continue
+        const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
+        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${formatMoney(servicePay(sp, 0))}/mo${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
+      }
+      break
+    }
+
+    case 'reenlist': {
+      const record = world.service.get(pending.personId)
+      if (record) {
+        const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${RANKS[record.rank] ?? 'recruit'}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
+      }
+      break
+    }
+
+    case 'enlist': {
+      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(SPECIALTIES[0]?.basePay ?? (0 as never))} a month, with rank raises.`)
+      lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
+      const wars = activeWars(world)
+      const home = homeland(world)
+      if (home && wars.some((w) => w.a === home.id || w.b === home.id)) {
+        lines.push('The Republic is at war. Service now will not be quiet.')
+      } else if (wars.length > 0) {
+        lines.push(`There is war abroad — ${String(wars.length)} conflict${wars.length === 1 ? '' : 's'} in the news. The Republic is not in them today.`)
+      }
+      break
+    }
+
+    case 'specialty': {
+      for (const id of pending.options) {
+        const sp = SPECIALTIES.find((x) => x.id === id)
+        if (!sp) continue
+        const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
+        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${formatMoney(servicePay(sp, 0))}/mo${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
+      }
+      break
+    }
+
+    case 'reenlist': {
+      const record = world.service.get(pending.personId)
+      if (record) {
+        const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${RANKS[record.rank] ?? 'recruit'}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
+      }
+      break
+    }
+
     case 'convalesce': {
       const record = world.health.get(pending.personId)
       if (record) {

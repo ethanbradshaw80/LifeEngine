@@ -65,7 +65,7 @@ export interface Person {
 // Geography
 // ---------------------------------------------------------------------------
 
-export type PlaceKind = 'neighbourhood' | 'school' | 'workplace' | 'civic'
+export type PlaceKind = 'neighbourhood' | 'school' | 'workplace' | 'civic' | 'base'
 
 export interface Place {
   readonly id: EntityId
@@ -161,6 +161,30 @@ export interface EmploymentRecord {
   readonly startedAtTick: Tick
   /** 0-1000, drifts with diligence. */
   readonly performance: number
+}
+
+// ---------------------------------------------------------------------------
+// Military service (L4-M3)
+// ---------------------------------------------------------------------------
+
+export interface ServiceRecord {
+  readonly personId: EntityId
+  readonly branch: string
+  readonly specialtyId: string
+  /** Index into RANKS. */
+  readonly rank: number
+  readonly enlistedAtTick: Tick
+  /** The current posting. */
+  readonly baseId: EntityId
+  readonly monthlyPay: Money
+  /** 0-1000, drifts with diligence like civilian work. */
+  readonly performance: number
+  /** Months remaining on the current term. */
+  readonly termMonthsLeft: number
+  /** Null while serving. THE RECORD SURVIVES DISCHARGE — a service record is
+   *  the artifact a descendant finds (foundation §10). */
+  readonly dischargedAtTick: Tick | null
+  readonly dischargeReason: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -275,6 +299,12 @@ export type PendingKind =
   | 'separation'
   /** A serious ailment: rest, or push on. */
   | 'convalesce'
+  /** A recruiter's offer, or the fork at eighteen. */
+  | 'enlist'
+  /** Which uniform: the specialty choice on enlistment. */
+  | 'specialty'
+  /** Term's end: sign again, or hang it up. */
+  | 'reenlist'
 
 export interface PendingDecision {
   readonly id: number
@@ -349,6 +379,10 @@ export type EventType =
   | 'was-injured'
   | 'fell-ill'
   | 'recovered'
+  | 'enlisted'
+  | 'promoted'
+  | 'reenlisted'
+  | 'discharged'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'
@@ -385,6 +419,7 @@ export type DecisionType =
   | 'marriage'
   | 'separation'
   | 'convalescence'
+  | 'enlistment'
   | 'geopolitics'
 
 /** Drives retention. Assigned when the record is created. */
@@ -425,6 +460,11 @@ export type FactorId =
   | 'heavy-casualties'
   | 'old-grudge'
   | 'long-peace'
+  | 'steady-pay'
+  | 'way-out-of-town'
+  | 'service-tradition'
+  | 'term-ended'
+  | 'medically-unfit'
 
 export interface CausalFactor {
   readonly factor: FactorId
@@ -467,6 +507,8 @@ export interface World {
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */
   readonly health: Map<EntityId, HealthRecord>
+  /** L4-M3. Keyed by personId. Records SURVIVE discharge. */
+  readonly service: Map<EntityId, ServiceRecord>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
    *  therefore deterministic — see docs/DETERMINISM.md §3. */
   readonly relationships: Map<string, Relationship>
