@@ -14,11 +14,26 @@
  * messages sent back here can change anything.
  */
 
-import { advanceTicks, createWorld, resolvePending, setPlayer, SIMULATION_VERSION } from '@life-engine/engine'
+import {
+  advanceTicks,
+  createCustomLife,
+  createWorld,
+  resolvePending,
+  setPlayer,
+  SIMULATION_VERSION,
+} from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
 import { fromSaveFile } from '@life-engine/persistence'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
+
+/** Player inputs for a custom life. Nulls mean "let the world decide". */
+export interface CreateLifeSpec {
+  readonly givenName: string | null
+  readonly familyName: string | null
+  readonly sex: 'female' | 'male' | null
+  readonly motherId: number
+}
 
 export type WorkerRequest =
   | { readonly type: 'new'; readonly seed: number }
@@ -26,6 +41,7 @@ export type WorkerRequest =
   | { readonly type: 'load'; readonly save: unknown }
   | { readonly type: 'play'; readonly personId: number | null; readonly heir?: boolean }
   | { readonly type: 'choose'; readonly choice: string }
+  | { readonly type: 'create-life'; readonly spec: CreateLifeSpec }
 
 export type WorkerResponse =
   | {
@@ -94,6 +110,25 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         // Applies the answer through the same code the automatic path uses,
         // then the clock is free again. The next 'advance' resumes the life.
         resolvePending(world, request.choice)
+        send(0)
+        return
+      }
+
+      case 'create-life': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to be born into.' })
+          return
+        }
+        const created = createCustomLife(world, {
+          givenName: request.spec.givenName,
+          familyName: request.spec.familyName,
+          sex: request.spec.sex,
+          motherId: request.spec.motherId as EntityId,
+        })
+        if (created === null) {
+          post({ type: 'error', message: 'That family cannot take a newborn right now. Pick another.' })
+          return
+        }
         send(0)
         return
       }

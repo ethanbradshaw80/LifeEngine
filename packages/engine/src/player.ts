@@ -53,6 +53,7 @@ import {
   relationshipBetween,
 } from './relationships.js'
 import {
+  birthEligible,
   deliverChild,
   enrolPlayer,
   hirePerson,
@@ -60,7 +61,7 @@ import {
   performMoveOut,
   retirePerson,
 } from './systems.js'
-import type { PendingDecision, PendingKind, World } from './types.js'
+import type { PendingDecision, PendingKind, Sex, World } from './types.js'
 
 /**
  * Begin playing a living person. Clears any stale pending decision.
@@ -108,6 +109,80 @@ export function heirsOf(world: World, personId: EntityId): EntityId[] {
     return (pa?.birthTick ?? 0) - (pb?.birthTick ?? 0) || a - b
   })
   return heirs
+}
+
+// ---------------------------------------------------------------------------
+// Custom lives (M-GAMEDEPTH)
+// ---------------------------------------------------------------------------
+
+/**
+ * A brand-new person the player asks to be born as. Null fields mean "let the
+ * world decide" — the engine draws them from its own streams exactly as an
+ * automatic birth would.
+ */
+export interface CustomLifeSpec {
+  readonly givenName: string | null
+  readonly familyName: string | null
+  readonly sex: Sex | null
+  readonly motherId: EntityId
+}
+
+/**
+ * Women who could be handed a newborn this month — the same eligibility the
+ * automatic birth roll uses, as a query for the character-creation screen.
+ * Sorted by id for determinism.
+ */
+export function motherCandidates(world: World): EntityId[] {
+  const candidates: EntityId[] = []
+  for (const person of world.people.values()) {
+    if (birthEligible(world, world.tick, person) !== null) candidates.push(person.id)
+  }
+  candidates.sort((a, b) => a - b)
+  return candidates
+}
+
+/**
+ * Bring a custom life into the world: a newborn of an existing eligible
+ * couple, then begin playing it from age 0.
+ *
+ * DETERMINISM: the spec is a PLAYER INPUT. It is appended to player.log as a
+ * 'custom-birth' entry (never a live pending question), so seed + log still
+ * replays the world byte for byte. Name and sex come from the spec where
+ * given; traits always come from the child's own id stream — who the child
+ * turns out to be is still the world's answer.
+ *
+ * Returns the child's id, or null if the couple cannot have a child (the
+ * same test the automatic path applies — no household the simulation would
+ * refuse gets one by menu).
+ */
+export function createCustomLife(world: World, spec: CustomLifeSpec): EntityId | null {
+  const mother = world.people.get(spec.motherId)
+  if (!mother) return null
+  const partnerId = birthEligible(world, world.tick, mother)
+  if (partnerId === null) return null
+
+  // Player-typed text: trimmed, pipes stripped (the log separator), empty
+  // treated as "let the world decide".
+  const cleanName = spec.givenName?.trim().replace(/\|/g, '') ?? ''
+  const cleanFamily = spec.familyName?.trim().replace(/\|/g, '') ?? ''
+
+  const childId = deliverChild(world, world.tick, spec.motherId, partnerId, {
+    ...(cleanName.length > 0 ? { givenName: cleanName } : {}),
+    ...(cleanFamily.length > 0 ? { familyName: cleanFamily } : {}),
+    ...(spec.sex !== null ? { sex: spec.sex } : {}),
+  })
+  if (childId === null) return null
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'custom-birth',
+    choice: `${cleanName}|${cleanFamily}|${spec.sex ?? ''}|${String(spec.motherId)}`,
+  })
+  world.player.nextDecisionId += 1
+
+  setPlayer(world, childId)
+  return childId
 }
 
 /** Called by systems at a player choice point. Halts the clock. */
@@ -290,6 +365,12 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'custom-birth': {
+      // Never a live question: createCustomLife writes the log entry itself.
+      // Reaching here means a corrupted pending — refuse loudly.
+      throw new Error('custom-birth is a log entry, not a live decision')
+    }
+
     case 'reenlist': {
       const record = world.service.get(person.id)
       if (record && record.dischargedAtTick === null) {
@@ -423,6 +504,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'A recruiter for the Republic has your name. Enlist?'
     case 'specialty':
       return 'Which uniform? Your schooling opens these doors.'
+    case 'custom-birth':
+      return 'A new life begins.' // log-only; never shown as a question
     case 'reenlist': {
       const record = world.service.get(pending.personId)
       const title = record ? RANKS[record.rank] ?? 'soldier' : 'soldier'
@@ -587,39 +670,6 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push('Staying is a real attempt — it restores some closeness, but the strains remain.')
       break
     }
-    case 'enlist': {
-      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(SPECIALTIES[0]?.basePay ?? (0 as never))} a month, with rank raises.`)
-      lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
-      const wars = activeWars(world)
-      const home = homeland(world)
-      if (home && wars.some((w) => w.a === home.id || w.b === home.id)) {
-        lines.push('The Republic is at war. Service now will not be quiet.')
-      } else if (wars.length > 0) {
-        lines.push(`There is war abroad — ${String(wars.length)} conflict${wars.length === 1 ? '' : 's'} in the news. The Republic is not in them today.`)
-      }
-      break
-    }
-
-    case 'specialty': {
-      for (const id of pending.options) {
-        const sp = SPECIALTIES.find((x) => x.id === id)
-        if (!sp) continue
-        const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
-        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${formatMoney(servicePay(sp, 0))}/mo${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
-      }
-      break
-    }
-
-    case 'reenlist': {
-      const record = world.service.get(pending.personId)
-      if (record) {
-        const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${RANKS[record.rank] ?? 'recruit'}, ${formatMoney(record.monthlyPay)} a month.`)
-        lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
-      }
-      break
-    }
-
     case 'enlist': {
       lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(SPECIALTIES[0]?.basePay ?? (0 as never))} a month, with rank raises.`)
       lines.push('Service ends any civilian job; a specialty can open doors when you come home.')

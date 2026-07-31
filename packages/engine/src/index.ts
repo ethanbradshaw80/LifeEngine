@@ -40,14 +40,17 @@ export {
 // Player
 export {
   awaitingPlayer,
+  createCustomLife,
   describePending,
   describeStakes,
   heirsOf,
+  motherCandidates,
   playerIsAlive,
   playerPerson,
   resolvePending,
   setPlayer,
 } from './player.js'
+export type { CustomLifeSpec } from './player.js'
 
 // Geopolitics (L4-M1)
 export {

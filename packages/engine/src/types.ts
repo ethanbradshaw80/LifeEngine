@@ -366,6 +366,13 @@ export type PendingKind =
   | 'specialty'
   /** Term's end: sign again, or hang it up. */
   | 'reenlist'
+  /**
+   * A custom life brought into the world at the picker. NEVER raised as a
+   * live question — createCustomLife writes the log entry directly, so the
+   * player's inputs (name, sex, family) are part of the deterministic record
+   * and seed + log still replays the world exactly.
+   */
+  | 'custom-birth'
 
 export interface PendingDecision {
   readonly id: number

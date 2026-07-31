@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { World } from '@life-engine/engine'
 import { toSaveFile } from '@life-engine/persistence'
-import type { WorkerRequest, WorkerResponse } from './engine.worker.js'
+import type { CreateLifeSpec, WorkerRequest, WorkerResponse } from './engine.worker.js'
 import { deleteSave, readSave, writeSave } from './storage.js'
 
 /**
@@ -33,6 +33,8 @@ export interface WorldController {
   /** Start or stop living as a person. Null returns to watching the town.
    *  `heir: true` continues the line — the finished life joins the lineage. */
   play: (personId: number | null, heir?: boolean) => void
+  /** Be born: create a custom newborn in an existing family and play it. */
+  createLife: (spec: CreateLifeSpec) => void
   /** Answer the pending decision. */
   choose: (choice: string) => void
   save: () => void
@@ -138,6 +140,13 @@ export function useWorld(initialSeed: number): WorldController {
     [send],
   )
 
+  const createLife = useCallback(
+    (spec: CreateLifeSpec) => {
+      send({ type: 'create-life', spec })
+    },
+    [send],
+  )
+
   const choose = useCallback(
     (choice: string) => {
       send({ type: 'choose', choice })
@@ -174,6 +183,7 @@ export function useWorld(initialSeed: number): WorldController {
     advance,
     newWorld,
     play,
+    createLife,
     choose,
     save,
     discardSave,

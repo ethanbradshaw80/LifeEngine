@@ -45,6 +45,7 @@ export function App() {
     advance,
     newWorld,
     play,
+    createLife,
     choose,
     discardSave,
   } = useWorld(GOLDEN_SEED)
@@ -386,6 +387,10 @@ export function App() {
             setPicking(false)
             setSelected(id)
             play(id)
+          }}
+          onCreate={(spec) => {
+            setPicking(false)
+            createLife(spec)
           }}
           onCancel={() => setPicking(false)}
         />

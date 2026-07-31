@@ -196,7 +196,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
         <div className="game-title">
           <h1>{fullName(person)}</h1>
           <p>
-            {age} years old · {formatDate(world.tick)}
+            {age} {age === 1 ? 'year' : 'years'} old · {formatDate(world.tick)}
           </p>
         </div>
         <div className="game-menu">

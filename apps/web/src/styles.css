@@ -730,6 +730,57 @@ ul.welcome-points li + li {
   text-overflow: ellipsis;
 }
 
+.mode-row {
+  display: flex;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.mode-row button {
+  padding: 0.35rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.mode-row button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.birth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.birth-form label,
+.birth-form .birth-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.birth-form input,
+.birth-form select {
+  padding: 0.45rem 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: inherit;
+  font-size: 0.95rem;
+}
+
+.birth-form .mode-row {
+  margin: 0;
+}
+
 .tab-bar {
   display: flex;
   gap: 0.35rem;

@@ -871,25 +871,42 @@ function eligibleCohabitant(world: World, personId: EntityId): EntityId | null {
 // work; a real model belongs in Layer 2 with the relationship systems.
 // ---------------------------------------------------------------------------
 
+/**
+ * Could this woman and her partner have a child right now? Returns the
+ * partner's id, or null. The SAME eligibility runBirths rolls against,
+ * extracted so a custom life (M-GAMEDEPTH) can only ever be born to a couple
+ * the automatic path could have given a child to — no household the
+ * simulation would refuse.
+ */
+export function birthEligible(world: World, tick: Tick, person: Person): EntityId | null {
+  if (person.deathTick !== null) return null
+  if (person.sex !== 'female') return null
+  const age = ageAt(person.birthTick, tick)
+  if (age < CHILDBEARING_MIN_AGE || age > CHILDBEARING_MAX_AGE) return null
+
+  const household = householdOf(world, person)
+  if (!household) return null
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) return null // still at home
+
+  // Milestone 5: a birth needs an actual partnership, not merely two adults
+  // who happen to share a roof. That was the Milestone 1 placeholder, and it
+  // is why the population used to decline — most people never formed such a
+  // household by accident.
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return null
+  if (!household.memberIds.includes(partnerId)) return null
+  const partnerPerson = world.people.get(partnerId)
+  if (!partnerPerson || partnerPerson.deathTick !== null) return null
+  return partnerId
+}
+
 export function runBirths(world: World, tick: Tick): void {
   for (const person of livingPeople(world)) {
-    if (person.sex !== 'female') continue
+    const partnerId = birthEligible(world, tick, person)
+    if (partnerId === null) continue
     const age = ageAt(person.birthTick, tick)
-    if (age < CHILDBEARING_MIN_AGE || age > CHILDBEARING_MAX_AGE) continue
-
     const household = householdOf(world, person)
     if (!household) continue
-    if (person.parentIds.some((id) => household.memberIds.includes(id))) continue // still at home
-
-    // Milestone 5: a birth needs an actual partnership, not merely two adults
-    // who happen to share a roof. That was the Milestone 1 placeholder, and it
-    // is why the population used to decline — most people never formed such a
-    // household by accident.
-    const partnerId = partnerOf(world, person.id)
-    if (partnerId === null) continue
-    if (!household.memberIds.includes(partnerId)) continue
-    const partnerPerson = world.people.get(partnerId)
-    if (!partnerPerson || partnerPerson.deathTick !== null) continue
 
     const childrenAtHome = household.memberIds.filter((id) => {
       const member = world.people.get(id)
@@ -925,6 +942,14 @@ export function runBirths(world: World, tick: Tick): void {
   }
 }
 
+/** Player-provided birth facts for a custom life. Any field left undefined
+ *  falls back to the engine's own deterministic draw. */
+export interface BirthOverrides {
+  readonly givenName?: string
+  readonly familyName?: string
+  readonly sex?: Sex
+}
+
 /**
  * One birth implementation for both the automatic path and player choices.
  *
@@ -932,13 +957,25 @@ export function runBirths(world: World, tick: Tick): void {
  * pairing. All randomness is keyed on (mother, tick) and on the child's own
  * id, so a birth resolved from a player decision after the tick produces
  * exactly the child the automatic path would have produced during it.
+ *
+ * `overrides` (M-GAMEDEPTH) replaces name and sex with the player's inputs
+ * for a custom life. An overridden field consumes NO draw — the custom path
+ * never has to match an automatic twin — while traits still come from the
+ * child's own id stream: who the family is remains the player's choice, who
+ * the child turns out to be remains the world's.
  */
-export function deliverChild(world: World, tick: Tick, motherId: EntityId, partnerId: EntityId): void {
+export function deliverChild(
+  world: World,
+  tick: Tick,
+  motherId: EntityId,
+  partnerId: EntityId,
+  overrides?: BirthOverrides,
+): EntityId | null {
   const mother = world.people.get(motherId)
   const partner = world.people.get(partnerId)
-  if (!mother || mother.householdId === null) return
+  if (!mother || mother.householdId === null) return null
   const household = world.households.get(mother.householdId)
-  if (!household) return
+  if (!household) return null
 
   const rng = openStream(world.seed, Stream.LifeEventTiming, motherId, tick + 8888)
   const childId = allocateId(world)
@@ -947,12 +984,13 @@ export function deliverChild(world: World, tick: Tick, motherId: EntityId, partn
   // Sex is decided FIRST, then the name is drawn from the matching list.
   // These used to be two independent draws, which produced girls called Peter
   // — spotted while reading a life story, not by any test.
-  const childSex: Sex = rng.chance(1, 2) ? 'female' : 'male'
+  const childSex: Sex = overrides?.sex ?? (rng.chance(1, 2) ? 'female' : 'male')
 
   world.people.set(childId, {
     id: childId,
-    givenName: rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
-    familyName: partner?.familyName ?? mother.familyName,
+    givenName:
+      overrides?.givenName ?? rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
+    familyName: overrides?.familyName ?? partner?.familyName ?? mother.familyName,
     sex: childSex,
     birthTick: tick,
     deathTick: null,
@@ -983,6 +1021,7 @@ export function deliverChild(world: World, tick: Tick, motherId: EntityId, partn
   addToHousehold(world, household.id, childId)
   recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
   recordEvent(world, tick, { type: 'had-child', subjectId: motherId, otherId: childId })
+  return childId
 }
 
 // ---------------------------------------------------------------------------
