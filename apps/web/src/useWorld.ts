@@ -46,6 +46,7 @@ export function useWorld(initialSeed: number): WorldController {
   const [message, setMessage] = useState<string | null>(null)
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<'unsaved' | 'saving' | 'saved' | 'failed'>('unsaved')
+  const autosaveTimer = useRef<number | null>(null)
 
   useEffect(() => {
     const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' })
@@ -62,7 +63,22 @@ export function useWorld(initialSeed: number): WorldController {
       setLastElapsedMs(response.elapsedMs)
       setStatus('idle')
       setMessage(response.notice ?? null)
-      setSaveState('unsaved')
+
+      // AUTOSAVE. A browser tab can be killed without warning, and losing
+      // forty simulated years to that is the kind of thing a player does not
+      // forgive (R-03). Every world update is written down, debounced so a
+      // burst of quick steps becomes one write. toSaveFile is pure and the
+      // clone is read-only, so saving off the response is safe.
+      const worldToSave = response.world
+      if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
+      setSaveState('saving')
+      autosaveTimer.current = window.setTimeout(() => {
+        void (async () => {
+          const result = await writeSave(toSaveFile(worldToSave))
+          setSaveState(result.ok ? 'saved' : 'failed')
+          if (!result.ok && result.message !== undefined) setMessage(result.message)
+        })()
+      }, 600)
     }
 
     worker.onerror = () => {

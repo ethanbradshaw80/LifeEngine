@@ -87,6 +87,21 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-POLISH (onboarding & polish) — COMPLETE** (web app only; engine untouched,
+golden hash unchanged)
+Welcome.tsx first-run explainer (three ideas: everyone lives their own life /
+you can live one, the world pauses for your decisions / everything keeps a
+reason). Seen-flag in localStorage 'life-sim:welcomed' (UI preference, NOT
+sim state); "?" button in topbar reopens it. **Autosave**: every worker world
+response triggers a debounced (600ms) writeSave in useWorld — the manual Save
+button is gone, replaced by a Saved ✓ / Saving… indicator; reload resumes
+where you were (verified live: advanced a year, reloaded, world came back at
+Jan 1971). "New world" is two-step now ("Replace this world and its
+history?" / Yes, start over / Keep it) — an autosaved world is too valuable
+to lose to one mis-click. Better empty-state copy; small-screen CSS pass
+(stacked controls, full-width sheets). Save slots considered and SKIPPED
+(storage work, low value while one world per browser is the model).
+
 **M-LEGACY (generational play) — COMPLETE**
 `packages/engine/src/legacy.ts` — all READ-side queries over existing records
 (kinship from parentIds, money from 'inherited' events): familyTreeOf (2 up,

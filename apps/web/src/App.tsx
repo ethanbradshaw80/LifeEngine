@@ -13,6 +13,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
 import { PersonDetail } from './PersonDetail.js'
 import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
+import { Welcome } from './Welcome.js'
 import { useWorld } from './useWorld.js'
 
 /**
@@ -44,7 +45,6 @@ export function App() {
     newWorld,
     play,
     choose,
-    save,
     discardSave,
   } = useWorld(GOLDEN_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
@@ -53,7 +53,26 @@ export function App() {
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
   const [picking, setPicking] = useState(false)
+  // First-run explainer. Seen-ness is a UI preference, not simulation state,
+  // so localStorage is the right home for it — the engine never knows.
+  const [showWelcome, setShowWelcome] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem('life-sim:welcomed') === null
+    } catch {
+      return false
+    }
+  })
+  const [confirmingNewWorld, setConfirmingNewWorld] = useState(false)
   const busy = status === 'working' || status === 'starting'
+
+  function dismissWelcome(): void {
+    setShowWelcome(false)
+    try {
+      window.localStorage.setItem('life-sim:welcomed', '1')
+    } catch {
+      /* private mode: the sheet simply shows again next visit */
+    }
+  }
 
   // Everything below reads the player FROM THE WORLD. The interface never
   // keeps its own idea of who is being played (ADR-0012).
@@ -153,6 +172,15 @@ export function App() {
             {!playerDead && `, ${ageAt(playerPerson.birthTick, world.tick)}`}
           </button>
         )}
+        <button
+          type="button"
+          className="help"
+          title="What is this?"
+          aria-label="What is this?"
+          onClick={() => setShowWelcome(true)}
+        >
+          ?
+        </button>
         <div className="stats">
           <span>
             <strong>{livingPeople(world).length}</strong> living
@@ -191,9 +219,9 @@ export function App() {
             Stop playing
           </button>
         )}
-        <button type="button" disabled={busy || saveState === 'saving'} onClick={save}>
-          {saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved ✓' : 'Save'}
-        </button>
+        <span className="savestate" title="The world saves itself in this browser">
+          {saveState === 'saving' ? 'Saving…' : saveState === 'failed' ? 'Save failed' : saveState === 'saved' ? 'Saved ✓' : ''}
+        </span>
         <label className="seed">
           Seed
           <input
@@ -201,13 +229,33 @@ export function App() {
             inputMode="numeric"
             onChange={(e) => setSeedInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') applySeed()
+              if (e.key === 'Enter') setConfirmingNewWorld(true)
             }}
           />
         </label>
-        <button type="button" disabled={busy} onClick={applySeed}>
-          New world
-        </button>
+        {confirmingNewWorld ? (
+          <span className="confirm">
+            Replace this world and its history?
+            <button
+              type="button"
+              className="danger"
+              disabled={busy}
+              onClick={() => {
+                setConfirmingNewWorld(false)
+                applySeed()
+              }}
+            >
+              Yes, start over
+            </button>
+            <button type="button" onClick={() => setConfirmingNewWorld(false)}>
+              Keep it
+            </button>
+          </span>
+        ) : (
+          <button type="button" disabled={busy} onClick={() => setConfirmingNewWorld(true)}>
+            New world
+          </button>
+        )}
       </section>
 
       {busy && (
@@ -269,15 +317,27 @@ export function App() {
             <PersonDetail world={world} personId={selected} onSelect={setSelected} />
           ) : (
             <div className="empty">
-              <p>Choose someone to read their life.</p>
+              <p>Pick anyone on the left to read their life so far.</p>
               <p className="muted small">
-                Then advance time and watch what happens to them. Every important
-                decision keeps a record of why it was made.
+                The town only moves when you advance time. Add a year, watch
+                what changes, and click “Why?” on anything that surprises you —
+                or press <strong>Live a life</strong> and make the decisions
+                yourself.
               </p>
             </div>
           )}
         </section>
       </div>
+
+      {showWelcome && !busy && (
+        <Welcome
+          onLiveALife={() => {
+            dismissWelcome()
+            setPicking(true)
+          }}
+          onWatch={dismissWelcome}
+        />
+      )}
 
       {picking && !busy && (
         <CharacterPicker

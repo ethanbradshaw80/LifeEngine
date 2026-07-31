@@ -557,3 +557,81 @@ ul.stakes li + li {
   border: 1px solid var(--line);
   border-radius: 999px;
 }
+
+/* --- polish ------------------------------------------------------------ */
+
+button.help {
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-weight: 700;
+  align-self: center;
+}
+
+button.help:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.savestate {
+  font-size: 0.8rem;
+  color: var(--muted);
+  min-width: 4.2rem;
+  text-align: center;
+}
+
+.confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.confirm button {
+  padding: 0.35rem 0.7rem;
+}
+
+.confirm button.danger {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.confirm button.danger:hover {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+ul.welcome-points {
+  margin: 0.4rem 0 0.4rem;
+  padding-left: 1.15rem;
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+ul.welcome-points li + li {
+  margin-top: 0.7rem;
+}
+
+/* Small screens: the control row stacks and sheets use the full width. */
+@media (max-width: 46rem) {
+  .topbar {
+    align-items: center;
+  }
+  .stats {
+    gap: 0.8rem;
+    font-size: 0.78rem;
+  }
+  .controls button {
+    padding: 0.45rem 0.7rem;
+  }
+  .sheet {
+    padding: 1.1rem 1.1rem;
+    max-height: 92vh;
+  }
+  pre.story {
+    font-size: 0.76rem;
+  }
+}
