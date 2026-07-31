@@ -21,6 +21,7 @@ import {
   personSummary,
 } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
+import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 
@@ -107,6 +108,11 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
     <div className="overlay" role="dialog" aria-modal="true" aria-label="A decision">
       <div className="sheet">
         <p className="muted small">The world is paused. This one is yours.</p>
+        {pending.otherId !== null && world.people.get(pending.otherId) && (
+          <div className="prompt-face">
+            <Avatar world={world} person={world.people.get(pending.otherId)!} size={56} />
+          </div>
+        )}
         <h2>{describePending(world, pending)}</h2>
         {stakes.length > 0 && (
           <ul className="stakes">

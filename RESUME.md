@@ -87,6 +87,25 @@ blocked for only **3.3 ms**; save, reload, continue restores exactly; a
 deliberately corrupted save is refused with an honest message and the previous
 save is left untouched.
 
+**M-GAME (game presentation) — COMPLETE** (web only; engine + golden untouched)
+Direction set by Ethan: BitLife-style story-first game, presentation before
+depth. When playing and alive, GameScreen.tsx IS the app: header (deterministic
+SVG portrait from Avatar.tsx — hash of person id picks palette, sex/age band
+shape hair/size, dead = greyscale), 4-chip stat strip (work/money/home/family,
+red when negative or in arrears), scrolling story feed (timelineFor rendered as
+event cards with emoji icons + sticky year chips + Why? expanders,
+auto-scrolls), big "Age a year" action bar. Decision prompts show the other
+person's portrait. Spouse chip opens PersonDetail in an overlay ("inspecting"
+UI state). Town dashboard remains as observer view via ⏸ Town / Stop playing.
+
+**KNOWN ISSUE surfaced by the new screen (next tuning pass): household savings
+accumulate absurdly** — only rent+living are spent, so a working couple banks
+~80% of income; a child's family showed $414k in 1977. Fix direction:
+discretionary/lifestyle spending scaling with income (people spend most of
+what they earn), likely SIMULATION_VERSION 5 + golden change + rebalanced
+arrears/solvency tests. Do NOT silently hotfix; it interacts with marriage
+strain and the cheaper-rent mechanic.
+
 **M-POLISH (onboarding & polish) — COMPLETE** (web app only; engine untouched,
 golden hash unchanged)
 Welcome.tsx first-run explainer (three ideas: everyone lives their own life /

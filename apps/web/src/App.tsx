@@ -14,6 +14,7 @@ import type { EntityId } from '@life-engine/shared'
 import { PersonDetail } from './PersonDetail.js'
 import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
 import { Welcome } from './Welcome.js'
+import { GameScreen } from './GameScreen.js'
 import { useWorld } from './useWorld.js'
 
 /**
@@ -63,6 +64,9 @@ export function App() {
     }
   })
   const [confirmingNewWorld, setConfirmingNewWorld] = useState(false)
+  // A person being read in an overlay while the game screen is up. Interface
+  // state only — closing it changes nothing in the world.
+  const [inspecting, setInspecting] = useState<EntityId | null>(null)
   const busy = status === 'working' || status === 'starting'
 
   function dismissWelcome(): void {
@@ -147,6 +151,42 @@ export function App() {
           </>
         ) : (
           <p className="pad muted">Starting the simulation…</p>
+        )}
+      </div>
+    )
+  }
+
+  if (playerPerson && !playerDead) {
+    return (
+      <div className="game-root">
+        <GameScreen
+          world={world}
+          person={playerPerson}
+          busy={busy}
+          onAdvance={advance}
+          onStop={() => play(null)}
+          onInspect={setInspecting}
+        />
+
+        {pending !== null && !busy && (
+          <DecisionPrompt world={world} pending={pending} onChoose={choose} />
+        )}
+
+        {inspecting !== null && world.people.has(inspecting) && (
+          <div className="overlay" role="dialog" aria-modal="true" aria-label="About this person">
+            <div className="sheet wide">
+              <PersonDetail world={world} personId={inspecting} onSelect={setInspecting} />
+              <div className="sheet-actions">
+                <button type="button" onClick={() => setInspecting(null)}>
+                  Back to your life
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showWelcome && !busy && (
+          <Welcome onLiveALife={dismissWelcome} onWatch={dismissWelcome} />
         )}
       </div>
     )

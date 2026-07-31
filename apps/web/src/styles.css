@@ -635,3 +635,215 @@ ul.welcome-points li + li {
     font-size: 0.76rem;
   }
 }
+
+/* --- the game screen --------------------------------------------------- */
+
+.game-root {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.game {
+  height: 100dvh;
+  max-width: 42rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.9rem;
+}
+
+.game-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.4rem 0.2rem 0.7rem;
+}
+
+.game-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.game-title h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.game-title p {
+  margin: 0.1rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.game-menu button {
+  padding: 0.4rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  padding-bottom: 0.7rem;
+}
+
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+
+.stat-value {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value.bad,
+.stat-sub.bad {
+  color: var(--bad);
+}
+
+.stat-sub {
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.feed {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 0.7rem 0.8rem 0.9rem;
+  scroll-behavior: smooth;
+}
+
+.feed-empty {
+  color: var(--muted);
+  text-align: center;
+  margin-top: 3rem;
+}
+
+.feed-year {
+  position: sticky;
+  top: -0.7rem;
+  z-index: 1;
+  width: fit-content;
+  margin: 0.9rem auto 0.4rem;
+  padding: 0.1rem 0.8rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.card {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.35rem;
+  animation: card-in 0.25s ease-out;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.card-icon {
+  flex: 0 0 auto;
+}
+
+.card-text {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.card-why {
+  margin: -0.1rem 0 0.5rem 2.1rem;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.83rem;
+  border-left: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: 0 6px 6px 0;
+}
+
+.action-bar {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.7rem 0 0.3rem;
+  border-top: 0;
+  margin-top: 0;
+}
+
+.action-bar button {
+  padding: 0.65rem 0.9rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.action-bar .age-up {
+  flex: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.action-bar .age-up:disabled {
+  opacity: 0.6;
+}
+
+.prompt-face {
+  display: flex;
+  justify-content: center;
+  margin: 0.2rem 0 0.4rem;
+}
+
+@media (max-width: 46rem) {
+  .stat-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .game {
+    padding: 0.4rem 0.5rem;
+  }
+}
