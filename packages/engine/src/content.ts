@@ -53,9 +53,12 @@ export const CIVIC_NAMES: readonly string[] = ['the town hall', 'the public libr
  * MILITARY_AND_WAR_FOUNDATION §3). Chosen to sound like places without
  * sounding like any place in particular.
  */
+// All invented (foundation §3). 'Ashkelon' was here until L4-M5's review
+// caught it — a real city and a real conflict site, about to be minted onto
+// campaign medals. Names on the permanent record must never be real places.
 export const NATION_NAMES: readonly string[] = [
   'Varenia', 'Costmara', 'Belgrave', 'Tyrene', 'Osmark', 'Halvia',
-  'Rondesia', 'Quillar', 'Verros', 'Nortavia', 'Sundermark', 'Ashkelon',
+  'Rondesia', 'Quillar', 'Verros', 'Nortavia', 'Sundermark', 'Veskarn',
 ]
 
 export const SCHOOL_NAME = 'Fairview Consolidated School'
@@ -274,6 +277,11 @@ export function servicePay(branch: ServiceBranch, rank: number): Money {
 
 /** Standard enlistment term, months. */
 export const SERVICE_TERM_MONTHS = 48
+
+/** Below this service-connected disability, no pension (L4-M5). */
+export const PENSION_THRESHOLD = 200
+/** Monthly cents per point of service-connected disability. */
+export const PENSION_CENTS_PER_POINT = 120
 
 export const BASE_NAMES: readonly string[] = ['Fort Calder', 'Redharbor Station']
 

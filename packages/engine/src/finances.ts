@@ -29,7 +29,7 @@ import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import type { Household, Person, World } from './types.js'
-import { servicePayOf } from './service.js'
+import { pensionOf, servicePayOf } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
 /** Months of arrears before a household is pushed toward cheaper rent. */
@@ -47,8 +47,10 @@ export function householdIncome(world: World, household: Household): Money {
   for (const memberId of household.memberIds) {
     const job = world.employment.get(memberId)
     if (job) total += job.monthlyPay
-    // Service pay reaches the same kitchen table (L4-M3).
+    // Service pay reaches the same kitchen table (L4-M3), and so does the
+    // disability pension a veteran's service left them owed (L4-M5).
     total += servicePayOf(world, memberId)
+    total += pensionOf(world, memberId)
   }
   return total as Money
 }

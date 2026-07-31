@@ -174,6 +174,13 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a new rating'}.`
     case 'changed-post':
       return `${year} — Posted to ${event.detail ?? 'a new station'}.`
+    case 'awarded':
+      return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
+    case 'granted-pension': {
+      const cents = event.detail === null ? null : Number.parseInt(event.detail, 10)
+      const sum = cents !== null && Number.isFinite(cents) ? formatMoney(cents as never) : 'a pension'
+      return `${year} — The pension board recognized what the service left: ${sum} a month.`
+    }
     case 'deployed':
       return `${year} — Deployed to ${event.detail ?? 'the front'} at ${age}.`
     case 'returned-home':
@@ -240,6 +247,11 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'time-in-grade': '{they} had put in the time',
   'strong-performance': 'the work spoke for itself',
   'holds-qualification': 'the qualification counted',
+  'enemy-action-wound': 'the wound came from enemy action',
+  'campaign-service': '{they} served the campaign in theatre',
+  'honorable-term': 'the term was served honorably',
+  'qualification-earned': 'the rating was earned and recorded',
+  'service-disability': 'the recorded disability was service-connected',
   'under-orders': 'the orders came',
   'war-demanded-troops': 'the war needed people',
   'enemy-capability': 'the enemy could reach them',

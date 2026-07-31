@@ -24,6 +24,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
+import { grantGoodConduct, grantQualificationBadge } from './awards.js'
 import { ageAt } from './clock.js'
 import {
   BRANCH_GRADES,
@@ -31,6 +32,8 @@ import {
   BRANCH_RANKS,
   COMPETITIVE_FROM,
   JUNIOR_TIG_MONTHS,
+  PENSION_CENTS_PER_POINT,
+  PENSION_THRESHOLD,
   SERVICE_TERM_MONTHS,
   servicePay,
   SPECIALTIES,
@@ -75,6 +78,24 @@ export function servicePayOf(world: World, personId: EntityId): number {
 export function rankTitle(branch: string, rank: number): string {
   const ladder = BRANCH_RANKS[branch as ServiceBranch] ?? BRANCH_RANKS['land-forces']
   return ladder[Math.max(0, Math.min(ladder.length - 1, rank))] ?? ladder[0] ?? 'PVT'
+}
+
+/**
+ * Monthly disability pension, in cents. Paid to living veterans for
+ * SERVICE-CONNECTED disability: harm from wounds stamped at infliction as
+ * the service's, accrued whenever those wounds resolved — including years
+ * after discharge. Civilian illness during a career does not count, and a
+ * war wound still healing at discharge is not missed. Provenance, not a
+ * date range.
+ */
+export function pensionOf(world: World, personId: EntityId): number {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick === null) return 0
+  const serviceDisability = world.health.get(personId)?.serviceDisability ?? 0
+  if (serviceDisability < PENSION_THRESHOLD) return 0
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 0
+  return serviceDisability * PENSION_CENTS_PER_POINT
 }
 
 /** Civilian occupations a veteran's training opened. Empty for non-veterans. */
@@ -137,6 +158,7 @@ export function enlistPerson(
     termMonthsLeft: SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
     dischargeReason: null,
+    termPerformanceSum: 0,
   })
 
   recordEvent(world, tick, {
@@ -355,13 +377,14 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       rng.chance(1, 20)
     ) {
       // A qualification is EARNED — performance-gated, once, on the record.
-      // L4-M5's badge and award eligibility will read these entries.
+      // The badge is its visible form (L4-M5), referencing this entry.
       qualifications.push(specialty.qualification)
-      recordEvent(world, tick, {
+      const qualEvent = recordEvent(world, tick, {
         type: 'earned-qualification',
         subjectId: person.id,
         detail: specialty.qualification,
       })
+      grantQualificationBadge(world, tick, person.id, qualEvent, specialty.qualification)
     }
   }
 
@@ -376,6 +399,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     performance,
     monthlyPay: servicePay(branch, rank),
     termMonthsLeft,
+    // The term's running ledger: good conduct is judged on the average of
+    // every served month, not the last month's noise.
+    termPerformanceSum: record.termPerformanceSum + performance,
   })
 
   if (termMonthsLeft > 0) return
@@ -417,8 +443,25 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 export function reenlist(world: World, tick: Tick, person: Person): void {
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return
-  world.service.set(person.id, { ...record, termMonthsLeft: SERVICE_TERM_MONTHS })
-  recordEvent(world, tick, { type: 'reenlisted', subjectId: person.id, detail: rankTitle(record.branch, record.rank) })
+  // Judge the closing term BEFORE the ledger resets for the next one.
+  const termAverage = termAveragePerformance(record)
+  world.service.set(person.id, {
+    ...record,
+    termMonthsLeft: SERVICE_TERM_MONTHS,
+    termPerformanceSum: 0,
+  })
+  const reenlisted = recordEvent(world, tick, {
+    type: 'reenlisted',
+    subjectId: person.id,
+    detail: rankTitle(record.branch, record.rank),
+  })
+  grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
+}
+
+/** Average monthly performance across the term now closing. */
+function termAveragePerformance(record: NonNullable<ReturnType<World['service']['get']>>): number {
+  const monthsServed = Math.max(1, SERVICE_TERM_MONTHS - record.termMonthsLeft)
+  return Math.floor(record.termPerformanceSum / monthsServed)
 }
 
 export function discharge(
@@ -437,7 +480,33 @@ export function discharge(
     dischargeReason: reason,
     termMonthsLeft: 0,
   })
-  recordEvent(world, tick, { type: 'discharged', subjectId: person.id, detail: reason })
+  const dischargedEvent = recordEvent(world, tick, { type: 'discharged', subjectId: person.id, detail: reason })
+  // An end-of-term discharge closes a completed term; good conduct is
+  // judged on the term's AVERAGE. A term cut short — medical or otherwise —
+  // is refused by the grant itself, which reads the reason off the event.
+  grantGoodConduct(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
+
+  // If the service already left recognized harm on the body, the pension
+  // begins the day the uniform comes off — on the record, never silently.
+  // (The other path — the wound resolving into disability AFTER discharge —
+  // is recorded by the health system at that later crossing.)
+  const serviceDisability = world.health.get(person.id)?.serviceDisability ?? 0
+  if (serviceDisability >= PENSION_THRESHOLD) {
+    recordEvent(world, tick, {
+      type: 'granted-pension',
+      subjectId: person.id,
+      detail: String(serviceDisability * PENSION_CENTS_PER_POINT),
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'pension',
+      significance: 'notable',
+      inputs: [factor('service-disability', serviceDisability)],
+      chosen: 'the pension board recognized the service-connected disability',
+      rejected: [],
+      streamId: Stream.Employment,
+    })
+  }
   recordDecision(world, tick, {
     subjectId: person.id,
     decision: 'enlistment',

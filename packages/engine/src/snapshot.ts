@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v14 — L4-M5. Awards and veterans: wound recognition strictly from enemy
+ *      action, campaign credit from qualifying tours, good conduct from
+ *      completed honorable terms, qualification badges; disability pensions
+ *      on the service-connected delta; deployment contact rates carry the
+ *      threat vector's differences instead of saturating a cap. Combat
+ *      outcomes and veteran incomes differ from v13.
  * v13 — M-GAMEDEPTH. Military realism: per-branch US-style rank ladders,
  *      monthly time-in-grade promotions (competitive from the board ranks,
  *      never skipped), grade-based pay table, and service texture — basic
@@ -65,7 +71,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 13
+export const SIMULATION_VERSION = 14
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -112,6 +118,9 @@ export function toSnapshot(world: World): WorldSnapshot {
       deployments: [...world.deployments.entries()]
         .sort(([a], [b]) => a - b)
         .map(([personId, tours]) => ({ personId, tours })),
+      awards: [...world.awards.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([personId, decorations]) => ({ personId, decorations })),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,

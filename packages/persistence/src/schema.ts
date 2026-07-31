@@ -29,6 +29,11 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v14 — L4-M5. `world.awards` (empty for old saves — decorations are never
+ *      reconstructed after the fact, the Republic simply starts issuing
+ *      them now) and service records gain disabilityAtEnlistment /
+ *      disabilityAtDischarge (null — never captured, and unknown pays no
+ *      pension rather than guessing).
  * v13 — M-GAMEDEPTH. Service records gain `rankSinceTick` (time-in-grade
  *      clock starts at migration — when they made rank was never recorded)
  *      and `qualifications` (empty — none were recorded). Rank indexes are
@@ -50,7 +55,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 13
+export const SCHEMA_VERSION = 14
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

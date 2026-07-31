@@ -1,6 +1,7 @@
 import { Fragment, useState } from 'react'
 import {
   ageAt,
+  decorationsOf,
   describeAilment,
   explainDecision,
   healthOf,
@@ -128,6 +129,21 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             </>
           )
         })()}
+        {decorationsOf(world, personId).length > 0 && (
+          <>
+            <dt>Decorations</dt>
+            <dd>
+              {decorationsOf(world, personId).map((award, i) => (
+                <span key={`${award.kind}:${award.title}`}>
+                  {i > 0 && ', '}
+                  {award.title}
+                  {award.count > 1 && ` ×${award.count}`}
+                  <span className="muted small"> ({formatYear(award.tick)})</span>
+                </span>
+              ))}
+            </dd>
+          </>
+        )}
         {alive && household && (
           <>
             <dt>{age < 18 ? 'Family money' : 'Money'}</dt>

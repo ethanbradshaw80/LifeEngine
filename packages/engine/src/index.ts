@@ -72,10 +72,20 @@ export type { InjuryContext } from './wounds.js'
 export {
   isServing,
   isVeteran,
+  pensionOf,
   rankTitle,
   servicePayOf,
   veteranUnlocks,
 } from './service.js'
+
+// Awards (L4-M5)
+export {
+  decorationsOf,
+  grantCampaignMedal,
+  grantGoodConduct,
+  grantQualificationBadge,
+  grantWoundRecognition,
+} from './awards.js'
 export { BRANCH_NAMES, BRANCH_RANKS, SPECIALTIES, specialtyById } from './content.js'
 export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
 
@@ -132,6 +142,8 @@ export { friendshipKey, relationshipKey } from './types.js'
 
 // Types
 export type {
+  AwardKind,
+  AwardRecord,
   CausalFactor,
   CausalRecord,
   DecisionType,

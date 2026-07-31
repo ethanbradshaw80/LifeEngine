@@ -21,6 +21,7 @@ import {
   activeWars,
   ageAt,
   childrenIdsOf,
+  decorationsOf,
   deploymentsOf,
   describeAilment,
   explainDecision,
@@ -67,6 +68,8 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'field-exercise': '⛺',
   'earned-qualification': '🎯',
   'changed-post': '🧳',
+  awarded: '🏅',
+  'granted-pension': '🏛️',
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',
@@ -667,6 +670,29 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect }
                     </>
                   )}
                 </dl>
+                {(() => {
+                  const decorations = decorationsOf(world, person.id)
+                  if (decorations.length === 0) return null
+                  return (
+                    <>
+                      <h3>Decorations</h3>
+                      <ol className="timeline">
+                        {decorations.map((award) => (
+                          <li key={`${award.kind}:${award.title}`}>
+                            <div className="row">
+                              <span className="year">{formatYear(award.tick)}</span>
+                              <span className="what">
+                                {award.title}
+                                {award.count > 1 && ` ×${award.count}`}
+                                <span className="muted small"> — {award.citation}</span>
+                              </span>
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                    </>
+                  )
+                })()}
                 <h3>Deployments</h3>
                 {tours.length === 0 ? (
                   <p className="muted">None. Service so far has been at home station.</p>

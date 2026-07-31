@@ -404,7 +404,68 @@ const V12_TO_V13: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13]
+/**
+ * v13 → v14 (L4-M5). Awards and veterans arrive.
+ *
+ * - `world.awards`: EMPTY. Causal records are written when the moment
+ *   happens, never reconstructed (rule 4); a medal issued retroactively by
+ *   a migration would be exactly that. The Republic starts decorating now.
+ * - Health records gain wound provenance (`ailmentServiceConnected`: false —
+ *   whatever ails them now was never stamped) and the pension's ledger
+ *   (`serviceDisability`: 0 — attribution that was never recorded is not
+ *   invented, so old wounds pay no pension; new ones will).
+ * - Service records gain `termPerformanceSum`, ESTIMATED as current
+ *   performance × months served this term — computed from the save's own
+ *   recorded fields (the v5 wage-migration precedent), not invented.
+ * - The nation called 'Ashkelon' — a real city, caught by review before it
+ *   could be minted onto campaign medals — is renamed to the fictional
+ *   'Veskarn'. The name is display content; recorded EVENTS keep their old
+ *   text, because an old newspaper is an old newspaper.
+ */
+const V13_TO_V14: Migration = {
+  from: 13,
+  to: 14,
+  describe: 'add awards, wound provenance, pension ledger; rename Ashkelon',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+
+    const service = Array.isArray(world['service']) ? world['service'] : []
+    const migratedService = service.map((entry) => {
+      const record = requireObject(entry, 'save.world.service[]')
+      const performance = typeof record['performance'] === 'number' ? record['performance'] : 500
+      const termMonthsLeft = typeof record['termMonthsLeft'] === 'number' ? record['termMonthsLeft'] : 0
+      const monthsServed = Math.max(0, 48 - termMonthsLeft)
+      return { ...record, termPerformanceSum: performance * monthsServed }
+    })
+
+    const health = Array.isArray(world['health']) ? world['health'] : []
+    const migratedHealth = health.map((entry) => {
+      const record = requireObject(entry, 'save.world.health[]')
+      return { ...record, ailmentServiceConnected: false, serviceDisability: 0 }
+    })
+
+    const nations = Array.isArray(world['nations']) ? world['nations'] : []
+    const migratedNations = nations.map((entry) => {
+      const nation = requireObject(entry, 'save.world.nations[]')
+      return nation['name'] === 'Ashkelon' ? { ...nation, name: 'Veskarn' } : nation
+    })
+
+    const nextWorld: Record<string, unknown> = {
+      ...world,
+      service: migratedService,
+      health: migratedHealth,
+      nations: migratedNations,
+      awards: [],
+    }
+    return {
+      header: { ...header, schemaVersion: 14, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

@@ -24,6 +24,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
+import { grantCampaignMedal, grantWoundRecognition } from './awards.js'
 import { specialtyById } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { inflictWound } from './health.js'
@@ -233,10 +234,15 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       { id: 'base-attack-exposure' as const, weight: threat.baseAttack * exposure.baseAttack },
       { id: 'battlefield-accident' as const, weight: threat.accident * exposure.accident },
     ]
-    const totalWeight = channels.reduce((sum, c) => sum + c.weight, 0)
-    // Scale: weights around 850*150≈127k at the sharpest; /1600 → ~80/1000
-    // contact chance for a rifleman in an offensive, single digits for admin.
-    const contactPerMille = Math.min(220, Math.floor(totalWeight / 1600))
+    // Exposure is a 0-1000 share of each threat, so normalize the cross
+    // before summing. The old raw-product sum saturated its cap for anyone
+    // at the sharp end, which flattened the vector: a rifleman facing a weak
+    // enemy in a stalemate contacted like one facing a strong enemy in an
+    // offensive. Normalized, the differences the vector models survive to
+    // the outcome — ~15% a month for the worst case, low single digits for
+    // rear-echelon work, and the cap is a backstop rather than the answer.
+    const totalWeight = channels.reduce((sum, c) => sum + Math.floor(c.weight / 1000), 0)
+    const contactPerMille = Math.min(200, Math.floor(totalWeight / 8))
     if (!rng.chance(Math.max(1, contactPerMille), 1_000)) continue
 
     const channel = rng.pickWeighted(
@@ -265,6 +271,21 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         chain, Stream.CombatResolution,
       )
       closeTour(world, tick, personId, currentDeployment(world, personId) ?? deployment, true)
+
+      // Posthumous recognition, at the moment, referencing the death itself.
+      // Wound recognition ONLY for enemy action — the grant refuses an
+      // accident's death event; campaign credit for either (they served the
+      // campaign, and dying there waives the duration rule).
+      for (let i = world.events.length - 1; i >= 0; i--) {
+        const died = world.events[i]
+        if (!died || died.type !== 'died' || died.subjectId !== personId) continue
+        grantWoundRecognition(world, tick, personId, died, enemy.name)
+        grantCampaignMedal(
+          world, tick, personId, died, enemy.name,
+          tick - deployment.startedAtTick, true,
+        )
+        break
+      }
       continue
     }
 
@@ -281,12 +302,16 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
             ? ('base-attack' as const)
             : ('field-accident' as const)
     const wound = inflictWound(world, tick, personId, severity, context, rng)
-    recordEvent(world, tick, {
+    const woundEvent = recordEvent(world, tick, {
       type: isAccident ? 'was-injured' : 'wounded-in-action',
       subjectId: personId,
       otherId: deployment.enemyId,
       detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
     })
+    // The decoration follows the wound at the same tick, referencing it.
+    // For an accident the event is 'was-injured' and the grant refuses —
+    // which is the eligibility rule doing its job, not a missing case.
+    grantWoundRecognition(world, tick, personId, woundEvent, enemy.name)
     if (!isAccident) {
       recordDecision(world, tick, {
         subjectId: personId,
@@ -320,10 +345,21 @@ function closeTour(
   )
   const person = world.people.get(personId)
   if (person && person.deathTick === null) {
-    recordEvent(world, tick, {
+    const homecoming = recordEvent(world, tick, {
       type: 'returned-home',
       subjectId: personId,
       detail: medical ? 'evacuated' : 'tour complete',
     })
+    // Campaign credit is judged when the tour closes: three months in
+    // theatre qualifies, and a tour ended by evacuation qualifies at any
+    // length (the casualty waiver). A second tour in the same war adds a
+    // device to the same medal.
+    const enemyName = world.nations.get(deployment.enemyId)?.name
+    if (enemyName !== undefined) {
+      grantCampaignMedal(
+        world, tick, personId, homecoming, enemyName,
+        tick - deployment.startedAtTick, medical,
+      )
+    }
   }
 }

@@ -150,9 +150,23 @@ export interface HealthRecord {
   readonly askedConvalesce: boolean
   /**
    * Permanent disability, 0-1000. Accumulates when bad ailments resolve
-   * badly; NEVER decreases. The field a war pension will one day read.
+   * badly; NEVER decreases.
    */
   readonly disability: number
+  /**
+   * Whether the CURRENT ailment came from service (a wound inflicted on
+   * deployment, any channel — line of duty). Stamped at onset, because
+   * provenance is only knowable then; false for every civilian ailment.
+   */
+  readonly ailmentServiceConnected: boolean
+  /**
+   * The service-connected share of `disability` — accrued when a
+   * service-stamped ailment resolves badly, WHENEVER that happens, including
+   * years after discharge. This is the field the pension reads (L4-M5): not
+   * a date range that would credit civilian illness during a career, and not
+   * one that would miss a war wound still healing at discharge.
+   */
+  readonly serviceDisability: number
   /**
    * The marks in WORDS, accumulated alongside the number: "the left leg never
    * carried him the same", "hearing in one ear never came back". What a
@@ -228,6 +242,52 @@ export interface ServiceRecord {
    *  the artifact a descendant finds (foundation §10). */
   readonly dischargedAtTick: Tick | null
   readonly dischargeReason: string | null
+  /**
+   * Sum of monthly performance across the CURRENT term (L4-M5). Good
+   * conduct is judged on the term's average, not on whatever the last
+   * month's noise happened to be. Reset when a new term begins.
+   */
+  readonly termPerformanceSum: number
+}
+
+// ---------------------------------------------------------------------------
+// Awards (L4-M5)
+//
+// AWARDS ARE EARNED FROM DOCUMENTED SERVICE EVENTS, NEVER GRANTED AS
+// PROGRESSION REWARDS (foundation §11). Every record points at the actual
+// simulated event that qualified it — a reference, not a description — and
+// eligibility is enforced in code: the grant functions REFUSE anything that
+// does not qualify, and a test attempts the wrong grant and watches it fail.
+// ---------------------------------------------------------------------------
+
+export type AwardKind =
+  /** A qualifying wound or death FROM ENEMY ACTION. Nothing else, ever. */
+  | 'wound-recognition'
+  /** Qualifying service in a war's theatre: three months, or a casualty. */
+  | 'campaign'
+  /** A completed enlistment term served honorably. */
+  | 'good-conduct'
+  /** An occupational rating, earned and recorded during service. */
+  | 'qualification-badge'
+
+export interface AwardRecord {
+  readonly personId: EntityId
+  readonly kind: AwardKind
+  /** Fictional decoration name — "the Crimson Laurel". */
+  readonly title: string
+  /** When first awarded. */
+  readonly tick: Tick
+  /**
+   * THE QUALIFYING EVENTS — ids of the WorldEvents that earned it, first
+   * award first. A device (count > 1) keeps its own evidence: every entry
+   * here earned either the medal or one of its devices.
+   */
+  readonly qualifyingEventIds: readonly number[]
+  /** Issuing authority: the branch's name. */
+  readonly issuedBy: string
+  readonly citation: string
+  /** Later qualifying events add a device, not a second medal. */
+  readonly count: number
 }
 
 // ---------------------------------------------------------------------------
@@ -466,6 +526,11 @@ export type EventType =
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'
+  /** A decoration granted (L4-M5). The AwardRecord holds the reference to
+   *  the qualifying event; this is the moment it was pinned on. */
+  | 'awarded'
+  /** The pension board recognized service-connected disability (L4-M5). */
+  | 'granted-pension'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
@@ -509,6 +574,10 @@ export type DecisionType =
   /** A rank pinned on — its own kind, so "why did they enlist?" and "why
    *  were they promoted?" never answer each other's question. */
   | 'promotion'
+  /** A decoration granted — explained by its qualifying service. */
+  | 'award'
+  /** The pension board's finding — explained by the recorded disability. */
+  | 'pension'
   | 'deployment'
   | 'geopolitics'
 
@@ -558,6 +627,11 @@ export type FactorId =
   | 'time-in-grade'
   | 'strong-performance'
   | 'holds-qualification'
+  | 'enemy-action-wound'
+  | 'campaign-service'
+  | 'honorable-term'
+  | 'qualification-earned'
+  | 'service-disability'
   | 'under-orders'
   | 'war-demanded-troops'
   | 'enemy-capability'
@@ -612,6 +686,8 @@ export interface World {
   readonly health: Map<EntityId, HealthRecord>
   /** L4-M3. Keyed by personId. Records SURVIVE discharge. */
   readonly service: Map<EntityId, ServiceRecord>
+  /** Decorations per person, append-only. Written only through awards.ts. */
+  readonly awards: Map<EntityId, AwardRecord[]>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

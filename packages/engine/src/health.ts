@@ -29,9 +29,9 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { occupationById } from './content.js'
+import { occupationById, PENSION_CENTS_PER_POINT, PENSION_THRESHOLD } from './content.js'
 import { raisePending } from './player.js'
-import { recordEvent } from './records.js'
+import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import type { BodySite, HealthRecord, Person, World } from './types.js'
 import { describeAilment, markFor, pickIllness, pickInjury } from './wounds.js'
@@ -81,6 +81,8 @@ export function freshHealth(personId: EntityId): HealthRecord {
     sinceTick: null,
     askedConvalesce: false,
     disability: 0,
+    ailmentServiceConnected: false,
+    serviceDisability: 0,
     marks: [],
   }
 }
@@ -155,6 +157,9 @@ function beginAilment(
     peakSeverity: severity,
     sinceTick: tick,
     askedConvalesce: false,
+    // This is the CIVILIAN path — the mill, the winter lung. Service wounds
+    // arrive through inflictWound, which stamps true.
+    ailmentServiceConnected: false,
   })
   recordEvent(world, tick, {
     type: ailment === 'injury' ? 'was-injured' : 'fell-ill',
@@ -225,9 +230,17 @@ function recoverOrWorsen(
   // mark. Disability only ever accumulates — and the mark gets its WORDS,
   // fixed from what caused it (M-WOUNDS).
   let disability = record.disability
+  let serviceDisability = record.serviceDisability
   let marks = record.marks
   if (record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
-    disability = Math.min(1000, disability + Math.floor(record.peakSeverity / 9))
+    const added = Math.floor(record.peakSeverity / 9)
+    disability = Math.min(1000, disability + added)
+    // Provenance was stamped at onset; the pension's ledger accrues here,
+    // whenever the wound finally shows what it kept — including years after
+    // discharge.
+    if (record.ailmentServiceConnected) {
+      serviceDisability = Math.min(1000, serviceDisability + added)
+    }
     const mark = markFor(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)
     if (!marks.includes(mark)) marks = [...marks, mark]
   }
@@ -242,6 +255,8 @@ function recoverOrWorsen(
     sinceTick: null,
     askedConvalesce: false,
     disability,
+    ailmentServiceConnected: false,
+    serviceDisability,
     marks,
   })
   recordEvent(world, tick, {
@@ -251,6 +266,34 @@ function recoverOrWorsen(
       ? { detail: `marked:${marks[marks.length - 1] ?? ''}` }
       : {}),
   })
+
+  // A veteran whose service-stamped wound just crossed the pension line gets
+  // the board's finding NOW, on the record — income never appears silently
+  // (Law 3). Crossing happens once: the ledger only ever rises. The at-
+  // discharge case (already over the line when the uniform comes off) is
+  // recorded by discharge() instead; these two conditions cannot both fire.
+  const serving = world.service.get(person.id)
+  if (
+    serving !== undefined &&
+    serving.dischargedAtTick !== null &&
+    record.serviceDisability < PENSION_THRESHOLD &&
+    serviceDisability >= PENSION_THRESHOLD
+  ) {
+    recordEvent(world, tick, {
+      type: 'granted-pension',
+      subjectId: person.id,
+      detail: String(serviceDisability * PENSION_CENTS_PER_POINT),
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'pension',
+      significance: 'notable',
+      inputs: [factor('service-disability', serviceDisability)],
+      chosen: 'the pension board recognized the service-connected disability',
+      rejected: [],
+      streamId: Stream.Health,
+    })
+  }
 }
 
 /**
@@ -289,6 +332,11 @@ export function inflictWound(
     peakSeverity: severity,
     sinceTick: tick,
     askedConvalesce: false,
+    // Every wound through this door came from a deployment — any channel,
+    // accident included: line of duty is line of duty. Provenance is
+    // stamped NOW because only now is it knowable; the pension reads what
+    // this becomes when it resolves, however many years from now.
+    ailmentServiceConnected: true,
   })
   return { kind: injury.kind, site: injury.site, description }
 }
