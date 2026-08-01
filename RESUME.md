@@ -579,7 +579,24 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — L4-M5 (awards & veterans), then depth-pass candidates
+### Next up — CRIME & JUSTICE, C1 (owner choice 2026-07-31)
+
+Read `docs/CRIME_PLAN.md` — it is one page and it is the spec. Build C1:
+petty theft with modelled motive (arrears/joblessness), victim households
+losing real money through a finances-owned transfer helper (finances stays
+the ONLY writer of household.savings), clearance → arrest → court at the
+courthouse → verdict → fine or jail months (jail = absent from work and
+wage), criminal record on the person (schema bump, empty migration),
+hiring + enlistmentBar read the record, feed/News surface it.
+architecture-reviewer on the domain shape before commit. Then C2 (player
+crime choices) and C3 (justice depth) per the plan.
+
+M-DEPTH3 landed the queued small items (machines named in workplace
+incidents, anniversaries, Enlist label). Older still-open notes: survivor
+benefits decision, families on PCS, branch bases, HYT TIS approximation,
+Ember contact-cap corner.
+
+### Superseded — the old L4-M5 next-up (kept for context)
 
 M-GAMEDEPTH is done (all six owner items — see its block above). What's
 queued, in suggested order:
