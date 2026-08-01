@@ -82,7 +82,9 @@ export const GOLDEN_TICKS = 120
 // SIMULATION_VERSION 26 — the reference world is now the 400-person
 // founding town (owner direction). Older tests pin population 100 and
 // still guard the small-town histories byte for byte.
-export const GOLDEN_HASH_HEX = 'cc676397'
+// M-ARMY2 item 4 (SIMULATION_VERSION 27): enlistment tradition + drives,
+// drive seasons on the event record, death closes the service record.
+export const GOLDEN_HASH_HEX = 'e21827cd'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -155,7 +157,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":26')
+    expect(text).toContain('"simulationVersion":27')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

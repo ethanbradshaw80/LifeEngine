@@ -42,6 +42,7 @@ import {
   enlistmentBar,
   isServing,
   rankTitle,
+  recruitingDriveActive,
   reenlist as reenlistService,
   retrainSpecialty,
   schoolOptionsFor,
@@ -1174,7 +1175,14 @@ export function resolvePending(world: World, choice: string): void {
     case 'specialty': {
       const specialty = SPECIALTIES.find((sp) => sp.id === choice)
       if (specialty) {
-        enlistPerson(world, pending.tick, person, specialty, [factor('own-choice', 1000)])
+        // The circumstances an NPC's record names, on the player's too
+        // (military review S4): both are public facts the character knows.
+        const servedParent = person.parentIds.find((id) => world.service.has(id)) ?? null
+        enlistPerson(world, pending.tick, person, specialty, [
+          factor('own-choice', 1000),
+          ...(servedParent !== null ? [factor('service-tradition', 300, servedParent)] : []),
+          ...(recruitingDriveActive(world, pending.tick) ? [factor('recruiting-drive', 550)] : []),
+        ])
       }
       break
     }

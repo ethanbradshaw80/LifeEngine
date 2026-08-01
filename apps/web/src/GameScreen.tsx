@@ -43,6 +43,7 @@ import {
   other,
   relationshipsOf,
   rentFor,
+  serviceNewsSince,
   spouseOf,
   timelineFor,
   veteranUnlocks,
@@ -224,9 +225,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
   // The world's news, woven into the life at the months it happened. A war on
   // the other side of the world shares a feed with a first job — which is how
-  // it feels to live through one, until L4-M3 makes it personal.
+  // it feels to live through one, until L4-M3 makes it personal. M-ARMY2:
+  // the town's own service news too — neighbors enlisting, drives on the
+  // square — so the uniforms are visible (owner direction).
   const feedItems = useMemo(() => {
-    const news = newsSince(world, person.birthTick)
+    const news = [...newsSince(world, person.birthTick), ...serviceNewsSince(world, person.birthTick)]
     const merged: (
       | { kind: 'life'; tick: number; entry: (typeof entries)[number] }
       | { kind: 'news'; tick: number; text: string; nearby: boolean }
@@ -783,7 +786,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <div className="panel" aria-label="World news">
           {(() => {
             const wars = activeWars(world)
-            const allNews = [...newsSince(world, 0 as never), ...crimeNewsSince(world, 0 as never)]
+            const allNews = [
+              ...newsSince(world, 0 as never),
+              ...crimeNewsSince(world, 0 as never),
+              ...serviceNewsSince(world, 0 as never),
+            ]
               .sort((a, b) => a.tick - b.tick)
               .reverse()
             return (

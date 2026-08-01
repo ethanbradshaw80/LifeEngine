@@ -27,6 +27,8 @@ import {
 } from '../src/player.js'
 import { isDeployed } from '../src/deployment.js'
 import { isVeteran } from '../src/service.js'
+import { BRANCH_RANKS } from '../src/content.js'
+import type { ServiceBranch } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
 import type { Person, World } from '../src/types.js'
 
@@ -105,7 +107,12 @@ describe('high-year tenure — up or out', () => {
     advanceTicks(world, 900)
     for (const record of world.service.values()) {
       if (record.dischargedAtTick !== null) continue
-      const ladderTopped = record.rank >= 8 // MSG can stay
+      // Each BRANCH's own ladder top may stay — the engine's actual rule.
+      // The old `rank >= 8` was land-forces thinking: a naval CPO tops out
+      // at index 6 and is rightly exempt (bug surfaced by the M-ARMY2
+      // enlistment mix producing the first long-serving naval top).
+      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
+      const ladderTopped = record.rank >= ladder.length - 1
       const tig = world.tick - record.rankSinceTick
       if (!ladderTopped) {
         // TIG can exceed the 72-month line only until the current term ends.

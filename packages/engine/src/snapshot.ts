@@ -28,6 +28,14 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v27 — M-ARMY2. Enlistment is a modelled pull, not a flat rate: a parent
+ *      who served draws the child a little (service-tradition, finally
+ *      emitted), and recruiting drives — three months of roughly every
+ *      third year, derived from the seed — triple the season's walk-ins
+ *      for NPCs and the player's knock alike. And a death in uniform now
+ *      CLOSES the service record ('died in service') — left open, a dead
+ *      soldier counted against the deployment quota forever. Enlistment
+ *      and service histories differ from v26.
  * v26 — M-ARMY2 4b. The founding town is 400 people (was ~100; owner
  *      direction — "300-500 so we have it all mixed"). Same generation
  *      path, bigger cast: a seed now names a different, larger town.
@@ -135,7 +143,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 26
+export const SIMULATION_VERSION = 27
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

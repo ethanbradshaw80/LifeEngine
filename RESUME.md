@@ -645,7 +645,35 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
    lethality per tour when wars DO come + rotation risk filling the
    peace, vs foundation §6 (most military work is not combat). Tune
    against the measurement, on the record.
-4. NPC ENLISTMENT — OWNER SETTLED THE DESIGN (round 3, direct quote:
+4. DONE (SIMULATION_VERSION 27, golden e21827cd; military-scope review
+   ran — 7 should-fix, ALL fixed in-session): tradition +30 propensity
+   (service-tradition factor finally emitted, NAMES the served parent
+   via referencedEntityId; ~40% of enlistments cite it), drives ×3 for
+   months 0-2 of ~every 3rd year AND every such window while the
+   homeland is at war (review S6 — the drive is downstream of the
+   world), player knock parity on BOTH terms ((35+10 tradition)×3 in
+   season, review S3), player enlistment records carry the same
+   circumstance factors (S4). DRIVE SEASONS ARE EVENTS ('recruiting-
+   drive', subject = homeland nation id, emitted at each season's first
+   active month) and serviceNewsSince reads EVENTS ONLY — an old save
+   never grows drives it did not live (S7). News carries BOTH legs
+   (S5): enlistments, came-home-after-N-years, died-in-service, drive
+   seasons; player excluded. Factor weights double as story salience
+   (S2): recruiting-drive 550 (top-3 visible), reached-adulthood
+   demoted 400→150 (tautological). enlistment.test.ts (6 tests, S1):
+   drive determinism + cross-seed variation, in-season rate > out
+   while the decade band holds, tradition cites a real served parent,
+   news both-legs + player exclusion, death closes the record + no-op
+   guards. Rates 14.5-16.5/decade. TWO LATENT BUGS SURFACED BY THE NEW
+   MIX, both fixed: serviceplay's HYT sweep hardcoded the land-forces
+   ladder top (rank>=8; naval/air top at 6 — test now branch-aware),
+   and DEATH IN UNIFORM NEVER CLOSED THE RECORD — dead soldiers stayed
+   "serving" forever, inflating countServing's deployment-quota
+   denominator (closeServiceOnDeath, called from performDeath; reason
+   'died in service'; quiet — the death event is the event). Review
+   note kept: News tab calls serviceNewsSince in render without
+   useMemo (performance-reviewer if it ever shows). OWNER SETTLED THE
+   DESIGN (round 3, direct quote:
    "People should join the military how it would be in real life,
    trouble finding a job? military. Don't want to go to college and get
    a tradition job, military. If your parents served it should increase

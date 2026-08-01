@@ -40,7 +40,7 @@ import { canAfford, distributeEstate, householdCosts, householdIncome, inArrears
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { hasRecentConviction, isJailed } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
-import { educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
+import { closeServiceOnDeath, educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -1366,6 +1366,11 @@ export function performDeath(
   const age = ageAt(person.birthTick, tick)
   setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })
   world.employment.delete(person.id)
+  // A death in uniform closes the service record (service owns the write).
+  // Left open, a dead soldier stayed "serving" forever — inflating the
+  // deployment quota's denominator and reading as a career that never
+  // ended (M-ARMY2; the isDeployed dead-exclusion's sibling).
+  closeServiceOnDeath(world, tick, person.id)
 
   if (person.householdId !== null) {
     const householdId = person.householdId

@@ -727,6 +727,11 @@ export type EventType =
   /** A documented act under fire — the player's own recorded choice, and
    *  the ONLY thing valor recognition may ever read (foundation §11). */
   | 'act-of-valor'
+  /** M-ARMY2. The recruiters set up in town for a season (subject is the
+   *  homeland nation id — a town fact, invisible to person timelines).
+   *  serviceNewsSince reads these; the season also multiplies enlistment
+   *  propensity while it runs. */
+  | 'recruiting-drive'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'
@@ -831,6 +836,8 @@ export type FactorId =
   | 'steady-pay'
   | 'way-out-of-town'
   | 'service-tradition'
+  /** M-ARMY2. The recruiters were in town — the season people walk in. */
+  | 'recruiting-drive'
   | 'term-ended'
   | 'medically-unfit'
   | 'time-in-grade'

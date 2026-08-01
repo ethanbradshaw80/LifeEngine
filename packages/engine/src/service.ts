@@ -433,7 +433,37 @@ export function enlistPerson(
 // The monthly tick
 // ---------------------------------------------------------------------------
 
+/**
+ * M-ARMY2. Whether a recruiting drive is on: the recruiters set up in town
+ * for the first three months of roughly every third year — and in EVERY
+ * such window while the Republic is at war, because that is when the push
+ * actually happens (review S6: the drive must be downstream of the world,
+ * not the entire cause of itself). The calendar draw is derived from the
+ * seed; the war term reads live state, and the drive's own EVENT (emitted
+ * at each season's first month) is what history keeps — so a loaded old
+ * save never grows drives it did not live (review S7).
+ */
+export function recruitingDriveActive(world: World, tick: Tick): boolean {
+  if (tick < 0) return false
+  const month = tick % TICKS_PER_YEAR
+  if (month >= 3) return false
+  const home = homeland(world)
+  if (home && activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return true
+  const year = Math.floor(tick / TICKS_PER_YEAR)
+  const rng = openStream(world.seed, Stream.Employment, 909_090, year)
+  return rng.chance(1, 3)
+}
+
 export function runService(world: World, tick: Tick): void {
+  const drive = recruitingDriveActive(world, tick)
+  // The season's first active month goes on the record — the event IS the
+  // history the news reads (review S7).
+  if (drive && !recruitingDriveActive(world, (tick - 1) as Tick)) {
+    const home = homeland(world)
+    if (home) {
+      recordEvent(world, tick, { type: 'recruiting-drive', subjectId: home.id })
+    }
+  }
   for (const person of livingSorted(world)) {
     const record = world.service.get(person.id)
 
@@ -449,9 +479,13 @@ export function runService(world: World, tick: Tick): void {
     if (!canEnlist(world, person, tick)) continue
 
     const rng = openStream(world.seed, Stream.Employment, person.id, tick + 3333)
+    const parentServed = person.parentIds.some((id) => world.service.has(id))
 
     if (person.id === world.player.personId) {
-      if (!world.employment.has(person.id) && rng.chance(35, 1_000)) {
+      // The drive knocks louder for the player too, and so does the family
+      // that served — parity with the NPC terms below (review S3).
+      const knock = (35 + (parentServed ? 10 : 0)) * (drive ? 3 : 1)
+      if (!world.employment.has(person.id) && rng.chance(knock, 1_000)) {
         raisePending(world, {
           tick,
           kind: 'enlist',
@@ -472,8 +506,12 @@ export function runService(world: World, tick: Tick): void {
     // First tuning gave one enlistment in fifty years: the town hires its
     // young within a month or two, so the jobless window barely exists. The
     // door has to be audible over a paycheck, not only instead of one.
+    // M-ARMY2 (owner design): the family that served pulls a little, and a
+    // recruiting drive in town is the season people actually walk in.
     const jobless = !world.employment.has(person.id)
-    const propensity = (jobless ? 110 : 16) + Math.floor(person.traits.ambition / 25)
+    let propensity = (jobless ? 110 : 16) + Math.floor(person.traits.ambition / 25)
+    if (parentServed) propensity += 30
+    if (drive) propensity *= 3
     if (!rng.chance(propensity, 12_000)) continue
 
     const options = eligibleSpecialties(world, person)
@@ -482,12 +520,83 @@ export function runService(world: World, tick: Tick): void {
     const weights = options.map((sp) => 1 + educationRank(sp.requires) + (education && meetsRequirement(education.level, sp.requires) ? 2 : 0))
     const chosen = rng.pickWeighted(options, weights)
 
+    // Factor weights double as story salience: only the top three reach the
+    // Why? (review S2). The drive — the largest single term in the model —
+    // must outrank the tautological reached-adulthood, and the tradition
+    // names the parent who served (rule 5).
+    const servedParent = person.parentIds.find((id) => world.service.has(id)) ?? null
     enlistPerson(world, tick, person, chosen, [
-      factor('reached-adulthood', 400),
+      factor('reached-adulthood', 150),
       ...(jobless ? [factor('way-out-of-town', 500)] : []),
+      ...(parentServed ? [factor('service-tradition', 300, servedParent)] : []),
+      ...(drive ? [factor('recruiting-drive', 550)] : []),
       factor('ambition', person.traits.ambition),
     ])
   }
+}
+
+/**
+ * M-ARMY2. The town's service news, read from EVENTS like every other news
+ * source (review S7 — derived news would assert drives an old save never
+ * lived): who enlisted, who came home, who died in uniform (the player
+ * excluded — their own timeline carries their story), and the seasons the
+ * recruiters set up on the square. Both legs of the story, deliberately —
+ * a feed of enlistments alone is the shape of a recruiting poster
+ * (review S5).
+ */
+export function serviceNewsSince(
+  world: World,
+  since: Tick,
+): { tick: Tick; text: string; nearby: boolean }[] {
+  const items: { tick: Tick; text: string; nearby: boolean }[] = []
+  for (const event of world.events) {
+    if (event.tick < since) continue
+    if (event.type === 'recruiting-drive') {
+      items.push({
+        tick: event.tick,
+        text: 'the recruiters set up on the square — a drive is on',
+        nearby: true,
+      })
+      continue
+    }
+    if (event.subjectId === world.player.personId) continue
+    if (event.type === 'enlisted') {
+      const person = world.people.get(event.subjectId)
+      const record = world.service.get(event.subjectId)
+      if (!person || !record) continue
+      items.push({
+        tick: event.tick,
+        text: `${person.givenName} ${person.familyName} enlisted in ${BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service'}`,
+        nearby: true,
+      })
+    } else if (event.type === 'discharged') {
+      const person = world.people.get(event.subjectId)
+      const record = world.service.get(event.subjectId)
+      if (!person || !record || record.dischargedAtTick === null) continue
+      // The quiet majority of military life: the term ends and someone
+      // comes home. A death in uniform is its own line, not a discharge.
+      if (record.dischargeReason === 'died in service') continue
+      const years = Math.max(1, Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR))
+      items.push({
+        tick: event.tick,
+        text: `${person.givenName} ${person.familyName} came home from ${BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service'} after ${String(years)} year${years === 1 ? '' : 's'}`,
+        nearby: true,
+      })
+    } else if (event.type === 'died') {
+      const record = world.service.get(event.subjectId)
+      if (!record || record.dischargedAtTick !== event.tick) continue
+      if (record.dischargeReason !== 'died in service') continue
+      const person = world.people.get(event.subjectId)
+      if (!person) continue
+      items.push({
+        tick: event.tick,
+        text: `${person.givenName} ${person.familyName} died in service`,
+        nearby: true,
+      })
+    }
+  }
+  items.sort((a, b) => a.tick - b.tick)
+  return items
 }
 
 function livingSorted(world: World): Person[] {
@@ -893,6 +1002,23 @@ type ServiceRecordT = NonNullable<ReturnType<World['service']['get']>>
 function activeRecord(world: World, personId: EntityId): ServiceRecordT | undefined {
   const record = world.service.get(personId)
   return record === undefined || record.dischargedAtTick !== null ? undefined : record
+}
+
+/**
+ * M-ARMY2. Death in uniform closes the record — quietly: the death event is
+ * the event, and a 'discharged' card for the dead would read wrong. The
+ * record survives (foundation §10) with an honest end date, and the
+ * deployment quota's countServing stops counting a body.
+ */
+export function closeServiceOnDeath(world: World, tick: Tick, personId: EntityId): void {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return
+  world.service.set(personId, {
+    ...record,
+    dischargedAtTick: tick,
+    dischargeReason: 'died in service',
+    termMonthsLeft: 0,
+  })
 }
 
 /** Raise performance (capped at 1000) — schools and courses pay this. */
