@@ -36,6 +36,8 @@ export const Stream = {
   Geopolitics: 9,
   /** Reserved in Milestone 1; claimed at L4-M4. The last reserved stream. */
   CombatResolution: 10,
+  /** Appended at C1 (the sanctioned path): crime and justice draws. */
+  Crime: 11,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

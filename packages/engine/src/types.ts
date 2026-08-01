@@ -287,6 +287,33 @@ export interface ServiceRecord {
 }
 
 // ---------------------------------------------------------------------------
+// Crime & justice (C1)
+//
+// crime.ts is the single writer of criminal records and jail state. A map
+// entry exists only for people with a history — absence IS the clean record.
+// ---------------------------------------------------------------------------
+
+export type CrimeKind = 'theft'
+
+export interface Conviction {
+  readonly kind: CrimeKind
+  /** Conviction date. */
+  readonly tick: Tick
+  /** Months of the sentence; 0 when the court settled on a fine. */
+  readonly sentenceMonths: number
+  /** The fine, cents; 0 when the sentence was time. */
+  readonly fine: number
+}
+
+export interface CriminalRecord {
+  readonly personId: EntityId
+  /** Append-only. History never shortens (Law 6); GATES read recency. */
+  readonly convictions: readonly Conviction[]
+  /** Non-null while serving time. */
+  readonly jailedUntilTick: Tick | null
+}
+
+// ---------------------------------------------------------------------------
 // Awards (L4-M5)
 //
 // AWARDS ARE EARNED FROM DOCUMENTED SERVICE EVENTS, NEVER GRANTED AS
@@ -615,6 +642,13 @@ export type EventType =
   | 'dropped-selection'
   /** Scored the annual fitness test — promotion points for the body's work. */
   | 'fitness-tested'
+  /** Crime & justice (C1). The thief's own timeline knows what they did. */
+  | 'committed-theft'
+  | 'was-robbed'
+  | 'was-arrested'
+  | 'was-convicted'
+  | 'was-acquitted'
+  | 'released-from-jail'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
@@ -673,6 +707,10 @@ export type DecisionType =
   | 'training'
   /** A special unit's selection, made or missed. */
   | 'selection'
+  /** A crime committed — motive on the record at the moment (C1). */
+  | 'crime'
+  /** The court's answer — verdict and sentence, citing the charge. */
+  | 'justice'
   | 'deployment'
   | 'geopolitics'
 
@@ -728,6 +766,11 @@ export type FactorId =
   | 'honorable-term'
   | 'qualification-earned'
   | 'service-disability'
+  | 'desperation'
+  | 'witnessed'
+  | 'prior-record'
+  | 'clean-record'
+  | 'jail-sentence'
   | 'under-orders'
   | 'war-demanded-troops'
   | 'enemy-capability'
@@ -784,6 +827,8 @@ export interface World {
   readonly service: Map<EntityId, ServiceRecord>
   /** Decorations per person, append-only. Written only through awards.ts. */
   readonly awards: Map<EntityId, AwardRecord[]>
+  /** Criminal records; entry only where history exists. crime.ts writes. */
+  readonly criminal: Map<EntityId, CriminalRecord>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

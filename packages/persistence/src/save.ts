@@ -11,6 +11,7 @@ import { generateNations, relationshipKey, toSnapshot } from '@life-engine/engin
 import type {
   AwardRecord,
   CausalRecord,
+  CriminalRecord,
   EducationRecord,
   EmploymentRecord,
   GeoRelation,
@@ -168,6 +169,11 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     awards.set(entry.personId as never, entry.decorations)
   }
 
+  const criminal = new Map<import('@life-engine/shared').EntityId, CriminalRecord>()
+  for (const record of (body['criminal'] as CriminalRecord[] | undefined) ?? []) {
+    criminal.set(record.personId, record)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -201,6 +207,7 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
     health,
     service,
     awards,
+    criminal,
     deployments,
     nations,
     geoRelations,

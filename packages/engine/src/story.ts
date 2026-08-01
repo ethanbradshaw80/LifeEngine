@@ -101,6 +101,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'left-job':
       if (event.detail === 'retired') return `${year} — Retired at ${age}.`
       if (event.detail === 'let go') return `${year} — Lost the job.`
+      if (event.detail === 'jailed') return `${year} — The job did not wait out the sentence.`
       return null // job-change departures read better as the arrival line alone
     case 'befriended':
       return `${year} — Became friends with ${nameOf(world, event.otherId)}.`
@@ -209,6 +210,20 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return event.detail === 'evacuated'
         ? `${year} — Evacuated home.`
         : `${year} — Came home; the tour was done.`
+    case 'committed-theft':
+      return `${year} — Took what was not ${objectPronoun(person) === 'her' ? 'hers' : 'his'} to take.`
+    case 'was-robbed':
+      return `${year} — The house was robbed.`
+    case 'was-arrested':
+      return `${year} — Arrested at ${age}.`
+    case 'was-convicted':
+      return event.detail?.startsWith('jail:') === true
+        ? `${year} — Convicted of theft; ${event.detail.slice(5)} months at the county's expense.`
+        : `${year} — Convicted of theft; fined.`
+    case 'was-acquitted':
+      return `${year} — Acquitted at the courthouse.`
+    case 'released-from-jail':
+      return `${year} — Released, at ${age}. The record came home too.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
@@ -275,6 +290,11 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'honorable-term': 'the term was served honorably',
   'qualification-earned': 'the rating was earned and recorded',
   'service-disability': 'the recorded disability was service-connected',
+  desperation: 'there was nothing left to try',
+  witnessed: 'somebody saw',
+  'prior-record': 'the record spoke first',
+  'clean-record': 'the record was clean until then',
+  'jail-sentence': 'the months belonged to the county',
   'under-orders': 'the orders came',
   'war-demanded-troops': 'the war needed people',
   'enemy-capability': 'the enemy could reach them',

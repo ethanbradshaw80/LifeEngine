@@ -58,12 +58,12 @@ import {
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { ServiceBranch, ServiceSpecialty } from './content.js'
-import { educationRank, meetsRequirement } from './content.js'
+import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js'
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
-import { openStream, Stream } from './rng.js'
+import { openStream, Stream, type StreamId } from './rng.js'
 import type { CausalFactor, Person, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -330,6 +330,20 @@ export function enlistmentBar(world: World, person: Person, tick: Tick): string 
   }
   const education = world.education.get(person.id)
   if (education?.enrolledIn !== null && education !== undefined) return 'Still in school.'
+  // C1: the record at the courthouse answers first. Ten clean years and
+  // the door opens again (waivers are a later milestone's nuance). Read
+  // inline — crime.ts imports this module for discharge, so importing its
+  // predicates back would add a direct two-module cycle; the shared
+  // constant in content.ts keeps the two gates from drifting apart.
+  const criminal = world.criminal.get(person.id)
+  if (criminal !== undefined) {
+    if (criminal.jailedUntilTick !== null && tick < criminal.jailedUntilTick) {
+      return 'Not from a cell.'
+    }
+    if (criminal.convictions.some((c) => tick - c.tick < RECORD_GATE_YEARS * 12)) {
+      return 'The record at the courthouse answers first.'
+    }
+  }
   if (eligibleSpecialties(world, person).length === 0) return 'No specialty is open at this schooling.'
   return null
 }
@@ -838,6 +852,9 @@ export function discharge(
   record: NonNullable<ReturnType<World['service']['get']>>,
   reason: string,
   inputs: readonly CausalFactor[],
+  // The stream that actually resolved this discharge, so the record can be
+  // re-derived: crime's misconduct discharge passes its own (review S5).
+  streamId: StreamId = Stream.Employment,
 ): void {
   // The record is CLOSED, never deleted: this is the artifact a descendant
   // finds three generations on (foundation §10).
@@ -883,7 +900,7 @@ export function discharge(
     inputs: [...inputs],
     chosen: `left ${BRANCH_NAMES[specialtyById(record.specialtyId).branch]} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
     rejected: ['to serve on'],
-    streamId: Stream.Employment,
+    streamId,
   })
 }
 

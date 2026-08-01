@@ -28,6 +28,10 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v22 — C1. Crime and justice: arrears-driven theft moving real money,
+ *      arrest, the courthouse, fines and jail months; jail is absence;
+ *      criminal records gate hiring and enlistment for ten clean years
+ *      and never rewrite history. The second Layer 4 institution.
  * v21 — M-DEPTH3. Workplace incidents name the machine and the shop
  *      ("a crush injury to the hand — the planer at the paper mill");
  *      wedding anniversaries (ten years, silver, golden) mark both feeds.
@@ -106,7 +110,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 21
+export const SIMULATION_VERSION = 22
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -156,6 +160,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       awards: [...world.awards.entries()]
         .sort(([a], [b]) => a - b)
         .map(([personId, decorations]) => ({ personId, decorations })),
+      criminal: [...world.criminal.values()].sort((a, b) => a.personId - b.personId),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,

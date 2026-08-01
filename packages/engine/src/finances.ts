@@ -55,12 +55,77 @@ export function householdIncome(world: World, household: Household): Money {
   return total as Money
 }
 
+/**
+ * Move money between two households (C1). Finances is the ONLY writer of
+ * household.savings, so crime asks rather than reaching in. Clamped to what
+ * the source actually holds above zero; returns the cents that moved.
+ */
+export function transferBetweenHouseholds(
+  world: World,
+  tick: Tick,
+  fromHouseholdId: EntityId,
+  toHouseholdId: EntityId,
+  cents: number,
+): number {
+  if (fromHouseholdId === toHouseholdId) return 0
+  const from = world.households.get(fromHouseholdId)
+  const to = world.households.get(toHouseholdId)
+  if (!from || !to || cents <= 0) return 0
+  const moved = Math.min(cents, Math.max(0, from.savings))
+  if (moved <= 0) return 0
+  world.households.set(from.id, { ...from, savings: (from.savings - moved) as Money })
+  world.households.set(to.id, { ...to, savings: (to.savings + moved) as Money })
+  noteArrearsCrossing(world, tick, from.id, from.savings)
+  noteArrearsCrossing(world, tick, to.id, to.savings)
+  return moved
+}
+
+/**
+ * Charge a household (a court's fine). May push it into arrears — that is
+ * the honest cost of a fine a family cannot afford, and the arrears
+ * machinery already knows what to do with it.
+ */
+export function chargeHousehold(world: World, tick: Tick, householdId: EntityId, cents: number): void {
+  const household = world.households.get(householdId)
+  if (!household || cents <= 0) return
+  world.households.set(household.id, { ...household, savings: (household.savings - cents) as Money })
+  noteArrearsCrossing(world, tick, household.id, household.savings)
+}
+
+/**
+ * The fell-behind / back-in-the-black crossing is an invariant of the FIELD,
+ * not of runFinances: any writer that moves savings across zero owes the
+ * event, or the story shows a fall with no recovery (or the reverse). Every
+ * writer in this module calls it with the balance it started from. (The
+ * separation split in relationships.ts predates this helper and does not —
+ * a known corner, not a rule.)
+ */
+function noteArrearsCrossing(world: World, tick: Tick, householdId: EntityId, before: Money): void {
+  const household = world.households.get(householdId)
+  if (!household) return
+  const after = household.savings
+  if (before >= 0 === after >= 0) return
+  const head = eldestMember(world, household)
+  if (!head) return
+  recordEvent(world, tick, {
+    type: after < 0 ? 'fell-behind' : 'back-in-the-black',
+    subjectId: head.id,
+  })
+}
+
 export function householdCosts(world: World, household: Household): Money {
   const place = world.places.get(household.placeId)
   let total = place ? rentFor(place.desirability) : 0
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
+    // Jail is absence (C1): the county feeds them, not the kitchen table.
+    // Read inline rather than importing crime (finances must not gain a
+    // cycle with a module that calls its transfer helper).
+    const criminal = world.criminal.get(memberId)
+    if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
+      continue
+    }
     total += ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE ? LIVING_COST_ADULT : LIVING_COST_CHILD
   }
   return total as Money
@@ -149,14 +214,7 @@ export function runFinances(world: World, tick: Tick): void {
 
     // The month it tips over is worth an event; every month it stays down is
     // not. Same on the way back up. Events mark changes, not states.
-    const head = eldestMember(world, household)
-    if (head) {
-      if (before >= 0 && after < 0) {
-        recordEvent(world, tick, { type: 'fell-behind', subjectId: head.id })
-      } else if (before < 0 && after >= 0) {
-        recordEvent(world, tick, { type: 'back-in-the-black', subjectId: head.id })
-      }
-    }
+    noteArrearsCrossing(world, tick, household.id, before)
   }
 
   pushArrearsHouseholdsToCheaperRent(world, tick)
@@ -280,6 +338,9 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
       ...heirHousehold,
       savings: (heirHousehold.savings + amount) as Money,
     })
+    // An inheritance that lifts a household out of arrears is the recovery
+    // the timeline owes a reader (the crossing invariant above).
+    noteArrearsCrossing(world, tick, heirHousehold.id, heirHousehold.savings)
     recordEvent(world, tick, {
       type: 'inherited',
       subjectId: heir.id,

@@ -37,6 +37,7 @@ import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdIncome } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
+import { hasRecentConviction, isJailed } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
 import { educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
 import { placesOfKind } from './worldgen.js'
@@ -246,6 +247,8 @@ export function runEmployment(world: World, tick: Tick): void {
     // The uniform is a full-time career: no civilian hiring, hopping or
     // retirement mechanics while serving (L4-M3; the service system owns it).
     if (isServing(world, person.id)) continue
+    // Jail is absence (C1): no work happens from a cell.
+    if (isJailed(world, person.id)) continue
 
     const age = ageAt(person.birthTick, tick)
     const education = world.education.get(person.id)
@@ -304,9 +307,12 @@ export function runEmployment(world: World, tick: Tick): void {
     )
     if (eligible.length === 0) continue
 
-    // Hiring is not guaranteed — ambition and diligence improve the odds.
+    // Hiring is not guaranteed — ambition and diligence improve the odds,
+    // and a recent conviction closes some doors before they open (C1): the
+    // record follows, though after ten clean years it stops gating.
     const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
-    if (!rng.chance(250 + Math.floor(drive / 4), 1000)) continue
+    const recordDrag = hasRecentConviction(world, person.id) ? 120 : 0
+    if (!rng.chance(Math.max(40, 250 + Math.floor(drive / 4) - recordDrag), 1000)) continue
 
     // Prefer better-paid roles, weighted rather than always-the-best, so two
     // people with identical qualifications do not lead identical lives.

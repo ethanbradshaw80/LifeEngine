@@ -143,6 +143,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     health: new Map(),
     service: new Map(),
     awards: new Map(),
+    criminal: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],

@@ -29,6 +29,8 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v16 — C1. `world.criminal` (empty for old saves — nobody's past is
+ *      invented; the law simply starts watching now).
  * v15 — M-SPECOPS. Service records gain `unitId` (null — nobody's special
  *      unit membership predates the units).
  * v14 — L4-M5. `world.awards` (empty for old saves — decorations are never
@@ -57,7 +59,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 15
+export const SCHEMA_VERSION = 16
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

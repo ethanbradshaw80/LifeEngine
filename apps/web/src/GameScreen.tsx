@@ -46,7 +46,9 @@ import {
 import {
   boardStandingFor,
   BRANCH_NAMES,
+  crimeNewsSince,
   enlistmentBar,
+  isJailed,
   healthOf,
   isDeployed,
   isServing,
@@ -106,6 +108,12 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'moved-in-together': '🏠',
   'moved-house': '🚚',
   'had-child': '👶',
+  'committed-theft': '🕶️',
+  'was-robbed': '🚪',
+  'was-arrested': '🚔',
+  'was-convicted': '⚖️',
+  'was-acquitted': '⚖️',
+  'released-from-jail': '🔓',
   'fell-behind': '📉',
   'back-in-the-black': '📈',
   inherited: '🕯️',
@@ -248,6 +256,14 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <div className="stat">
           <span className="stat-label">Work</span>
           {(() => {
+            if (isJailed(world, person.id)) {
+              return (
+                <>
+                  <span className="stat-value bad">in jail</span>
+                  <span className="stat-sub">serving time</span>
+                </>
+              )
+            }
             const record = world.service.get(person.id)
             if (record && isServing(world, person.id)) {
               return (
@@ -589,7 +605,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <div className="panel" aria-label="World news">
           {(() => {
             const wars = activeWars(world)
-            const allNews = [...newsSince(world, 0 as never)].reverse()
+            const allNews = [...newsSince(world, 0 as never), ...crimeNewsSince(world, 0 as never)]
+              .sort((a, b) => a.tick - b.tick)
+              .reverse()
             return (
               <>
                 {wars.length > 0 && (

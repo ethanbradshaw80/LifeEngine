@@ -62,6 +62,7 @@ reused or renumbered** — a save records which stream produced which outcome.
 | 8 | Economy and markets | Economy |
 | 9 | Reserved — geopolitics | *(Layer 4)* |
 | 10 | Reserved — combat resolution | *(Layer 4)* |
+| 11 | Crime and justice | Crime *(appended at C1)* |
 
 Extend by appending. Never renumber.
 

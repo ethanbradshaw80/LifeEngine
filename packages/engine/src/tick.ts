@@ -20,6 +20,7 @@
 
 import type { Tick } from '@life-engine/shared'
 import { tick as makeTick } from '@life-engine/shared'
+import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
 import { runGeopolitics } from './geopolitics.js'
 import { runHealth } from './health.js'
@@ -62,6 +63,10 @@ export function advanceTick(world: World): World {
   // Finances directly after employment: this month's wages land before any
   // system reads the balance, so strain and affordability see current money.
   runFinances(world, next)
+  // Crime after finances: the ledger that makes theft thinkable is this
+  // month's ledger, and stolen money lands before relationships and
+  // households read the balance (C1).
+  runCrime(world, next)
   runRelationships(world, next)
   runHouseholds(world, next)
   runBirths(world, next)

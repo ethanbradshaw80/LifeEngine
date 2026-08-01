@@ -91,6 +91,9 @@ export {
 } from './service.js'
 export { SPECIAL_UNITS, specialUnitById } from './content.js'
 
+// Crime & justice (C1)
+export { crimeNewsSince, criminalRecordOf, hasRecentConviction, isJailed } from './crime.js'
+
 // Awards (L4-M5)
 export {
   decorationsOf,
@@ -160,6 +163,8 @@ export type {
   AwardRecord,
   CausalFactor,
   CausalRecord,
+  Conviction,
+  CriminalRecord,
   DecisionType,
   EducationLevel,
   EducationRecord,

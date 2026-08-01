@@ -455,3 +455,13 @@ export function occupationById(id: string): Occupation {
 export function typicalPay(occupation: Occupation): Money {
   return Math.floor((occupation.minMonthlyPay + occupation.maxMonthlyPay) / 2) as Money
 }
+
+/**
+ * Crime & justice (C1). Convictions older than this stop GATING hiring and
+ * enlistment — they never leave the record; gates read recency, history
+ * reads everything. Lives here, in a leaf module, so crime.ts and
+ * service.ts read the same number: crime.ts imports service.ts directly
+ * (for discharge), so service.ts importing crime's copy back would add a
+ * direct two-module cycle.
+ */
+export const RECORD_GATE_YEARS = 10

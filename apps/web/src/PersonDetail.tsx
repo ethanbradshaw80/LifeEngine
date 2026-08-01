@@ -1,8 +1,10 @@
 import { Fragment, useState } from 'react'
 import {
   ageAt,
+  criminalRecordOf,
   decorationsOf,
   describeAilment,
+  isJailed,
   explainDecision,
   healthOf,
   familyHomeSince,
@@ -125,6 +127,19 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
                 {ailing && record.severity >= 600 && <span className="muted"> (serious)</span>}
                 {ailing && marked && ' · '}
                 {marked && <span className="muted">{record?.marks.join('; ') ?? 'carries old wounds'}</span>}
+              </dd>
+            </>
+          )
+        })()}
+        {(() => {
+          const record = criminalRecordOf(world, personId)
+          if (!record || record.convictions.length === 0) return null
+          return (
+            <>
+              <dt>Record</dt>
+              <dd>
+                {record.convictions.length} conviction{record.convictions.length === 1 ? '' : 's'}
+                {isJailed(world, personId) && <span className="bad"> · serving time</span>}
               </dd>
             </>
           )

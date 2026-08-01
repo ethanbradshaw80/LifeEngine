@@ -161,6 +161,10 @@ export function grantLongService(
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
+  // A term ended by the county jail does not cross the gate with a medal:
+  // misconduct forfeits long service, as its sibling grants already refuse
+  // it. Any other discharge — medical included — keeps the years earned.
+  if (qualifying.type === 'discharged' && qualifying.detail === 'misconduct') return null
 
   const existing = (world.awards.get(personId) ?? []).find((a) => a.kind === 'long-service')
   const milestone = LONG_SERVICE_YEARS + (existing?.count ?? 0) * 10

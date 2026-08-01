@@ -39,6 +39,9 @@ export const GOLDEN_TICKS = 120
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
  *
+ * Changed at C1 (SIMULATION_VERSION 22, schema v16): crime and justice —
+ * theft moves money between households, records gate hiring, jail is
+ * absence. Stream 11 appended; histories differ wherever desperation bit.
  * Changed at M-LEGACY (schema v6): player.lineage joined the serialized
  * shape. Shape-only — behaviour and SIMULATION_VERSION (4) unchanged.
  * Changed at M-WOUNDS (SIMULATION_VERSION 11): named harm — extra kind/site
@@ -67,7 +70,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = '145efde5'
+export const GOLDEN_HASH_HEX = '1117926a'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -140,7 +143,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":21')
+    expect(text).toContain('"simulationVersion":22')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

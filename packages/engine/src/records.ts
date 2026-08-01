@@ -120,6 +120,9 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'dropped-selection': 'selection',
   'completed-training': 'training',
   'act-of-valor': 'deployment',
+  'committed-theft': 'crime',
+  'was-convicted': 'justice',
+  'was-acquitted': 'justice',
 }
 
 /**
