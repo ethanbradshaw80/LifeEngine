@@ -87,6 +87,11 @@ export function currentDeployment(world: World, personId: EntityId): Deployment 
 }
 
 export function isDeployed(world: World, personId: EntityId): boolean {
+  // The dead are not deployed, whatever their tour record says this tick —
+  // without this, a death in theatre outside the combat resolver (disease,
+  // the town's own mortality) held a quota slot forever (review).
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return false
   return currentDeployment(world, personId) !== undefined
 }
 
@@ -295,16 +300,36 @@ export function evacuateHome(world: World, tick: Tick, personId: EntityId): void
 
 /** A month in theatre for everyone out there — and the way home at tour's end. */
 function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
+  // Open tours directly, NOT isDeployed — the dead fail isDeployed now,
+  // and their tours are exactly the ones the block below must close.
   const deployedIds: EntityId[] = []
-  for (const [personId] of world.deployments) {
-    if (isDeployed(world, personId)) deployedIds.push(personId)
+  for (const [personId, tours] of world.deployments) {
+    if (tours.some((t) => t.returnedAtTick === null)) deployedIds.push(personId)
   }
   deployedIds.sort((a, b) => a - b)
 
   for (const personId of deployedIds) {
     const person = world.people.get(personId)
     const deployment = currentDeployment(world, personId)
-    if (!person || person.deathTick !== null || !deployment) continue
+    if (!person || !deployment) continue
+
+    // Died in theatre outside this resolver — disease, or the mortality
+    // every month carries. The tour still closes and the campaign credit
+    // is still judged (the casualty waiver): the record does not leave
+    // people "still there" forever (review).
+    if (person.deathTick !== null) {
+      closeTour(world, tick, personId, deployment, true)
+      for (let i = world.events.length - 1; i >= 0; i--) {
+        const died = world.events[i]
+        if (!died || died.type !== 'died' || died.subjectId !== personId) continue
+        const enemyName = world.nations.get(deployment.enemyId)?.name
+        if (enemyName !== undefined) {
+          grantCampaignMedal(world, tick, personId, died, enemyName, tick - deployment.startedAtTick, true)
+        }
+        break
+      }
+      continue
+    }
 
     const war = wars.find((w) => w.a === deployment.warA && w.b === deployment.warB)
     const record = world.service.get(personId)

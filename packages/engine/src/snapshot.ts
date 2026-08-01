@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v20 — M-HARM review fixes. The combat moment carries the same fatal tail
+ *      as the resolver and keeping down still rolls the month's danger;
+ *      valor write-ups are rare (the act stays on the record regardless);
+ *      rematch memory fades within a generation instead of ratcheting the
+ *      world toward permanent peace; the dead in theatre have their tours
+ *      closed and their campaign credit judged; two decoration names that
+ *      were verbatim real medals are now invented.
  * v19 — M-HARM. Twenty-two new kinds of harm with their own marks; deaths
  *      name their cause; theatre disease (service-connected); twelve more
  *      contact flavors; the combat-moment decision; valor, meritorious
@@ -96,7 +103,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 19
+export const SIMULATION_VERSION = 20
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

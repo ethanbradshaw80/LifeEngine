@@ -190,16 +190,22 @@ export function runGeopolitics(world: World, tick: Tick): void {
 
     // WHICH border runs hot drifts on a decade scale (owner: "we only get
     // into wars with Osmark" — static bloc rivalry made one neighbour the
-    // world's only quarrel, forever). Zero-mean, so the overall pace of war
-    // stays tuned; deterministic from the pair and the decade, so it is a
-    // fact about the era, not a die roll at the moment of decision.
+    // world's only quarrel, forever). Zero-mean before the clamps (the >0
+    // gate and the 400 cap bend it slightly either way at the margins), so
+    // the overall pace of war stays roughly tuned; deterministic from the
+    // pair and the decade — a fact about the era, not a die roll.
     const flashpoint =
       (hash32(relation.a * 100_003 + relation.b * 7 + Math.floor(tick / 120) * 31) % 181) - 90
 
-    // And a pair that has already buried its dead escalates reluctantly:
-    // the persisted casualty counts ARE the memory. The next war finds a
-    // different border more often than a rematch.
+    // And a pair that has already buried its dead escalates reluctantly —
+    // but memory FADES (review: a permanent −120 was a one-way ratchet
+    // toward a world of permanent peace, which is not what history does).
+    // Full weight for a decade after the pair's last turn of state, gone
+    // within a generation.
     const foughtBefore = relation.casualtiesA + relation.casualtiesB > 0
+    const rematchDamping = foughtBefore
+      ? Math.max(0, 120 - Math.floor((tick - relation.sinceTick) / 12) * 6)
+      : 0
 
     const escalationPressure =
       Math.floor(instability / 12) +
@@ -207,7 +213,7 @@ export function runGeopolitics(world: World, tick: Tick): void {
       Math.floor(economicGap / 6) +
       flashpoint -
       (sameBloc ? 300 : 0) -
-      (foughtBefore ? 120 : 0)
+      rematchDamping
 
     // A nation that just fought a war starts nothing new for a decade or two.
     // Exhaustion suppresses the escalation branch entirely, which also lets a

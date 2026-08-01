@@ -27,10 +27,10 @@ import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import type { ServiceBranch } from './content.js'
 import { withArticle } from './text.js'
 import { householdCosts, householdIncome, inArrears } from './finances.js'
-import { evacuateHome, volunteerForDeployment } from './deployment.js'
+import { currentDeployment, evacuateHome, volunteerForDeployment } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
-import { grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
+import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
   boardStandingFor,
   discharge as dischargeService,
@@ -69,10 +69,11 @@ import {
   enrolPlayer,
   hirePerson,
   moveHouse,
+  performDeath,
   performMoveOut,
   retirePerson,
 } from './systems.js'
-import type { PendingDecision, PendingKind, Sex, World } from './types.js'
+import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 
 /**
  * Begin playing a living person. Clears any stale pending decision.
@@ -485,6 +486,57 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
   }
 }
 
+/**
+ * The combat-moment's shared casualty resolution: the same shape as the
+ * automatic resolver — severity, the SAME fatal tail, evacuation when
+ * serious, the same posthumous recognition — so a moment month is never a
+ * discount on the war (review: the player's death rate must not fall just
+ * because a question was asked).
+ */
+function resolveMomentCasualty(
+  world: World,
+  tick: PendingDecision['tick'],
+  person: Person,
+  enemyId: EntityId | null,
+  rng: ReturnType<typeof openStream>,
+  gatePerMille: number,
+  severityFloor: number,
+): void {
+  if (!rng.chance(gatePerMille, 1_000)) return
+  const severity = rng.nextBellInt(severityFloor, 1000)
+  const enemy = enemyId === null ? undefined : world.nations.get(enemyId)
+  const enemyName = enemy?.name ?? 'the enemy'
+
+  if (severity >= 940 && rng.chance(2, 5)) {
+    const deployment = currentDeployment(world, person.id)
+    const monthsIn = deployment === undefined ? 0 : tick - deployment.startedAtTick
+    performDeath(
+      world, tick, person, 'wounds taken in action',
+      [factor('own-choice', 1000), factor('battlefield-chaos', severity)],
+      Stream.CombatResolution,
+    )
+    evacuateHome(world, tick, person.id)
+    for (let i = world.events.length - 1; i >= 0; i--) {
+      const died = world.events[i]
+      if (!died || died.type !== 'died' || died.subjectId !== person.id) continue
+      grantWoundRecognition(world, tick, person.id, died, enemyName)
+      grantCampaignMedal(world, tick, person.id, died, enemyName, monthsIn, true)
+      break
+    }
+    return
+  }
+
+  const wound = inflictWound(world, tick, person.id, severity, 'direct-combat', rng)
+  const woundEvent = recordEvent(world, tick, {
+    type: 'wounded-in-action',
+    subjectId: person.id,
+    ...(enemyId !== null ? { otherId: enemyId } : {}),
+    detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+  })
+  grantWoundRecognition(world, tick, person.id, woundEvent, enemyName)
+  if (severity >= 600) evacuateHome(world, tick, person.id)
+}
+
 /** Called by systems at a player choice point. Halts the clock. */
 export function raisePending(
   world: World,
@@ -797,40 +849,37 @@ export function resolvePending(world: World, choice: string): void {
 
     case 'combat-moment': {
       // The squad is pinned. Both answers are real and both go on the
-      // record; only one of them is how people get hit — and only one of
-      // them is how a valor citation gets an act to cite.
+      // record — and BOTH are still a firefight: keeping down rolls the
+      // month's ordinary danger, going forward rolls more of it, with the
+      // same fatal tail the automatic resolver carries (review: the
+      // bravest act in the game must not be the only one that cannot
+      // kill). Only the act is optional; the exposure never was.
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
+      const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 9100)
       if (choice === 'lead-the-break') {
-        const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 9100)
         const act = recordEvent(world, pending.tick, {
           type: 'act-of-valor',
           subjectId: person.id,
           ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
-          detail: 'led the break under fire',
+          detail: 'went forward under fire',
         })
-        grantValor(world, pending.tick, person.id, act, enemy?.name ?? 'the enemy')
+        // Not every brave act is decorated: the write-up has to happen,
+        // and mostly it does not (review: a star at ×8 is cosmetic
+        // leveling, whatever it cites). The ACT stays on the record
+        // either way — that part nobody can take.
+        if (rng.chance(1, 3)) {
+          grantValor(world, pending.tick, person.id, act, enemy?.name ?? 'the enemy')
+        }
         recordDecision(world, pending.tick, {
           subjectId: person.id,
           decision: 'deployment',
           significance: 'defining',
           inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
-          chosen: 'led the break under fire',
+          chosen: 'went forward under fire',
           rejected: ['to keep down'],
           streamId: Stream.CombatResolution,
         })
-        // Leading the break is how it gets unpinned — and how men get hit.
-        if (rng.chance(450, 1_000)) {
-          const severity = rng.nextBellInt(450, 1000)
-          const wound = inflictWound(world, pending.tick, person.id, severity, 'direct-combat', rng)
-          const woundEvent = recordEvent(world, pending.tick, {
-            type: 'wounded-in-action',
-            subjectId: person.id,
-            ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
-            detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
-          })
-          grantWoundRecognition(world, pending.tick, person.id, woundEvent, enemy?.name ?? 'the enemy')
-          if (severity >= 600) evacuateHome(world, pending.tick, person.id)
-        }
+        resolveMomentCasualty(world, pending.tick, person, pending.otherId, rng, 450, 450)
       } else {
         recordDecision(world, pending.tick, {
           subjectId: person.id,
@@ -838,9 +887,11 @@ export function resolvePending(world: World, choice: string): void {
           significance: 'notable',
           inputs: [factor('own-choice', 1000)],
           chosen: 'kept down and held the position',
-          rejected: ['to lead the break'],
+          rejected: ['to go forward'],
           streamId: Stream.CombatResolution,
         })
+        // Still pinned, still a firefight: the ordinary month's danger.
+        resolveMomentCasualty(world, pending.tick, person, pending.otherId, rng, 250, 300)
       }
       break
     }
@@ -1253,8 +1304,8 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     }
 
     case 'combat-moment': {
-      lines.push('Leading the break is how it gets unpinned — and how people get hit.')
-      lines.push('Keeping down costs nothing but the moment. Both answers go on the record.')
+      lines.push('Going forward is how it gets unpinned — and how people get hit, and worse.')
+      lines.push('Keeping down is still a firefight; the month is dangerous either way. Both answers go on the record.')
       break
     }
 

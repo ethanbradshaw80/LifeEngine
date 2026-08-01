@@ -38,8 +38,10 @@ export const WOUND_RECOGNITION_TITLE = 'the Crimson Band'
 export const GOOD_CONDUCT_TITLE = 'the Faithful Service Medal'
 export const COMBAT_ACTION_TITLE = 'the Contact Star'
 export const VALOR_TITLE = 'the Star of Valor'
-export const MERITORIOUS_TITLE = 'the Meritorious Service Medal'
-export const LONG_SERVICE_TITLE = 'the Long Service Medal'
+// Invented names (review: the first drafts were verbatim real decorations,
+// which §3 forbids for awards by name).
+export const MERITORIOUS_TITLE = 'the Standard-Bearer Medal'
+export const LONG_SERVICE_TITLE = 'the Long Watch Medal'
 
 /** Meritorious service asks a term average well above honorable. */
 export const MERITORIOUS_PERFORMANCE = 700
@@ -106,7 +108,9 @@ export function grantValor(
     kind: 'valor',
     title: VALOR_TITLE,
     qualifying,
-    citation: `${qualifying.detail ?? 'an act under fire'} on the ${enemyName} front`,
+    // The citation asserts only what the simulation can honour: the
+    // person's own act, no squad the world does not model (review).
+    citation: `went forward under fire on the ${enemyName} front`,
     inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
   })
 }
