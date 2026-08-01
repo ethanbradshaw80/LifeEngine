@@ -679,11 +679,17 @@ export function resolvePending(world: World, choice: string): void {
           // of putting in. The board reads the file too: each recorded
           // non-selection raises what it takes, which is what makes 'pass'
           // a real choice — an unready packet costs the next one.
+          //
+          // CLEARING THE CUTOFF CLEARLY MEANS SELECTED — that is what a
+          // cutoff is (owner playtest: 796 against 510, passed over; the
+          // old flat slot-lottery gated people far above the line). The
+          // draw exists only NEAR the line, standing in for the cutoff's
+          // month-to-month drift the game does not model.
           const prepped = standing.points.total + 40
           const cutoffWithFile = standing.cutoff + standing.priorPassOvers * 15
+          const margin = prepped - cutoffWithFile
           const selected =
-            prepped >= cutoffWithFile &&
-            rng.chance(2 + Math.floor(Math.max(0, prepped - cutoffWithFile) / 60), 24)
+            margin >= 0 && (margin >= 150 || rng.chance(6 + Math.floor(margin / 15), 24))
           if (selected) {
             const newRank = record.rank + 1
             world.service.set(person.id, {

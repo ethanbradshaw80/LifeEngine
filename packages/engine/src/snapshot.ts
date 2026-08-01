@@ -28,6 +28,10 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v17 — M-SPECOPS fix. Clearing the board cutoff clearly means selected:
+ *      150+ points over promotes outright (player and NPC alike); the slot
+ *      draw exists only near the line. A soldier at 796 against 510 was
+ *      being passed over by a flat lottery, which is not what a cutoff is.
  * v16 — M-SPECOPS. Special schools (badge-granting, capability-named) and
  *      fictional special units with failable selection, duty pay and a
  *      sharper deployment; Service-tab actions (school requests, tryouts,
@@ -81,7 +85,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 16
+export const SIMULATION_VERSION = 17
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

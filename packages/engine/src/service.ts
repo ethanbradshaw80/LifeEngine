@@ -528,10 +528,11 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // board question (M-SERVICE-PLAY) — put in for, not received.
       const gates = competitiveGates(specialty, rank)
       if (gates && timeInGrade >= gates.tigNeeded) {
+        // Clearly over the cutoff = promoted; the draw lives only near the
+        // line (the same rule the player's board follows).
         const points = promotionPointsFor(world, person.id).total
-        promote =
-          points >= gates.cutoff &&
-          rng.chance(2 + Math.floor(Math.max(0, points - gates.cutoff) / 60), 24)
+        const margin = points - gates.cutoff
+        promote = margin >= 0 && (margin >= 150 || rng.chance(6 + Math.floor(margin / 15), 24))
       }
     }
     if (promote) {
