@@ -29,7 +29,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { occupationById, PENSION_CENTS_PER_POINT, PENSION_THRESHOLD } from './content.js'
+import { MACHINES_BY_OCCUPATION, occupationById, PENSION_CENTS_PER_POINT, PENSION_THRESHOLD } from './content.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
@@ -161,10 +161,23 @@ function beginAilment(
     // arrive through inflictWound, which stamps true.
     ailmentServiceConnected: false,
   })
+
+  // A workplace incident NAMES THE MACHINE (M-DEPTH3): "a crush injury to
+  // the hand — the planer at the paper mill". The record keeps kind and
+  // site as ever; the words of the moment keep the where and the what.
+  let description = describeAilment(ailment, kind, site)
+  if (ailment === 'injury' && context === 'machinery') {
+    const job = world.employment.get(person.id)
+    const machines = job === undefined ? undefined : MACHINES_BY_OCCUPATION[job.occupationId]
+    if (job !== undefined && machines !== undefined && machines.length > 0) {
+      const workplace = world.places.get(job.workplaceId)
+      description = `${description} — ${rng.pick(machines)}${workplace ? ` at ${workplace.name}` : ''}`
+    }
+  }
   recordEvent(world, tick, {
     type: ailment === 'injury' ? 'was-injured' : 'fell-ill',
     subjectId: person.id,
-    detail: `${severity >= SEVERE_AILMENT ? 'serious' : 'minor'}:${describeAilment(ailment, kind, site)}`,
+    detail: `${severity >= SEVERE_AILMENT ? 'serious' : 'minor'}:${description}`,
   })
 }
 

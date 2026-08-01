@@ -215,7 +215,7 @@ export function CharacterPicker({ world, onPlay, onCreate, onCancel }: PickerPro
 
 /** Plain-words labels for the engine's option ids, per decision kind. */
 const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
-  education: { college: 'Go to college', trade: 'Trade school', work: 'Go straight to work' },
+  education: { college: 'Go to college', trade: 'Trade school', work: 'Go straight to work', enlist: 'Enlist' },
   'job-offer': { accept: 'Take the job', decline: 'Turn it down' },
   'move-out': { accept: 'Move out', decline: 'Stay home' },
   courtship: { accept: 'See where it goes', decline: 'Stay friends' },

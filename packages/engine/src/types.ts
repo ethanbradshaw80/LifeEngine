@@ -568,6 +568,8 @@ export type EventType =
   | 'started-courting'
   | 'courtship-ended'
   | 'married'
+  /** A wedding anniversary worth marking: ten years, silver, golden. */
+  | 'anniversary'
   | 'divorced'
   | 'widowed'
   | 'left-home'

@@ -28,6 +28,9 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v21 — M-DEPTH3. Workplace incidents name the machine and the shop
+ *      ("a crush injury to the hand — the planer at the paper mill");
+ *      wedding anniversaries (ten years, silver, golden) mark both feeds.
  * v20 — M-HARM review fixes. The combat moment carries the same fatal tail
  *      as the resolver and keeping down still rolls the month's danger;
  *      valor write-ups are rare (the act stays on the record regardless);
@@ -103,7 +106,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 20
+export const SIMULATION_VERSION = 21
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -261,6 +261,19 @@ function decayAndReinforce(world: World, tick: Tick): void {
       if (inArrears(world, a.householdId)) change -= 3
     }
 
+    // The years that held get their day (M-DEPTH3, courtship/marriage
+    // texture): ten years married, then silver, then golden — deterministic
+    // from the wedding date, in both feeds, worth a little strength because
+    // a marked year genuinely is one.
+    if (relationship.type === 'spouse') {
+      const married = tick - relationship.typeSinceTick
+      if (married === 120 || married === 300 || married === 600) {
+        const which = married === 120 ? 'ten years' : married === 300 ? 'the silver' : 'the golden'
+        recordEvent(world, tick, { type: 'anniversary', subjectId: relationship.a, otherId: relationship.b, detail: which })
+        recordEvent(world, tick, { type: 'anniversary', subjectId: relationship.b, otherId: relationship.a, detail: which })
+      }
+    }
+
     const strength = Math.max(0, Math.min(1000, relationship.strength + change))
 
     if (relationship.type === 'friend' && strength < FRIENDSHIP_END_STRENGTH) {

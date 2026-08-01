@@ -99,6 +99,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'started-courting': '🌹',
   'courtship-ended': '🥀',
   married: '💍',
+  anniversary: '💞',
   divorced: '💔',
   widowed: '🖤',
   'left-home': '🚪',

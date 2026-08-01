@@ -49,6 +49,21 @@ export const WORKPLACE_NAMES: readonly string[] = [
 export const CIVIC_NAMES: readonly string[] = ['the town hall', 'the public library']
 
 /**
+ * What actually bites at work (M-DEPTH3, owner direction queued since
+ * M-WOUNDS: "workplace incidents naming the machine"). Keyed by occupation;
+ * trades without a table hurt themselves the generic way.
+ */
+export const MACHINES_BY_OCCUPATION: Readonly<Record<string, readonly string[]>> = {
+  millhand: ['the head saw', 'the planer', 'the log carriage'],
+  machinist: ['the lathe', 'the stamping press', 'the grinder'],
+  labourer: ['the hoist', 'the scaffolds', 'a load that shifted'],
+  carpenter: ['the table saw', 'the roof joists'],
+  electrician: ['a live panel', 'the pole transformer'],
+  cook: ['the fryer', 'the range'],
+  foreman: ['the loading dock', 'the conveyor'],
+}
+
+/**
  * Foreign nations, all invented (fictional-world constraint,
  * MILITARY_AND_WAR_FOUNDATION §3). Chosen to sound like places without
  * sounding like any place in particular.

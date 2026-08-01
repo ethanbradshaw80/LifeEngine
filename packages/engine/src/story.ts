@@ -116,6 +116,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — At ${age}, began courting ${nameOf(world, event.otherId)}.`
     case 'courtship-ended':
       return `${year} — Stopped seeing ${nameOf(world, event.otherId)}.`
+    case 'anniversary':
+      return event.detail === 'ten years'
+        ? `${year} — Ten years married to ${nameOf(world, event.otherId)}.`
+        : event.detail === 'the silver'
+          ? `${year} — The silver anniversary, with ${nameOf(world, event.otherId)}.`
+          : `${year} — The golden anniversary, with ${nameOf(world, event.otherId)}.`
     case 'married':
       return `${year} — Married ${nameOf(world, event.otherId)} at ${age}.`
     case 'divorced':
