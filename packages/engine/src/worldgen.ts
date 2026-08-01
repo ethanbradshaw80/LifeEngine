@@ -36,8 +36,17 @@ import {
   WORKPLACE_NAMES,
 } from './content.js'
 
-/** Founding population. The milestone specifies approximately 100 people. */
-export const DEFAULT_POPULATION = 100
+/**
+ * Founding population. ~100 from Milestone 1 through P2; 400 from M-ARMY2
+ * (owner direction 2026-08-01: "300-500 people just so we have it all mixed
+ * and not too many people join but still have other jobs"). Measured before
+ * the move: demographic bands hold at 400 (fertility 2.36-2.48, childless
+ * 6-9%, median first marriage 21, town grows to ~800-950 by year 150) and
+ * the army becomes visible (14-16 enlistments/decade, ~30 serving at once).
+ * Tests that predate the change pin population 100 explicitly — same
+ * generation path, byte-identical to their old worlds.
+ */
+export const DEFAULT_POPULATION = 400
 
 /** Oldest age generated for the founding population. */
 const MAX_STARTING_AGE = 84

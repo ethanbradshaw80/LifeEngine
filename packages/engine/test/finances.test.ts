@@ -29,7 +29,7 @@ import { distributeEstate } from '../src/finances.js'
 import type { World } from '../src/types.js'
 
 function build(seedValue = 12345, ticks = 0): World {
-  const world = createWorld(makeSeed(seedValue))
+  const world = createWorld(makeSeed(seedValue), 100)
   if (ticks > 0) advanceTicks(world, ticks)
   return world
 }

@@ -21,7 +21,7 @@ import {
 import type { World } from '../src/types.js'
 
 function freshWorld(seedValue = 12345): World {
-  return createWorld(makeSeed(seedValue))
+  return createWorld(makeSeed(seedValue), 100)
 }
 
 describe('custom lives', () => {

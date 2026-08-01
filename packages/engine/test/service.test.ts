@@ -20,7 +20,7 @@ import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 function grownWorld(ticks = 600): World {
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, ticks)
   return world
 }
@@ -81,7 +81,7 @@ describe('the peacetime career', () => {
   })
 
   it('junior promotion runs on time in grade, monthly, not an annual jump', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const teen = livingPeople(world)
       .filter((p) => ageAt(p.birthTick, world.tick) < 18)
       .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
@@ -179,7 +179,7 @@ describe('the peacetime career', () => {
 
 describe('veterans', () => {
   it('carry their trade home', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     // Hand-build a discharged field mechanic with primary schooling only.
     const person = livingPeople(world).find((p) => {
       const age = ageAt(p.birthTick, world.tick)
@@ -236,7 +236,7 @@ describe('the player in uniform', () => {
   }
 
   it('the fork at eighteen offers the uniform, and the specialty follows', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const teen = playAnEighteenYearOld(world)
 
     // Advance to the education question.
@@ -263,7 +263,7 @@ describe('the player in uniform', () => {
   })
 
   it('the term ends in a real question, and leaving makes a veteran', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const teen = playAnEighteenYearOld(world)
 
     for (let i = 0; i < 200 && !awaitingPlayer(world); i++) advanceTick(world)

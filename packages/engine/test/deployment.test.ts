@@ -25,7 +25,7 @@ import type { GeoRelation, World } from '../src/types.js'
 
 /** A world with a hand-declared homeland war and a hand-enlisted cohort. */
 function worldAtWar(seedValue = 12345, cohort = 12): { world: World; war: GeoRelation } {
-  const world = createWorld(makeSeed(seedValue))
+  const world = createWorld(makeSeed(seedValue), 100)
   const home = homeland(world)
   if (!home) throw new Error('no homeland')
 
@@ -65,7 +65,7 @@ function worldAtWar(seedValue = 12345, cohort = 12): { world: World; war: GeoRel
 
 describe('orders', () => {
   it('nobody deploys in peacetime', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 240)
     for (const [personId] of world.deployments) {
       // Any deployment must belong to a period when the homeland was at war.
@@ -214,7 +214,7 @@ describe('what the war costs', () => {
   function bloodyWar() {
     // A strong enemy, an offensive phase, a rifleman-heavy cohort: the worst
     // months the model can produce, so casualties occur within test budget.
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const home = homeland(world)
     if (!home) throw new Error('no homeland')
     const enemy = [...world.nations.values()]

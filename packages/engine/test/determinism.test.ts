@@ -75,12 +75,14 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-// P2: moved twice. First for household.spendStance entering the serialized
-// shape (verified shape-only by stripping the field and reproducing
-// c396b96b exactly). Then deliberately at SIMULATION_VERSION 25: the
-// marriage strain model stops counting a serving spouse as jobless
-// (military review), and service records gain retrain history fields.
-export const GOLDEN_HASH_HEX = '843c23ba'
+// P2: moved twice — spendStance entering the serialized shape (verified
+// shape-only by stripping the field and reproducing c396b96b exactly),
+// then SIMULATION_VERSION 25 (strain model counts a uniform as work;
+// service retrain fields) → 843c23ba. M-ARMY2 4b: moved again at
+// SIMULATION_VERSION 26 — the reference world is now the 400-person
+// founding town (owner direction). Older tests pin population 100 and
+// still guard the small-town histories byte for byte.
+export const GOLDEN_HASH_HEX = 'cc676397'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -153,7 +155,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":25')
+    expect(text).toContain('"simulationVersion":26')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

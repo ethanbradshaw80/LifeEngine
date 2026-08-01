@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v26 — M-ARMY2 4b. The founding town is 400 people (was ~100; owner
+ *      direction — "300-500 so we have it all mixed"). Same generation
+ *      path, bigger cast: a seed now names a different, larger town.
+ *      Bands verified at the new size before the move (fertility
+ *      2.36-2.48, town grows to ~800-950 by year 150, ~30 serving at
+ *      any moment). Worlds ALREADY SAVED keep their own population and
+ *      continue identically; only new worlds differ.
  * v25 — P2. A uniform is work: the marriage strain model stops counting a
  *      serving spouse as jobless (monthly idle decay, separation pressure,
  *      and the divorce record's financial-strain factor all read service
@@ -128,7 +135,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 25
+export const SIMULATION_VERSION = 26
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

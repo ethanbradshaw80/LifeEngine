@@ -20,7 +20,7 @@ describe('the town lives (150 years, seed 12345)', () => {
   let world: World
 
   beforeAll(() => {
-    world = createWorld(makeSeed(12345))
+    world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 1800)
   })
 
@@ -71,7 +71,7 @@ describe('a second seed does not collapse either', () => {
   // only bites another seed must still fail somewhere (review S7). The
   // yearly reconciliation rides along on the same world.
   it('seed 777 stays alive at 150 years, and its rows reconcile', () => {
-    const world = createWorld(makeSeed(777))
+    const world = createWorld(makeSeed(777), 100)
     advanceTicks(world, 1800)
     expect(populationAt(world, world.tick)).toBeGreaterThan(110)
     const rows = yearlyDemographics(world)

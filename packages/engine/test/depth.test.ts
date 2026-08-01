@@ -49,7 +49,7 @@ function tickUntilPending(world: World, maxTicks: number): boolean {
 
 describe('having a child is the couple\'s decision', () => {
   it('asks the player instead of rolling the birth through', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
 
@@ -81,7 +81,7 @@ describe('having a child is the couple\'s decision', () => {
     // window, guaranteed-fertile couple, robust to future tuning.
     const seedValue = 2024
 
-    const scout = createWorld(makeSeed(seedValue))
+    const scout = createWorld(makeSeed(seedValue), 100)
     advanceTicks(scout, 240)
     const earliest = scout.events.find((e) => {
       if (e.type !== 'born') return false
@@ -96,8 +96,8 @@ describe('having a child is the couple\'s decision', () => {
     const motherId = scoutChild?.parentIds.find((id) => scout.people.get(id)?.sex === 'female')
     if (motherId === undefined) throw new Error('birth without a mother on record')
 
-    const auto = createWorld(makeSeed(seedValue))
-    const played = createWorld(makeSeed(seedValue))
+    const auto = createWorld(makeSeed(seedValue), 100)
+    const played = createWorld(makeSeed(seedValue), 100)
     const wife = played.people.get(motherId)
     if (!wife) throw new Error('scouted mother missing from the twin world')
     const couple = { wife }
@@ -139,7 +139,7 @@ describe('having a child is the couple\'s decision', () => {
   })
 
   it('decline means no child this month', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
 
@@ -192,7 +192,7 @@ describe('retirement is the player\'s call', () => {
   }
 
   it('asks on the birthday after retirement age instead of forcing it', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const elder = workingElder(world)
     setPlayer(world, elder.id)
 
@@ -210,7 +210,7 @@ describe('retirement is the player\'s call', () => {
   })
 
   it('keep-working keeps the job and asks again next year', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const elder = workingElder(world)
     setPlayer(world, elder.id)
 
@@ -255,7 +255,7 @@ describe('a failing marriage is the player\'s call', () => {
   }
 
   it('asks instead of divorcing the player automatically', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const { person } = strainedMarriage(world)
     setPlayer(world, person.id)
 
@@ -270,7 +270,7 @@ describe('a failing marriage is the player\'s call', () => {
   })
 
   it('staying restores some strength and writes an own-choice record', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const { person, other } = strainedMarriage(world)
     setPlayer(world, person.id)
 
@@ -301,7 +301,7 @@ describe('a failing marriage is the player\'s call', () => {
   })
 
   it('separating ends it, with the choice on the record', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const { person, other } = strainedMarriage(world)
     setPlayer(world, person.id)
 
@@ -326,7 +326,7 @@ describe('stakes', () => {
   it('every pending decision can describe itself and its stakes', () => {
     // Sweep a played life and check every prompt that arises: non-empty text,
     // no leaked placeholders, and stakes lines that are real sentences.
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
 
@@ -356,7 +356,7 @@ describe('stakes', () => {
   })
 
   it('job-offer stakes compare pay honestly', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
 
@@ -382,7 +382,7 @@ function playerAlive(world: World, id: number): boolean {
 // Relationship display sanity for the new flows.
 describe('after the choice, the graph agrees', () => {
   it('a reconciled couple still lists each other as spouses', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const couple = findCouple(world)
     const ties = relationshipsOf(world, couple.wife.id)
     expect(ties.some((t) => t.type === 'spouse')).toBe(true)

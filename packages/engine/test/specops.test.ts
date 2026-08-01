@@ -55,7 +55,7 @@ function aPlayedSoldier(world: World, performance = 700): Person {
 
 describe('schools', () => {
   it('are gated, badge-granting, and the door states its reason', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world)
 
     const options = schoolOptionsFor(world, person.id)
@@ -89,7 +89,7 @@ describe('schools', () => {
 
 describe('special units', () => {
   it('selection wants the badge first, and says so', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     aPlayedSoldier(world)
     const result = tryOutForUnit(world, 'pathfinders')
     expect(result.joined).toBe(false)
@@ -97,7 +97,7 @@ describe('special units', () => {
   })
 
   it('the quiet tier draws only from the feeder unit', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 900)
     const options = unitOptionsFor(world, person.id)
     const ember = options.find((o) => o.id === 'task-unit-ember')
@@ -106,7 +106,7 @@ describe('special units', () => {
   })
 
   it('selection can be failed, both outcomes are recorded, and the file allows two tries', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 800)
     // Hand the badge over directly — the school path is tested above.
     world.awards.set(person.id, [
@@ -144,7 +144,7 @@ describe('special units', () => {
 
 describe('promotion points', () => {
   it('several roads reach the same board — a middling evaluation is not a wall', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 400) // a so-so evaluation, decent fitness
     const before = promotionPointsFor(world, person.id)
     expect(before.performance).toBe(200)
@@ -180,7 +180,7 @@ describe('promotion points', () => {
 
 describe('fitness parity', () => {
   it('the test runs for the player whether or not they press anything', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 700)
     // Zero the score: if the annual test were opt-in, it would stay zero.
     world.service.set(person.id, { ...world.service.get(person.id)!, fitnessScore: 0 })
@@ -205,7 +205,7 @@ describe('fitness parity', () => {
 
 describe('the town serves too', () => {
   it('NPCs earn school badges across the years — the player is not special', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 900)
     const schoolTitles = new Set(['Jump School', 'the Air-Mobile Assault Course', 'Sniper School', 'the Combat Diver Course', 'the Junior Leaders Course'])
     expect(

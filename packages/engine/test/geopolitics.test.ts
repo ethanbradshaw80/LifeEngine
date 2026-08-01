@@ -20,14 +20,14 @@ import type { World } from '../src/types.js'
 
 function grownWorld(ticks = 2400): World {
   // Two hundred years: enough history for wars to rise and fall repeatedly.
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, ticks)
   return world
 }
 
 describe('the world beyond the town', () => {
   it('has a dozen fictional nations and exactly one homeland', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     expect(world.nations.size).toBe(13)
 
     const homelands = [...world.nations.values()].filter((n) => n.isHomeland)
@@ -41,14 +41,14 @@ describe('the world beyond the town', () => {
   })
 
   it('gives every pair of nations a relation', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const n = world.nations.size
     expect(world.geoRelations.size).toBe((n * (n - 1)) / 2)
   })
 
   it('is deterministic like everything else', () => {
-    const first = createWorld(makeSeed(777))
-    const second = createWorld(makeSeed(777))
+    const first = createWorld(makeSeed(777), 100)
+    const second = createWorld(makeSeed(777), 100)
     advanceTicks(first, 240)
     advanceTicks(second, 240)
     expect(worldHash(first)).toBe(worldHash(second))
@@ -71,7 +71,7 @@ describe('wars', () => {
 
   it('never engulf the whole world at once', () => {
     // Sample the war count century by century rather than only at the end.
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const totalPairs = world.geoRelations.size
     for (let step = 0; step < 20; step++) {
       advanceTicks(world, 120)
@@ -122,7 +122,7 @@ describe('the aggregate rule', () => {
   it('adds no people to the world', () => {
     // Nations are entities but never persons: the person count of a world
     // with 13 nations equals the person count generated for the town.
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     for (const nationId of world.nations.keys()) {
       expect(world.people.has(nationId)).toBe(false)
       expect(world.education.has(nationId)).toBe(false)

@@ -23,13 +23,13 @@ const WORKING_AGE = 18
 let world: World
 
 beforeAll(() => {
-  world = createWorld(makeSeed(SEED))
+  world = createWorld(makeSeed(SEED), 100)
   advanceTicks(world, TICKS)
 })
 
 describe('population', () => {
   it('starts with roughly the requested number of people', () => {
-    const fresh = createWorld(makeSeed(SEED))
+    const fresh = createWorld(makeSeed(SEED), 100)
     expect(fresh.people.size).toBeGreaterThanOrEqual(95)
     expect(fresh.people.size).toBeLessThanOrEqual(105)
   })
@@ -49,7 +49,7 @@ describe('population', () => {
   it('does not collapse or explode', () => {
     // A stability check: emergent systems can run away (R-07). Ten years should
     // not double the town or halve it.
-    const fresh = createWorld(makeSeed(SEED))
+    const fresh = createWorld(makeSeed(SEED), 100)
     const ratio = world.people.size / fresh.people.size
     expect(ratio).toBeGreaterThan(0.9)
     expect(ratio).toBeLessThan(1.6)
@@ -224,7 +224,7 @@ describe('life stories', () => {
 
 describe('ageing', () => {
   it('ages everyone by ten years over 120 ticks', () => {
-    const fresh = createWorld(makeSeed(SEED))
+    const fresh = createWorld(makeSeed(SEED), 100)
     const firstId = [...fresh.people.keys()].sort((a, b) => a - b)[0]
     expect(firstId).toBeDefined()
     if (firstId === undefined) return

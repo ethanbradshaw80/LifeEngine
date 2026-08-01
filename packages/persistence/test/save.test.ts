@@ -39,7 +39,7 @@ const FIXTURE_V1 = fileURLToPath(
 )
 
 function build(seedValue = 12345, ticks = 120) {
-  const world = createWorld(makeSeed(seedValue))
+  const world = createWorld(makeSeed(seedValue), 100)
   advanceTicks(world, ticks)
   return world
 }

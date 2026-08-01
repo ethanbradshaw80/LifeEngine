@@ -44,10 +44,10 @@ let worldWithFullArc: World
 
 beforeAll(() => {
   // Long enough for courtships to mature, marriages to happen and some to end.
-  world = createWorld(makeSeed(12345))
+  world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, 600)
 
-  worldWithFullArc = createWorld(makeSeed(44))
+  worldWithFullArc = createWorld(makeSeed(44), 100)
   advanceTicks(worldWithFullArc, 900)
 })
 
@@ -156,7 +156,7 @@ describe('the population sustains itself', () => {
     // an adult man, which only happened by accident, so the town shrank from
     // 100 to 38 over 50 years. The fix was not a birth-rate tweak — it was
     // noticing that couples never moved in together at all.
-    const fresh = createWorld(makeSeed(12345))
+    const fresh = createWorld(makeSeed(12345), 100)
     const startingPopulation = fresh.people.size
     const living = [...world.people.values()].filter((p) => p.deathTick === null).length
 

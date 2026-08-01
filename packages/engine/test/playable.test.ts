@@ -58,10 +58,10 @@ function advanceToPending(world: World, maxTicks = 600): number {
 
 describe('playing nobody changes nothing', () => {
   it('a watched world equals a pure simulation, byte for byte', () => {
-    const pure = createWorld(makeSeed(SEED))
+    const pure = createWorld(makeSeed(SEED), 100)
     advanceTicks(pure, 120)
 
-    const watched = createWorld(makeSeed(SEED))
+    const watched = createWorld(makeSeed(SEED), 100)
     setPlayer(watched, null)
     advanceTicks(watched, 120)
 
@@ -73,7 +73,7 @@ describe('the clock and the player', () => {
   let world: World
 
   beforeEach(() => {
-    world = createWorld(makeSeed(SEED))
+    world = createWorld(makeSeed(SEED), 100)
   })
 
   it('halts at the first decision instead of living the life unasked', () => {
@@ -127,7 +127,7 @@ describe('the clock and the player', () => {
   })
 
   it('refuses to play the dead', () => {
-    const dead = createWorld(makeSeed(SEED))
+    const dead = createWorld(makeSeed(SEED), 100)
     advanceTicks(dead, 240)
     const gone = [...dead.people.values()].find((p) => p.deathTick !== null)
     expect(gone).toBeDefined()
@@ -138,7 +138,7 @@ describe('the clock and the player', () => {
 
 describe('answers take effect', () => {
   it('college means college', () => {
-    const world = createWorld(makeSeed(SEED))
+    const world = createWorld(makeSeed(SEED), 100)
     const teen = pickTeenager(world)
     setPlayer(world, teen.id)
     advanceToPending(world)
@@ -154,7 +154,7 @@ describe('answers take effect', () => {
   })
 
   it('an accepted job offer employs; a declined one does not', () => {
-    const world = createWorld(makeSeed(SEED))
+    const world = createWorld(makeSeed(SEED), 100)
     const teen = pickTeenager(world)
     setPlayer(world, teen.id)
     advanceToPending(world)
@@ -180,7 +180,7 @@ describe('answers take effect', () => {
 describe('a life is replayable', () => {
   it('same seed and same answers produce the identical world', () => {
     function liveALife(): World {
-      const world = createWorld(makeSeed(SEED))
+      const world = createWorld(makeSeed(SEED), 100)
       const teen = pickTeenager(world)
       setPlayer(world, teen.id)
 
@@ -211,7 +211,7 @@ describe('a life is replayable', () => {
 
 describe('death and legacy', () => {
   it('the run halts at death, the story ends honestly, and heirs are findable', () => {
-    const world = createWorld(makeSeed(SEED))
+    const world = createWorld(makeSeed(SEED), 100)
     // Play someone middle-aged so death arrives within the test budget.
     const elder = livingPeople(world).find((p) => {
       const age = ageAt(p.birthTick, world.tick)
@@ -249,7 +249,7 @@ describe('death and legacy', () => {
 
 describe('prompts', () => {
   it('describes a pending decision in plain words', () => {
-    const world = createWorld(makeSeed(SEED))
+    const world = createWorld(makeSeed(SEED), 100)
     const teen = pickTeenager(world)
     setPlayer(world, teen.id)
     advanceToPending(world)

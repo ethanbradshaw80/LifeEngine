@@ -19,14 +19,14 @@ import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 function grownWorld(ticks = 600): World {
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, ticks)
   return world
 }
 
 describe('the money', () => {
   it('moves to the cent, and never conjures', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const households = [...world.households.values()].filter((h) => h.savings > 50_000)
     const [a, b] = households
     if (!a || !b) throw new Error('a poor town')
@@ -113,7 +113,7 @@ describe('jail is absence, and the record follows', () => {
   })
 
   it('history never shortens; gates read recency', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = livingPeople(world)[0]
     if (!person) throw new Error('empty town')
     world.criminal.set(person.id, {

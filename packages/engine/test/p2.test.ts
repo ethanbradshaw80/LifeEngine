@@ -146,7 +146,7 @@ function giveJob(world: World, person: Person, performance: number, pay: number)
 
 describe('courtFriend', () => {
   it('refuses honestly, then courts through the shared path', () => {
-    const world = createWorld(makeSeed(9100))
+    const world = createWorld(makeSeed(9100), 100)
     const { a, b } = findSingles(world)
     setPlayer(world, a.id)
 
@@ -178,7 +178,7 @@ describe('courtFriend', () => {
   })
 
   it('refuses when the other is spoken for', () => {
-    const world = createWorld(makeSeed(9100))
+    const world = createWorld(makeSeed(9100), 100)
     const { a, b } = findSingles(world)
     setPlayer(world, a.id)
     befriend(world, a, b, 620)
@@ -209,7 +209,7 @@ describe('courtFriend', () => {
 
 describe('propose / endCourtship', () => {
   it('holds the automatic bar, then marries; ending demotes with the event', () => {
-    const world = createWorld(makeSeed(9100))
+    const world = createWorld(makeSeed(9100), 100)
     const { a, b } = findSingles(world)
     setPlayer(world, a.id)
     befriend(world, a, b, 620)
@@ -234,7 +234,7 @@ describe('propose / endCourtship', () => {
   })
 
   it('endCourtship emits the schema\'s waiting event and the Why? resolves', () => {
-    const world = createWorld(makeSeed(9100))
+    const world = createWorld(makeSeed(9100), 100)
     const { a, b } = findSingles(world)
     setPlayer(world, a.id)
     befriend(world, a, b, 620)
@@ -256,7 +256,7 @@ describe('propose / endCourtship', () => {
 
 describe('tendTheMarriage / walkOut / spendTimeWith', () => {
   it('tend strengthens on a cooldown; walkOut separates through the shared path', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { tie, wife } = findCouple(world)
     setPlayer(world, wife.id)
     const before = world.relationships.get(relationshipKey(tie.a, tie.b))?.strength ?? 0
@@ -279,7 +279,7 @@ describe('tendTheMarriage / walkOut / spendTimeWith', () => {
   })
 
   it('spendTimeWith reinforces a friendship, once a month', () => {
-    const world = createWorld(makeSeed(9100))
+    const world = createWorld(makeSeed(9100), 100)
     const { a, b } = findSingles(world)
     setPlayer(world, a.id)
     befriend(world, a, b, 400)
@@ -293,7 +293,7 @@ describe('tendTheMarriage / walkOut / spendTimeWith', () => {
 
 describe('tryForChild', () => {
   it('gates honestly and rolls the birth model\'s own odds', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
     // Unpartnered: honest refusal.
@@ -350,7 +350,7 @@ describe('tryForChild', () => {
 
 describe('quitJob / askForRaise', () => {
   it('quit releases the job with the honest detail', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
     expect(quitJob(world).reason).toContain('no job')
@@ -362,7 +362,7 @@ describe('quitJob / askForRaise', () => {
   })
 
   it('a raise rolls against real performance and pays the review formula', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
 
@@ -392,7 +392,7 @@ describe('quitJob / askForRaise', () => {
 
 describe("the foreman's warning", () => {
   it('warns the player once per spell before the dismissal zone', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
     giveJob(world, a, 230, 120_000)
@@ -436,7 +436,7 @@ describe("the foreman's warning", () => {
 
 describe('requestEnrolment', () => {
   it('opens the same 18–24 window the town keeps, honestly', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const young = [...world.people.values()].find((p) => {
       if (p.deathTick !== null) return false
       const age = ageAt(p.birthTick, world.tick)
@@ -462,7 +462,7 @@ describe('requestEnrolment', () => {
 
 describe('spending stance', () => {
   it('moves discretionary spending the way the stance says, and only for the chooser', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
     // A surplus to steer: hand the wife a good wage.
@@ -490,7 +490,7 @@ describe('spending stance', () => {
   })
 
   it('setSpendStance is a no-op when nothing changes', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     const events = world.events.length
     setSpendStance(world, world.tick, wife.householdId!, null, wife.id)
@@ -500,7 +500,7 @@ describe('spending stance', () => {
 
 describe('lookForPlace', () => {
   it('moves the household when the rent is honest, refuses when it is not', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
     const household = world.households.get(wife.householdId!)
@@ -527,7 +527,7 @@ describe('lookForPlace', () => {
 
 describe('convalesce stance', () => {
   it('is repeatable monthly while anything ails', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
     expect(setConvalescenceStance(world, true).reason).toContain('Nothing ails')
@@ -571,7 +571,7 @@ describe('convalesce stance', () => {
 
 describe('requestDischarge / retrain', () => {
   it('the discharge request is an honest no with the term on it', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
     expect(requestDischarge(world).reason).toContain('Not serving')
@@ -592,7 +592,7 @@ describe('requestDischarge / retrain', () => {
   })
 
   it('signing again raises the retrain question, and the trade can change', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     // Someone with secondary schooling, so alternatives exist.
     const soldier = [...world.people.values()].find((p) => {
       if (p.deathTick !== null) return false
@@ -662,7 +662,7 @@ describe('requestDischarge / retrain', () => {
 
 describe('move choices offer every candidate', () => {
   it("resolving 'to-<placeId>' moves to that street, not the engine's pick", () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
     const household = world.households.get(wife.householdId!)
@@ -696,7 +696,7 @@ describe('move choices offer every candidate', () => {
 describe('verbs are deterministic inputs', () => {
   it('same seed + same verbs at the same ticks = byte-identical worlds', () => {
     const run = () => {
-      const world = createWorld(makeSeed(9100))
+      const world = createWorld(makeSeed(9100), 100)
       const { a, b } = findSingles(world)
       setPlayer(world, a.id)
       befriend(world, a, b, 620)

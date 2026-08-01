@@ -26,7 +26,7 @@ import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 function grownWorld(): World {
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, 600)
   return world
 }
@@ -74,7 +74,7 @@ describe('kinship walks', () => {
 
 describe('legacy sums', () => {
   it('agrees with the inherited events to the cent', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 720)
 
     const inherited = world.events.filter((e) => e.type === 'inherited')
@@ -104,7 +104,7 @@ describe('legacy sums', () => {
 
 describe('the family home', () => {
   it('is not a judgement about mere age', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     // At tick 0 nothing qualifies: nothing has stood twenty years.
     for (const household of world.households.values()) {
       expect(familyHomeSince(world, household)).toBeNull()
@@ -125,7 +125,7 @@ describe('the family home', () => {
 
 describe('the line', () => {
   it('records successions across three generations, and knows it is a descent', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
 
     // Start with a young founding PARENT: their children exist from tick 0,
     // so the first succession is guaranteed and the test exercises lineage
@@ -174,7 +174,7 @@ describe('the line', () => {
   })
 
   it('does not record an abandonment as a succession', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const people = livingPeople(world)
     const first = people[0]
     const unrelated = people.find((p) => first && !p.parentIds.includes(first.id) && p.id !== first.id)

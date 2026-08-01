@@ -16,7 +16,7 @@ import { decisionForEvent, eventsFor } from '../src/records.js'
 import type { World } from '../src/types.js'
 
 function grown(ticks: number, seedValue = 12345): World {
-  const world = createWorld(makeSeed(seedValue))
+  const world = createWorld(makeSeed(seedValue), 100)
   advanceTicks(world, ticks)
   return world
 }
@@ -59,7 +59,7 @@ describe('the Why? mappings resolve against a grown world', () => {
 
 describe('a colliding question is not a silent loss', () => {
   it('raisePending reports whether it landed', () => {
-    const world = createWorld(makeSeed(777))
+    const world = createWorld(makeSeed(777), 100)
     const spec = {
       tick: world.tick,
       kind: 'retirement',

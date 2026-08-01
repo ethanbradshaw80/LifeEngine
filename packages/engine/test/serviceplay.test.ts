@@ -79,7 +79,7 @@ function putInUniform(
 
 describe('high-year tenure — up or out', () => {
   it('separates a long-passed-over member at term end, honorably', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const npc = anAdult(world)
     putInUniform(world, npc.id, {
       rank: 3, // SPC, below the top
@@ -101,7 +101,7 @@ describe('high-year tenure — up or out', () => {
   })
 
   it('across a long world, nobody serves forever in the same grade', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 900)
     for (const record of world.service.values()) {
       if (record.dischargedAtTick !== null) continue
@@ -129,7 +129,7 @@ describe("the player's board", () => {
   }
 
   it('asks, and either answer of the board goes on the record', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world)
 
     // The cadence guarantees an ask within a year of eligibility; other
@@ -160,7 +160,7 @@ describe("the player's board", () => {
   })
 
   it('never promotes the player past a competitive rank without the board', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world)
 
     // Thirty months of soldiering, declining every question that comes.
@@ -186,7 +186,7 @@ describe("the player's board", () => {
   })
 
   it('a school raises the standing, on the record', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = anAdult(world)
     setPlayer(world, person.id)
     putInUniform(world, person.id, { performance: 480 })
@@ -231,7 +231,7 @@ describe('volunteering for the rotation', () => {
   }
 
   it('puts a trained hand on the next tour, by own choice, on the record', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = aWarAndASoldier(world)
 
     expect(volunteerForDeployment(world, world.tick, person.id)).toBe(true)
@@ -245,7 +245,7 @@ describe('volunteering for the rotation', () => {
   })
 
   it('refuses the untrained and the unwarred', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = anAdult(world)
     putInUniform(world, person.id, { enlistedAtTick: world.tick - 1 }) // still in basic
     // No war at all:
@@ -255,8 +255,8 @@ describe('volunteering for the rotation', () => {
 
 describe('tab verbs', () => {
   it('applying for work is logged, answered honestly, and deterministic', () => {
-    const a = createWorld(makeSeed(12345))
-    const b = createWorld(makeSeed(12345))
+    const a = createWorld(makeSeed(12345), 100)
+    const b = createWorld(makeSeed(12345), 100)
     for (const world of [a, b]) {
       const person = anAdult(world)
       setPlayer(world, person.id)
@@ -280,7 +280,7 @@ describe('tab verbs', () => {
   })
 
   it('an unqualified application is refused with the reason, not a roll', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const person = anAdult(world)
     setPlayer(world, person.id)
     const education = world.education.get(person.id)
@@ -292,7 +292,7 @@ describe('tab verbs', () => {
   })
 
   it('walking into the recruiting office asks the uniform question, or explains the no', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     const teen = livingPeople(world)
       .filter((p) => {
         const age = ageAt(p.birthTick, world.tick)
@@ -314,7 +314,7 @@ describe('tab verbs', () => {
 
     // A veteran cannot enlist again, and hears why. (Young enough that the
     // age bar does not answer first.)
-    const world2 = createWorld(makeSeed(12345))
+    const world2 = createWorld(makeSeed(12345), 100)
     const vet = anAdult(world2, 25)
     setPlayer(world2, vet.id)
     putInUniform(world2, vet.id)

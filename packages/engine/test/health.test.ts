@@ -18,7 +18,7 @@ import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 function grownWorld(ticks = 600): World {
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, ticks)
   return world
 }
@@ -49,7 +49,7 @@ describe('bodies break and mend', () => {
 
   it('disability only ever accumulates', () => {
     // Track one world across time: nobody's disability may ever decrease.
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     const seen = new Map<number, number>()
     for (let step = 0; step < 30; step++) {
       advanceTicks(world, 24)
@@ -96,7 +96,7 @@ describe('accidents wound more often than they kill', () => {
 
 describe('the body gates the work', () => {
   it('a severely ailing person is not hired', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     // Hand-build: strike every jobless young adult with a severe injury, run a
     // month, assert none of them were hired while still severely ailing.
     const struck: import('@life-engine/shared').EntityId[] = []
@@ -146,7 +146,7 @@ describe('the convalescence choice', () => {
   }
 
   it('asks once, and only once, per ailment', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     strikeThePlayer(world)
 
     advanceTick(world)
@@ -160,14 +160,14 @@ describe('the convalescence choice', () => {
   })
 
   it('resting heals a real step; pushing on does not', () => {
-    const restWorld = createWorld(makeSeed(12345))
+    const restWorld = createWorld(makeSeed(12345), 100)
     const restAdult = strikeThePlayer(restWorld)
     advanceTick(restWorld)
     expect(restWorld.player.pending?.kind).toBe('convalesce')
     resolvePending(restWorld, 'rest')
     const afterRest = restWorld.health.get(restAdult.id)?.severity ?? 0
 
-    const pushWorld = createWorld(makeSeed(12345))
+    const pushWorld = createWorld(makeSeed(12345), 100)
     const pushAdult = strikeThePlayer(pushWorld)
     advanceTick(pushWorld)
     expect(pushWorld.player.pending?.kind).toBe('convalesce')

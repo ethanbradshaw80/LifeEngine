@@ -50,7 +50,7 @@ describe('the tables', () => {
 
 describe('the lived record', () => {
   it('events carry the specifics, and stories tell them', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 900)
 
     const injured = world.events.filter((e) => e.type === 'was-injured')
@@ -69,7 +69,7 @@ describe('the lived record', () => {
   })
 
   it('marks accumulate in words and appear in the story of a marked life', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 1200)
 
     const marked = [...world.health.values()].filter((r) => r.marks.length > 0)
@@ -93,7 +93,7 @@ describe('the lived record', () => {
   })
 
   it('no living person has marks without the disability to explain them', () => {
-    const world = createWorld(makeSeed(2024))
+    const world = createWorld(makeSeed(2024), 100)
     advanceTicks(world, 900)
     for (const record of world.health.values()) {
       if (record.marks.length > 0) expect(record.disability).toBeGreaterThan(0)

@@ -32,7 +32,7 @@ import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 function worldWithASoldier(): { world: World; soldierId: EntityId } {
-  const world = createWorld(makeSeed(12345))
+  const world = createWorld(makeSeed(12345), 100)
   const person = livingPeople(world)[0]
   if (!person) throw new Error('empty town')
   world.service.set(person.id, {
@@ -212,7 +212,7 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
 
 describe('a grown world decorates only from the record', () => {
   it('every award references a qualifying event of the right kind, owned by the right person', () => {
-    const world = createWorld(makeSeed(12345))
+    const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 2400) // two centuries: wars rise, tours happen, terms end
 
     const kindsSeen = new Set<string>()

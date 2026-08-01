@@ -26,7 +26,7 @@ import type { World } from '../src/types.js'
 let world: World
 
 beforeAll(() => {
-  world = createWorld(makeSeed(12345))
+  world = createWorld(makeSeed(12345), 100)
   advanceTicks(world, 900)
 })
 
@@ -75,7 +75,7 @@ describe('founders are not miscounted', () => {
   // log (worldgen writes spouse edges with no wedding event), and founder
   // grandmothers carry children worldgen never recorded.
   it('a 20-year world partitions cleanly and its completed cohort is empty', () => {
-    const young = createWorld(makeSeed(777))
+    const young = createWorld(makeSeed(777), 100)
     advanceTicks(young, 240)
     const funnel = partneringFunnel(young)
     expect(funnel.courtingNow + funnel.marriedNow + funnel.singleNow).toBe(funnel.adults)

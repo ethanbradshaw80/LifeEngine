@@ -666,16 +666,19 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
      the moment that makes a sim think "I'm going to the recruiter";
    - surface every enlistment as a news/feed card so the town's uniforms
      are VISIBLE.
-   4b. STARTING POPULATION 300-500 (owner: "so we have it all mixed and
-   not too many people join but still have other jobs"). This is a
-   WORLD-SCALE change, its own workstream inside the milestone:
-   DEFAULT_POPULATION ~100 → 300-500 moves the golden and every
-   population-sensitive test; D2's demographic bands must be
-   RE-MEASURED at the new size (the audit-runner); perf is fine by
-   measurement (1,000 people = 11.7 ms/tick post-P2-perf-fix, budget
-   100) but the person list / feed UI needs a look at 500; save ~1 MB.
-   Do 4b FIRST inside M-ARMY2 — every army rate above reads differently
-   at 4-5x the town.
+   4b. STARTING POPULATION — DONE (DEFAULT_POPULATION 100 → 400;
+   SIMULATION_VERSION 26, golden cc676397 in both places). MEASURED
+   FIRST at 400 × 150y × 3 seeds: fertility 2.36-2.48 (in band),
+   childless 6-9%, median first marriage 21 (D2's accepted value), town
+   grows to 789-968; ARMY BECOMES VISIBLE: 14-16 enlistments/decade,
+   ~30 serving at once, tours 9-64/150y — combat deaths STILL ZERO
+   (item 3 stands). ALL 21 pre-existing test files pin population 100
+   explicitly (same generation path → byte-identical to their old
+   worlds; suite stays fast at 19s); only determinism.test runs the
+   default. Saved worlds keep their own population (hydration carries
+   people, generation only runs on 'new'). Verified live: 400-person
+   list renders, worldgen 15 ms, +5 years = 314 ms in-browser,
+   cross-env badge verifies cc676397.
 5. CAREER SHAPE (owner round 2, all tuning constants + one rule):
    - HYT/up-or-out ONLY BELOW SGT: "people shouldn't be forced out of
      service after missing rank promotions past like SGT because a ton
