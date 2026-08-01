@@ -405,6 +405,14 @@ export interface Relationship {
   readonly typeSinceTick: Tick
   /** Set when a marriage ends. A former spouse is history, not a live tie. */
   readonly endedAtTick: Tick | null
+  /**
+   * D2. How many children the couple hoped to raise — decided and RECORDED
+   * at the wedding (or on the first tick for marriages that predate the
+   * model; nobody's plan is invented silently). Meaningful on spouse edges
+   * only; null everywhere else and until decided. relationships.ts is the
+   * single writer.
+   */
+  readonly familySizeAspiration: number | null
 }
 
 /** Stable key for an unordered pair. Always lower id first, so lookup is symmetric. */
@@ -592,6 +600,9 @@ export type EventType =
   | 'left-job'
   | 'befriended'
   | 'friendship-lapsed'
+  /** D2. Introduced to an eligible single at a town occasion — the seeking
+   *  model's meeting moment. detail carries the venue. */
+  | 'was-introduced'
   | 'started-courting'
   | 'courtship-ended'
   | 'married'
@@ -709,6 +720,9 @@ export type DecisionType =
   | 'selection'
   /** A crime committed — motive on the record at the moment (C1). */
   | 'crime'
+  /** D2. The family the couple hoped for — sized at the wedding, cut only
+   *  by recorded hardship. */
+  | 'family'
   /** The court's answer — verdict and sentence, citing the charge. */
   | 'justice'
   | 'deployment'
@@ -771,6 +785,8 @@ export type FactorId =
   | 'prior-record'
   | 'clean-record'
   | 'jail-sentence'
+  /** D2. The pull toward building a family — drives seeking and weddings. */
+  | 'wants-a-family'
   | 'under-orders'
   | 'war-demanded-troops'
   | 'enemy-capability'

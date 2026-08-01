@@ -611,13 +611,64 @@ seed sensitivity, staged resumption, narrative stability, and a
 **cross-environment check in the browser** — `apps/web/src/App.tsx` recomputes
 the same fingerprint and displays pass/fail.
 
-> **The golden hash `d5a213eb` appears in TWO places** and they must stay in
+> **The golden hash appears in TWO places** and they must stay in
 > step: `packages/engine/test/determinism.test.ts` and
 > `apps/web/src/App.tsx`. If simulation behaviour changes deliberately, update
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — D2, THE TOWN MUST LIVE (first milestone of the 2026-08-01 pivot)
+### Next up — P1, THE RECORD READS BACK (second milestone of the pivot)
+
+Read `docs/PLAYER_EXPERIENCE_AUDIT.md` §P1 — it is the spec: Why?
+mappings for 6 unmapped events (records.ts EVENT_EXPLAINED_BY), events
+for the 4 invisible recorded choices (convalesce/board-pass/keep-down/
+reconcile — SIMULATION_VERSION bump), the father sees his child born,
+stakes screens gain the modelled facts they omit (7 listed), Home-tab
+ledger reconciles (lifestyle line), asked-class pendings defer 1-2 months
+instead of silently dropping (board-retry template). Then P2 verbs (needs
+D2's working pipeline — have it now), P3 surfaces, C2. TECHNICAL DEBT NOW
+URGENT: the O(n²) friendship loop — D2 towns GROW, the full suite is ~7.5
+min (timeouts raised to 300s as a stopgap); build the cohort index
+(performance-reviewer mandatory) before P2 lands more verbs. Import-graph
+test still queued too.
+
+**D2 — COMPLETE** (the town must live; same session as the pivot)
+Partner-seeking (seekingIntent derived per tick — no stored state;
+recovery 18mo off former-spouse edges; age curve peaks 26-33), MEETING
+moments (holdSocials, Stream.Relationships salt 505, 'was-introduced'
+events with venue flavor, 💫), courtship TENDED (+9/mo — the decay trap
+was why nobody married before 38), marriage appetite grows with courtship
++ family window, FAMILY PLANS: 1-5 hoped children (mean 2.45) decided AND
+RECORDED at the wedding ('family' decision, aspiration on the spouse
+edge, schema v17 with null migration — founders/old saves decide via
+settleFamilyPlans on first tick), births read the PLAN (365 under, 12
+complete, 60 courting; age penalty 36+; arrears halves; deep arrears cuts
+the plan once, recorded via stopFamilyEarly — relationships stays single
+writer), LATENT FERTILITY per woman (5.5% never, 6.5% slow ÷7, constant-
+keyed stream 424242), married-with-parents conceive (the still-at-home
+check sterilized every couple that merged into a parental household),
+newlyweds cohabit fast (+320), MAX_AGE_GAP 16. REVIEWED (2 must-fix: the
+married-in-parental-home move-out/move-in OSCILLATION — solo move-out now
+refuses while the partner shares the roof; ADR-0019 amended to bless
+latent per-woman fecundity as circumstance + 'the children never came'
+recorded at window close. 7 should-fix incl. partner-map perf for
+holdSocials, first-marriage-only median instrument, MAX_FRIENDS+2 cap on
+meeting edges, elderly couples decide no plan, childless couples never
+'give up' via hardship cut). MEASURED RESULT: pop 99→124/186/132 growing
+on 3 seeds × 150y, fertility 2.02-2.46 (mean 2.28), childless 3-18%
+(mean ~9% — per-seed spread is binomial noise at n≈100, documented),
+medFIRSTMarriage 21-22, remarriage normal, maxLeftHome=1. Eight tuning
+iterations, all in DEMOGRAPHICS_AUDIT.md §D2-SHIPPED. SIMULATION_VERSION
+23, golden 55e49d20, schema v17. depth twin-world test recast to SCOUT
+the earliest founding-mother birth (latent fertility can cast an
+infertile wife; hard-expects both twins). vitest timeouts 60s→300s (third
+timeouts-not-drift lesson; profile partnerOf's per-call graph re-sort
+FIRST per review before assuming the friendship loop). d2.test.ts holds
+the bands permanently (12345 full bands + 777 collapse guard).
+
+### Superseded — the old D2 next-up (kept for context)
+
+### Old next up — D2, THE TOWN MUST LIVE (first milestone of the 2026-08-01 pivot)
 
 **THE PIVOT (ADR-0018/0019/0020, owner direction 2026-08-01):** new
 simulation institutions are PAUSED. Three arcs, in order: **D** (demographic

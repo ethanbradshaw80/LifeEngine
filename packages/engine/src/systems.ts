@@ -32,10 +32,10 @@ import type {
   World,
 } from './types.js'
 import { withArticle } from './text.js'
-import { endRelationshipsOnDeath, partnerOf, relationshipBetween } from './relationships.js'
+import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
-import { canAfford, distributeEstate, householdIncome } from './finances.js'
+import { canAfford, distributeEstate, householdCosts, householdIncome, inArrears } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { hasRecentConviction, isJailed } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
@@ -563,7 +563,15 @@ export function runHouseholds(world: World, tick: Tick): void {
     // Leave the parental home once there is an income — and only to a street
     // the wage can actually carry. A labourer does not move out into Kestrel
     // Hill; if nothing is affordable, they stay home and save.
+    //
+    // NOT while the partner lives under the same roof (D2 review M1): a
+    // married person in a multigenerational household is not a kid leaving
+    // home, and the solo move-out walked out on spouse and newborn, whom
+    // moveInWithPartner then reunited — an endless recordless oscillation.
+    // The couple moving out TOGETHER is a future household behaviour.
     if (stillWithParents && job) {
+      const partnerId = partnerOf(world, person.id)
+      if (partnerId !== null && household.memberIds.includes(partnerId)) continue
       if (!rng.chance(60 + Math.floor(person.traits.ambition / 20), 1000)) continue
 
       const affordable = neighbourhoods.filter((p) => canAfford(job.monthlyPay, p.desirability))
@@ -666,9 +674,12 @@ function moveInWithPartner(world: World, tick: Tick, person: Person, rng: Rng): 
   // is not processed twice in the same month.
   if (person.id > partnerId) return false
 
-  // Stronger and longer attachments move in sooner.
+  // Stronger and longer attachments move in sooner — and newlyweds do not
+  // keep two houses for a year (D2: the measured cohabitation lag was
+  // eating the family window).
   const months = tick - tie.typeSinceTick
-  const appetite = Math.floor(tie.strength / 8) + Math.min(60, months)
+  const weddingPull = tie.type === 'spouse' ? 320 : 0
+  const appetite = Math.floor(tie.strength / 8) + Math.min(60, months) + weddingPull
   if (!rng.chance(appetite, 1_400)) return false
 
   const personHome = world.households.get(person.householdId)
@@ -894,7 +905,6 @@ export function birthEligible(world: World, tick: Tick, person: Person): EntityI
 
   const household = householdOf(world, person)
   if (!household) return null
-  if (person.parentIds.some((id) => household.memberIds.includes(id))) return null // still at home
 
   // Milestone 5: a birth needs an actual partnership, not merely two adults
   // who happen to share a roof. That was the Milestone 1 placeholder, and it
@@ -905,10 +915,28 @@ export function birthEligible(world: World, tick: Tick, person: Person): EntityI
   if (!household.memberIds.includes(partnerId)) return null
   const partnerPerson = world.people.get(partnerId)
   if (!partnerPerson || partnerPerson.deathTick !== null) return null
+
+  // Living with her parents blocks a COURTING couple, not a married one —
+  // newlyweds under a parental roof still start families (D2: the old
+  // unconditional check quietly sterilized every couple that merged into a
+  // parents' household, which moveInWithPartner does all the time).
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+    const tie = relationshipBetween(world, person.id, partnerId)
+    if (tie === undefined || tie.type !== 'spouse') return null
+  }
   return partnerId
 }
 
 export function runBirths(world: World, tick: Tick): void {
+  // Living children per parent, one pass — the aspiration reads it (D2).
+  const livingChildCounts = new Map<EntityId, number>()
+  for (const child of world.people.values()) {
+    if (child.deathTick !== null) continue
+    for (const parentId of child.parentIds) {
+      livingChildCounts.set(parentId, (livingChildCounts.get(parentId) ?? 0) + 1)
+    }
+  }
+
   for (const person of livingPeople(world)) {
     const partnerId = birthEligible(world, tick, person)
     if (partnerId === null) continue
@@ -916,15 +944,47 @@ export function runBirths(world: World, tick: Tick): void {
     const household = householdOf(world, person)
     if (!household) continue
 
-    const childrenAtHome = household.memberIds.filter((id) => {
-      const member = world.people.get(id)
-      return member ? member.parentIds.includes(person.id) : false
-    }).length
+    // D2: family size is the couple's PLAN, not a per-child rate penalty.
+    // The plan was decided and recorded at the wedding; the birth system
+    // only reads it. Money still talks at the kitchen table: an arrears
+    // month grows no family, and deep arrears can shrink the plan itself —
+    // once, on the record (stopFamilyEarly; relationships owns the edge).
+    const tie = relationshipBetween(world, person.id, partnerId)
+    const married = tie !== undefined && tie.type === 'spouse'
+    const children = livingChildCounts.get(person.id) ?? 0
+
+    // Deep arrears can shrink the plan itself — once, on the record.
+    // Ordinary arrears only slows the family down (below): poor families
+    // still had children; pretending otherwise is neither realism nor
+    // kindness.
+    const behind = inArrears(world, household.id)
+    if (behind && married && household.savings < -2 * householdCosts(world, household)) {
+      stopFamilyEarly(world, tick, person.id)
+    }
+
+    // D2: for some women the children never come, and for some they come
+    // slowly — latent facts of biology, drawn from a constant-keyed stream
+    // (same woman, same answers, forever). This is where the childless
+    // marriages the town really had come from; modelled circumstance, not
+    // a rate lever (ADR-0019).
+    const fertilityDraw = openStream(world.seed, Stream.LifeEventTiming, person.id, 424_242)
+    if (fertilityDraw.chance(55, 1_000)) continue // the children never came
+    const slowToConceive = fertilityDraw.chance(65, 1_000)
+
+    const agePenalty = Math.max(0, age - 36) * 14
+    let base: number
+    if (married && tie.familySizeAspiration !== null && children < tie.familySizeAspiration) {
+      base = 365 - agePenalty // building the family they hoped for
+    } else if (married) {
+      base = 12 - agePenalty // the plan is complete; life still happens
+    } else {
+      base = 60 - agePenalty // courting — the plan comes with the wedding
+    }
+    if (behind) base = Math.floor(base / 2) // money talks at the kitchen table
+    if (slowToConceive) base = Math.floor(base / 5)
+    if (base <= 0) continue
 
     const rng = openStream(world.seed, Stream.LifeEventTiming, person.id, tick + 7777)
-    // Falls with age and with children already at home.
-    const base = 240 - childrenAtHome * 70 - Math.max(0, age - 34) * 12
-    if (base <= 0) continue
     if (!rng.chanceInTenThousand(base)) continue
 
     // The moment is real either way; the player couple decides. For everyone
@@ -964,7 +1024,11 @@ export interface BirthOverrides {
  * `motherId` must be the female partner — the caller has already verified the
  * pairing. All randomness is keyed on (mother, tick) and on the child's own
  * id, so a birth resolved from a player decision after the tick produces
- * exactly the child the automatic path would have produced during it.
+ * exactly the child the automatic path would have produced during it —
+ * PROVIDED no other birth lands later in the same tick: the deferred
+ * resolve allocates the child's id after those births instead of before,
+ * and traits key on the id (review S5). Rare at real birth rates; the
+ * parity test scouts the earliest birth to stay clear of it.
  *
  * `overrides` (M-GAMEDEPTH) replaces name and sex with the player's inputs
  * for a custom life. An overridden field consumes NO draw — the custom path

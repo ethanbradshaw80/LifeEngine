@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed, TICKS_PER_YEAR } from '@life-engine/shared'
 import type { Money, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { advanceTick, createWorld } from '../src/index.js'
+import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import {
   awaitingPlayer,
   describePending,
@@ -72,12 +72,36 @@ describe('having a child is the couple\'s decision', () => {
     // the other nobody is played. The child born must be the same person —
     // same name, same sex, same traits — because deliverChild keys all
     // randomness on (mother, tick) and the child's own id.
+    //
+    // Recast at D2: fertility is now a latent per-woman draw, so a blindly
+    // picked wife can be one who never conceives — and the longer the
+    // window, the likelier a pending whose first option diverges from the
+    // auto path's roll. So SCOUT first: run a throwaway world and choose
+    // the founding wife whose first child arrives EARLIEST. Shortest
+    // window, guaranteed-fertile couple, robust to future tuning.
     const seedValue = 2024
+
+    const scout = createWorld(makeSeed(seedValue))
+    advanceTicks(scout, 240)
+    const earliest = scout.events.find((e) => {
+      if (e.type !== 'born') return false
+      const child = scout.people.get(e.subjectId)
+      return child !== undefined && child.parentIds.some((id) => {
+        const parent = scout.people.get(id)
+        return parent !== undefined && parent.sex === 'female' && parent.birthTick < 0
+      })
+    })
+    if (!earliest) throw new Error('no founding-mother birth in 20 years — tuning collapsed?')
+    const scoutChild = scout.people.get(earliest.subjectId)
+    const motherId = scoutChild?.parentIds.find((id) => scout.people.get(id)?.sex === 'female')
+    if (motherId === undefined) throw new Error('birth without a mother on record')
 
     const auto = createWorld(makeSeed(seedValue))
     const played = createWorld(makeSeed(seedValue))
-    const couple = findCouple(played)
-    setPlayer(played, couple.wife.id)
+    const wife = played.people.get(motherId)
+    if (!wife) throw new Error('scouted mother missing from the twin world')
+    const couple = { wife }
+    setPlayer(played, wife.id)
 
     for (let i = 0; i < 240; i++) {
       advanceTick(auto)
@@ -96,7 +120,11 @@ describe('having a child is the couple\'s decision', () => {
           const child = bornPlayed
             .map((e) => played.people.get(e.subjectId))
             .find((c) => c?.parentIds.includes(couple.wife.id))
+          // Hard expectations both sides (review S5): a missing auto twin
+          // IS the parity break this test exists to catch — it must never
+          // pass vacuously.
           expect(child).toBeDefined()
+          expect(motherChildAuto).toBeDefined()
           if (motherChildAuto && child) {
             expect(child.givenName).toBe(motherChildAuto.givenName)
             expect(child.sex).toBe(motherChildAuto.sex)

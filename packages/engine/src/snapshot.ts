@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v23 — D2. The town must live: partner-seeking with meeting moments,
+ *      family-intent marriage timing, family-size aspiration decided and
+ *      recorded at the wedding, remarriage after recovery. The measured
+ *      collapse (completed fertility 1.29-1.67, courtships 1-2 a decade)
+ *      is repaired by modelled decisions — never a birth multiplier
+ *      (ADR-0019). Lives differ from v22 for every seed.
  * v22 — C1. Crime and justice: arrears-driven theft moving real money,
  *      arrest, the courthouse, fines and jail months; jail is absence;
  *      criminal records gate hiring and enlistment for ten clean years
@@ -110,7 +116,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 22
+export const SIMULATION_VERSION = 23
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

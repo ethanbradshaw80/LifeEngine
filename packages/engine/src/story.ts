@@ -62,6 +62,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
   // reads as though two different things happened.
   if (event.subjectId !== person.id) {
     switch (event.type) {
+      case 'was-introduced':
+        return `${year} — Introduced to ${nameOf(world, event.subjectId)} at ${event.detail ?? 'a town social'}.`
       case 'befriended':
         return `${year} — Became friends with ${nameOf(world, event.subjectId)}.`
       case 'friendship-lapsed':
@@ -103,6 +105,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       if (event.detail === 'let go') return `${year} — Lost the job.`
       if (event.detail === 'jailed') return `${year} — The job did not wait out the sentence.`
       return null // job-change departures read better as the arrival line alone
+    case 'was-introduced':
+      return `${year} — Introduced to ${nameOf(world, event.otherId)} at ${event.detail ?? 'a town social'}.`
     case 'befriended':
       return `${year} — Became friends with ${nameOf(world, event.otherId)}.`
     case 'friendship-lapsed':
@@ -295,6 +299,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'prior-record': 'the record spoke first',
   'clean-record': 'the record was clean until then',
   'jail-sentence': 'the months belonged to the county',
+  'wants-a-family': 'they wanted a family',
   'under-orders': 'the orders came',
   'war-demanded-troops': 'the war needed people',
   'enemy-capability': 'the enemy could reach them',

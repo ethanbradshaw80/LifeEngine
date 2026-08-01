@@ -105,6 +105,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   divorced: '💔',
   widowed: '🖤',
   'left-home': '🚪',
+  'was-introduced': '💫',
   'moved-in-together': '🏠',
   'moved-house': '🚚',
   'had-child': '👶',

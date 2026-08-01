@@ -228,6 +228,9 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
         formedAtTick: makeTick(0),
         typeSinceTick: makeTick(0),
         endedAtTick: null,
+        // Their plan predates the record too — decided (and recorded) on
+        // the first tick by settleFamilyPlans, never invented here.
+        familySizeAspiration: null,
       })
     }
 

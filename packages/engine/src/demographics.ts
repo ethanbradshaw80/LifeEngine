@@ -251,7 +251,9 @@ export interface FertilityCohort {
   readonly childlessWomen: number
   /** Whole years; null when the cohort is empty. */
   readonly medianAgeAtFirstChild: number | null
-  /** Whole years, both spouses counted; null when nobody married. */
+  /** Whole years, both spouses counted, FIRST marriages only (weddings
+   *  that predate the record are unknowable and excluded); null when
+   *  nobody married on the record. */
   readonly medianAgeAtMarriage: number | null
 }
 
@@ -287,13 +289,23 @@ export function fertilityCohort(world: World): FertilityCohort {
     if (first !== undefined) firstChildAges.push(ageAt(person.birthTick, first))
   }
 
+  // FIRST marriages only — the remarriage of a fifty-year-old widow is a
+  // good thing and a different statistic; mixing it in biased the median
+  // up and hid the number the tuning target names (review S6).
   const marriageAges: number[] = []
+  const everMarried = new Set<EntityId>()
   for (const event of world.events) {
     if (event.type !== 'married') continue
     const a = world.people.get(event.subjectId)
     const b = event.otherId !== null ? world.people.get(event.otherId) : undefined
-    if (a) marriageAges.push(ageAt(a.birthTick, event.tick))
-    if (b) marriageAges.push(ageAt(b.birthTick, event.tick))
+    if (a && !everMarried.has(a.id)) {
+      everMarried.add(a.id)
+      marriageAges.push(ageAt(a.birthTick, event.tick))
+    }
+    if (b && !everMarried.has(b.id)) {
+      everMarried.add(b.id)
+      marriageAges.push(ageAt(b.birthTick, event.tick))
+    }
   }
 
   return {

@@ -23,7 +23,7 @@ import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { raisePending } from './player.js'
 import { inArrears } from './finances.js'
-import { openStream, Stream } from './rng.js'
+import { openStream, Stream, type Rng } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
 import { relationshipKey } from './types.js'
 
@@ -44,7 +44,8 @@ const COURTSHIP_MIN_STRENGTH = 480
 const MARRIAGE_MIN_STRENGTH = 540
 const MARRIAGE_MIN_COURTSHIP_MONTHS = 14
 const DIVORCE_STRENGTH_THRESHOLD = 340
-const MAX_AGE_GAP = 12
+// Widened 12 → 16 at D2: thin cohorts in a small town locked out otherwise.
+const MAX_AGE_GAP = 16
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -146,9 +147,17 @@ function sharesNeighbourhood(world: World, a: Person, b: Person): boolean {
 }
 
 /** True when neither person is already paired and the pairing is plausible. */
-function couldCourt(world: World, a: Person, b: Person, tick: Tick): boolean {
+function couldCourt(
+  world: World,
+  a: Person,
+  b: Person,
+  tick: Tick,
+  partners?: ReadonlyMap<EntityId, EntityId>,
+): boolean {
   if (a.sex === b.sex) return false // simplification — see the note in §Births
-  if (partnerOf(world, a.id) !== null || partnerOf(world, b.id) !== null) return false
+  const aPartnered = partners !== undefined ? partners.has(a.id) : partnerOf(world, a.id) !== null
+  const bPartnered = partners !== undefined ? partners.has(b.id) : partnerOf(world, b.id) !== null
+  if (aPartnered || bPartnered) return false
 
   const ageA = ageAt(a.birthTick, tick)
   const ageB = ageAt(b.birthTick, tick)
@@ -205,8 +214,10 @@ export function runRelationships(world: World, tick: Tick): void {
 
   decayAndReinforce(world, tick)
   formFriendships(world, tick, living)
+  holdSocials(world, tick, living)
   advanceCourtships(world, tick)
   considerMarriage(world, tick)
+  settleFamilyPlans(world, tick)
   considerSeparation(world, tick)
 }
 
@@ -227,6 +238,11 @@ function decayAndReinforce(world: World, tick: Tick): void {
     let change = -BASE_DECAY
     if (sharesHousehold(world, a, b)) change += SHARED_HOME_REINFORCEMENT
     if (sharesWorkplace(world, relationship.a, relationship.b)) change += SHARED_WORK_REINFORCEMENT
+    // D2: a courtship is TENDED — the pair see each other on purpose, roof
+    // or no roof. Without this, courting couples who lived apart decayed
+    // below the marriage bar and lingered courting forever (courtships have
+    // no ending path), locking both partners out of everything.
+    if (relationship.type === 'courting') change += 9
     if (sharesNeighbourhood(world, a, b)) change += 1
 
     // Partnerships carry a strain proportional to how badly matched the two
@@ -342,6 +358,7 @@ function formFriendships(world: World, tick: Tick, living: Person[]): void {
       formedAtTick: tick,
       typeSinceTick: tick,
       endedAtTick: null,
+      familySizeAspiration: null,
     })
     counts.set(person.id, (counts.get(person.id) ?? 0) + 1)
     counts.set(chosen.id, (counts.get(chosen.id) ?? 0) + 1)
@@ -352,6 +369,252 @@ function formFriendships(world: World, tick: Tick, living: Person[]): void {
       otherId: chosen.id,
     })
   }
+}
+
+// ---------------------------------------------------------------------------
+// D2 — the town must live (DEMOGRAPHICS_AUDIT.md §D2)
+//
+// Measured before this existed: courtships ran 1-2 per DECADE because pairing
+// was entirely passive — a friendship had to drift over the courtship
+// threshold by proximity luck. Nobody ever LOOKED. Seeking models the
+// looking: single adults who want a family get introduced to eligible
+// singles at the town's occasions, at need-driven rates. Selection stays
+// exactly as picky (couldCourt + the compatibility draw in
+// advanceCourtships); only the FLOW of eligible meetings rises. No birth
+// rate is touched here — ADR-0019 forbids it.
+// ---------------------------------------------------------------------------
+
+/** Months the widowed and divorced heal before looking again. */
+const SEEKING_RECOVERY_MONTHS = 18
+/** Monthly meeting roll denominator — intent (≈25-270) over this. */
+const MEETING_DENOM = 1_300
+const VENUES = [
+  'the harvest dance',
+  'the church social',
+  'a wedding party',
+  'the county fair',
+  'the grange hall',
+  "a friend's kitchen table",
+]
+
+/**
+ * How much this person is looking for a partner right now, 0-1000-ish.
+ * Derived every tick from circumstance — no stored state, so no schema.
+ * Zero while partnered, outside 18-52, or still healing from a loss.
+ */
+export function seekingIntent(
+  world: World,
+  person: Person,
+  tick: Tick,
+  partners?: ReadonlyMap<EntityId, EntityId>,
+): number {
+  if (person.deathTick !== null) return 0
+  const partnered = partners !== undefined ? partners.has(person.id) : partnerOf(world, person.id) !== null
+  if (partnered) return 0
+  const age = ageAt(person.birthTick, tick)
+  if (age < ADULT_AGE || age > 52) return 0
+
+  // The bereaved and divorced heal first. Latest ended marriage wins;
+  // max() over unsorted iteration is order-independent.
+  let lastEnded: Tick | null = null
+  for (const relationship of world.relationships.values()) {
+    if (relationship.type !== 'former-spouse') continue
+    if (relationship.a !== person.id && relationship.b !== person.id) continue
+    if (relationship.endedAtTick === null) continue
+    if (lastEnded === null || relationship.endedAtTick > lastEnded) lastEnded = relationship.endedAtTick
+  }
+  if (lastEnded !== null && tick - lastEnded < SEEKING_RECOVERY_MONTHS) return 0
+
+  const byAge = age <= 20 ? 15 : age <= 25 ? 110 : age <= 33 ? 220 : age <= 45 ? 180 : 90
+  return byAge + Math.floor(person.traits.sociability / 20)
+}
+
+/**
+ * The meeting moments. A seeker's monthly roll may land them an
+ * introduction to another seeker they could actually court — a new tie
+ * starts warm (they met ON PURPOSE), an existing one warms further. The
+ * courtship itself must still pass the same machinery as ever.
+ */
+function holdSocials(world: World, tick: Tick, living: readonly Person[]): void {
+  const partners = currentPartners(world)
+  for (const person of living) {
+    const intent = seekingIntent(world, person, tick, partners)
+    if (intent <= 0) continue
+    const rng = openStream(world.seed, Stream.Relationships, person.id, tick + 505)
+    if (!rng.chance(intent, MEETING_DENOM)) continue
+
+    const candidates: Person[] = []
+    const weights: number[] = []
+    for (const other of living) {
+      if (other.id === person.id) continue
+      if (seekingIntent(world, other, tick, partners) <= 0) continue
+      if (!couldCourt(world, person, other, tick, partners)) continue
+      const key = relationshipKey(person.id, other.id)
+      const existing = world.relationships.get(key)
+      if (existing !== undefined && existing.type !== 'friend') continue // no rekindling exes in D2
+      candidates.push(other)
+      weights.push(1 + compatibility(person, other))
+    }
+    if (candidates.length === 0) continue
+
+    const chosen = rng.pickWeighted(candidates, weights)
+    const venue = rng.pick(VENUES)
+    const key = relationshipKey(person.id, chosen.id)
+    const existing = world.relationships.get(key)
+    if (existing !== undefined) {
+      world.relationships.set(key, {
+        ...existing,
+        strength: Math.min(1000, existing.strength + 90 + rng.nextInt(0, 60)),
+      })
+    } else {
+      // Romance may crowd a roster a little past the passive-friendship
+      // cap, but not without limit (review S1).
+      let friendEdges = 0
+      for (const relationship of world.relationships.values()) {
+        if (relationship.type !== 'friend') continue
+        if (relationship.a === person.id || relationship.b === person.id) friendEdges++
+      }
+      if (friendEdges >= MAX_FRIENDS + 2) continue
+      setRelationship(world, {
+        a: person.id < chosen.id ? person.id : chosen.id,
+        b: person.id < chosen.id ? chosen.id : person.id,
+        type: 'friend',
+        strength: Math.min(1000, 430 + Math.floor(compatibility(person, chosen) / 10) + rng.nextInt(0, 60)),
+        formedAtTick: tick,
+        typeSinceTick: tick,
+        endedAtTick: null,
+        familySizeAspiration: null,
+      })
+    }
+    recordEvent(world, tick, {
+      type: 'was-introduced',
+      subjectId: person.id,
+      otherId: chosen.id,
+      detail: venue,
+    })
+  }
+}
+
+/** Living children of one person — parentage is on Person, never the graph. */
+export function livingChildrenOf(world: World, personId: EntityId): number {
+  let count = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    if (person.parentIds.includes(personId)) count++
+  }
+  return count
+}
+
+/** 1-5 hoped-for children (mean ≈ 2.45, tuned against the D1 targets);
+ *  never fewer than the children already living. Small families are real
+ *  families — the first draft floored at 2 and the town exploded. */
+function decideFamilyAspiration(rng: Rng, existingChildren: number): number {
+  let hoped = 1
+  if (rng.chance(780, 1_000)) hoped += 1
+  if (rng.chance(470, 1_000)) hoped += 1
+  if (rng.chance(210, 1_000)) hoped += 1
+  if (rng.chance(60, 1_000)) hoped += 1
+  return Math.max(hoped, existingChildren)
+}
+
+/**
+ * Family plans outside the wedding day. Two cases, one ordered pass:
+ * marriages that predate the model (founding couples; migrated saves)
+ * decide their plan on the first tick it can be decided — recorded then,
+ * honestly, never backdated, and ONLY while the woman is inside reach of
+ * the window (an elderly couple decides nothing; their aspiration stays
+ * null and the record stays silent — review S3). And when the window
+ * closes on an unmet hope, that fact goes on the record: "the children
+ * never came" is the one Why? a generational game must not leave silent
+ * (review M2).
+ */
+function settleFamilyPlans(world: World, tick: Tick): void {
+  for (const [key, relationship] of sortedRelationships(world)) {
+    if (relationship.type !== 'spouse') continue
+    const a = world.people.get(relationship.a)
+    const b = world.people.get(relationship.b)
+    if (!a || !b || a.deathTick !== null || b.deathTick !== null) continue
+    const mother = a.sex === 'female' ? a : b
+    const motherAge = ageAt(mother.birthTick, tick)
+
+    if (relationship.familySizeAspiration === null) {
+      if (motherAge > 45) continue
+      const rng = openStream(world.seed, Stream.Relationships, relationship.a, tick + 707)
+      const aspiration = decideFamilyAspiration(rng, livingChildrenOf(world, mother.id))
+      world.relationships.set(key, { ...relationship, familySizeAspiration: aspiration })
+      recordDecision(world, tick, {
+        subjectId: relationship.a,
+        decision: 'family',
+        significance: 'notable',
+        inputs: [factor('wants-a-family', 300 + aspiration * 100, relationship.b)],
+        chosen: `hoped to raise ${aspiration} children`,
+        rejected: [],
+        streamId: Stream.Relationships,
+      })
+      continue
+    }
+
+    // The birthday month that ends the window, exactly once.
+    if (
+      motherAge === 43 &&
+      ageAt(mother.birthTick, (tick - 1) as Tick) === 42 &&
+      livingChildrenOf(world, mother.id) === 0
+    ) {
+      recordDecision(world, tick, {
+        subjectId: relationship.a,
+        decision: 'family',
+        significance: 'notable',
+        inputs: [factor('wants-a-family', 200, relationship.b)],
+        chosen: 'the children never came',
+        rejected: [],
+        streamId: Stream.Relationships,
+      })
+    }
+  }
+}
+
+/**
+ * Hardship can shrink the plan — once, on the record (ADR-0019: stopping
+ * is a decision, not a silent rate). Called by the birth system when a
+ * deep-arrears month would otherwise just silently skip; relationships
+ * stays the single writer of the edge.
+ */
+export function stopFamilyEarly(world: World, tick: Tick, motherId: EntityId): void {
+  const partnerId = partnerOf(world, motherId)
+  if (partnerId === null) return
+  const key = relationshipKey(motherId, partnerId)
+  const tie = world.relationships.get(key)
+  if (!tie || tie.type !== 'spouse' || tie.familySizeAspiration === null) return
+  // The family they HAVE is the family they stop at — and a couple with
+  // no children yet does not give up hoping, however hard the year
+  // (money postpones the first child through the hazard; it does not
+  // cancel it). Recorded only when the cut actually binds (review S4).
+  const settled = livingChildrenOf(world, motherId)
+  if (settled === 0) return
+  if (tie.familySizeAspiration <= settled) return
+
+  world.relationships.set(key, { ...tie, familySizeAspiration: settled })
+  recordDecision(world, tick, {
+    subjectId: motherId,
+    decision: 'family',
+    significance: 'notable',
+    inputs: [factor('in-arrears', 700), factor('wants-a-family', 250)],
+    chosen: 'stopped at the family the money could feed',
+    rejected: ['to keep trying'],
+    streamId: Stream.Relationships,
+  })
+}
+
+/** Current partner per person, one O(edges) pass — holdSocials' hot loop
+ *  reads this instead of re-sorting the whole graph per lookup (review S2). */
+function currentPartners(world: World): Map<EntityId, EntityId> {
+  const partners = new Map<EntityId, EntityId>()
+  for (const relationship of world.relationships.values()) {
+    if (relationship.type !== 'courting' && relationship.type !== 'spouse') continue
+    partners.set(relationship.a, relationship.b)
+    partners.set(relationship.b, relationship.a)
+  }
+  return partners
 }
 
 /** Strong friendships between eligible adults may become courtships. */
@@ -447,7 +710,13 @@ function considerMarriage(world: World, tick: Tick): void {
     const rng = openStream(world.seed, Stream.Relationships, relationship.a, tick + 202)
     const monthsTogether = tick - relationship.typeSinceTick
 
-    const appetite = 60 + earners * 45 + Math.min(90, monthsTogether)
+    // D2: the appetite grows with the courtship instead of plateauing at
+    // 90 — measured median marriage age was 38-44 because couples courted
+    // for a decade. The family window adds its own pull.
+    const woman = a.sex === 'female' ? a : b
+    const womanAge = ageAt(woman.birthTick, tick)
+    const familyPull = womanAge >= 22 && womanAge <= 40 ? 70 : 0
+    const appetite = 60 + earners * 45 + Math.min(200, monthsTogether * 5) + familyPull
     if (!rng.chance(appetite, 1_200)) continue
 
     const playerId = world.player.personId
@@ -484,17 +753,33 @@ export function promoteToSpouse(
   const earners =
     (world.employment.has(relationship.a) ? 1 : 0) + (world.employment.has(relationship.b) ? 1 : 0)
 
+  // D2: the couple sizes the family they hope for AT the wedding — decided
+  // once, recorded, and read by the birth system from then on.
+  const mother = a.sex === 'female' ? a : b
+  const planRng = openStream(world.seed, Stream.Relationships, relationship.a, tick + 707)
+  const aspiration = decideFamilyAspiration(planRng, livingChildrenOf(world, mother.id))
+
   world.relationships.set(relationshipKey(relationship.a, relationship.b), {
     ...relationship,
     type: 'spouse',
     typeSinceTick: tick,
     strength: Math.min(1000, relationship.strength + 40),
+    familySizeAspiration: aspiration,
   })
 
   recordEvent(world, tick, {
     type: 'married',
     subjectId: relationship.a,
     otherId: relationship.b,
+  })
+  recordDecision(world, tick, {
+    subjectId: relationship.a,
+    decision: 'family',
+    significance: 'notable',
+    inputs: [factor('wants-a-family', 300 + aspiration * 100, relationship.b)],
+    chosen: `hoped to raise ${aspiration} children`,
+    rejected: [],
+    streamId: Stream.Relationships,
   })
   recordDecision(world, tick, {
     subjectId: relationship.a,

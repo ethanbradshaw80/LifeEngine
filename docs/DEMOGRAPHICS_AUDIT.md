@@ -103,6 +103,56 @@ moment, architecture-reviewer (relationship graph + core person state per
 CLAUDE.md §10). Schema: family-intent/aspiration fields on people or
 couples — schema bump with honest empty migration.
 
+## D2 — SHIPPED (2026-08-01, SIMULATION_VERSION 23, schema v17)
+
+Implemented per §D2 above, tuned over eight measured iterations and one
+architecture-review round (two must-fixes and seven should-fixes, all
+applied — see the review notes below). Final numbers (150y × 3 seeds):
+population 99 → 124 / 186 / 132, all gently growing; completed fertility
+2.02 / 2.46 / 2.36 (mean 2.28); childless 18% / 3% / 6% (mean ~9%);
+median age at FIRST marriage 22 / 21 / 22 (the earlier draft instrument
+conflated remarriages and read 23-25); remarriages 39-47; nobody leaves
+home more than once. HONEST CALIBRATION NOTE: the population target — the
+point of D2 — holds on every seed; fertility and childlessness hold in
+the cross-seed mean, with per-seed spread that is binomial noise at
+~100 women per cohort (the same model produced 3/103 and 15/84 childless
+on different seeds). Tuning individual seeds into every band
+simultaneously would be overfitting three seeds; the d2.test.ts bands are
+set to catch regressions, not noise.
+
+What the tuning loop TAUGHT, beyond the spec (each was a measured wall):
+
+1. **The courting-decay trap.** Courting couples living apart decayed 4
+   strength/month with no offset, slid under the marriage bar, and — since
+   courtships have no ending path — lingered courting forever, locking
+   both partners out of everything. Fix: courtship is TENDED (+9/month).
+   The measured medMarriage 38-44 was mostly this.
+2. **The still-at-home sterilization.** birthEligible refused births to
+   anyone living with her parents, and moveInWithPartner routinely merges
+   newlyweds into a parental household — those couples were permanently
+   childless. Married couples under a parental roof now conceive;
+   courting couples still do not.
+3. **Arrears over-blocking.** A first draft made any arrears month a full
+   conception stop — measured childlessness ~50%. Poor families had
+   children; arrears now halves the hazard instead, and only DEEP arrears
+   shrinks the plan (once, recorded).
+4. **The aspiration floor.** Flooring hoped-for children at 2 exploded the
+   town (fertility 3.2, pop 500+ by 2080). Families of one are families;
+   the draw now spans 1-5, mean ≈ 2.45.
+5. **Latent fertility, added to the spec.** With everyone pairing young,
+   childlessness fell to 1-2% — falsely rosy. ~5.5% of women never
+   conceive and ~6.5% conceive slowly (÷7), drawn from a constant-keyed
+   stream (same woman, same answer, forever). This is where the childless
+   marriages a real town had come from — modelled circumstance, not a
+   rate lever.
+6. **MAX_AGE_GAP 12 → 16.** Thin cohorts in a ~60-person town otherwise
+   locked out entirely.
+
+Cost recorded honestly: growing populations make century-scale tests much
+slower under the O(n²) friendship loop — vitest timeouts raised 60s→300s,
+full suite ~7.5 minutes. The cohort-index fix (queued since M3) is now
+URGENT, promoted to the head of the technical queue.
+
 ## D1 — shipped with this audit
 
 `packages/engine/src/demographics.ts` (yearlyDemographics, partneringFunnel,

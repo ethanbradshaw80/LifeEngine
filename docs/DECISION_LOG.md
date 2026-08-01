@@ -586,6 +586,16 @@ outcome explainable): a fertility multiplier explains nothing, while "they
 married young because they wanted a family, and the town had a dance"
 explains everything. The owner's constraint and the constitution agree.
 
+**Amendment (2026-08-01, at D2 review).** Latent per-woman fecundity —
+a fixed draw from a constant-keyed stream deciding that for some women
+children never come (~5.5%) or come slowly (~6.5%) — is PERMITTED as
+modelled circumstance. It is population heterogeneity, not a tunable
+lever: adjusting it changes WHO is childless, and it is exempt from the
+causal-record requirement because it is not a decision. The record is
+still owed its fact: when the window closes on an unmet plan, "the
+children never came" is recorded (settleFamilyPlans). Known simplification
+accepted: fecundity currently follows the woman only.
+
 ## ADR-0020 — World configuration system; Real World Mode alongside Classic
 
 **Status:** Accepted (owner direction, 2026-08-01)
