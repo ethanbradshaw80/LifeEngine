@@ -66,6 +66,44 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**C1 — COMPLETE** (crime & justice arc opened; commit 255b12b;
+`docs/CRIME_PLAN.md` is the spec)
+`packages/engine/src/crime.ts` — single writer of world.criminal; absence
+IS the clean record. THEFT: motive modelled (arrears 90 + jobless 40 +
+both 30 + diligence ≤20 vs threshold 100 — personality alone cannot cross,
+Law 10 structural; jobless reads isServing, not service.has — veterans).
+Money ONLY via finances-owned transferBetweenHouseholds (clamped,
+conservation tested to the cent, self-transfer guarded) / chargeHousehold
+(no floor — a fine can dig a hole; arrears machinery verified to handle
+it). BOTH + runFinances + distributeEstate emit crossings via shared
+noteArrearsCrossing — fell-behind/back-in-the-black is an invariant of the
+FIELD (review: an inheritance lifting arrears owes the timeline its
+recovery). CHAIN at decision time: committed-theft → was-arrested (350/1000
+clearance) → was-convicted (700+100/prior, cap 950) / was-acquitted; jail
+6-18mo when priors or take > $250, else fine 2×take. JAIL IS ABSENCE: no
+hiring, county feeds them (householdCosts), job lost with
+'employment-change' record (factor 'jail-sentence'), serving → misconduct
+discharge (discharge() gained trailing streamId param; long-service medal
+now REFUSES misconduct like its siblings). GATES: hiring −120 drag (floor
+40), enlistmentBar "Not from a cell." / "The record at the courthouse
+answers first."; RECORD_GATE_YEARS=10 lives in content.ts (leaf — crime
+imports service for discharge, so service can't import back). was-robbed
+lands on EVERY adult under the roof (a played non-eldest must see the
+cause); crimeNewsSince keys headlines off committed-theft.otherId — one
+per theft, thief named only at conviction. PLAYER = bystander/victim ONLY
+(guard in runCrime; desperation pending is C2's). DEPLOYED SKIPPED (review
+M1: a jailed deployed soldier would earn a fabricated homecoming from
+resolveTours). Stream 11 appended + DETERMINISM.md row. Schema v16 (empty
+migration), SIMULATION_VERSION 22, golden 1117926a — golden window has NO
+theft, so crime.test.ts carries its own 900-tick double-run byte net.
+Review ran twice (2 must-fix + 8 should-fix, all fixed, all verified).
+KNOWN OPEN (queued): DOMAIN_MAP §4 Rule 4 import-graph test unwritten and
+the engine graph HAS function-level cycles (crime⇄systems via
+service/deployment and finances/player paths — two predate C1; bless via
+ADR or dissolve with a command seam); relationships.ts separation split
+predates noteArrearsCrossing; same-tick hire+jail "Why?" answers with the
+hire (records first-match) — rare cosmetic.
+
 **M-HARM — COMPLETE** (owner ×4: enemy variety / 20+ harms / deployment
 happenings / more awards; commits eb76bf7 + cfb5de0 review fixes)
 GEOPOLITICS: decade-scale zero-mean-ish flashpoint (hash pair×decade,
@@ -579,22 +617,25 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — CRIME & JUSTICE, C1 (owner choice 2026-07-31)
+### Next up — C2, THE PLAYER AND THE LAW
 
-Read `docs/CRIME_PLAN.md` — it is one page and it is the spec. Build C1:
-petty theft with modelled motive (arrears/joblessness), victim households
-losing real money through a finances-owned transfer helper (finances stays
-the ONLY writer of household.savings), clearance → arrest → court at the
-courthouse → verdict → fine or jail months (jail = absent from work and
-wage), criminal record on the person (schema bump, empty migration),
-hiring + enlistmentBar read the record, feed/News surface it.
-architecture-reviewer on the domain shape before commit. Then C2 (player
-crime choices) and C3 (justice depth) per the plan.
+Read `docs/CRIME_PLAN.md` (one page). C2: the desperation moment — deep
+arrears raises a pending with BOTH roads real (remove the C1 player guard
+in runCrime and raise the pending at that exact spot; the auto path's
+attemptTheft is the shared helper the answer calls, custom-birth replay
+pattern applies), being caught or not, the plea question, months served
+on-screen, the record following into applyForJob's honest refusals.
+architecture-reviewer on the pending shape. FIRST, though (queued from C1
+review, small): write the DOMAIN_MAP §4 Rule 4 import-graph test — the
+engine graph currently has function-level cycles (two predate C1); either
+dissolve them with a command seam or bless them in an ADR, then make the
+test enforce whatever was decided.
 
 M-DEPTH3 landed the queued small items (machines named in workplace
 incidents, anniversaries, Enlist label). Older still-open notes: survivor
 benefits decision, families on PCS, branch bases, HYT TIS approximation,
-Ember contact-cap corner.
+Ember contact-cap corner, relationships.ts separation split not calling
+noteArrearsCrossing.
 
 ### Superseded — the old L4-M5 next-up (kept for context)
 
