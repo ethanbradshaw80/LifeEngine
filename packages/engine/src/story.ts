@@ -140,6 +140,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'saw-combat':
       return `${year} — ${event.detail ?? 'Contact'}.`
+    case 'act-of-valor':
+      return `${year} — ${event.detail !== null ? event.detail.charAt(0).toUpperCase() + event.detail.slice(1) : 'An act under fire'}.`
     case 'wounded-in-action': {
       const [grade, what] = (event.detail ?? '').split(':')
       const description = what && what.length > 0 ? what : 'wounds'
@@ -248,6 +250,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'cheaper-rent': 'the rent was cheaper there',
   'bloc-rivalry': 'of rivalry between the powers',
   'resource-competition': 'of competition over resources',
+  'regional-flashpoint': 'that border was the era’s flashpoint',
   'internal-instability': 'of unrest at home',
   'war-weariness': 'both sides were worn out',
   'heavy-casualties': 'of the cost in lives',

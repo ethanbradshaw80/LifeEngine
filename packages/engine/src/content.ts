@@ -297,6 +297,9 @@ export const POINTS_PER_CAMPAIGN = 25
 export const POINTS_PER_GOOD_CONDUCT = 20
 export const POINTS_PER_WOUND_RECOGNITION = 15
 export const POINTS_PER_COMBAT_ACTION = 15
+export const POINTS_PER_VALOR = 30
+export const POINTS_PER_MERITORIOUS = 30
+export const POINTS_PER_LONG_SERVICE = 20
 /** The awards bucket is CAPPED, as in the real points model — service is
  *  recognized, but a rack cannot buy a board on its own (review: without
  *  this, the points-optimal life is collecting wounds). */

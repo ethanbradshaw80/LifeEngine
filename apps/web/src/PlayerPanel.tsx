@@ -230,6 +230,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'promotion-board': { 'put-in': 'Put your name in', pass: 'Let it go by' },
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
+  'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
 }
 
 function optionLabel(kind: string, option: string): string {

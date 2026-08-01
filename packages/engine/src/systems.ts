@@ -37,6 +37,7 @@ import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdIncome } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
+import { describeAilment, pickInjury } from './wounds.js'
 import { educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -1081,7 +1082,25 @@ export function runMortality(world: World, tick: Tick): void {
       continue
     }
 
-    const cause = accidental ? 'an accident' : age >= 70 ? 'old age' : 'illness'
+    // DEATH NAMES ITS CAUSE (M-HARM, owner direction queued since
+    // M-WOUNDS): an active ailment is what killed — "died of pneumonia",
+    // not "died of illness". A fatal accident names its harm the same way.
+    // Only a death with nothing on the health record stays general.
+    const healthRecord = world.health.get(person.id)
+    const activeAilment = healthRecord !== undefined && healthRecord.ailment !== null
+    let cause: string
+    if (accidental) {
+      const fatalInjury = pickInjury(rng, 'mishap')
+      cause = `an accident — ${describeAilment('injury', fatalInjury.kind, fatalInjury.site)}`
+    } else if (activeAilment) {
+      cause = describeAilment(
+        healthRecord.ailment ?? 'illness',
+        healthRecord.ailmentKind,
+        healthRecord.ailmentSite,
+      )
+    } else {
+      cause = age >= 70 ? 'old age' : 'a sudden illness'
+    }
 
     performDeath(world, tick, person, cause,
       accidental

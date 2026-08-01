@@ -24,7 +24,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
-import { grantGoodConduct, grantQualificationBadge } from './awards.js'
+import { grantGoodConduct, grantLongService, grantMeritoriousService, grantQualificationBadge } from './awards.js'
 import { ageAt } from './clock.js'
 import {
   BOARD_CUTOFF_BASE,
@@ -44,6 +44,9 @@ import {
   POINTS_PER_CAMPAIGN,
   POINTS_PER_COMBAT_ACTION,
   POINTS_PER_GOOD_CONDUCT,
+  POINTS_PER_LONG_SERVICE,
+  POINTS_PER_MERITORIOUS,
+  POINTS_PER_VALOR,
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_SCHOOLS,
   SERVICE_TERM_MONTHS,
@@ -149,6 +152,9 @@ export function promotionPointsFor(world: World, personId: EntityId): PromotionP
     if (award.kind === 'good-conduct') return sum + award.count * POINTS_PER_GOOD_CONDUCT
     if (award.kind === 'wound-recognition') return sum + award.count * POINTS_PER_WOUND_RECOGNITION
     if (award.kind === 'combat-action') return sum + award.count * POINTS_PER_COMBAT_ACTION
+    if (award.kind === 'valor') return sum + award.count * POINTS_PER_VALOR
+    if (award.kind === 'meritorious-service') return sum + award.count * POINTS_PER_MERITORIOUS
+    if (award.kind === 'long-service') return sum + award.count * POINTS_PER_LONG_SERVICE
     return sum
   }, 0)
   const points = {
@@ -815,6 +821,8 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
     detail: rankTitle(record.branch, record.rank),
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
+  grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
+  grantLongService(world, tick, person.id, reenlisted, Math.floor((tick - record.enlistedAtTick) / 12))
 }
 
 /** Average monthly performance across the term now closing. */
@@ -844,6 +852,8 @@ export function discharge(
   // judged on the term's AVERAGE. A term cut short — medical or otherwise —
   // is refused by the grant itself, which reads the reason off the event.
   grantGoodConduct(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
+  grantMeritoriousService(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
+  grantLongService(world, tick, person.id, dischargedEvent, Math.floor((tick - record.enlistedAtTick) / 12))
 
   // If the service already left recognized harm on the body, the pension
   // begins the day the uniform comes off — on the record, never silently.

@@ -106,7 +106,9 @@ export interface Household {
 
 export type Ailment = 'injury' | 'illness'
 
-/** What KIND of harm it is. M-WOUNDS: a wound has a name, not a category. */
+/** What KIND of harm it is. M-WOUNDS: a wound has a name, not a category.
+ *  M-HARM widened both tables — the world has many ways to hurt a body,
+ *  and a record that names them is worth more than a category. */
 export type InjuryKind =
   | 'gunshot'
   | 'shrapnel'
@@ -116,6 +118,18 @@ export type InjuryKind =
   | 'fracture'
   | 'concussion'
   | 'laceration'
+  | 'amputation'
+  | 'hearing-damage'
+  | 'spinal-injury'
+  | 'internal-injury'
+  | 'eye-injury'
+  | 'electrocution'
+  | 'chemical-burns'
+  | 'smoke-inhalation'
+  | 'heatstroke'
+  | 'frostbite'
+  | 'near-drowning'
+  | 'animal-bite'
 
 export type IllnessKind =
   | 'pneumonia'
@@ -124,6 +138,16 @@ export type IllnessKind =
   | 'infection'
   | 'heart-trouble'
   | 'back-trouble'
+  | 'cancer'
+  | 'stroke'
+  | 'tuberculosis'
+  | 'meningitis'
+  | 'appendicitis'
+  | 'kidney-trouble'
+  | 'liver-trouble'
+  | 'ulcers'
+  | 'field-fever'
+  | 'dysentery'
 
 /** Where on the body an injury landed. */
 export type BodySite = 'leg' | 'arm' | 'hand' | 'chest' | 'head' | 'back' | 'shoulder' | 'foot'
@@ -277,6 +301,12 @@ export type AwardKind =
   | 'wound-recognition'
   /** Came under enemy fire — once per war, from the recorded contact. */
   | 'combat-action'
+  /** A documented act under fire. Requires the recorded act, nothing else. */
+  | 'valor'
+  /** A term served at a distinguished average — the evaluation's decoration. */
+  | 'meritorious-service'
+  /** Twenty years in uniform; a device at thirty. */
+  | 'long-service'
   /** Qualifying service in a war's theatre: three months, or a casualty. */
   | 'campaign'
   /** A completed enlistment term served honorably. */
@@ -469,6 +499,9 @@ export type PendingKind =
   | 'unit-tryout'
   /** LOG-ONLY: took the fitness test from the Service tab. */
   | 'fitness-test'
+  /** A contact that became the player's own moment: the squad pinned, and
+   *  a choice that is genuinely theirs (M-HARM). */
+  | 'combat-moment'
   /**
    * A custom life brought into the world at the picker. NEVER raised as a
    * live question — createCustomLife writes the log entry directly, so the
@@ -586,6 +619,9 @@ export type EventType =
   /** Came under fire and walked away — contact is not casualty. The texture
    *  of a real tour, and what combat-action recognition reads. */
   | 'saw-combat'
+  /** A documented act under fire — the player's own recorded choice, and
+   *  the ONLY thing valor recognition may ever read (foundation §11). */
+  | 'act-of-valor'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'
@@ -671,6 +707,7 @@ export type FactorId =
   | 'cheaper-rent'
   | 'bloc-rivalry'
   | 'resource-competition'
+  | 'regional-flashpoint'
   | 'internal-instability'
   | 'war-weariness'
   | 'heavy-casualties'

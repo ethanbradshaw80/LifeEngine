@@ -27,10 +27,10 @@ import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import type { ServiceBranch } from './content.js'
 import { withArticle } from './text.js'
 import { householdCosts, householdIncome, inArrears } from './finances.js'
-import { volunteerForDeployment } from './deployment.js'
+import { evacuateHome, volunteerForDeployment } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
-import { applyConvalescence, isSeverelyAiling } from './health.js'
-import { grantQualificationBadge } from './awards.js'
+import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
+import { grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
   boardStandingFor,
   discharge as dischargeService,
@@ -795,6 +795,56 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'combat-moment': {
+      // The squad is pinned. Both answers are real and both go on the
+      // record; only one of them is how people get hit — and only one of
+      // them is how a valor citation gets an act to cite.
+      const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
+      if (choice === 'lead-the-break') {
+        const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 9100)
+        const act = recordEvent(world, pending.tick, {
+          type: 'act-of-valor',
+          subjectId: person.id,
+          ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
+          detail: 'led the break under fire',
+        })
+        grantValor(world, pending.tick, person.id, act, enemy?.name ?? 'the enemy')
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'deployment',
+          significance: 'defining',
+          inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
+          chosen: 'led the break under fire',
+          rejected: ['to keep down'],
+          streamId: Stream.CombatResolution,
+        })
+        // Leading the break is how it gets unpinned — and how men get hit.
+        if (rng.chance(450, 1_000)) {
+          const severity = rng.nextBellInt(450, 1000)
+          const wound = inflictWound(world, pending.tick, person.id, severity, 'direct-combat', rng)
+          const woundEvent = recordEvent(world, pending.tick, {
+            type: 'wounded-in-action',
+            subjectId: person.id,
+            ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
+            detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+          })
+          grantWoundRecognition(world, pending.tick, person.id, woundEvent, enemy?.name ?? 'the enemy')
+          if (severity >= 600) evacuateHome(world, pending.tick, person.id)
+        }
+      } else {
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'deployment',
+          significance: 'notable',
+          inputs: [factor('own-choice', 1000)],
+          chosen: 'kept down and held the position',
+          rejected: ['to lead the break'],
+          streamId: Stream.CombatResolution,
+        })
+      }
+      break
+    }
+
     case 'custom-birth': {
       // Never a live question: createCustomLife writes the log entry itself.
       // Reaching here means a corrupted pending — refuse loudly.
@@ -951,6 +1001,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'A slot at an advanced school has opened. Take it?'
     case 'volunteer-deploy':
       return 'The unit is taking names for the next rotation. Volunteer?'
+    case 'combat-moment':
+      return 'Fire off the ridge; the squad is pinned where it lies. What do you do?'
     case 'custom-birth':
       return 'A new life begins.' // log-only; never shown as a question
     case 'job-application':
@@ -1197,6 +1249,12 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'attend-school': {
       lines.push('A school sharpens the work — and can earn the rating the board counts.')
       lines.push('The slot is this month or not at all.')
+      break
+    }
+
+    case 'combat-moment': {
+      lines.push('Leading the break is how it gets unpinned — and how people get hit.')
+      lines.push('Keeping down costs nothing but the moment. Both answers go on the record.')
       break
     }
 

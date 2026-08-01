@@ -24,10 +24,10 @@ describe('the tables', () => {
         expect(text.length).toBeGreaterThan(5)
         expect(text).not.toContain('undefined')
         if (context === 'direct-combat') {
-          expect(['gunshot', 'shrapnel', 'laceration']).toContain(kind)
+          expect(['gunshot', 'shrapnel', 'laceration', 'hearing-damage', 'eye-injury']).toContain(kind)
         }
         if (context === 'machinery') {
-          expect(['crush', 'laceration', 'fracture']).toContain(kind)
+          expect(['crush', 'laceration', 'fracture', 'amputation', 'electrocution', 'chemical-burns', 'eye-injury']).toContain(kind)
         }
       }
     }

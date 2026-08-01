@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v19 — M-HARM. Twenty-two new kinds of harm with their own marks; deaths
+ *      name their cause; theatre disease (service-connected); twelve more
+ *      contact flavors; the combat-moment decision; valor, meritorious
+ *      service and long service decorations; geopolitical flashpoints
+ *      drift by decade and rematches damp, so the Republic's wars stop
+ *      being one neighbour's fault forever.
  * v18 — M-SPECOPS fix 2. Contact is not casualty: months in theatre roll
  *      combat events at 4x the old rate — took fire, mortars, a device on
  *      the route — into the feed with no wound; only a quarter escalate to
@@ -90,7 +96,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 18
+export const SIMULATION_VERSION = 19
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

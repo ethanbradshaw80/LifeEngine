@@ -32,21 +32,34 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
     'Took fire on patrol; gave it back',
     'A firefight at the checkpoint before dawn',
     'Contact in the treeline; it broke off by dark',
+    'An ambush walked into, and fought out of',
+    'A sniper worked the road for a week',
+    'House to house in a village with no name',
+    'A night raid; the guns spoke for an hour',
   ],
   'convoy-exposure': [
     'The convoy took fire on the route',
     'A device on the road; the trucks limped home',
     'Small arms on the resupply run',
+    'The lead truck found the mine',
+    'Drones over the column all day',
+    'An overpass ambush; the convoy ran the gap',
+    'A checkpoint on the route that was not ours',
   ],
   'base-attack-exposure': [
     'Mortars on the outpost after dark',
     'Rockets into the base perimeter',
     'A probe at the wire, driven off',
+    'A drone dropped its small bomb on the motor pool',
+    'Sappers in the wire at midnight',
+    'Counter-battery all night; nobody slept',
+    'The siren, the shelter, the counting after',
   ],
 }
 import { specialtyById, specialUnitById } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
-import { inflictWound } from './health.js'
+import { inflictFieldIllness, inflictWound } from './health.js'
+import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import { isServing } from './service.js'
@@ -273,6 +286,13 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
   return true
 }
 
+/** Medical evacuation from outside the monthly resolver — a combat-moment
+ *  wound bad enough that the war is over for them this tour. */
+export function evacuateHome(world: World, tick: Tick, personId: EntityId): void {
+  const deployment = currentDeployment(world, personId)
+  if (deployment) closeTour(world, tick, personId, deployment, true)
+}
+
 /** A month in theatre for everyone out there — and the way home at tour's end. */
 function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
   const deployedIds: EntityId[] = []
@@ -302,6 +322,21 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     const threat = threatVectorFor(war, enemy)
     const exposure = specialtyById(record.specialtyId).exposure
     const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 7000)
+
+    // The theatre's oldest killer never fired a shot: disease (M-HARM).
+    // Field fever and dysentery are service-connected — line of duty — and
+    // carry the same recovery, marking and mortality as any illness.
+    if (rng.chance(8, 1_000)) {
+      const fieldSeverity = rng.nextBellInt(250, 750)
+      const sick = inflictFieldIllness(world, tick, personId, fieldSeverity, rng)
+      if (sick !== null) {
+        recordEvent(world, tick, {
+          type: 'fell-ill',
+          subjectId: personId,
+          detail: `${fieldSeverity >= 600 ? 'serious' : 'minor'}:${sick.description}`,
+        })
+      }
+    }
 
     // A special unit's tour points at the fight (M-SPECOPS): the unit
     // multiplies the DIRECT-COMBAT exposure — a fact about what the job is,
@@ -348,6 +383,29 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         detail: rng.pick(flavors),
       })
       grantCombatAction(world, tick, personId, sawCombat, enemy.name)
+
+      // Sometimes the month's contact arrives as the PLAYER'S moment: the
+      // squad pinned, and a choice that is genuinely theirs (M-HARM, owner
+      // direction). The month's danger then resolves through the answer —
+      // not through the automatic casualty path below.
+      if (
+        personId === world.player.personId &&
+        world.player.pending === null &&
+        rng.chance(1, 4)
+      ) {
+        raisePending(world, {
+          tick,
+          kind: 'combat-moment',
+          personId,
+          otherId: deployment.enemyId,
+          occupationId: null,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: ['lead-the-break', 'keep-heads-down'],
+        })
+        continue
+      }
     }
 
     // Most contact ends with everyone walking away.

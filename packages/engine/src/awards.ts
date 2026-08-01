@@ -37,6 +37,14 @@ import type { AwardKind, AwardRecord, CausalFactor, World, WorldEvent } from './
 export const WOUND_RECOGNITION_TITLE = 'the Crimson Band'
 export const GOOD_CONDUCT_TITLE = 'the Faithful Service Medal'
 export const COMBAT_ACTION_TITLE = 'the Contact Star'
+export const VALOR_TITLE = 'the Star of Valor'
+export const MERITORIOUS_TITLE = 'the Meritorious Service Medal'
+export const LONG_SERVICE_TITLE = 'the Long Service Medal'
+
+/** Meritorious service asks a term average well above honorable. */
+export const MERITORIOUS_PERFORMANCE = 700
+/** Long service starts at twenty years; the device arrives at thirty. */
+export const LONG_SERVICE_YEARS = 20
 
 /** Campaign credit needs this many months in theatre — waived for casualties. */
 export const CAMPAIGN_QUALIFYING_MONTHS = 3
@@ -73,6 +81,93 @@ export function grantWoundRecognition(
     qualifying,
     citation: `wounded by enemy action on the ${enemyName} front`,
     inputs: [factor('enemy-action-wound', 1000)],
+  })
+}
+
+/**
+ * Valor: a DOCUMENTED act under fire — foundation §11's hardest rule, and
+ * why no valor decoration existed until the combat-moment gave the record
+ * an actual act to cite. The qualifying event is 'act-of-valor' and nothing
+ * else: not a wound, not a contact, not a rank, not a death. The player who
+ * kept their head down is refused — safely and without shame — because
+ * there is no act on the record to cite.
+ */
+export function grantValor(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  enemyName: string,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'act-of-valor') return null
+
+  return grant(world, tick, personId, {
+    kind: 'valor',
+    title: VALOR_TITLE,
+    qualifying,
+    citation: `${qualifying.detail ?? 'an act under fire'} on the ${enemyName} front`,
+    inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
+  })
+}
+
+/**
+ * Meritorious service: a term whose recorded average stood well above
+ * honorable. Same qualifying evidence as good conduct — the term's own
+ * close — at a much higher bar. Never for a rank; ranks are their own pay.
+ */
+export function grantMeritoriousService(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  termAveragePerformance: number,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
+  if (
+    qualifying.type === 'discharged' &&
+    qualifying.detail !== 'end of term' &&
+    qualifying.detail !== 'high-year tenure'
+  ) {
+    return null
+  }
+  if (termAveragePerformance < MERITORIOUS_PERFORMANCE) return null
+
+  return grant(world, tick, personId, {
+    kind: 'meritorious-service',
+    title: MERITORIOUS_TITLE,
+    qualifying,
+    citation: 'a term of distinguished service, by the record',
+    inputs: [factor('strong-performance', termAveragePerformance)],
+  })
+}
+
+/**
+ * Long service: twenty years in uniform, from the term-close that crossed
+ * the line; the device arrives at thirty. Time served is the entire claim,
+ * and time served is on the record.
+ */
+export function grantLongService(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  yearsServed: number,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
+
+  const existing = (world.awards.get(personId) ?? []).find((a) => a.kind === 'long-service')
+  const milestone = LONG_SERVICE_YEARS + (existing?.count ?? 0) * 10
+  if (yearsServed < milestone) return null
+
+  return grant(world, tick, personId, {
+    kind: 'long-service',
+    title: LONG_SERVICE_TITLE,
+    qualifying,
+    citation: `${String(milestone)} years in uniform`,
+    inputs: [factor('time-in-grade', Math.min(1000, yearsServed * 30))],
   })
 }
 

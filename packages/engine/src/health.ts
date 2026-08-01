@@ -34,7 +34,7 @@ import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import type { BodySite, HealthRecord, Person, World } from './types.js'
-import { describeAilment, markFor, pickIllness, pickInjury } from './wounds.js'
+import { describeAilment, markFor, pickFieldIllness, pickIllness, pickInjury } from './wounds.js'
 import type { InjuryContext } from './wounds.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -339,6 +339,37 @@ export function inflictWound(
     ailmentServiceConnected: true,
   })
   return { kind: injury.kind, site: injury.site, description }
+}
+
+/**
+ * A sickness out of the theatre (M-HARM): the diseases of the field, which
+ * history's armies lost more people to than fire. Lives HERE for the same
+ * one-writer reason as inflictWound; the deployment system asks. Stamped
+ * service-connected — line of duty is line of duty, and the pension reads
+ * provenance. Returns false when an active ailment already holds the body.
+ */
+export function inflictFieldIllness(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  severity: number,
+  rng: { pick: <T>(items: readonly T[]) => T },
+): { kind: string; description: string } | null {
+  const record = world.health.get(personId) ?? freshHealth(personId)
+  if (record.ailment !== null) return null
+  const kind = pickFieldIllness(rng as never)
+  world.health.set(personId, {
+    ...record,
+    ailment: 'illness',
+    ailmentKind: kind,
+    ailmentSite: null,
+    severity,
+    peakSeverity: severity,
+    sinceTick: tick,
+    askedConvalesce: false,
+    ailmentServiceConnected: true,
+  })
+  return { kind, description: describeAilment('illness', kind, null) }
 }
 
 /**

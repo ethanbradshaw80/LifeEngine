@@ -249,6 +249,14 @@ describe('a grown world decorates only from the record', () => {
           case 'combat-action':
             expect(qualifying.type).toBe('saw-combat')
             break
+          case 'valor':
+            // Valor cites a documented act — never a wound, never a rank.
+            expect(qualifying.type).toBe('act-of-valor')
+            break
+          case 'meritorious-service':
+          case 'long-service':
+            expect(['reenlisted', 'discharged']).toContain(qualifying.type)
+            break
         }
         }
       }

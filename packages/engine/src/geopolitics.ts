@@ -24,7 +24,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { NATION_NAMES } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
-import { openStream, Stream } from './rng.js'
+import { hash32, openStream, Stream } from './rng.js'
 import type { GeoRelation, GeoState, Nation, World } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -187,8 +187,27 @@ export function runGeopolitics(world: World, tick: Tick): void {
     const economicGap = Math.abs(a.economy - b.economy)
 
     const stepIndex = LADDER.indexOf(relation.state)
+
+    // WHICH border runs hot drifts on a decade scale (owner: "we only get
+    // into wars with Osmark" — static bloc rivalry made one neighbour the
+    // world's only quarrel, forever). Zero-mean, so the overall pace of war
+    // stays tuned; deterministic from the pair and the decade, so it is a
+    // fact about the era, not a die roll at the moment of decision.
+    const flashpoint =
+      (hash32(relation.a * 100_003 + relation.b * 7 + Math.floor(tick / 120) * 31) % 181) - 90
+
+    // And a pair that has already buried its dead escalates reluctantly:
+    // the persisted casualty counts ARE the memory. The next war finds a
+    // different border more often than a rematch.
+    const foughtBefore = relation.casualtiesA + relation.casualtiesB > 0
+
     const escalationPressure =
-      Math.floor(instability / 12) + rivalry + Math.floor(economicGap / 6) - (sameBloc ? 300 : 0)
+      Math.floor(instability / 12) +
+      rivalry +
+      Math.floor(economicGap / 6) +
+      flashpoint -
+      (sameBloc ? 300 : 0) -
+      (foughtBefore ? 120 : 0)
 
     // A nation that just fought a war starts nothing new for a decade or two.
     // Exhaustion suppresses the escalation branch entirely, which also lets a
@@ -212,6 +231,7 @@ export function runGeopolitics(world: World, tick: Tick): void {
             ...(rivalry > 0 ? [factor('bloc-rivalry', rivalry)] : []),
             ...(instability > 900 ? [factor('internal-instability', Math.floor(instability / 2))] : []),
             ...(economicGap > 250 ? [factor('resource-competition', economicGap)] : []),
+            ...(flashpoint > 45 ? [factor('regional-flashpoint', flashpoint * 8)] : []),
           ]
           transition(
             world, tick, relation, next,
