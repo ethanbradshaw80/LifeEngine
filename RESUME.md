@@ -66,6 +66,31 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**M-HARM — COMPLETE** (owner ×4: enemy variety / 20+ harms / deployment
+happenings / more awards; commits eb76bf7 + cfb5de0 review fixes)
+GEOPOLITICS: decade-scale zero-mean-ish flashpoint (hash pair×decade,
+factor 'regional-flashpoint') + FADING rematch damping (−120 decaying 6/yr
+from relation.sinceTick — review killed the permanent ratchet). 22 NEW HARM
+KINDS (12 injuries: amputation…animal-bite; 10 illnesses: cancer…dysentery)
+in wounds.ts tables with sites/phrases/marks + STANDALONE_KINDS set. DEATHS
+NAME CAUSE (runMortality: active ailment → describeAilment; fatal accidents
+pick+name; 'a sudden illness' fallback). THEATRE DISEASE 8/1000/mo deployed
+(inflictFieldIllness, service-connected, player/NPC parity exact). +12
+contact flavors. COMBAT MOMENT ('combat-moment' pending, 1/4 player contact
+months, auto-path skipped): BOTH answers roll real danger via shared
+resolveMomentCasualty (lead: gate 450/floor 450; keep-down: 250/300 — the
+ordinary month), SAME fatal tail (940+, 2/5) with posthumous wound+campaign
+grants; 'act-of-valor' event recorded on going forward, VALOR WRITE-UP only
+1-in-3 (rack inflation). DECORATIONS: the Star of Valor (guard: act-of-valor
+events ONLY — first valor ever, §11's documented act finally exists), the
+Standard-Bearer Medal (term avg ≥700), the Long Watch Medal (20y, device
+30y) — first-draft names were verbatim real medals, renamed per review.
+DEAD-IN-THEATRE FIX: resolveTours iterates OPEN TOURS (not isDeployed),
+closes tours posthumously + campaign credit; isDeployed excludes the dead
+(quota leak, pre-existing, made common by disease). SIMULATION_VERSION 20,
+golden b7c83da6. Five review rounds this session; every substantive finding
+fixed in-session.
+
 **M-SPECOPS — COMPLETE** (owner ×3: named schools / special units / points)
 SERVICE_SCHOOLS content (Jump School, the Air-Mobile Assault Course, Sniper
 School, the Combat Diver Course, the Junior Leaders Course — two renamed by
