@@ -66,6 +66,32 @@ TypeScript. Engine purity enforced twice: `tsconfig.json` declares no
 `"types"` so Node/DOM APIs will not compile, and `test/purity.test.ts` scans
 for every banned construct in `docs/DETERMINISM.md` §5.
 
+**M-SPECOPS — COMPLETE** (owner ×3: named schools / special units / points)
+SERVICE_SCHOOLS content (Jump School, the Air-Mobile Assault Course, Sniper
+School, the Combat Diver Course, the Junior Leaders Course — two renamed by
+review as near-verbatim real courses), badge-granting via awards machinery,
+gates with engine-authored reasons (schoolOptionsFor/unitOptionsFor — UI
+renders, never writes). SPECIAL_UNITS: the Pathfinder Battalion (tier 1) +
+Task Unit Ember (tier 2, feeder=Pathfinders) — FICTIONAL names (review:
+"correct, leave them"), selection roll fails people ('joined-unit'/
+'dropped-selection' events + 'selection' DecisionType), 2-drop cap, duty
+pay in servicePayOf, directCombat exposure ×1250/1500 per-mille on the
+EXPOSURE side (rule-1 clean per review). NPCs: same roll/cap/feeder chain
+(1/240 mo) + schools (1/40). PROMOTION POINTS: promotionPointsFor =
+evaluation(perf/2) + fitness(0-300) + badges(40ea) + decorations(CAPPED
+125: campaign 25/GC 20/wound 15 per device) + seniority(≤100) vs per-trade
+cutoff (550 + 90/step + specialty.boardCutoffOffset, rifleman −40 …
+signals +40); used by BOTH NPC branch and player board (+40 packet prep,
++15/prior-pass-over). FITNESS TEST MANDATORY-ANNUAL for all (monthsIn%12
+===5; player gets the 'fitness-tested' feed event; review killed both the
+forgot-the-button trap and the peak-score-forever exploit); player verb =
+trainFitness (+40, ≤2/yr, kind 'fitness-test'). Service-tab ACTIONS:
+volunteer rotation / train / request school (1-in-3 slot, 1 ask per 6mo)
+/ try out. Schema v15 (unitId, fitnessScore, fitnessTestedAtTick).
+SIMULATION_VERSION 16, golden 356ea46e. Accepted corner: Ember-in-offensive
+touches the 200/mo contact cap. Reviewer's 4 rounds this session all
+should-fix/no-must-fix; every substantive finding fixed in-session.
+
 **M-SERVICE-PLAY — COMPLETE** (owner: "we need to be interactive")
 Player never auto-promotes past competitive rank: yearly 'promotion-board'
 pending (deferred ≤2mo if another question held the slot; player.log is the
