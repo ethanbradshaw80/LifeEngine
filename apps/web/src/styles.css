@@ -914,6 +914,40 @@ ul.welcome-points li + li {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
+/* P2 — the verbs. One pill style wherever a tab offers an action, and a
+   row that wraps on small screens (the buttons must survive a phone). */
+.verb-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  margin-left: 0.4rem;
+}
+
+.panel .apply {
+  padding: 0.15rem 0.7rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.panel .apply:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.panel .apply.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.panel .apply:disabled {
+  opacity: 0.55;
+}
+
 .enlist-now {
   margin-top: 0.6rem;
   padding: 0.55rem 1.4rem;

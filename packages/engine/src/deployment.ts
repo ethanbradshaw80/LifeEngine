@@ -140,6 +140,20 @@ export function runDeployments(world: World, tick: Tick): void {
 }
 
 /** Who is serving and not deployed, in id order. */
+/** Whether the CURRENT trade's schooling is behind them: the enlistment
+ *  pipeline (basic + school), or — after a P2 retrain — the new school
+ *  counted from the change. One rule for orders and volunteers alike. */
+function isPipelineTrained(
+  tick: Tick,
+  record: NonNullable<ReturnType<World['service']['get']>>,
+): boolean {
+  const schoolMonths = specialtyById(record.specialtyId).schoolMonths
+  if (record.specialtyChangedAtTick !== null) {
+    return tick - record.specialtyChangedAtTick >= schoolMonths
+  }
+  return tick - record.enlistedAtTick >= 2 + schoolMonths
+}
+
 function deployablePeople(world: World): Person[] {
   const eligible: Person[] = []
   for (const person of world.people.values()) {
@@ -148,12 +162,12 @@ function deployablePeople(world: World): Person[] {
     if (isDeployed(world, person.id)) continue
     // Nobody deploys out of the schoolhouse: the training pipeline (basic,
     // then the trade school) finishes before orders can find you. Without
-    // this gate a recruit could "finish basic training" in a theatre.
+    // this gate a recruit could "finish basic training" in a theatre — and
+    // a P2 retrain restarts the clock for the NEW trade's school, or a
+    // reclassed soldier would carry the new exposure profile the same month
+    // (military review S2).
     const record = world.service.get(person.id)
-    if (record) {
-      const trained = 2 + specialtyById(record.specialtyId).schoolMonths
-      if (world.tick - record.enlistedAtTick < trained) continue
-    }
+    if (record && !isPipelineTrained(world.tick, record)) continue
     eligible.push(person)
   }
   eligible.sort((a, b) => a.id - b.id)
@@ -252,8 +266,7 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
   if (!person || person.deathTick !== null) return false
   if (!record || record.dischargedAtTick !== null) return false
   if (isDeployed(world, personId)) return false
-  const trained = 2 + specialtyById(record.specialtyId).schoolMonths
-  if (tick - record.enlistedAtTick < trained) return false
+  if (!isPipelineTrained(tick, record)) return false
 
   const enemyId = war.a === home.id ? war.b : war.a
   const history = world.deployments.get(personId) ?? []

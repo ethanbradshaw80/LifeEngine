@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { World } from '@life-engine/engine'
 import { toSaveFile } from '@life-engine/persistence'
-import type { CreateLifeSpec, WorkerRequest, WorkerResponse } from './engine.worker.js'
+import type { CreateLifeSpec, VerbRequest, WorkerRequest, WorkerResponse } from './engine.worker.js'
 import { deleteSave, readSave, writeSave } from './storage.js'
 
 /**
@@ -47,6 +47,9 @@ export interface WorldController {
   requestDeploy: () => void
   /** Take the annual fitness test — promotion points for the body. */
   fitnessTest: () => void
+  /** P2: any player-initiated verb — court, propose, quit, look for a place…
+   *  One channel; the engine's honest refusal comes back as the notice. */
+  act: (action: VerbRequest) => void
   /** Answer the pending decision. */
   choose: (choice: string) => void
   save: () => void
@@ -192,6 +195,13 @@ export function useWorld(initialSeed: number): WorldController {
     send({ type: 'fitness-test' })
   }, [send])
 
+  const act = useCallback(
+    (action: VerbRequest) => {
+      send({ type: 'verb', action })
+    },
+    [send],
+  )
+
   const choose = useCallback(
     (choice: string) => {
       send({ type: 'choose', choice })
@@ -235,6 +245,7 @@ export function useWorld(initialSeed: number): WorldController {
     tryUnit,
     requestDeploy,
     fitnessTest,
+    act,
     choose,
     save,
     discardSave,

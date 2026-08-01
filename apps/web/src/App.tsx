@@ -34,7 +34,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = 'c396b96b'
+const GOLDEN_HASH_HEX = '843c23ba'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -55,6 +55,7 @@ export function App() {
     tryUnit,
     requestDeploy,
     fitnessTest,
+    act,
     choose,
     discardSave,
   } = useWorld(GOLDEN_SEED)
@@ -193,6 +194,7 @@ export function App() {
           onTryUnit={tryUnit}
           onRequestDeploy={requestDeploy}
           onFitnessTest={fitnessTest}
+          onAct={act}
           notice={message}
         />
 

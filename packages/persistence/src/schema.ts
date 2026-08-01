@@ -29,6 +29,11 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v18 — P2. `household.spendStance` (null for every old save AND every NPC
+ *      household — the character-driven spending formula is the null
+ *      behaviour; only a played household ever sets a stance), and service
+ *      records gain `priorSpecialtyIds` (empty) + `specialtyChangedAtTick`
+ *      (null) — retrain history; nobody retrained before it existed.
  * v17 — D2. `relationship.familySizeAspiration` (null for old saves —
  *      couples decide their plan, on the record, on the first tick after
  *      load; a migration invents nobody's hopes).
@@ -62,7 +67,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 17
+export const SCHEMA_VERSION = 18
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

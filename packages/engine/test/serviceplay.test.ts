@@ -71,6 +71,8 @@ function putInUniform(
     unitId: null,
     fitnessScore: 200,
     fitnessTestedAtTick: null,
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
   })
   world.employment.delete(personId)
 }

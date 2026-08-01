@@ -24,23 +24,28 @@ import type { EntityId, Money } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
-import type { ServiceBranch } from './content.js'
 import { withArticle } from './text.js'
-import { householdCosts, householdIncome, inArrears, monthlyNetOf } from './finances.js'
+import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import { currentDeployment, evacuateHome, volunteerForDeployment } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
+  addServiceQualification,
+  applyBoardPromotion,
+  assignServiceUnit,
   boardStandingFor,
+  boostServicePerformance,
   discharge as dischargeService,
   enlistPerson,
   enlistmentBar,
   isServing,
   rankTitle,
   reenlist as reenlistService,
+  retrainSpecialty,
   schoolOptionsFor,
+  setServiceFitness,
   unitOptionsFor,
   veteranUnlocks,
 } from './service.js'
@@ -59,21 +64,34 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import {
   compatibility,
+  courtshipBar,
+  partnerOf,
+  performCourtshipEnd,
   performSeparation,
   promoteToCourting,
   promoteToSpouse,
+  proposalBar,
   reconcile,
   relationshipBetween,
+  spouseOf,
+  strengthenFriendship,
+  tendMarriage,
 } from './relationships.js'
 import {
+  adjustJobPerformance,
+  birthBar,
   birthEligible,
   COLLEGE_YEARS,
   deliverChild,
+  enrolmentBar,
   enrolPlayer,
+  grantRaise,
   hirePerson,
+  monthlyConceptionChance,
   moveHouse,
   performDeath,
   performMoveOut,
+  performQuit,
   retirePerson,
   TRADE_YEARS,
 } from './systems.js'
@@ -321,6 +339,13 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
   if (world.tick - record.enlistedAtTick <= 2 + specialtyById(record.specialtyId).schoolMonths) {
     return { attended: false, reason: 'Finish the pipeline first.' }
   }
+  // A retrain restarts the pipeline for the NEW trade (P2).
+  if (
+    record.specialtyChangedAtTick !== null &&
+    world.tick - record.specialtyChangedAtTick <= specialtyById(record.specialtyId).schoolMonths
+  ) {
+    return { attended: false, reason: 'Finish the pipeline first.' }
+  }
   const school = schoolById(schoolId)
   if (!school) return { attended: false, reason: 'No such school.' }
   const option = schoolOptionsFor(world, person.id).find((o) => o.id === schoolId)
@@ -352,10 +377,7 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
     detail: school.badge,
   })
   grantQualificationBadge(world, world.tick, person.id, badgeEvent, school.badge)
-  world.service.set(person.id, {
-    ...world.service.get(person.id)!,
-    performance: Math.min(1000, record.performance + school.performanceBoost),
-  })
+  boostServicePerformance(world, person.id, school.performanceBoost)
   recordDecision(world, world.tick, {
     subjectId: person.id,
     decision: 'training',
@@ -398,7 +420,7 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
   const selected = rng.chance(margin, unit.selectionDenominator)
 
   if (selected) {
-    world.service.set(person.id, { ...world.service.get(person.id)!, unitId: unit.id })
+    assignServiceUnit(world, person.id, unit.id)
     recordEvent(world, world.tick, { type: 'joined-unit', subjectId: person.id, detail: unit.name })
     recordDecision(world, world.tick, {
       subjectId: person.id,
@@ -451,7 +473,7 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
   world.player.nextDecisionId += 1
 
   const score = Math.min(MAX_FITNESS_POINTS, record.fitnessScore + 40)
-  world.service.set(person.id, { ...record, fitnessScore: score })
+  setServiceFitness(world, person.id, score)
   recordEvent(world, world.tick, {
     type: 'completed-training',
     subjectId: person.id,
@@ -488,6 +510,431 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
     deployed: false,
     reason: atWar ? 'Not yet — finish the pipeline, or come home first.' : 'The Republic is not at war.',
   }
+}
+
+// ---------------------------------------------------------------------------
+// P2 — the verbs. What the simulation already models, initiable. Every verb:
+// gate honestly (refusal in words, nothing burned), log the ask (replay walks
+// the same road), then resolve through the same shared function the automatic
+// path uses. The player is still not special — only who starts it differs.
+// ---------------------------------------------------------------------------
+
+/** The shared guard every verb starts with. */
+function verbPerson(world: World): { person: Person } | { reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { reason: 'A decision is already waiting.' }
+  return { person }
+}
+
+function logVerb(world: World, kind: PendingKind, choice: string): void {
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind,
+    choice,
+  })
+  world.player.nextDecisionId += 1
+}
+
+/** Ask a close friend to court. The gates are the automatic path's, and the
+ *  refusal names the one that closed the door. */
+export function courtFriend(world: World, otherId: EntityId): { courting: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { courting: false, reason: guard.reason }
+  const { person } = guard
+
+  const bar = courtshipBar(world, person.id, otherId, world.tick)
+  if (bar !== null) return { courting: false, reason: bar }
+
+  logVerb(world, 'court-friend', String(otherId))
+  const tie = relationshipBetween(world, person.id, otherId)
+  if (!tie || tie.type !== 'friend') return { courting: false, reason: 'You are not friends.' } // unreachable past the bar
+  promoteToCourting(world, world.tick, tie, [factor('own-choice', 1000)])
+  return { courting: true, reason: '' }
+}
+
+/** Propose. Clearing considerMarriage's own bar IS the yes — the appetite
+ *  roll is NPC timing, not consent, and the player does not also roll dice
+ *  for an answer. */
+export function propose(world: World): { married: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { married: false, reason: guard.reason }
+  const { person } = guard
+
+  const bar = proposalBar(world, person.id, world.tick)
+  if (bar !== null) return { married: false, reason: bar }
+
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return { married: false, reason: 'There is nobody to ask.' }
+  const tie = relationshipBetween(world, person.id, partnerId)
+  if (!tie) return { married: false, reason: 'There is nobody to ask.' }
+
+  logVerb(world, 'proposal', String(partnerId))
+  promoteToSpouse(world, world.tick, tie, [factor('own-choice', 1000)])
+  return { married: true, reason: '' }
+}
+
+/** End the courtship. The sim finally gets its courtship-ended path. */
+export function endCourtship(world: World): { ended: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { ended: false, reason: guard.reason }
+  const { person } = guard
+
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return { ended: false, reason: 'There is no courtship to end.' }
+  const tie = relationshipBetween(world, person.id, partnerId)
+  if (!tie || tie.type !== 'courting') return { ended: false, reason: 'There is no courtship to end.' }
+
+  logVerb(world, 'courtship-end', String(partnerId))
+  performCourtshipEnd(world, world.tick, tie, person.id, [factor('own-choice', 1000)])
+  return { ended: true, reason: '' }
+}
+
+/** Walk out of the marriage. Allowed always — the record carries own-choice
+ *  and whatever strain truthfully existed, nothing invented. */
+export function walkOut(world: World): { separated: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { separated: false, reason: guard.reason }
+  const { person } = guard
+
+  const spouseId = spouseOf(world, person.id)
+  if (spouseId === null) return { separated: false, reason: 'There is no marriage to leave.' }
+  const tie = relationshipBetween(world, person.id, spouseId)
+  if (!tie || tie.type !== 'spouse') return { separated: false, reason: 'There is no marriage to leave.' }
+
+  logVerb(world, 'walk-out', String(spouseId))
+  performSeparation(world, world.tick, tie, [factor('own-choice', 1000)])
+  return { separated: true, reason: '' }
+}
+
+/** Make time for the marriage: a smaller mend than the brink's reconcile,
+ *  quarterly at most — showing up is not a slider to hold down. */
+export function tendTheMarriage(world: World): { tended: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { tended: false, reason: guard.reason }
+  const { person } = guard
+
+  const spouseId = spouseOf(world, person.id)
+  if (spouseId === null) return { tended: false, reason: 'There is no marriage to tend.' }
+  const tie = relationshipBetween(world, person.id, spouseId)
+  if (!tie || tie.type !== 'spouse') return { tended: false, reason: 'There is no marriage to tend.' }
+  if (world.player.log.some((entry) => entry.kind === 'marriage-tend' && world.tick - entry.tick < 3)) {
+    return { tended: false, reason: 'You have been making the time already. Let the weeks do their part.' }
+  }
+
+  logVerb(world, 'marriage-tend', String(spouseId))
+  tendMarriage(world, world.tick, tie)
+  return { tended: true, reason: '' }
+}
+
+/** An afternoon with a friend. One social call a month — there is a life to
+ *  live around it. */
+export function spendTimeWith(world: World, otherId: EntityId): { spent: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { spent: false, reason: guard.reason }
+  const { person } = guard
+
+  const tie = relationshipBetween(world, person.id, otherId)
+  if (!tie || tie.type !== 'friend') return { spent: false, reason: 'You are not friends.' }
+  if (world.player.log.some((entry) => entry.kind === 'social-call' && entry.tick === world.tick)) {
+    return { spent: false, reason: 'The month has had its visiting.' }
+  }
+
+  logVerb(world, 'social-call', String(otherId))
+  strengthenFriendship(world, world.tick, tie, person.id)
+  return { spent: true, reason: '' }
+}
+
+/**
+ * Try for a child. The gates are birthEligible's, in words; conception stays
+ * the model's own draw — trying opens the month, it does not buy the answer.
+ * A quiet "not this month" is all anyone is owed: latent fertility is a
+ * hidden fact of the world and stays hidden here.
+ */
+export function tryForChild(world: World): { conceived: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { conceived: false, reason: guard.reason }
+  const { person } = guard
+
+  const bar = birthBar(world, world.tick, person)
+  if (bar !== null) return { conceived: false, reason: bar }
+  if (world.player.log.some((entry) => entry.kind === 'child-try' && entry.tick === world.tick)) {
+    return { conceived: false, reason: 'The month has one answer, and it was given.' }
+  }
+
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return { conceived: false, reason: 'There is nobody to try with.' }
+  const partner = world.people.get(partnerId)
+  if (!partner) return { conceived: false, reason: 'There is nobody to try with.' }
+  const mother = person.sex === 'female' ? person : partner
+  const father = person.sex === 'female' ? partner : person
+
+  // A birth already happened this month — the auto path's, or an accepted
+  // child question. Without this guard the verb re-keys deliverChild's
+  // (mother, tick) streams and delivers the SAME child twice: same name,
+  // same sex, two ids (architecture review M2).
+  if (
+    world.events.some(
+      (e) =>
+        e.type === 'had-child' &&
+        e.tick === world.tick &&
+        (e.subjectId === mother.id || e.subjectId === father.id),
+    )
+  ) {
+    return { conceived: false, reason: 'The month has its answer already.' }
+  }
+
+  logVerb(world, 'child-try', String(partnerId))
+
+  // The same monthly chance runBirths computes for this couple — the verb's
+  // own salt, so the ask is a second real try, not a replay of the tick's.
+  const chance = monthlyConceptionChance(world, world.tick, mother, father.id)
+  const rng = openStream(world.seed, Stream.LifeEventTiming, mother.id, world.tick + 3333)
+  if (chance <= 0 || !rng.chanceInTenThousand(chance)) {
+    return { conceived: false, reason: 'Not this month.' }
+  }
+
+  const childId = deliverChild(world, world.tick, mother.id, father.id)
+  if (childId === null) return { conceived: false, reason: 'Not this month.' }
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'household-formation',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('wanted-family', 800)],
+    chosen: 'tried for a child, and the child came',
+    rejected: [],
+    streamId: Stream.LifeEventTiming,
+  })
+  return { conceived: true, reason: '' }
+}
+
+/** Quit the job. No roll — the door opens from the inside. */
+export function quitJob(world: World): { quit: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { quit: false, reason: guard.reason }
+  const { person } = guard
+
+  if (!world.employment.has(person.id)) return { quit: false, reason: 'There is no job to quit.' }
+
+  logVerb(world, 'job-quit', 'quit')
+  performQuit(world, world.tick, person, [factor('own-choice', 1000)])
+  return { quit: true, reason: '' }
+}
+
+/**
+ * Ask for a raise. The asking is on the record; the answer rolls against the
+ * performance the reviews actually read, and the raise that comes is the
+ * review formula's own — asking moves the timing, never the arithmetic.
+ */
+export function askForRaise(world: World): { raised: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { raised: false, reason: guard.reason }
+  const { person } = guard
+
+  const job = world.employment.get(person.id)
+  if (!job) return { raised: false, reason: 'There is no employer to ask.' }
+  if (world.player.log.some((entry) => entry.kind === 'raise-request' && world.tick - entry.tick < 6)) {
+    return { raised: false, reason: 'The question was asked this half-year already.' }
+  }
+
+  // Topped-out pay is knowable before asking — a gate, not a roll, so it
+  // must not burn the half-year (review N5).
+  const occupation = occupationById(job.occupationId)
+  const headroom = occupation.maxMonthlyPay - job.monthlyPay
+  if (headroom <= 0) {
+    return { raised: false, reason: `${occupation.title} pay tops out where yours already is.` }
+  }
+
+  logVerb(world, 'raise-request', job.occupationId)
+  if (job.performance < 350) {
+    recordEvent(world, world.tick, { type: 'turned-down', subjectId: person.id, detail: 'a raise' })
+    return { raised: false, reason: 'The work this year does not argue for it. The asking is on the record.' }
+  }
+
+  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 6111)
+  if (!rng.chance(job.performance - 250, 1_200)) {
+    recordEvent(world, world.tick, { type: 'turned-down', subjectId: person.id, detail: 'a raise' })
+    return { raised: false, reason: 'Not this year, the foreman says. The asking is on the record.' }
+  }
+
+  const raise = Math.floor((headroom * job.performance) / 6500)
+  if (raise < Math.floor(job.monthlyPay / 100)) {
+    return { raised: false, reason: 'The sums left in this trade are too small to move.' }
+  }
+  grantRaise(world, world.tick, person.id, (job.monthlyPay + raise) as Money)
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000), factor('strong-performance', job.performance)],
+    chosen: 'asked for a raise, and got it',
+    rejected: [],
+    streamId: Stream.Employment,
+  })
+  return { raised: true, reason: '' }
+}
+
+/** Go back to school, 18–24 — the same window the town's own young adults
+ *  keep, closed to the player until now by their first answer. */
+export function requestEnrolment(
+  world: World,
+  level: 'college' | 'trade',
+): { enrolled: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { enrolled: false, reason: guard.reason }
+  const { person } = guard
+
+  const bar = enrolmentBar(world, person, world.tick)
+  if (bar !== null) return { enrolled: false, reason: bar }
+
+  logVerb(world, 're-enrolment', level)
+  enrolPlayer(world, world.tick, person, level)
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: level === 'college' ? 'went back for college' : 'went back for trade school',
+    rejected: ['to keep on as things were'],
+    streamId: Stream.Education,
+  })
+  return { enrolled: true, reason: '' }
+}
+
+/** Set the household's spending posture. A standing choice, not a lever to
+ *  wiggle — one change a month. */
+export function chooseSpendStance(
+  world: World,
+  stance: 'thrifty' | 'loose' | null,
+): { set: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { set: false, reason: guard.reason }
+  const { person } = guard
+
+  if (person.householdId === null) return { set: false, reason: 'There is no household to steer.' }
+  const household = world.households.get(person.householdId)
+  if (!household) return { set: false, reason: 'There is no household to steer.' }
+  // A child under the parents' roof does not set the family's posture
+  // (review S4 — the verb must not outrank the model's own idea of whose
+  // house it is).
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+    return { set: false, reason: "The purse is your parents' to carry." }
+  }
+  if (household.spendStance === stance) return { set: false, reason: 'That is already how the money is carried.' }
+  if (world.player.log.some((entry) => entry.kind === 'spend-stance' && entry.tick === world.tick)) {
+    return { set: false, reason: 'The purse was already settled this month.' }
+  }
+
+  logVerb(world, 'spend-stance', stance ?? 'as-it-comes')
+  setSpendStance(world, world.tick, person.householdId, stance, person.id)
+  return { set: true, reason: '' }
+}
+
+/** Look for a place on a chosen street. The affordability rule is the same
+ *  one every move obeys; the whole household comes along. */
+export function lookForPlace(world: World, placeId: EntityId): { moved: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { moved: false, reason: guard.reason }
+  const { person } = guard
+
+  if (ageAt(person.birthTick, world.tick) < 18) return { moved: false, reason: 'Not yet eighteen.' }
+  if (person.householdId === null) return { moved: false, reason: 'There is no household to move.' }
+  const household = world.households.get(person.householdId)
+  if (!household) return { moved: false, reason: 'There is no household to move.' }
+  // Living with the parents means it is THEIR house to move (review S4);
+  // the way out of it is the move-out moment, not this verb.
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+    return { moved: false, reason: "Your parents' house is not yours to move." }
+  }
+  const target = world.places.get(placeId)
+  if (!target || target.kind !== 'neighbourhood') return { moved: false, reason: 'No such street.' }
+  if (target.id === household.placeId) return { moved: false, reason: 'You already live there.' }
+  if (world.player.log.some((entry) => entry.kind === 'house-hunt' && world.tick - entry.tick < 6)) {
+    return { moved: false, reason: 'The household moved house this half-year already. Let it settle.' }
+  }
+  const income = householdIncome(world, household)
+  if (!canAfford(income, target.desirability)) {
+    return {
+      moved: false,
+      reason: `Rent on ${target.name} is ${formatMoney(rentFor(target.desirability))} a month — the household cannot carry it.`,
+    }
+  }
+
+  logVerb(world, 'house-hunt', String(placeId))
+  moveHouse(world, world.tick, person, placeId, [factor('own-choice', 1000)])
+  return { moved: true, reason: '' }
+}
+
+/** Choose how to carry an ailment, month by month — the convalesce question,
+ *  repeatable while anything ails. */
+export function setConvalescenceStance(
+  world: World,
+  rest: boolean,
+): { set: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { set: false, reason: guard.reason }
+  const { person } = guard
+
+  const record = world.health.get(person.id)
+  if (!record || record.ailment === null) return { set: false, reason: 'Nothing ails you.' }
+  if (world.player.log.some((entry) => entry.kind === 'convalesce-stance' && entry.tick === world.tick)) {
+    return { set: false, reason: 'The month is already being carried one way.' }
+  }
+
+  logVerb(world, 'convalesce-stance', rest ? 'rest' : 'push-on')
+  applyConvalescenceChoice(world, world.tick, person, rest)
+  return { set: true, reason: '' }
+}
+
+/** Ask to leave the service. The honest answer is nearly always no — that is
+ *  what a term IS — and the refusal says exactly why and until when. */
+export function requestDischarge(world: World): { discharged: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { discharged: false, reason: guard.reason }
+  const { person } = guard
+
+  const record = world.service.get(person.id)
+  if (!record || record.dischargedAtTick !== null) return { discharged: false, reason: 'Not serving.' }
+  if (currentDeployment(world, person.id) !== undefined) {
+    return { discharged: false, reason: 'Not from a theatre. The boat home comes first, then the question.' }
+  }
+  if (record.termMonthsLeft > 0) {
+    const months = record.termMonthsLeft
+    return {
+      discharged: false,
+      reason: `The term runs another ${String(months)} month${months === 1 ? '' : 's'}. The Republic holds you to it; the question comes with the term's end.`,
+    }
+  }
+  return {
+    discharged: false,
+    reason: 'The term is up this month — the reenlistment question is the door out.',
+  }
+}
+
+/**
+ * The convalesce choice, shared by the pending's resolution and the P2
+ * stance verb: same effect, same event, same record.
+ */
+function applyConvalescenceChoice(world: World, tick: PendingDecision['tick'], person: Person, rest: boolean): void {
+  applyConvalescence(world, tick, person.id, rest)
+  recordEvent(world, tick, {
+    type: 'convalesced',
+    subjectId: person.id,
+    detail: rest ? 'rest' : 'push-on',
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'convalescence',
+    significance: 'notable',
+    inputs: [
+      factor('own-choice', 1000),
+      factor('frailty', world.health.get(person.id)?.severity ?? 500),
+    ],
+    chosen: rest ? 'took time to heal' : 'worked through it',
+    rejected: [rest ? 'to push on' : 'to rest'],
+    streamId: Stream.Health,
+  })
 }
 
 /**
@@ -618,8 +1065,16 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'move-out': {
-      if (choice === 'accept' && pending.placeId !== null) {
-        performMoveOut(world, pending.tick, person, pending.placeId, [factor('own-choice', 1000)])
+      // P2: 'accept' is the engine's pick; 'to-<placeId>' any other street
+      // from the (deterministic) candidate list the pending carried.
+      const destination =
+        choice === 'accept'
+          ? pending.placeId
+          : choice.startsWith('to-')
+            ? (Number(choice.slice(3)) as EntityId)
+            : null
+      if (destination !== null) {
+        performMoveOut(world, pending.tick, person, destination, [factor('own-choice', 1000)])
       }
       break
     }
@@ -668,8 +1123,14 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'move-house': {
-      if (choice === 'accept' && pending.placeId !== null) {
-        moveHouse(world, pending.tick, person, pending.placeId, [factor('own-choice', 1000)])
+      const destination =
+        choice === 'accept'
+          ? pending.placeId
+          : choice.startsWith('to-')
+            ? (Number(choice.slice(3)) as EntityId)
+            : null
+      if (destination !== null) {
+        moveHouse(world, pending.tick, person, destination, [factor('own-choice', 1000)])
       }
       break
     }
@@ -699,24 +1160,8 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'convalesce': {
-      applyConvalescence(world, pending.tick, person.id, choice === 'rest')
-      recordEvent(world, pending.tick, {
-        type: 'convalesced',
-        subjectId: person.id,
-        detail: choice === 'rest' ? 'rest' : 'push-on',
-      })
-      recordDecision(world, pending.tick, {
-        subjectId: person.id,
-        decision: 'convalescence',
-        significance: 'notable',
-        inputs: [
-          factor('own-choice', 1000),
-          factor('frailty', world.health.get(person.id)?.severity ?? 500),
-        ],
-        chosen: choice === 'rest' ? 'took time to heal' : 'worked through it',
-        rejected: [choice === 'rest' ? 'to push on' : 'to rest'],
-        streamId: Stream.Health,
-      })
+      // Shared with the P2 stance verb: same effect, same event, same record.
+      applyConvalescenceChoice(world, pending.tick, person, choice === 'rest')
       break
     }
 
@@ -760,13 +1205,8 @@ export function resolvePending(world: World, choice: string): void {
           const selected =
             margin >= 0 && (margin >= 150 || rng.chance(6 + Math.floor(margin / 15), 24))
           if (selected) {
-            const newRank = record.rank + 1
-            world.service.set(person.id, {
-              ...record,
-              rank: newRank,
-              rankSinceTick: pending.tick,
-              monthlyPay: servicePay(record.branch as ServiceBranch, newRank),
-            })
+            const newRank = applyBoardPromotion(world, pending.tick, person.id)
+            if (newRank === null) break // no record to promote — no event lies about it
             recordEvent(world, pending.tick, {
               type: 'promoted',
               subjectId: person.id,
@@ -829,7 +1269,7 @@ export function resolvePending(world: World, choice: string): void {
           // inside the month, and the feed should not pretend otherwise.
           recordEvent(world, pending.tick, { type: 'completed-training', subjectId: person.id, detail: 'an advanced course' })
           const performance = Math.min(1000, record.performance + 60)
-          world.service.set(person.id, { ...record, performance })
+          boostServicePerformance(world, person.id, 60)
           // The school can also earn the trade's rating — which counts
           // toward the board (the training-to-promotion path the owner
           // asked for, and the real one).
@@ -839,10 +1279,7 @@ export function resolvePending(world: World, choice: string): void {
               subjectId: person.id,
               detail: specialty.qualification,
             })
-            world.service.set(person.id, {
-              ...world.service.get(person.id)!,
-              qualifications: [...record.qualifications, specialty.qualification],
-            })
+            addServiceQualification(world, person.id, specialty.qualification)
             grantQualificationBadge(world, pending.tick, person.id, qualEvent, specialty.qualification)
           }
           recordDecision(world, pending.tick, {
@@ -920,6 +1357,38 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'foremans-warning': {
+      // The warning is real either way; only what is done with it differs.
+      // Knuckling down is the convalesce push-on pattern: a real, bounded
+      // effort bump. Shrugging changes nothing — and the dismissal model
+      // keeps rolling next month regardless.
+      if (choice === 'knuckle-down') {
+        adjustJobPerformance(world, person.id, 80)
+      }
+      recordDecision(world, pending.tick, {
+        subjectId: person.id,
+        decision: 'employment-change',
+        significance: 'notable',
+        inputs: [
+          factor('own-choice', 1000),
+          factor('poor-performance', 1000 - (world.employment.get(person.id)?.performance ?? 0)),
+        ],
+        chosen: choice === 'knuckle-down' ? 'took the warning to heart' : 'shrugged the warning off',
+        rejected: [choice === 'knuckle-down' ? 'to shrug it off' : 'to knuckle down'],
+        streamId: Stream.Employment,
+      })
+      break
+    }
+
+    case 'retrain': {
+      // 'keep' holds the trade; any other answer is a specialty id from the
+      // options list — service owns the write.
+      if (choice !== 'keep') {
+        retrainSpecialty(world, pending.tick, person, choice)
+      }
+      break
+    }
+
     case 'custom-birth': {
       // Never a live question: createCustomLife writes the log entry itself.
       // Reaching here means a corrupted pending — refuse loudly.
@@ -930,7 +1399,20 @@ export function resolvePending(world: World, choice: string): void {
     case 'walk-in-enlist':
     case 'school-request':
     case 'unit-tryout':
-    case 'fitness-test': {
+    case 'fitness-test':
+    case 'court-friend':
+    case 'proposal':
+    case 'courtship-end':
+    case 'marriage-tend':
+    case 'social-call':
+    case 'child-try':
+    case 'walk-out':
+    case 'job-quit':
+    case 'raise-request':
+    case 're-enrolment':
+    case 'spend-stance':
+    case 'house-hunt':
+    case 'convalesce-stance': {
       // Log-only, like custom-birth: the tab verbs write these themselves.
       throw new Error(`${pending.kind} is a log entry, not a live decision`)
     }
@@ -975,6 +1457,34 @@ export function resolvePending(world: World, choice: string): void {
   if (pending.kind === 'education' && choice === 'enlist') {
     askSpecialty(world, pending.tick, person.id)
   }
+  // P2: signing again asks the trade question too — keep the specialty, or
+  // retrain into another the schooling admits.
+  if (pending.kind === 'reenlist' && choice === 'stay') {
+    askRetrain(world, pending.tick, person.id)
+  }
+}
+
+/** The retrain menu at reenlistment: keep the trade, or cross to another. */
+function askRetrain(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return
+  const education = world.education.get(personId)
+  const level = education?.level ?? 'none'
+  const alternatives = SPECIALTIES.filter(
+    (sp) => sp.id !== record.specialtyId && sp.branch === record.branch && meetsRequirement(level, sp.requires),
+  ).map((sp) => sp.id)
+  if (alternatives.length === 0) return // nothing to cross to; no empty question
+  raisePending(world, {
+    tick,
+    kind: 'retrain',
+    personId,
+    otherId: null,
+    occupationId: null,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: ['keep', ...alternatives],
+  })
 }
 
 /** The specialty menu: every branch role this person's schooling admits. */
@@ -1075,9 +1585,15 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'attend-school':
       return 'A slot at an advanced school has opened. Take it?'
     case 'volunteer-deploy':
-      return 'The unit is taking names for the next rotation. Volunteer?'
+      return 'The unit is taking names for the next deployment. Volunteer?'
     case 'combat-moment':
       return 'Fire off the ridge; the squad is pinned where it lies. What do you do?'
+    case 'foremans-warning': {
+      const role = pending.occupationId ? occupationById(pending.occupationId).title : 'the job'
+      return `The foreman pulls you aside: the ${role} work has been slipping. What do you do?`
+    }
+    case 'retrain':
+      return 'Signing again opens the trade question. Keep your specialty, or retrain?'
     case 'custom-birth':
       return 'A new life begins.' // log-only; never shown as a question
     case 'job-application':
@@ -1090,6 +1606,32 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Put in for selection.' // log-only
     case 'fitness-test':
       return 'Took the fitness test.' // log-only
+    case 'court-friend':
+      return 'Asked to court.' // log-only
+    case 'proposal':
+      return 'Proposed.' // log-only
+    case 'courtship-end':
+      return 'Ended the courtship.' // log-only
+    case 'marriage-tend':
+      return 'Made time for the marriage.' // log-only
+    case 'social-call':
+      return 'Spent time with a friend.' // log-only
+    case 'child-try':
+      return 'Tried for a child.' // log-only
+    case 'walk-out':
+      return 'Left the marriage.' // log-only
+    case 'job-quit':
+      return 'Quit the job.' // log-only
+    case 'raise-request':
+      return 'Asked for a raise.' // log-only
+    case 're-enrolment':
+      return 'Went back to school.' // log-only
+    case 'spend-stance':
+      return 'Settled how the money is carried.' // log-only
+    case 'house-hunt':
+      return 'Went looking for a place.' // log-only
+    case 'convalesce-stance':
+      return 'Chose how to carry the ailment.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(record.branch, record.rank) : 'soldier'
@@ -1323,7 +1865,11 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       if (other) {
         const strains: string[] = []
         if (household && inArrears(world, household.id)) strains.push('money has been short')
-        if (!world.employment.has(person.id) && !world.employment.has(other.id)) {
+        // A uniform is work (P2 carry-note: the stakes once told a serving
+        // spouse they had none).
+        const personWorks = world.employment.has(person.id) || isServing(world, person.id)
+        const otherWorks = world.employment.has(other.id) || isServing(world, other.id)
+        if (!personWorks && !otherWorks) {
           strains.push('neither of you has work')
         }
         if (compatibility(person, other) < 550) strains.push('you have always been different people')
@@ -1400,8 +1946,12 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       // the board's.
       const standing = boardStandingFor(world, pending.personId)
       if (standing) {
+        // The bar the board ACTUALLY applies: base cutoff plus what the file
+        // of prior non-selections adds (P2 carry-note — the stakes used to
+        // print the base and the resolution used the raised one).
+        const realBar = standing.cutoff + standing.priorPassOvers * 15
         lines.push(
-          `Your points: ${String(standing.points.total)} against the ${standing.targetTitle} cutoff of ${String(standing.cutoff)} for your trade.`,
+          `Your points: ${String(standing.points.total)} against the ${standing.targetTitle} cutoff of ${String(realBar)} for your trade${standing.priorPassOvers > 0 ? ' (raised by the file)' : ''}.`,
         )
         lines.push(
           `Evaluation ${String(standing.points.performance)} · fitness ${String(standing.points.fitness)} · badges ${String(standing.points.badges)} · decorations ${String(standing.points.decorations)} · seniority ${String(standing.points.seniority)}.`,
@@ -1420,6 +1970,58 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'attend-school': {
       lines.push('A school sharpens the work — and can earn the rating the board counts.')
       lines.push('The slot is this month or not at all.')
+      break
+    }
+
+    case 'foremans-warning': {
+      const job = world.employment.get(person.id)
+      if (job) {
+        lines.push(
+          job.performance < 200
+            ? 'The work is at the edge of what the foreman will carry.'
+            : 'The work has slipped low enough to be noticed.',
+        )
+        lines.push(`The job pays ${formatMoney(job.monthlyPay)} a month.`)
+      }
+      lines.push('Knuckling down is a real effort with a real cost in sweat; shrugging changes nothing.')
+      lines.push('Either way, keep sliding and the job will not keep itself. This warning comes once.')
+      break
+    }
+
+    case 'retrain': {
+      const record = world.service.get(pending.personId)
+      const current = record ? specialtyById(record.specialtyId) : undefined
+      if (current) {
+        lines.push(`Today you are ${withArticle(current.title)}.`)
+      }
+      for (const id of pending.options) {
+        if (id === 'keep') continue
+        const sp = SPECIALTIES.find((x) => x.id === id)
+        if (!sp) continue
+        // What a serving soldier knows better than any recruit: where the
+        // trade stands when it comes to it, and how its board runs
+        // (military review S4 — omitting these rewarded out-of-game
+        // knowledge).
+        const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
+        const cutoffShift =
+          current === undefined ? 0 : sp.boardCutoffOffset - current.boardCutoffOffset
+        const board =
+          cutoffShift === 0
+            ? ''
+            : cutoffShift > 0
+              ? ` — its board cuts ${String(cutoffShift)} points higher`
+              : ` — its board cuts ${String(-cutoffShift)} points lower`
+        const unlocks =
+          sp.civilianUnlocks.length > 0
+            ? ` — opens ${sp.civilianUnlocks.map((o) => occupationById(o).title).join(', ')} after the service`
+            : ''
+        lines.push(
+          `${sp.title}: ${String(sp.schoolMonths)} months' school${risky ? ' — the sharp end, if it ever comes to that' : ''}${board}${unlocks}.`,
+        )
+      }
+      lines.push(
+        'Retraining sends you back through the schoolhouse — no orders until it finishes. The record, the rank, and every trade already served stay yours.',
+      )
       break
     }
 

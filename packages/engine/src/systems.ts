@@ -28,6 +28,7 @@ import type {
   EmploymentRecord,
   Household,
   Person,
+  Relationship,
   Sex,
   World,
 } from './types.js'
@@ -223,6 +224,24 @@ export function enrolPlayer(world: World, tick: Tick, person: Person, level: Edu
   enrol(world, tick, person, level, rng)
 }
 
+/**
+ * P2. Why the schoolhouse door is closed — or null when it is open. The
+ * same 18–24 / secondary window the NPC appetite roll keeps. The verb AND
+ * the UI both read this one function, so the button state can never
+ * disagree with the refusal words (review S7).
+ */
+export function enrolmentBar(world: World, person: Person, tick: Tick): string | null {
+  const age = ageAt(person.birthTick, tick)
+  if (age < 18) return 'Not yet eighteen.'
+  if (age > 24) return 'The schoolhouse takes them younger. That door has closed.'
+  if (isServing(world, person.id)) return 'The uniform is a full-time career.'
+  const education = world.education.get(person.id)
+  if (!education) return 'The schooling already stands.'
+  if (education.enrolledIn !== null) return 'Already enrolled.'
+  if (education.level !== 'secondary') return 'The schooling already stands.'
+  return null
+}
+
 function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, rng: Rng): void {
   const record = world.education.get(person.id)
   if (!record) return
@@ -416,6 +435,58 @@ export function retirePerson(
 }
 
 /**
+ * P2. Walking out is the automatic paths' teardown with an honest name: the
+ * job is released, the record says whose choice it was. Shared so a future
+ * NPC quit (none is modelled today) behaves identically.
+ */
+export function performQuit(
+  world: World,
+  tick: Tick,
+  person: Person,
+  inputs: readonly CausalFactor[],
+): void {
+  const job = world.employment.get(person.id)
+  if (!job) return
+  world.employment.delete(person.id)
+  recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'quit' })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs,
+    chosen: `quit the ${occupationById(job.occupationId).title} work`,
+    rejected: ['to stay in the role'],
+    streamId: Stream.Employment,
+  })
+}
+
+/**
+ * P2 single-writer helpers for employment fields (the service.ts pattern):
+ * the caller owns the story, systems owns the write.
+ */
+export function adjustJobPerformance(world: World, personId: EntityId, amount: number): void {
+  const job = world.employment.get(personId)
+  if (!job) return
+  world.employment.set(personId, {
+    ...job,
+    performance: Math.max(0, Math.min(1000, job.performance + amount)),
+  })
+}
+
+/** A raise granted outside the annual cycle — the asked-for kind. */
+export function grantRaise(world: World, tick: Tick, personId: EntityId, newPay: Money): void {
+  const job = world.employment.get(personId)
+  if (!job) return
+  world.employment.set(personId, { ...job, monthlyPay: newPay })
+  recordEvent(world, tick, {
+    type: 'got-raise',
+    subjectId: personId,
+    placeId: job.workplaceId,
+    detail: String(newPay),
+  })
+}
+
+/**
  * The annual review: pay creeps toward the occupation's ceiling, faster for
  * good work. M-DEPTH2 — before this, pay was set at hire and never moved,
  * which made a forty-year career financially identical to forty first years.
@@ -476,6 +547,39 @@ function considerBetterJob(
 ): void {
   const education = world.education.get(person.id)
   if (!education) return
+
+  // P2: the player hears about it before the axe. One warning per job spell,
+  // at the top of the slide (240) rather than inside the dismissal zone
+  // (200), so the warning can still be acted on. The dismissal model below
+  // is untouched — a warned player who keeps sliding is let go exactly as an
+  // NPC would be; the moment is the knowing, not a shield.
+  if (
+    person.id === world.player.personId &&
+    job.performance < 240 &&
+    !world.player.log.some(
+      (entry) => entry.kind === 'foremans-warning' && entry.tick >= job.startedAtTick,
+    )
+  ) {
+    const landed = raisePending(world, {
+      tick,
+      kind: 'foremans-warning',
+      personId: person.id,
+      otherId: null,
+      occupationId: job.occupationId,
+      workplaceId: job.workplaceId,
+      monthlyPay: null,
+      placeId: null,
+      options: ['knuckle-down', 'shrug'],
+    })
+    if (landed) {
+      recordEvent(world, tick, {
+        type: 'warned-at-work',
+        subjectId: person.id,
+        placeId: job.workplaceId,
+      })
+      return // the month belongs to the warning; the rolls resume next tick
+    }
+  }
 
   // Poor performers can lose the job.
   if (job.performance < 200 && rng.chanceInTenThousand(400)) {
@@ -580,7 +684,9 @@ export function runHouseholds(world: World, tick: Tick): void {
       const home = rng.pick(affordable)
 
       // The urge and the destination are simulated either way; only who says
-      // yes differs. The player can stay home as long as they like.
+      // yes differs. The player can stay home as long as they like. P2: the
+      // whole (already deterministic) affordable list is on the table —
+      // 'accept' is the engine's pick, 'to-<placeId>' any other door.
       if (person.id === world.player.personId) {
         raisePending(world, {
           tick,
@@ -591,7 +697,14 @@ export function runHouseholds(world: World, tick: Tick): void {
           workplaceId: null,
           monthlyPay: null,
           placeId: home.id,
-          options: ['accept', 'decline'],
+          options: [
+            'accept',
+            'decline',
+            ...affordable
+              .filter((p) => p.id !== home.id)
+              .sort((x, y) => x.id - y.id)
+              .map((p) => `to-${String(p.id)}`),
+          ],
         })
         continue
       }
@@ -618,7 +731,8 @@ export function runHouseholds(world: World, tick: Tick): void {
       const target = rng.pick(better)
 
       // A better street is affordable. The player decides whether the family
-      // moves; for an NPC the desirability gap already decided.
+      // moves; for an NPC the desirability gap already decided. P2: every
+      // qualifying street is offered, not just the engine's pick.
       if (person.id === world.player.personId) {
         raisePending(world, {
           tick,
@@ -629,7 +743,14 @@ export function runHouseholds(world: World, tick: Tick): void {
           workplaceId: null,
           monthlyPay: null,
           placeId: target.id,
-          options: ['accept', 'decline'],
+          options: [
+            'accept',
+            'decline',
+            ...better
+              .filter((p) => p.id !== target.id)
+              .sort((x, y) => x.id - y.id)
+              .map((p) => `to-${String(p.id)}`),
+          ],
         })
         continue
       }
@@ -745,43 +866,18 @@ export function moveHouse(
 
   world.households.set(household.id, { ...household, placeId })
   recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId })
+  // A downhill move is not a negative amount of "better street" — it is a
+  // cheaper one, and the record says which it was (review S5).
+  const desirabilityGain = target.desirability - (current?.desirability ?? 0)
   recordDecision(world, tick, {
     subjectId: person.id,
     decision: 'move',
     significance: 'major',
     inputs: [
       ...extraInputs,
-      factor('better-neighbourhood', target.desirability - (current?.desirability ?? 0)),
-    ],
-    chosen: `moved to ${target.name}`,
-    rejected: [current ? `to stay in ${current.name}` : 'to stay put'],
-    streamId: Stream.LifeEventTiming,
-  })
-}
-
-/**
- * One move-out implementation for both the automatic path and player choices.
-export function moveHouse(
-  world: World,
-  tick: Tick,
-  person: Person,
-  placeId: EntityId,
-  extraInputs: readonly CausalFactor[],
-): void {
-  const household = householdOf(world, person)
-  const target = world.places.get(placeId)
-  if (!household || !target) return
-  const current = world.places.get(household.placeId)
-
-  world.households.set(household.id, { ...household, placeId })
-  recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId })
-  recordDecision(world, tick, {
-    subjectId: person.id,
-    decision: 'move',
-    significance: 'major',
-    inputs: [
-      ...extraInputs,
-      factor('better-neighbourhood', target.desirability - (current?.desirability ?? 0)),
+      desirabilityGain >= 0
+        ? factor('better-neighbourhood', desirabilityGain)
+        : factor('cheaper-rent', -desirabilityGain),
     ],
     chosen: `moved to ${target.name}`,
     rejected: [current ? `to stay in ${current.name}` : 'to stay put'],
@@ -832,6 +928,7 @@ export function performMoveOut(
     formedTick: tick,
     dissolvedTick: null,
     savings: moverPay as Money,
+    spendStance: null,
   })
   setPerson(world, { ...person, householdId: newHouseholdId })
 
@@ -928,6 +1025,90 @@ export function birthEligible(world: World, tick: Tick, person: Person): EntityI
   return partnerId
 }
 
+/**
+ * P2. Why the couple cannot try for a child this month, in words — or null
+ * when they can. `person` is EITHER partner (the verb is the player's);
+ * the gates are birthEligible's, judged on the mother, kept in step by hand:
+ * a gate added there without words here is a silent refusal, which the verb
+ * exists to prevent.
+ */
+export function birthBar(world: World, tick: Tick, person: Person): string | null {
+  const partnerId = partnerOf(world, person.id)
+  if (partnerId === null) return 'There is nobody to try with.'
+  const partner = world.people.get(partnerId)
+  if (!partner || partner.deathTick !== null) return 'They are gone.'
+
+  const mother = person.sex === 'female' ? person : partner
+  const father = person.sex === 'female' ? partner : person
+  if (mother.sex !== 'female' || father.sex !== 'male') return 'The two of you cannot bear a child.'
+  const age = ageAt(mother.birthTick, tick)
+  if (age < CHILDBEARING_MIN_AGE) return 'Not yet — too young for that road.'
+  if (age > CHILDBEARING_MAX_AGE) return 'That season has passed.'
+
+  const household = householdOf(world, mother)
+  if (!household) return 'There is no roof to raise a child under.'
+  if (!household.memberIds.includes(father.id)) return 'Not while you live apart.'
+  if (mother.parentIds.some((id) => household.memberIds.includes(id))) {
+    const tie = relationshipBetween(world, mother.id, father.id)
+    if (tie === undefined || tie.type !== 'spouse') return "Not under her parents' roof, unwed."
+  }
+  return null
+}
+
+/**
+ * The per-ten-thousand monthly conception chance for this couple — the birth
+ * model's own arithmetic, extracted so the P2 try-for-child verb rolls the
+ * SAME odds runBirths does. D2: for some women the children never come, and
+ * for some they come slowly — latent facts drawn from a constant-keyed
+ * stream (same woman, same answers, forever); modelled circumstance, not a
+ * rate lever (ADR-0019). May return zero or negative: the caller treats
+ * anything non-positive as "not this month".
+ */
+function conceptionBase(
+  world: World,
+  tick: Tick,
+  mother: Person,
+  tie: Relationship | undefined,
+  livingChildren: number,
+  behind: boolean,
+): number {
+  const age = ageAt(mother.birthTick, tick)
+  const married = tie !== undefined && tie.type === 'spouse'
+  const fertilityDraw = openStream(world.seed, Stream.LifeEventTiming, mother.id, 424_242)
+  if (fertilityDraw.chance(55, 1_000)) return 0 // the children never came
+  const slowToConceive = fertilityDraw.chance(65, 1_000)
+
+  const agePenalty = Math.max(0, age - 36) * 14
+  let base: number
+  if (married && tie.familySizeAspiration !== null && livingChildren < tie.familySizeAspiration) {
+    base = 365 - agePenalty // building the family they hoped for
+  } else if (married) {
+    base = 12 - agePenalty // the plan is complete; life still happens
+  } else {
+    base = 60 - agePenalty // courting — the plan comes with the wedding
+  }
+  if (behind) base = Math.floor(base / 2) // money talks at the kitchen table
+  if (slowToConceive) base = Math.floor(base / 5)
+  return base
+}
+
+/** The verb-facing wrapper: the same chance, computed from a cold start. */
+export function monthlyConceptionChance(
+  world: World,
+  tick: Tick,
+  mother: Person,
+  fatherId: EntityId,
+): number {
+  const household = householdOf(world, mother)
+  if (!household) return 0
+  let livingChildren = 0
+  for (const child of world.people.values()) {
+    if (child.deathTick === null && child.parentIds.includes(mother.id)) livingChildren++
+  }
+  const tie = relationshipBetween(world, mother.id, fatherId)
+  return conceptionBase(world, tick, mother, tie, livingChildren, inArrears(world, household.id))
+}
+
 export function runBirths(world: World, tick: Tick): void {
   // Living children per parent, one pass — the aspiration reads it (D2).
   const livingChildCounts = new Map<EntityId, number>()
@@ -941,7 +1122,6 @@ export function runBirths(world: World, tick: Tick): void {
   for (const person of livingPeople(world)) {
     const partnerId = birthEligible(world, tick, person)
     if (partnerId === null) continue
-    const age = ageAt(person.birthTick, tick)
     const household = householdOf(world, person)
     if (!household) continue
 
@@ -963,26 +1143,9 @@ export function runBirths(world: World, tick: Tick): void {
       stopFamilyEarly(world, tick, person.id)
     }
 
-    // D2: for some women the children never come, and for some they come
-    // slowly — latent facts of biology, drawn from a constant-keyed stream
-    // (same woman, same answers, forever). This is where the childless
-    // marriages the town really had come from; modelled circumstance, not
-    // a rate lever (ADR-0019).
-    const fertilityDraw = openStream(world.seed, Stream.LifeEventTiming, person.id, 424_242)
-    if (fertilityDraw.chance(55, 1_000)) continue // the children never came
-    const slowToConceive = fertilityDraw.chance(65, 1_000)
-
-    const agePenalty = Math.max(0, age - 36) * 14
-    let base: number
-    if (married && tie.familySizeAspiration !== null && children < tie.familySizeAspiration) {
-      base = 365 - agePenalty // building the family they hoped for
-    } else if (married) {
-      base = 12 - agePenalty // the plan is complete; life still happens
-    } else {
-      base = 60 - agePenalty // courting — the plan comes with the wedding
-    }
-    if (behind) base = Math.floor(base / 2) // money talks at the kitchen table
-    if (slowToConceive) base = Math.floor(base / 5)
+    // NOTE the tie passed below is the one read BEFORE stopFamilyEarly — a
+    // plan cut this month applies from next month, as it always has.
+    const base = conceptionBase(world, tick, person, tie, children, behind)
     if (base <= 0) continue
 
     const rng = openStream(world.seed, Stream.LifeEventTiming, person.id, tick + 7777)

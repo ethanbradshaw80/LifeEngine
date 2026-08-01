@@ -170,6 +170,14 @@ than discovered at Layer 4.
 Every save records `simulationVersion`. It increments on any change to simulation
 *behaviour* — not on refactors that provably change nothing.
 
+By convention (established at M-PLAY and applied since), "behaviour" here means
+the **unplayed** world: what a seed produces when nobody is being played, which
+is what the golden fingerprint pins. Changes that only alter what happens on a
+player's path — new pendings, new verbs, different option lists — ride the
+SCHEMA version and the played world's own version notice instead. A played
+save continued under newer player-path code may reach different moments; the
+load-time divergence warning covers this case too.
+
 Loading a save with an older version:
 
 1. Apply migrations in sequence to reach the current version.

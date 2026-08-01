@@ -9,8 +9,9 @@
  * not the town's manager.
  *
  * The tabs are progressive disclosure (Law 9): the same engine state the
- * feed summarizes, browsable in depth. Every tab is read-side — the only
- * writes remain advance, choose, stop.
+ * feed summarizes, browsable in depth. Since M-SERVICE-PLAY and P2 the tabs
+ * also carry the player's VERBS — every one a command to the engine, which
+ * answers honestly (the notice) and stays the only authority.
  *
  * Presentation only (ADR-0012): every fact on screen is read from the engine
  * each render, and the only writes are commands.
@@ -20,7 +21,9 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   activeWars,
   ageAt,
+  canAfford,
   childrenIdsOf,
+  enrolmentBar,
   decorationsOf,
   deploymentsOf,
   describeAilment,
@@ -61,9 +64,11 @@ import {
   unitOptionsFor,
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
+import { placesOfKind } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
+import type { VerbRequest } from './engine.worker.js'
 
 /** One glyph per event type. Emoji: zero assets, universally shipped. */
 const EVENT_ICONS: Partial<Record<EventType, string>> = {
@@ -111,6 +116,10 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'declined-board': '📋',
   'kept-heads-down': '⛑️',
   reconciled: '💞',
+  'tended-marriage': '💐',
+  'spent-time': '☕',
+  'warned-at-work': '⚠️',
+  'changed-spending': '👛',
   'moved-in-together': '🏠',
   'moved-house': '🚚',
   'had-child': '👶',
@@ -167,6 +176,9 @@ interface Props {
   readonly onTryUnit: (unitId: string) => void
   readonly onRequestDeploy: () => void
   readonly onFitnessTest: () => void
+  /** P2: any player-initiated verb; the engine's honest refusal returns as
+   *  the notice. One channel for court/propose/quit/move/… */
+  readonly onAct: (action: VerbRequest) => void
   /** The world's short answer to the last action ("no place this month"). */
   readonly notice: string | null
 }
@@ -189,9 +201,12 @@ function PersonLink({
   )
 }
 
-export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, notice }: Props) {
+export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onAct, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
+  // Two-step confirmation for the irreversible verbs (walk-out, quit): the
+  // first click arms, the second sends. Any tab change disarms.
+  const [confirming, setConfirming] = useState<string | null>(null)
   const feedRef = useRef<HTMLDivElement | null>(null)
 
   const age = ageAt(person.birthTick, world.tick)
@@ -362,7 +377,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             type="button"
             className={tab === t.id ? 'active' : undefined}
             aria-current={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id)
+              setConfirming(null)
+            }}
           >
             {t.label}
           </button>
@@ -472,6 +490,67 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 <span className="muted small"> · this household since {formatYear(household.formedTick)}</span>
               </dd>
+              {age >= 18 && (
+                <>
+                  <dt>Spending</dt>
+                  <dd>
+                    {/* P2: the stance discretionaryFor reads. The active one
+                        is the household's current posture; null is the
+                        character-driven default. */}
+                    <span className="verb-row">
+                      {([
+                        ['thrifty', 'Thrifty'],
+                        [null, 'As it comes'],
+                        ['loose', 'Open-handed'],
+                      ] as const).map(([stance, label]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          className={household.spendStance === stance ? 'apply active' : 'apply'}
+                          disabled={busy || household.spendStance === stance}
+                          onClick={() => onAct({ verb: 'spend-stance', stance })}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </span>
+                  </dd>
+                  <dt>Streets</dt>
+                  <dd>
+                    <ul className="job-list">
+                      {placesOfKind(world, 'neighbourhood')
+                        .slice()
+                        .sort((a, b) => a.desirability - b.desirability)
+                        .map((place) => {
+                          const current = place.id === household.placeId
+                          // The engine's own gate, so the disabled state
+                          // never disagrees with the refusal words.
+                          const affordable = canAfford(householdIncome(world, household), place.desirability)
+                          return (
+                            <li key={place.id} className={current ? 'current' : undefined}>
+                              <span className="job-title">{place.name}</span>
+                              <span className="muted small">
+                                {formatMoney(rentFor(place.desirability))} a month
+                                {current && ' — home'}
+                              </span>
+                              {!current && (
+                                <button
+                                  type="button"
+                                  className="apply"
+                                  disabled={busy || !affordable}
+                                  title={affordable ? undefined : 'The household cannot carry that rent.'}
+                                  onClick={() => onAct({ verb: 'look-for-place', placeId: place.id })}
+                                >
+                                  Look for a place
+                                </button>
+                              )}
+                            </li>
+                          )
+                        })}
+                    </ul>
+                  </dd>
+                </>
+              )}
             </dl>
           )}
         </div>
@@ -490,6 +569,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               ['Children', tree.children],
               ['Grandchildren', tree.grandchildren],
             ] as const
+            const adult = age >= 18
             return (
               <dl className="facts">
                 {(['spouse', 'courting', 'former-spouse'] as const).map((type) => {
@@ -508,6 +588,47 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             <span className="muted small"> since {formatYear(tie.typeSinceTick)}</span>
                           </span>
                         ))}
+                        {/* P2 — the marriage and courtship verbs live beside
+                            the person they concern. The engine gates; these
+                            buttons only ask. */}
+                        {type === 'spouse' && adult && (
+                          <span className="verb-row">
+                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'tend-marriage' })}>
+                              💐 Make time
+                            </button>
+                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'try-for-child' })}>
+                              👶 Try for a child
+                            </button>
+                            {confirming === 'walk-out' ? (
+                              <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'walk-out' }) }}>
+                                💔 Leave — for certain?
+                              </button>
+                            ) : (
+                              <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('walk-out')}>
+                                💔 Leave the marriage
+                              </button>
+                            )}
+                          </span>
+                        )}
+                        {type === 'courting' && adult && (
+                          <span className="verb-row">
+                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'propose' })}>
+                              💍 Propose
+                            </button>
+                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'try-for-child' })}>
+                              👶 Try for a child
+                            </button>
+                            {confirming === 'end-courtship' ? (
+                              <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'end-courtship' }) }}>
+                                🥀 End it — for certain?
+                              </button>
+                            ) : (
+                              <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('end-courtship')}>
+                                🥀 End the courtship
+                              </button>
+                            )}
+                          </span>
+                        )}
                       </dd>
                     </Fragment>
                   )
@@ -533,12 +654,28 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   {byType('friend').length === 0 ? (
                     <span className="muted">none currently</span>
                   ) : (
-                    byType('friend').map((tie, i) => (
-                      <span key={`${tie.a}:${tie.b}`}>
-                        {i > 0 && ', '}
-                        <PersonLink world={world} id={other(tie, person.id)} onInspect={onInspect} />
-                      </span>
-                    ))
+                    <ul className="job-list">
+                      {byType('friend').map((tie) => {
+                        const friendId = other(tie, person.id)
+                        return (
+                          <li key={`${tie.a}:${tie.b}`}>
+                            <span className="job-title">
+                              <PersonLink world={world} id={friendId} onInspect={onInspect} />
+                            </span>
+                            <span className="verb-row">
+                              <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'spend-time', otherId: friendId })}>
+                                ☕ Spend time
+                              </button>
+                              {adult && (
+                                <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'court', otherId: friendId })}>
+                                  🌹 Court
+                                </button>
+                              )}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
                   )}
                 </dd>
               </dl>
@@ -560,6 +697,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     <span className="muted small"> · at {world.places.get(job.workplaceId)?.name}</span>
                   )}
                   <span className="muted small"> · since {formatYear(job.startedAtTick)}</span>
+                  <span className="verb-row">
+                    <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'ask-raise' })}>
+                      💵 Ask for a raise
+                    </button>
+                    {confirming === 'quit-job' ? (
+                      <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'quit-job' }) }}>
+                        📦 Quit — for certain?
+                      </button>
+                    ) : (
+                      <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('quit-job')}>
+                        📦 Quit
+                      </button>
+                    )}
+                  </span>
                 </dd>
               </dl>
             </>
@@ -567,6 +718,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {isServing(world, person.id) && (
             <p className="muted">You are serving — see the Service tab.</p>
           )}
+          {(() => {
+            // P2: the engine's own gate (enrolmentBar), so the block can
+            // never appear when the verb would refuse.
+            if (enrolmentBar(world, person, world.tick) !== null) return null
+            return (
+              <>
+                <h3>School</h3>
+                <p className="muted small">The window is open until 25 — the schoolhouse takes them younger.</p>
+                <div className="svc-actions">
+                  <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 're-enrol', level: 'college' })}>
+                    🎓 Enrol in college
+                  </button>
+                  <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 're-enrol', level: 'trade' })}>
+                    🔧 Enrol in trade school
+                  </button>
+                </div>
+              </>
+            )
+          })()}
           <h3>Work in town</h3>
           <ul className="job-list">
             {(() => {
@@ -755,20 +925,31 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <>
                     <h3>Actions</h3>
                     <div className="svc-actions">
+                      {/* "Deployment", not "rotation" (owner, 2026-08-01):
+                          rotations are the peacetime posting to an ally's
+                          soil — a queued feature of its own. This button is
+                          the wartime one. */}
                       <button type="button" className="apply" disabled={busy} onClick={onRequestDeploy}>
-                        🛫 Volunteer for the rotation
+                        🛫 Volunteer for deployment
                       </button>
                       <button type="button" className="apply" disabled={busy} onClick={onFitnessTest}>
                         🏃 Train for the fitness test
+                      </button>
+                      <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'request-discharge' })}>
+                        📜 Request discharge
                       </button>
                     </div>
                     {(() => {
                       const standing = boardStandingFor(world, person.id)
                       if (!standing) return null
+                      // The bar the board actually applies (P2): base cutoff
+                      // plus what the file of non-selections adds.
+                      const realBar = standing.cutoff + standing.priorPassOvers * 15
                       return (
                         <p className="muted small">
                           Promotion points: {standing.points.total} against the {standing.targetTitle} cutoff
-                          of {standing.cutoff} — evaluation {standing.points.performance}, fitness{' '}
+                          of {realBar}{standing.priorPassOvers > 0 && ' (raised by the file)'} — evaluation{' '}
+                          {standing.points.performance}, fitness{' '}
                           {standing.points.fitness}, badges {standing.points.badges}, decorations{' '}
                           {standing.points.decorations}, seniority {standing.points.seniority}.
                         </p>
@@ -897,6 +1078,24 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             {mark}
                           </span>
                         ))}
+                      </dd>
+                    </>
+                  )}
+                  {ailing && (
+                    <>
+                      <dt>This month</dt>
+                      <dd>
+                        {/* P2: the convalesce stance, repeatable while it
+                            ails — rest heals faster and the work slips;
+                            pushing on is the reverse. */}
+                        <span className="verb-row">
+                          <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'convalesce-stance', rest: true })}>
+                            🛌 Rest
+                          </button>
+                          <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'convalesce-stance', rest: false })}>
+                            💪 Push on
+                          </button>
+                        </span>
                       </dd>
                     </>
                   )}

@@ -23,6 +23,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
+import { SPECIALTIES } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
@@ -231,10 +232,33 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
+  'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
+  retrain: { keep: 'Keep your trade' },
 }
 
-function optionLabel(kind: string, option: string): string {
-  return OPTION_LABELS[kind]?.[option] ?? option
+function optionLabel(world: World, pending: PendingDecision, option: string): string {
+  // P2: move pendings carry the whole candidate list as 'to-<placeId>'
+  // options, and 'accept' is the engine's own pick — both label with the
+  // street's name so the buttons read as destinations, not verbs.
+  if (option.startsWith('to-')) {
+    const place = world.places.get(Number(option.slice(3)) as EntityId)
+    if (place) return `Move to ${place.name}`
+  }
+  if (
+    (pending.kind === 'move-out' || pending.kind === 'move-house') &&
+    option === 'accept' &&
+    pending.placeId !== null
+  ) {
+    const place = world.places.get(pending.placeId)
+    if (place) return `Move to ${place.name}`
+  }
+  // Specialty ids become their titles (also fixes the long-standing raw-id
+  // labels on the enlistment specialty menu).
+  if (pending.kind === 'specialty' || (pending.kind === 'retrain' && option !== 'keep')) {
+    const specialty = SPECIALTIES.find((sp) => sp.id === option)
+    if (specialty) return pending.kind === 'retrain' ? `Retrain as ${specialty.title}` : specialty.title
+  }
+  return OPTION_LABELS[pending.kind]?.[option] ?? option
 }
 
 interface PromptProps {
@@ -271,7 +295,7 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               className={option === pending.options[0] ? 'primary' : ''}
               onClick={() => onChoose(option)}
             >
-              {optionLabel(pending.kind, option)}
+              {optionLabel(world, pending, option)}
             </button>
           ))}
         </div>

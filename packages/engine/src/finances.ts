@@ -168,9 +168,54 @@ export function discretionaryFor(world: World, household: Household): Money {
     }
   }
   const avgDiligence = adults > 0 ? Math.floor(diligenceTotal / adults) : 500
-  const spendPerMille = 920 - Math.floor(avgDiligence / 12) // 920 down to 837
+  let spendPerMille = 920 - Math.floor(avgDiligence / 12) // 920 down to 837
+
+  // P2: a chosen posture moves the rate the way character otherwise would —
+  // a bounded lean, not a cheat code. Null (every NPC household) keeps the
+  // formula exactly as it was.
+  if (household.spendStance === 'thrifty') spendPerMille = Math.max(690, spendPerMille - 150)
+  else if (household.spendStance === 'loose') spendPerMille = Math.min(975, spendPerMille + 55)
 
   return Math.floor((surplus * spendPerMille) / 1000) as Money
+}
+
+/**
+ * P2. The player sets the household's spending posture. Finances owns the
+ * write (single writer of household money behaviour); the caller owns the
+ * story. Null returns the household to its character-driven default.
+ */
+export function setSpendStance(
+  world: World,
+  tick: Tick,
+  householdId: EntityId,
+  stance: Household['spendStance'],
+  subjectId: EntityId,
+): void {
+  const household = world.households.get(householdId)
+  if (!household || household.spendStance === stance) return
+  world.households.set(householdId, { ...household, spendStance: stance })
+  recordEvent(world, tick, {
+    type: 'changed-spending',
+    subjectId,
+    detail: stance ?? 'as-it-comes',
+  })
+  recordDecision(world, tick, {
+    subjectId,
+    decision: 'spending',
+    significance: 'notable',
+    inputs: [
+      factor('own-choice', 1000),
+      ...(household.savings < 0 ? [factor('in-arrears', 700)] : []),
+    ],
+    chosen:
+      stance === 'thrifty'
+        ? 'tightened the household belt'
+        : stance === 'loose'
+          ? 'let the money breathe'
+          : 'let the money find its own level',
+    rejected: [],
+    streamId: Stream.Economy,
+  })
 }
 
 /** This month's true change in savings, mirroring runFinances exactly. */
@@ -277,7 +322,15 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
         workplaceId: null,
         monthlyPay: null,
         placeId: target.id,
-        options: ['accept', 'decline'],
+        options: [
+          'accept',
+          'decline',
+          // P2: every cheaper street is on the table, not only the cheapest.
+          ...cheaper
+            .filter((p) => p.id !== target.id)
+            .sort((x, y) => x.id - y.id)
+            .map((p) => `to-${String(p.id)}`),
+        ],
       })
       continue
     }

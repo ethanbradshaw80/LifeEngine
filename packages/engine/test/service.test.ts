@@ -206,6 +206,8 @@ describe('veterans', () => {
       unitId: null,
       fitnessScore: 0,
       fitnessTestedAtTick: null,
+      priorSpecialtyIds: [],
+      specialtyChangedAtTick: null,
     })
 
     expect(isVeteran(world, person.id)).toBe(true)

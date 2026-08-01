@@ -106,6 +106,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       if (event.detail === 'retired') return `${year} — Retired at ${age}.`
       if (event.detail === 'let go') return `${year} — Lost the job.`
       if (event.detail === 'jailed') return `${year} — The job did not wait out the sentence.`
+      if (event.detail === 'quit') return `${year} — Quit the job.`
       return null // job-change departures read better as the arrival line alone
     case 'was-introduced':
       return `${year} — Introduced to ${nameOf(world, event.otherId)} at ${event.detail ?? 'a town social'}.`
@@ -119,6 +120,18 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Pinned down under fire; kept low and held.`
     case 'reconciled':
       return `${year} — Chose to stay and try again with ${nameOf(world, event.otherId)}.`
+    case 'tended-marriage':
+      return `${year} — Made time for the marriage.`
+    case 'spent-time':
+      return `${year} — An afternoon with ${nameOf(world, event.otherId)}.`
+    case 'warned-at-work':
+      return `${year} — The foreman had a word: the work was slipping.`
+    case 'changed-spending':
+      return event.detail === 'thrifty'
+        ? `${year} — Tightened the household belt.`
+        : event.detail === 'loose'
+          ? `${year} — Let the money breathe a little.`
+          : `${year} — Let the money find its own level.`
     case 'befriended':
       return `${year} — Became friends with ${nameOf(world, event.otherId)}.`
     case 'friendship-lapsed':

@@ -46,6 +46,8 @@ function aPlayedSoldier(world: World, performance = 700): Person {
     unitId: null,
     fitnessScore: 200,
     fitnessTestedAtTick: null,
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
   })
   world.employment.delete(person.id)
   return person

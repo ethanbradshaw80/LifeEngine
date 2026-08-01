@@ -98,7 +98,17 @@ export interface Household {
    * has consequences; it is not clamped away.
    */
   readonly savings: Money
+  /**
+   * P2. A chosen spending posture, or null for the character-driven default
+   * (discretionaryFor's diligence formula). Only a played household ever sets
+   * it — NPC households stay null, so a world played by nobody is unchanged.
+   * Schema v18.
+   */
+  readonly spendStance: SpendStance | null
 }
+
+/** How the household carries its money: tight, as-it-comes, or open-handed. */
+export type SpendStance = 'thrifty' | 'loose'
 
 // ---------------------------------------------------------------------------
 // Health (L4-M2)
@@ -254,6 +264,20 @@ export interface ServiceRecord {
   /** Qualifications earned, in words ("expert marksman"). Append-only;
    *  L4-M5's award system reads these. */
   readonly qualifications: readonly string[]
+  /**
+   * P2. Trades held BEFORE the current one, in order — written when a
+   * reenlistment retrain crosses specialties. A twelve-year mechanic who
+   * finishes as a rifleman is still a trained mechanic: veteranUnlocks
+   * unions across all of these (military review must-fix — the trade must
+   * not vanish from the record that is foundation §10's whole point).
+   */
+  readonly priorSpecialtyIds: readonly string[]
+  /**
+   * P2. When the current specialty was entered by RETRAIN, or null when it
+   * is the enlistment trade. Gates deployment (the new trade's school must
+   * finish first) and times the completed-training event.
+   */
+  readonly specialtyChangedAtTick: Tick | null
   readonly enlistedAtTick: Tick
   /** The current posting. */
   readonly baseId: EntityId
@@ -537,6 +561,28 @@ export type PendingKind =
   /** A contact that became the player's own moment: the squad pinned, and
    *  a choice that is genuinely theirs (M-HARM). */
   | 'combat-moment'
+  /** P2. The foreman has noticed the work slipping — the modelled dismissal
+   *  threshold gets a warning moment before the axe. Player-only; NPCs are
+   *  simply let go, as they always were. */
+  | 'foremans-warning'
+  /** P2. Signing for another term asks the trade question too: keep the
+   *  specialty, or retrain. Raised as a follow-up after 'stay'. */
+  | 'retrain'
+  /** P2 LOG-ONLY tab verbs (the custom-birth pattern): the player initiated,
+   *  the entry makes replay exact, never a live question. */
+  | 'court-friend'
+  | 'proposal'
+  | 'courtship-end'
+  | 'marriage-tend'
+  | 'social-call'
+  | 'child-try'
+  | 'walk-out'
+  | 'job-quit'
+  | 'raise-request'
+  | 're-enrolment'
+  | 'spend-stance'
+  | 'house-hunt'
+  | 'convalesce-stance'
   /**
    * A custom life brought into the world at the picker. NEVER raised as a
    * live question — createCustomLife writes the log entry directly, so the
@@ -659,6 +705,12 @@ export type EventType =
   | 'declined-board'
   | 'kept-heads-down'
   | 'reconciled'
+  /** P2 — the verbs. Choices the player initiates, visible in the feed like
+   *  every other choice (no silent state changes; the P1 principle). */
+  | 'tended-marriage'
+  | 'spent-time'
+  | 'warned-at-work'
+  | 'changed-spending'
   /** Crime & justice (C1). The thief's own timeline knows what they did. */
   | 'committed-theft'
   | 'was-robbed'
@@ -733,6 +785,9 @@ export type DecisionType =
   | 'justice'
   | 'deployment'
   | 'geopolitics'
+  /** P2. The household's chosen spending posture — a standing money choice
+   *  that is neither a move nor an employment change. */
+  | 'spending'
 
 /** Drives retention. Assigned when the record is created. */
 export type Significance = 'notable' | 'major' | 'defining'

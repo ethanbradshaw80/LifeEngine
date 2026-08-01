@@ -63,6 +63,7 @@ import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { withArticle } from './text.js'
 import { openStream, Stream, type StreamId } from './rng.js'
 import type { CausalFactor, Person, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
@@ -301,11 +302,19 @@ export function pensionOf(world: World, personId: EntityId): number {
   return serviceDisability * PENSION_CENTS_PER_POINT
 }
 
-/** Civilian occupations a veteran's training opened. Empty for non-veterans. */
+/** Civilian occupations a veteran's training opened. Empty for non-veterans.
+ *  Unions EVERY trade served, not just the last — retraining for a final
+ *  term must not erase twelve years of the old one (P2 military review). */
 export function veteranUnlocks(world: World, personId: EntityId): readonly string[] {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick === null) return []
-  return specialtyById(record.specialtyId).civilianUnlocks
+  const unlocks: string[] = []
+  for (const specialtyId of [...record.priorSpecialtyIds, record.specialtyId]) {
+    for (const occupation of specialtyById(specialtyId).civilianUnlocks) {
+      if (!unlocks.includes(occupation)) unlocks.push(occupation)
+    }
+  }
+  return unlocks
 }
 
 function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
@@ -381,6 +390,8 @@ export function enlistPerson(
     rank: 0,
     rankSinceTick: tick,
     qualifications: [],
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
     enlistedAtTick: tick,
     baseId: base.id,
     monthlyPay: servicePay(specialty.branch, 0),
@@ -591,6 +602,14 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   let baseId = record.baseId
   let unitId = record.unitId
   const qualifications = [...record.qualifications]
+  // P2: a retrain's school completes on its own clock — without this the
+  // feed said "reported to school" forever (military review S2).
+  if (
+    record.specialtyChangedAtTick !== null &&
+    tick - record.specialtyChangedAtTick === specialty.schoolMonths
+  ) {
+    recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
+  }
   if (monthsIn === 2) {
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: 'basic training' })
     recordEvent(world, tick, { type: 'began-training', subjectId: person.id, detail: `${specialty.title} school` })
@@ -859,6 +878,110 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
 function termAveragePerformance(record: NonNullable<ReturnType<World['service']['get']>>): number {
   const monthsServed = Math.max(1, SERVICE_TERM_MONTHS - record.termMonthsLeft)
   return Math.floor(record.termPerformanceSum / monthsServed)
+}
+
+// ---------------------------------------------------------------------------
+// P2 single-writer helpers. The player's tab verbs and board resolution used
+// to write world.service directly from player.ts — a DOMAIN_MAP §6 violation
+// carried since M-SERVICE-PLAY. Every mutation now comes through here. Each
+// helper is the FIELD WRITE only: the caller owns the story (events, records,
+// rolls), because who asked and why differs between callers.
+// ---------------------------------------------------------------------------
+
+type ServiceRecordT = NonNullable<ReturnType<World['service']['get']>>
+
+function activeRecord(world: World, personId: EntityId): ServiceRecordT | undefined {
+  const record = world.service.get(personId)
+  return record === undefined || record.dischargedAtTick !== null ? undefined : record
+}
+
+/** Raise performance (capped at 1000) — schools and courses pay this. */
+export function boostServicePerformance(world: World, personId: EntityId, amount: number): void {
+  const record = activeRecord(world, personId)
+  if (!record) return
+  world.service.set(personId, {
+    ...record,
+    performance: Math.min(1000, record.performance + amount),
+  })
+}
+
+/** Put someone in a special unit — selection already passed by the caller. */
+export function assignServiceUnit(world: World, personId: EntityId, unitId: string): void {
+  const record = activeRecord(world, personId)
+  if (!record) return
+  world.service.set(personId, { ...record, unitId })
+}
+
+/** Set the fitness score, clamped to the test's own scale. */
+export function setServiceFitness(world: World, personId: EntityId, score: number): void {
+  const record = activeRecord(world, personId)
+  if (!record) return
+  world.service.set(personId, {
+    ...record,
+    fitnessScore: Math.max(0, Math.min(MAX_FITNESS_POINTS, score)),
+  })
+}
+
+/** Append a qualification if it is not already held. */
+export function addServiceQualification(world: World, personId: EntityId, qualification: string): void {
+  const record = activeRecord(world, personId)
+  if (!record || record.qualifications.includes(qualification)) return
+  world.service.set(personId, {
+    ...record,
+    qualifications: [...record.qualifications, qualification],
+  })
+}
+
+/** The board said yes: one grade up, pay to match. Returns the new rank for
+ *  the caller's prose, or null if nobody was there to promote. */
+export function applyBoardPromotion(world: World, tick: Tick, personId: EntityId): number | null {
+  const record = activeRecord(world, personId)
+  if (!record) return null
+  const newRank = record.rank + 1
+  world.service.set(personId, {
+    ...record,
+    rank: newRank,
+    rankSinceTick: tick,
+    monthlyPay: servicePay(record.branch as ServiceBranch, newRank),
+  })
+  return newRank
+}
+
+/** P2. Change trade at reenlistment: the old trade joins the record's
+ *  history (veteranUnlocks unions across all of them — nothing served is
+ *  erased), the new trade's school runs from this tick (deployment waits
+ *  for it; completed-training fires when it lands), and the pay table
+ *  already keys on rank alone. */
+export function retrainSpecialty(
+  world: World,
+  tick: Tick,
+  person: Person,
+  specialtyId: string,
+): void {
+  const record = activeRecord(world, person.id)
+  if (!record || record.specialtyId === specialtyId) return
+  const previous = specialtyById(record.specialtyId)
+  world.service.set(person.id, {
+    ...record,
+    specialtyId,
+    priorSpecialtyIds: [...record.priorSpecialtyIds, record.specialtyId],
+    specialtyChangedAtTick: tick,
+  })
+  const specialty = specialtyById(specialtyId)
+  recordEvent(world, tick, {
+    type: 'began-training',
+    subjectId: person.id,
+    detail: `${specialty.title} school`,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'training',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: `retrained as ${withArticle(specialty.title)}`,
+    rejected: [`to stay ${withArticle(previous.title)}`],
+    streamId: Stream.Employment,
+  })
 }
 
 export function discharge(

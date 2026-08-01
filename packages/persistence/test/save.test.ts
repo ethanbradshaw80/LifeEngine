@@ -14,9 +14,11 @@ import { fileURLToPath } from 'node:url'
 import { seed as makeSeed } from '@life-engine/shared'
 import {
   advanceTicks,
+  chooseSpendStance,
   createWorld,
   lifeStory,
   livingPeople,
+  setPlayer,
   SIMULATION_VERSION,
   worldHash,
 } from '@life-engine/engine'
@@ -102,6 +104,23 @@ describe('round trip', () => {
     expect(save.header.userId).toBe('local')
     expect(save.header.checksum).toMatch(/^[0-9a-f]{8}$/)
   })
+
+  it('a chosen spending stance survives save and load (v18)', () => {
+    // The stance is the one field only a PLAYER ever sets, so the ordinary
+    // round-trip tests never exercise it non-null. If hydration ever stopped
+    // spreading households wholesale, the loss would be silent — the exact
+    // failure mode persistence exists to prevent (persistence review, P2).
+    const original = build()
+    const anyone = livingPeople(original).find((p) => p.householdId !== null)
+    expect(anyone).toBeDefined()
+    if (!anyone) return
+    setPlayer(original, anyone.id)
+    const result = chooseSpendStance(original, 'thrifty')
+    expect(result.set).toBe(true)
+
+    const restored = fromSaveFile(throughStorage(toSaveFile(original)), SIMULATION_VERSION).world
+    expect(restored.households.get(anyone.householdId!)?.spendStance).toBe('thrifty')
+  })
 })
 
 describe('migration from a real v1 save', () => {
@@ -123,9 +142,14 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(16) // v1 through v17, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(17) // v1 through v18, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
+    // v18: nobody's chosen posture is invented — every migrated household
+    // keeps the character-driven default.
+    for (const household of loaded.world.households.values()) {
+      expect(household.spendStance).toBeNull()
+    }
     expect(loaded.world.seed).toBe(777)
 
     // Every person must still have their identity — the invariant that makes a

@@ -617,31 +617,147 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — P2, THE VERBS (third milestone of the pivot)
+### Next up — M-ARMY2 (owner direction, 2026-08-01, given mid-P2)
 
-Read `docs/PLAYER_EXPERIENCE_AUDIT.md` §P2 — the spec. Player-initiated
-verbs, all log-before-roll with honest refusals through the existing
-shared functions: court <friend> / propose / separate / tend-the-marriage
-/ end-courtship (gives the sim its missing courtship-ended path) /
-try-for-child; quit / ask-for-a-raise / apply-at-<workplace> / the
-foreman's-warning pending; re-enrol 18-24; household spending stance;
-convalesce stance repeatable; request-discharge (honest refusal);
-retrain-at-reenlistment. C2 (player crime) lands with or right after.
-PROFILE-FIRST ITEM DONE: partnerOf/spouseOf's per-call graph re-sort
-WAS 86% of tick time on a 150y town; fixed with a sort-free min-(a,b)
-scan (byte-identical, golden untouched, 11.4→1.2 ms/tick, 292 tests).
-Friendship loop measured 2.3% at that scale — cohort index stays
-deferred (performance-reviewer concurred; watch-note: runHouseholds'
-per-person partnerOf calls are aggregate O(P·E) — if a scaled bench
-ever shows them hot, currentPartners() is the established cure).
-PERFORMANCE_BASELINE.md regenerated at SIMULATION_VERSION 24 (old doc
-was M3-era; populations differ by version drift, reproduced exactly
-across runs). Import-graph test still queued. P2 review
-notes to carry: reconcile() now derives its subject safely for NPC
-callers (tend-the-marriage can reuse it); player.ts writes world.service
-directly in several verbs (pre-existing DOMAIN_MAP §6 violation — fix
-while adding request-discharge); board stakes print the base cutoff but
-resolution adds +15/pass-over (show the real bar).
+Ethan's words, itemized. military-scope-reviewer MANDATORY.
+1. PEACETIME ROTATIONS: deployments to ALLY countries while at peace —
+   the wartime button is now correctly labelled "Volunteer for
+   deployment" (done in P2); rotations are the new thing. Points earned,
+   pop-up situations, and real risk ("can still get hurt over there").
+   Design carefully against threatVectorFor's permanent rule (danger
+   from geopolitical STATE — a peacetime posting's risk profile is
+   accident/illness-shaped, not combat) and the exposure-profile rule.
+2. COMBAT POP-UPS WITH ~3 OPTIONS "which can determine the outcome and
+   possible death": the combat-moment pending exists (2 options, both
+   roll real danger via resolveMomentCasualty — the machinery to extend);
+   owner wants richer, more frequent choice moments.
+3. "YET TO SEE A CHARACTER DIE IN THE ARMY": deaths ARE modelled
+   (severity>=940 fatal tail 2/5 via performDeath; theatre disease) —
+   MEASURE actual KIA/disease-death rates per tour and per war before
+   tuning; the audit-runner pattern. If rates are honest but invisible,
+   it is a surfacing problem; if truly rare, a tuning one. Foundation §6
+   bounds it (most military work is not combat).
+4. NPC ENLISTMENT "people dont enlist on their own": propensity is
+   jobless 110 / employed 16 per 12k/mo (L4-M3 tuning) — measure how
+   many actually enlist per decade at current town size; the owner
+   expects visible peers in uniform. Also "ability to enlist for the
+   sims" — possibly a per-sim enlist verb when TAKING OVER a life?
+   Clarify with owner if ambiguous after measurement.
+Then C2 (CRIME_PLAN.md:52-55: desperation pending, plea question, months
+served on-screen, record following into applications — applyForJob needs
+the hasRecentConviction refusal AND an isJailed gate, noted by review),
+then P3 surfaces. Import-graph test STILL queued. Older queue: survivor
+benefits, families on PCS, branch bases, HYT TIS, Ember contact-cap,
+relationships.ts separation split not calling noteArrearsCrossing;
+enlist option label lowercase; NPC RETRAIN (deferred from P2 — the
+player can reclass at reenlistment, NPCs cannot; military review wants
+parity or a blessed deferral, this line is the deferral note — an NPC
+low-rate reclass through retrainSpecialty is ~10 lines when wanted);
+health.ts/crime.ts still write world.employment directly (route through
+adjustJobPerformance's pattern when touched).
+
+**P2 — THE VERBS — COMPLETE** (see the block below; commit pending
+review at time of writing — check `git log`)
+Perf pre-item: partnerOf/spouseOf's per-call graph re-sort WAS 86% of
+tick time on a 150y town; sort-free min-(a,b) scan landed byte-identical
+(11.4→1.2 ms/tick; commit f43df73). Friendship-loop cohort index stays
+deferred by measurement (2.3%); watch-note: runHouseholds' per-person
+partnerOf calls are aggregate O(P·E) — currentPartners() is the cure if
+a scaled bench shows them hot. PERFORMANCE_BASELINE.md regenerated at
+SIMULATION_VERSION 24 (old doc was M3-era; per-seed populations differ
+by deliberate version drift, reproduced exactly across runs).
+FOURTEEN VERBS in player.ts, all the applyForJob shape (guard → honest
+bar → log-before-roll → shared function, own-choice first factor):
+courtFriend/propose (courtshipBar/proposalBar in relationships.ts speak
+couldCourt/considerMarriage's own gates; clearing the bar IS the yes —
+the appetite roll is NPC timing, not consent), endCourtship (the
+schema's dormant 'courtship-ended' finally emitted; tie demoted to
+friend just above the lapse line), walkOut (performSeparation,
+own-choice, no invented drift), tendTheMarriage (+60, 3mo cooldown, vs
+reconcile's brink +160), spendTimeWith (+40, one social call/mo),
+tryForChild (birthBar words birthEligible's gates; conception rolls
+monthlyConceptionChance — conceptionBase EXTRACTED from runBirths
+byte-identically, verb salt 3333 — latent infertility stays hidden:
+"Not this month." is all anyone is owed), quitJob (performQuit),
+askForRaise (annualReview's own formula, roll vs performance, salt
+6111, 6mo cooldown, turned-down detail 'a raise'), requestEnrolment
+(18-24, the NPC window, closed-forever fork finally reopened),
+chooseSpendStance (Household.spendStance thrifty/null/loose read by
+discretionaryFor — null = the old formula exactly, NPCs always null;
+DecisionType 'spending'), lookForPlace (canAfford gate, 6mo cooldown,
+moveHouse), setConvalescenceStance (monthly, shares
+applyConvalescenceChoice with the pending's resolution),
+requestDischarge (honest refusal ALWAYS: theatre/stop-loss words,
+months-left words, or points at the reenlist question). TWO NEW LIVE
+PENDINGS: 'foremans-warning' (player-only, perf<240, once per job
+spell via log-since-startedAtTick, 'warned-at-work' event at raise,
+knuckle-down +80 / shrug; the dismissal model beneath is untouched)
+and 'retrain' (follow-up after reenlist 'stay': keep or cross to a
+same-branch specialty the schooling admits; retrainSpecialty in
+service.ts). SERVICE SINGLE-WRITER FIXED (the carried P1 violation):
+boostServicePerformance/assignServiceUnit/setServiceFitness/
+addServiceQualification/applyBoardPromotion — player.ts no longer
+writes world.service anywhere. Board stakes + Service tab now show
+cutoff + 15/pass-over (the real bar); separation stakes count a
+serving spouse as working. MOVE CANDIDATE LISTS: move-out/move-house/
+arrears-push pendings carry every qualifying street as 'to-<placeId>'
+options ('accept' stays the engine's pick — old logs replay);
+resolvePending parses both; DecisionPrompt labels them with street
+names (and specialty ids got titles at last). UI: ONE worker message
+{type:'verb', action} for all 14; act() in useWorld; verbs on Family
+(court/spend-time per friend, tend/try/leave on the marriage row,
+propose/end on courting), Jobs (raise/quit + 18-24 school block),
+Home (stance chips + full street list, disable state = canAfford, the
+engine's own gate), Health (rest/push-on while ailing), Service
+(request discharge). Two-step confirms on walk-out/end-courtship/quit.
+Events: tended-marriage 💐 spent-time ☕ warned-at-work ⚠️
+changed-spending 👛 + left-job detail 'quit'; EVENT_EXPLAINED_BY +=
+courtship-ended→courtship, tended-marriage→marriage, changed-spending→
+spending, got-raise→employment-change (annual raises have no record
+and correctly answer null). Schema v18 (spendStance; V17_TO_V18 null
+default), SCHEMA_VERSION 18. GOLDEN 32ed2c8d — moved by the serialized
+field ONLY (proven: stripping spendStance reproduced c396b96b);
+SIMULATION_VERSION stays 24. Dead duplicate moveHouse comment-block in
+systems.ts removed. p2.test.ts: 19 tests — refusal honesty per verb,
+tryForChild asserts the verb's roll EQUALS a prediction from its own
+stream (the verb cannot beat the model), foreman once-per-spell,
+'to-N' resolution, verb determinism (same seed+verbs = same hash).
+Verified live in the browser (refusal notices, feed events, Why?
+resolution, disabled-street states, golden badge).
+THREE REVIEWS RAN (architecture, military-scope, persistence — all
+findings fixed in-session): arch M1 subjectOf() in relationships.ts —
+promoteToCourting/promoteToSpouse/performSeparation (+ reconcile/tend)
+now credit the CHOOSER, never the partner's file (event+record subjects
+aligned; other-side story prose covers both timelines); arch M2
+tryForChild guards the same-tick had-child (double-delivered the SAME
+child via re-keyed streams) and checks deliverChild's null; military M1
+ServiceRecord += priorSpecialtyIds + specialtyChangedAtTick (folded
+into schema v18) — veteranUnlocks UNIONS every trade served, retrain
+names the old trade in rejected; military S2 retrain school modelled:
+deployment + volunteer + requestSchool gate on isPipelineTrained
+(specialtyChangedAtTick + schoolMonths), completed-training fires when
+it lands; military S5→SIMULATION_VERSION 25: the STRAIN MODEL counts a
+uniform as work (hasWork in relationships.ts, reads world.service
+directly — importing isServing would close the relationships→service→
+player→relationships loop); courtship-end lands BELOW the re-court bar
+(cap COURTSHIP_MIN_STRENGTH−60); lookForPlace/chooseSpendStance refuse
+under a parent's roof; enrolmentBar exported (verb + UI read ONE gate);
+moveHouse records cheaper-rent (not negative better-neighbourhood) on
+downhill moves; spending decision on Stream.Economy; askForRaise's
+topped-out gate precedes the log (no burned cooldown); began-training→
+'training' Why? mapping; applyBoardPromotion bails on null instead of
+lying; DETERMINISM.md §7 now states the convention (SIMULATION_VERSION
+tracks the UNPLAYED world; player-path changes ride the schema).
+Persistence should-fix: save.test round-trips a non-null stance and
+asserts migrated households get null. ACCEPTED CORNERS (documented):
+got-raise's Why? can first-match a same-tick quit/hire record (the C1
+hire+jail class); requestDischarge's shape always returns
+discharged:false today; try-for-child gives a played couple a second
+monthly roll (deliberate, commented); NPC retrain deferred (queue).
+GOLDEN 843c23ba (three movements: spendStance shape → 32ed2c8d proven
+by field-strip; then v25 behaviour + service fields). 312 tests.
+Owner wording fix landed mid-milestone: "Volunteer for deployment"
+(rotation = the queued peacetime posting, M-ARMY2 item 1).
 
 **P1 — COMPLETE** (the record reads back; SIMULATION_VERSION 24, golden
 c396b96b, NO schema change)

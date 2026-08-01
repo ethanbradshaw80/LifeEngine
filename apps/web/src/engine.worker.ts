@@ -17,16 +17,30 @@
 import {
   advanceTicks,
   applyForJob,
+  askForRaise,
+  chooseSpendStance,
+  courtFriend,
   createCustomLife,
   createWorld,
+  endCourtship,
+  lookForPlace,
+  propose,
+  quitJob,
   requestDeployment,
+  requestDischarge,
   requestEnlistment,
+  requestEnrolment,
   requestSchool,
   resolvePending,
+  setConvalescenceStance,
   setPlayer,
   SIMULATION_VERSION,
+  spendTimeWith,
+  tendTheMarriage,
   trainFitness,
+  tryForChild,
   tryOutForUnit,
+  walkOut,
 } from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
 import { fromSaveFile } from '@life-engine/persistence'
@@ -41,6 +55,27 @@ export interface CreateLifeSpec {
   readonly motherId: number
 }
 
+/**
+ * P2: one message for every player-initiated verb. Each engine verb returns
+ * { <did-it>: boolean, reason }, so a single dispatch handles the lot; the
+ * refusal travels back as the notice either way.
+ */
+export type VerbRequest =
+  | { readonly verb: 'court'; readonly otherId: number }
+  | { readonly verb: 'propose' }
+  | { readonly verb: 'end-courtship' }
+  | { readonly verb: 'tend-marriage' }
+  | { readonly verb: 'spend-time'; readonly otherId: number }
+  | { readonly verb: 'try-for-child' }
+  | { readonly verb: 'walk-out' }
+  | { readonly verb: 'quit-job' }
+  | { readonly verb: 'ask-raise' }
+  | { readonly verb: 're-enrol'; readonly level: 'college' | 'trade' }
+  | { readonly verb: 'spend-stance'; readonly stance: 'thrifty' | 'loose' | null }
+  | { readonly verb: 'look-for-place'; readonly placeId: number }
+  | { readonly verb: 'convalesce-stance'; readonly rest: boolean }
+  | { readonly verb: 'request-discharge' }
+
 export type WorkerRequest =
   | { readonly type: 'new'; readonly seed: number }
   | { readonly type: 'advance'; readonly months: number }
@@ -54,6 +89,7 @@ export type WorkerRequest =
   | { readonly type: 'try-unit'; readonly unitId: string }
   | { readonly type: 'request-deploy' }
   | { readonly type: 'fitness-test' }
+  | { readonly type: 'verb'; readonly action: VerbRequest }
 
 export type WorkerResponse =
   | {
@@ -185,6 +221,91 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         }
         const result = trainFitness(world)
         send(0, result.trained ? undefined : result.reason)
+        return
+      }
+
+      case 'verb': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const a = request.action
+        let outcome: { ok: boolean; reason: string }
+        switch (a.verb) {
+          case 'court': {
+            const r = courtFriend(world, a.otherId as EntityId)
+            outcome = { ok: r.courting, reason: r.reason }
+            break
+          }
+          case 'propose': {
+            const r = propose(world)
+            outcome = { ok: r.married, reason: r.reason }
+            break
+          }
+          case 'end-courtship': {
+            const r = endCourtship(world)
+            outcome = { ok: r.ended, reason: r.reason }
+            break
+          }
+          case 'tend-marriage': {
+            const r = tendTheMarriage(world)
+            outcome = { ok: r.tended, reason: r.reason }
+            break
+          }
+          case 'spend-time': {
+            const r = spendTimeWith(world, a.otherId as EntityId)
+            outcome = { ok: r.spent, reason: r.reason }
+            break
+          }
+          case 'try-for-child': {
+            const r = tryForChild(world)
+            // "Not this month." is an answer, not an error — it still travels
+            // as the notice, like every refusal.
+            outcome = { ok: r.conceived, reason: r.reason }
+            break
+          }
+          case 'walk-out': {
+            const r = walkOut(world)
+            outcome = { ok: r.separated, reason: r.reason }
+            break
+          }
+          case 'quit-job': {
+            const r = quitJob(world)
+            outcome = { ok: r.quit, reason: r.reason }
+            break
+          }
+          case 'ask-raise': {
+            const r = askForRaise(world)
+            outcome = { ok: r.raised, reason: r.reason }
+            break
+          }
+          case 're-enrol': {
+            const r = requestEnrolment(world, a.level)
+            outcome = { ok: r.enrolled, reason: r.reason }
+            break
+          }
+          case 'spend-stance': {
+            const r = chooseSpendStance(world, a.stance)
+            outcome = { ok: r.set, reason: r.reason }
+            break
+          }
+          case 'look-for-place': {
+            const r = lookForPlace(world, a.placeId as EntityId)
+            outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
+          case 'convalesce-stance': {
+            const r = setConvalescenceStance(world, a.rest)
+            outcome = { ok: r.set, reason: r.reason }
+            break
+          }
+          case 'request-discharge': {
+            const r = requestDischarge(world)
+            outcome = { ok: r.discharged, reason: r.reason }
+            break
+          }
+        }
+        send(0, outcome.ok ? undefined : outcome.reason)
         return
       }
 

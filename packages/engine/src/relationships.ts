@@ -143,6 +143,20 @@ export function compatibility(a: Person, b: Person): number {
   return Math.max(0, 1000 - gap)
 }
 
+/**
+ * Work for STRAIN purposes: a wage or a uniform (P2 military review — the
+ * model counted a serving spouse as jobless while the stakes said
+ * otherwise; text and model must agree). Reads world.service directly:
+ * importing isServing would close the relationships→service→player→
+ * relationships loop, and service.ts stays the map's single WRITER either
+ * way.
+ */
+function hasWork(world: World, personId: EntityId): boolean {
+  if (world.employment.has(personId)) return true
+  const record = world.service.get(personId)
+  return record !== undefined && record.dischargedAtTick === null
+}
+
 function sharesHousehold(_world: World, a: Person, b: Person): boolean {
   return a.householdId !== null && a.householdId === b.householdId
 }
@@ -281,7 +295,7 @@ function decayAndReinforce(world: World, tick: Tick): void {
 
       const belowRetirement = ageAt(a.birthTick, tick) < 66 && ageAt(b.birthTick, tick) < 66
       if (belowRetirement) {
-        const idle = (world.employment.has(a.id) ? 0 : 1) + (world.employment.has(b.id) ? 0 : 1)
+        const idle = (hasWork(world, a.id) ? 0 : 1) + (hasWork(world, b.id) ? 0 : 1)
         change -= idle * 3
       }
       // Money trouble is its own strain, distinct from joblessness: a
@@ -668,6 +682,20 @@ function advanceCourtships(world: World, tick: Tick): void {
   }
 }
 
+/**
+ * The record's subject: the player when the player is IN this pair — they
+ * made or answered the choice — the lower id otherwise. The P1 review S1
+ * rule, applied to every shared transition (P2 architecture M1: a player
+ * verb must not write "own-choice" into the PARTNER's file). Event and
+ * record subjects stay aligned so decisionForEvent keeps resolving.
+ */
+function subjectOf(world: World, relationship: Relationship): EntityId {
+  const playerId = world.player.personId
+  return playerId !== null && (playerId === relationship.a || playerId === relationship.b)
+    ? playerId
+    : relationship.a
+}
+
 /** One courtship implementation for both the automatic path and player choices. */
 export function promoteToCourting(
   world: World,
@@ -679,6 +707,8 @@ export function promoteToCourting(
   const b = world.people.get(relationship.b)
   if (!a || !b) return
   const match = compatibility(a, b)
+  const subjectId = subjectOf(world, relationship)
+  const otherId = other(relationship, subjectId)
 
   world.relationships.set(relationshipKey(relationship.a, relationship.b), {
     ...relationship,
@@ -688,16 +718,16 @@ export function promoteToCourting(
 
   recordEvent(world, tick, {
     type: 'started-courting',
-    subjectId: relationship.a,
-    otherId: relationship.b,
+    subjectId,
+    otherId,
   })
   recordDecision(world, tick, {
-    subjectId: relationship.a,
+    subjectId,
     decision: 'courtship',
     significance: 'major',
     inputs: [
       ...extraInputs,
-      factor('compatible-personality', match, relationship.b),
+      factor('compatible-personality', match, otherId),
       factor('strong-attachment', relationship.strength),
     ],
     chosen: 'began courting',
@@ -781,27 +811,29 @@ export function promoteToSpouse(
     familySizeAspiration: aspiration,
   })
 
+  const subjectId = subjectOf(world, relationship)
+  const otherId = other(relationship, subjectId)
   recordEvent(world, tick, {
     type: 'married',
-    subjectId: relationship.a,
-    otherId: relationship.b,
+    subjectId,
+    otherId,
   })
   recordDecision(world, tick, {
-    subjectId: relationship.a,
+    subjectId,
     decision: 'family',
     significance: 'notable',
-    inputs: [factor('wants-a-family', 300 + aspiration * 100, relationship.b)],
+    inputs: [factor('wants-a-family', 300 + aspiration * 100, otherId)],
     chosen: `hoped to raise ${aspiration} children`,
     rejected: [],
     streamId: Stream.Relationships,
   })
   recordDecision(world, tick, {
-    subjectId: relationship.a,
+    subjectId,
     decision: 'marriage',
     significance: 'defining',
     inputs: [
       ...extraInputs,
-      factor('strong-attachment', relationship.strength, relationship.b),
+      factor('strong-attachment', relationship.strength, otherId),
       factor('years-together', Math.floor(monthsTogether / TICKS_PER_YEAR) * 100 + monthsTogether),
       factor('compatible-personality', compatibility(a, b)),
       ...(earners > 0 ? [factor('has-income', earners * 300)] : []),
@@ -828,7 +860,7 @@ function considerSeparation(world: World, tick: Tick): void {
     const b = world.people.get(relationship.b)
     if (!a || !b || a.deathTick !== null || b.deathTick !== null) continue
 
-    const bothOutOfWork = !world.employment.has(a.id) && !world.employment.has(b.id)
+    const bothOutOfWork = !hasWork(world, a.id) && !hasWork(world, b.id)
     const moneyTrouble = inArrears(world, a.householdId)
     const resilience = Math.floor((a.traits.resilience + b.traits.resilience) / 2)
 
@@ -879,8 +911,10 @@ export function performSeparation(
   const a = world.people.get(relationship.a)
   const b = world.people.get(relationship.b)
   if (!a || !b) return
-  const bothOutOfWork = !world.employment.has(a.id) && !world.employment.has(b.id)
+  const bothOutOfWork = !hasWork(world, a.id) && !hasWork(world, b.id)
   const moneyTrouble = inArrears(world, a.householdId)
+  const subjectId = subjectOf(world, relationship)
+  const otherId = other(relationship, subjectId)
 
   world.relationships.set(relationshipKey(relationship.a, relationship.b), {
     ...relationship,
@@ -891,19 +925,19 @@ export function performSeparation(
 
   recordEvent(world, tick, {
     type: 'divorced',
-    subjectId: relationship.a,
-    otherId: relationship.b,
+    subjectId,
+    otherId,
   })
 
   const inputs = [
     ...extraInputs,
-    factor('drifted-apart', 1000 - relationship.strength, relationship.b),
+    factor('drifted-apart', 1000 - relationship.strength, otherId),
     factor('years-together', tick - relationship.formedAtTick),
   ]
   if (bothOutOfWork || moneyTrouble) inputs.push(factor('financial-strain', moneyTrouble ? 600 : 400))
 
   recordDecision(world, tick, {
-    subjectId: relationship.a,
+    subjectId,
     decision: 'separation',
     significance: 'defining',
     inputs,
@@ -930,15 +964,9 @@ export function reconcile(
     ...relationship,
     strength: Math.min(1000, relationship.strength + 160),
   })
-  // The subject is whichever spouse made the choice — the player when the
-  // player is IN this marriage, the lower id otherwise (P1 review S1: a
-  // future NPC-path caller must not attribute a stranger's reconciliation
-  // to the player).
-  const playerId = world.player.personId
-  const subjectId =
-    playerId !== null && (playerId === relationship.a || playerId === relationship.b)
-      ? playerId
-      : relationship.a
+  // The subject is whichever spouse made the choice (P1 review S1; the
+  // shared subjectOf rule).
+  const subjectId = subjectOf(world, relationship)
   // P1: the fought-for marriage shows in the feed, not only the record.
   recordEvent(world, tick, {
     type: 'reconciled',
@@ -956,6 +984,172 @@ export function reconcile(
     chosen: 'chose to stay and try again',
     rejected: ['to separate'],
     streamId: Stream.Relationships,
+  })
+}
+
+// ---------------------------------------------------------------------------
+// P2 — the verbs' shared functions. Player-initiated moments resolve through
+// these; each is written so a future NPC caller gets identical behaviour.
+// This file stays the single writer of world.relationships.
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a courtship between these two cannot begin — or null when it can.
+ * The same gates couldCourt applies, plus the tie-state gates the automatic
+ * path (advanceCourtships) checks, each with the reason in words. The verb
+ * refuses honestly; the UI never has to guess.
+ */
+export function courtshipBar(
+  world: World,
+  personId: EntityId,
+  otherId: EntityId,
+  tick: Tick,
+): string | null {
+  const person = world.people.get(personId)
+  const other = world.people.get(otherId)
+  if (!person || person.deathTick !== null) return 'Nobody is there to ask.'
+  if (!other || other.deathTick !== null) return 'They are gone.'
+  const name = other.givenName
+
+  const tie = relationshipBetween(world, personId, otherId)
+  if (!tie || tie.type === 'former-spouse') {
+    return tie ? 'Too much history stands between you.' : `You and ${name} are not friends.`
+  }
+  if (tie.type === 'courting' || tie.type === 'spouse') return `You and ${name} are already together.`
+  if (tie.strength < COURTSHIP_MIN_STRENGTH) return 'The friendship is not that close yet.'
+
+  if (person.sex === other.sex) return 'Dear friends, and that is the shape of it.' // simplification — see §Births
+  if (partnerOf(world, personId) !== null) return 'You are already spoken for.'
+  if (partnerOf(world, otherId) !== null) return `${name} is spoken for.`
+
+  const ageA = ageAt(person.birthTick, tick)
+  const ageB = ageAt(other.birthTick, tick)
+  if (ageA < ADULT_AGE || ageB < ADULT_AGE) return 'Not yet grown.'
+  if (Math.abs(ageA - ageB) > MAX_AGE_GAP) return 'The years between you are too many.'
+
+  if (
+    person.parentIds.includes(otherId) ||
+    other.parentIds.includes(personId) ||
+    person.parentIds.some((id) => other.parentIds.includes(id))
+  ) {
+    return 'Family is family.'
+  }
+  return null
+}
+
+/**
+ * Why a proposal cannot be made today — or null when it can. The same bar
+ * considerMarriage holds the automatic path to: a real courtship, old enough,
+ * strong enough. The appetite roll is NPC timing, not consent — a player who
+ * clears the bar is not additionally dice-rolled for a yes.
+ */
+export function proposalBar(world: World, personId: EntityId, tick: Tick): string | null {
+  const partnerId = partnerOf(world, personId)
+  if (partnerId === null) return 'There is nobody to ask.'
+  const tie = relationshipBetween(world, personId, partnerId)
+  if (!tie || tie.type !== 'courting') return 'You are not courting.'
+  const months = tick - tie.typeSinceTick
+  if (months < MARRIAGE_MIN_COURTSHIP_MONTHS) {
+    return `The courtship is ${String(months)} month${months === 1 ? '' : 's'} old. Not yet.`
+  }
+  if (tie.strength < MARRIAGE_MIN_STRENGTH) return 'What is between you is not strong enough to build on yet.'
+  return null
+}
+
+/**
+ * A courtship ends by choice. The tie survives as a distant friendship — set
+ * just above the lapse line, so it either mends with tending or quietly
+ * lapses through ordinary decay. Emits the 'courtship-ended' event that has
+ * waited in the schema since M5 with nothing to emit it.
+ */
+export function performCourtshipEnd(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+  initiatorId: EntityId,
+  extraInputs: readonly CausalFactor[],
+): void {
+  if (relationship.type !== 'courting') return
+  const otherId = other(relationship, initiatorId)
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    type: 'friend',
+    typeSinceTick: tick,
+    // Between the lapse line and the courtship bar, whatever it was before:
+    // a strong courtship ended must not bounce straight back into the
+    // courtship question next month (review S3), and a weak one should
+    // still be free to quietly lapse through ordinary decay.
+    strength: Math.max(
+      FRIENDSHIP_END_STRENGTH + 20,
+      Math.min(COURTSHIP_MIN_STRENGTH - 60, relationship.strength - 240),
+    ),
+  })
+  recordEvent(world, tick, {
+    type: 'courtship-ended',
+    subjectId: initiatorId,
+    otherId,
+  })
+  recordDecision(world, tick, {
+    subjectId: initiatorId,
+    decision: 'courtship',
+    significance: 'major',
+    inputs: [
+      ...extraInputs,
+      factor('years-together', tick - relationship.typeSinceTick),
+    ],
+    chosen: 'ended the courtship',
+    rejected: ['to keep courting'],
+    streamId: Stream.Relationships,
+  })
+}
+
+/**
+ * Deliberate time given to the marriage. A smaller mend than reconcile()'s —
+ * that one is the brink stepped back from; this is an ordinary month's
+ * choosing — and the strain model keeps running underneath.
+ */
+export function tendMarriage(world: World, tick: Tick, relationship: Relationship): void {
+  if (relationship.type !== 'spouse') return
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    strength: Math.min(1000, relationship.strength + 60),
+  })
+  const subjectId = subjectOf(world, relationship)
+  recordEvent(world, tick, {
+    type: 'tended-marriage',
+    subjectId,
+    otherId: subjectId === relationship.a ? relationship.b : relationship.a,
+  })
+  recordDecision(world, tick, {
+    subjectId,
+    decision: 'marriage',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000), factor('years-together', tick - relationship.formedAtTick)],
+    chosen: 'made time for the marriage',
+    rejected: ['to let the weeks pass'],
+    streamId: Stream.Relationships,
+  })
+}
+
+/**
+ * An afternoon given to a friendship. Reinforcement the decay model respects;
+ * no roll — showing up is not a gamble.
+ */
+export function strengthenFriendship(
+  world: World,
+  tick: Tick,
+  relationship: Relationship,
+  initiatorId: EntityId,
+): void {
+  if (relationship.type !== 'friend') return
+  world.relationships.set(relationshipKey(relationship.a, relationship.b), {
+    ...relationship,
+    strength: Math.min(1000, relationship.strength + 40),
+  })
+  recordEvent(world, tick, {
+    type: 'spent-time',
+    subjectId: initiatorId,
+    otherId: other(relationship, initiatorId),
   })
 }
 
@@ -1010,6 +1204,7 @@ function splitHousehold(world: World, tick: Tick, aId: EntityId, bId: EntityId):
     formedTick: tick,
     dissolvedTick: null,
     savings: half,
+    spendStance: null,
   })
   world.people.set(leaverId, { ...leaver, householdId: newHouseholdId })
 

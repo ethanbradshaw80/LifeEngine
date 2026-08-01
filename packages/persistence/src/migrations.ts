@@ -527,7 +527,35 @@ const V16_TO_V17: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17]
+/** v17 → v18 (P2). Households gain a spending stance (NULL — the
+ *  character-driven formula is the null behaviour, and no one's chosen
+ *  posture is invented) and service records gain retrain history (empty /
+ *  null — nobody retrained before retraining existed). */
+const V17_TO_V18: Migration = {
+  from: 17,
+  to: 18,
+  describe: 'add household spending stance and service retrain history (nothing invented)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const households = requireArray(world, 'households', 'save.world').map((entry) => ({
+      ...requireObject(entry, 'save.world.households[]'),
+      spendStance: null,
+    }))
+    const service = (Array.isArray(world['service']) ? world['service'] : []).map((entry) => ({
+      ...requireObject(entry, 'save.world.service[]'),
+      priorSpecialtyIds: [],
+      specialtyChangedAtTick: null,
+    }))
+    const nextWorld: Record<string, unknown> = { ...world, households, service }
+    return {
+      header: { ...header, schemaVersion: 18, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

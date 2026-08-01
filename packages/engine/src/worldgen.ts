@@ -242,6 +242,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
       dissolvedTick: null,
       // Filled in below, once employment exists to base it on.
       savings: 0 as Money,
+      spendStance: null,
     }
     world.households.set(householdId, household)
     created += memberIds.length

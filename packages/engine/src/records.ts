@@ -139,6 +139,20 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'declined-board': 'promotion',
   'kept-heads-down': 'deployment',
   reconciled: 'separation',
+  // P2: the verbs' events. Each verified against the decision recorded at
+  // the same (tick, subject) by the shared function the verb resolves
+  // through. Deliberately absent: 'spent-time' (a visit is not a dilemma —
+  // no record exists) and 'warned-at-work' (the same-tick record explains
+  // the ANSWER to the warning, not why the foreman spoke; mapping it would
+  // answer the wrong question).
+  'courtship-ended': 'courtship',
+  'tended-marriage': 'marriage',
+  'changed-spending': 'spending',
+  'got-raise': 'employment-change',
+  // Safe for the other two began-training emitters (enlistment, pipeline):
+  // neither records a 'training' decision at its tick, so they keep
+  // answering null; only the retrain's feed line finds its record.
+  'began-training': 'training',
 }
 
 /**

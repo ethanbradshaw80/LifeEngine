@@ -26,12 +26,14 @@ export type { StreamId } from './rng.js'
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
 export { advanceTick, advanceTicks } from './tick.js'
-export { livingPeople } from './systems.js'
+export { birthBar, enrolmentBar, livingPeople } from './systems.js'
 export {
   compatibility,
+  courtshipBar,
   friendsOf,
   other,
   partnerOf,
+  proposalBar,
   relationshipBetween,
   relationshipsOf,
   spouseOf,
@@ -40,21 +42,35 @@ export {
 // Player
 export {
   applyForJob,
+  askForRaise,
   awaitingPlayer,
+  chooseSpendStance,
+  courtFriend,
   createCustomLife,
   describePending,
   describeStakes,
+  endCourtship,
   heirsOf,
+  lookForPlace,
   motherCandidates,
   playerIsAlive,
   playerPerson,
+  propose,
+  quitJob,
   requestDeployment,
+  requestDischarge,
   requestEnlistment,
+  requestEnrolment,
   requestSchool,
   resolvePending,
+  setConvalescenceStance,
   setPlayer,
+  spendTimeWith,
+  tendTheMarriage,
   trainFitness,
+  tryForChild,
   tryOutForUnit,
+  walkOut,
 } from './player.js'
 export type { CustomLifeSpec } from './player.js'
 
@@ -195,6 +211,7 @@ export type {
   PlaceKind,
   Sex,
   Significance,
+  SpendStance,
   Tier,
   Ailment,
   BodySite,

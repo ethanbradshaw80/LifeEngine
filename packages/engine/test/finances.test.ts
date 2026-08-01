@@ -207,6 +207,7 @@ describe('inheritance', () => {
         formedTick: world.tick,
         dissolvedTick: null,
         savings: 10_000 as Money,
+        spendStance: null,
       })
       world.people.set(child.id, { ...child, householdId: newId })
     }
