@@ -138,6 +138,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         ? `${year} — Taken seriously ill: ${description}.`
         : `${year} — Down with ${description}.`
     }
+    case 'saw-combat':
+      return `${year} — ${event.detail ?? 'Contact'}.`
     case 'wounded-in-action': {
       const [grade, what] = (event.detail ?? '').split(':')
       const description = what && what.length > 0 ? what : 'wounds'

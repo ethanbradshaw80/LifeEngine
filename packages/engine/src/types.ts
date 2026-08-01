@@ -275,6 +275,8 @@ export interface ServiceRecord {
 export type AwardKind =
   /** A qualifying wound or death FROM ENEMY ACTION. Nothing else, ever. */
   | 'wound-recognition'
+  /** Came under enemy fire — once per war, from the recorded contact. */
+  | 'combat-action'
   /** Qualifying service in a war's theatre: three months, or a casualty. */
   | 'campaign'
   /** A completed enlistment term served honorably. */
@@ -581,6 +583,9 @@ export type EventType =
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
+  /** Came under fire and walked away — contact is not casualty. The texture
+   *  of a real tour, and what combat-action recognition reads. */
+  | 'saw-combat'
   /** Geopolitics (subjects are nation ids, invisible to person queries). */
   | 'war-began'
   | 'ceasefire'

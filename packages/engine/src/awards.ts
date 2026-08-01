@@ -36,6 +36,7 @@ import type { AwardKind, AwardRecord, CausalFactor, World, WorldEvent } from './
  *  decoration recognizes something done TO you (reviewer, tone rule). */
 export const WOUND_RECOGNITION_TITLE = 'the Crimson Band'
 export const GOOD_CONDUCT_TITLE = 'the Faithful Service Medal'
+export const COMBAT_ACTION_TITLE = 'the Contact Star'
 
 /** Campaign credit needs this many months in theatre — waived for casualties. */
 export const CAMPAIGN_QUALIFYING_MONTHS = 3
@@ -72,6 +73,42 @@ export function grantWoundRecognition(
     qualifying,
     citation: `wounded by enemy action on the ${enemyName} front`,
     inputs: [factor('enemy-action-wound', 1000)],
+  })
+}
+
+/**
+ * Combat-action recognition: came under enemy fire, from the recorded
+ * 'saw-combat' event and nothing else — a wound is its own decoration, an
+ * accident is neither. ONCE PER WAR: the same conflict's later contacts add
+ * nothing (the enemy on the qualifying events is the dedupe); a different
+ * war adds a device.
+ */
+export function grantCombatAction(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  enemyName: string,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'saw-combat') return null
+
+  const existing = (world.awards.get(personId) ?? []).find((a) => a.kind === 'combat-action')
+  if (existing) {
+    for (const eventId of existing.qualifyingEventIds) {
+      const priorContact = world.events.find((e) => e.id === eventId)
+      if (priorContact !== undefined && priorContact.otherId === qualifying.otherId) {
+        return existing // same war: the star is already worn
+      }
+    }
+  }
+
+  return grant(world, tick, personId, {
+    kind: 'combat-action',
+    title: COMBAT_ACTION_TITLE,
+    qualifying,
+    citation: `came under fire on the ${enemyName} front`,
+    inputs: [factor('campaign-service', 800)],
   })
 }
 

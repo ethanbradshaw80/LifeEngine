@@ -91,6 +91,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',
+  'saw-combat': '💥',
   'left-job': '📦',
   befriended: '🤝',
   'friendship-lapsed': '🍂',

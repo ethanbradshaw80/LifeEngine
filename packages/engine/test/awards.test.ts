@@ -18,6 +18,7 @@ import type { EntityId } from '@life-engine/shared'
 import {
   decorationsOf,
   grantCampaignMedal,
+  grantCombatAction,
   grantGoodConduct,
   grantQualificationBadge,
   grantWoundRecognition,
@@ -125,6 +126,37 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
     expect(decorationsOf(world, soldierId).length).toBe(0)
   })
 
+  it('combat action refuses everything but recorded contact, and dedupes per war', () => {
+    const { world, soldierId } = worldWithASoldier()
+    // A wound is not a contact star; an accident is neither.
+    const wound = recordEvent(world, world.tick, {
+      type: 'wounded-in-action',
+      subjectId: soldierId,
+      detail: 'minor:a laceration to the arm',
+    })
+    expect(grantCombatAction(world, world.tick, soldierId, wound, 'Rondesia')).toBeNull()
+
+    const enemyA = 501 as never
+    const enemyB = 502 as never
+    const contact1 = recordEvent(world, world.tick, {
+      type: 'saw-combat', subjectId: soldierId, otherId: enemyA, detail: 'Took fire on patrol; gave it back',
+    })
+    const first = grantCombatAction(world, world.tick, soldierId, contact1, 'Rondesia')
+    expect(first?.count).toBe(1)
+
+    // Same war, second contact: the star is already worn — no device.
+    const contact2 = recordEvent(world, world.tick, {
+      type: 'saw-combat', subjectId: soldierId, otherId: enemyA, detail: 'Mortars on the outpost after dark',
+    })
+    expect(grantCombatAction(world, world.tick, soldierId, contact2, 'Rondesia')?.count).toBe(1)
+
+    // A different war adds the device.
+    const contact3 = recordEvent(world, world.tick, {
+      type: 'saw-combat', subjectId: soldierId, otherId: enemyB, detail: 'A firefight at the checkpoint before dawn',
+    })
+    expect(grantCombatAction(world, world.tick, soldierId, contact3, 'Halvia')?.count).toBe(2)
+  })
+
   it('a qualification badge refuses a mismatched rating', () => {
     const { world, soldierId } = worldWithASoldier()
     const qual = recordEvent(world, world.tick, {
@@ -213,6 +245,9 @@ describe('a grown world decorates only from the record', () => {
             break
           case 'qualification-badge':
             expect(qualifying.type).toBe('earned-qualification')
+            break
+          case 'combat-action':
+            expect(qualifying.type).toBe('saw-combat')
             break
         }
         }

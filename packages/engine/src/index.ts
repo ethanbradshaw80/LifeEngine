@@ -95,6 +95,7 @@ export { SPECIAL_UNITS, specialUnitById } from './content.js'
 export {
   decorationsOf,
   grantCampaignMedal,
+  grantCombatAction,
   grantGoodConduct,
   grantQualificationBadge,
   grantWoundRecognition,

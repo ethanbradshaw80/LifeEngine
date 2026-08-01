@@ -42,6 +42,7 @@ import {
   PENSION_THRESHOLD,
   POINTS_PER_BADGE,
   POINTS_PER_CAMPAIGN,
+  POINTS_PER_COMBAT_ACTION,
   POINTS_PER_GOOD_CONDUCT,
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_SCHOOLS,
@@ -147,6 +148,7 @@ export function promotionPointsFor(world: World, personId: EntityId): PromotionP
     if (award.kind === 'campaign') return sum + award.count * POINTS_PER_CAMPAIGN
     if (award.kind === 'good-conduct') return sum + award.count * POINTS_PER_GOOD_CONDUCT
     if (award.kind === 'wound-recognition') return sum + award.count * POINTS_PER_WOUND_RECOGNITION
+    if (award.kind === 'combat-action') return sum + award.count * POINTS_PER_COMBAT_ACTION
     return sum
   }, 0)
   const points = {

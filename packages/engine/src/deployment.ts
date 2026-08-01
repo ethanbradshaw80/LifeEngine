@@ -24,7 +24,26 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { grantCampaignMedal, grantWoundRecognition } from './awards.js'
+import { grantCampaignMedal, grantCombatAction, grantWoundRecognition } from './awards.js'
+
+/** How a contact reads, by the channel that found them. Flat, specific. */
+const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposure' | 'base-attack-exposure', readonly string[]>> = {
+  'direct-combat-exposure': [
+    'Took fire on patrol; gave it back',
+    'A firefight at the checkpoint before dawn',
+    'Contact in the treeline; it broke off by dark',
+  ],
+  'convoy-exposure': [
+    'The convoy took fire on the route',
+    'A device on the road; the trucks limped home',
+    'Small arms on the resupply run',
+  ],
+  'base-attack-exposure': [
+    'Mortars on the outpost after dark',
+    'Rockets into the base perimeter',
+    'A probe at the wire, driven off',
+  ],
+}
 import { specialtyById, specialUnitById } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { inflictWound } from './health.js'
@@ -299,14 +318,16 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       { id: 'battlefield-accident' as const, weight: threat.accident * exposure.accident },
     ]
     // Exposure is a 0-1000 share of each threat, so normalize the cross
-    // before summing. The old raw-product sum saturated its cap for anyone
-    // at the sharp end, which flattened the vector: a rifleman facing a weak
-    // enemy in a stalemate contacted like one facing a strong enemy in an
-    // offensive. Normalized, the differences the vector models survive to
-    // the outcome — ~15% a month for the worst case, low single digits for
-    // rear-echelon work, and the cap is a backstop rather than the answer.
+    // before summing — the vector's differences survive to the outcome.
     const totalWeight = channels.reduce((sum, c) => sum + Math.floor(c.weight / 1000), 0)
-    const contactPerMille = Math.min(200, Math.floor(totalWeight / 8))
+
+    // CONTACT IS NOT CASUALTY (owner: five tours as a tier-one rifleman,
+    // "not even pop shots"). A month in a war zone can hold fire without
+    // holding a wound — most do. Contact events run at four times the old
+    // rate and go in the feed as the tour's texture; only the smaller share
+    // below escalates to the casualty path, so wound and death rates stay
+    // where they were tuned (foundation §6 bound intact).
+    const contactPerMille = Math.min(600, Math.floor(totalWeight / 2))
     if (!rng.chance(Math.max(1, contactPerMille), 1_000)) continue
 
     const channel = rng.pickWeighted(
@@ -314,6 +335,23 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       channels.map((c) => Math.max(1, c.weight)),
     )
     const isAccident = channel === 'battlefield-accident'
+
+    // The contact itself, on the record — flavored by the channel that
+    // found them, and what combat-action recognition reads. Accidents are
+    // not contact; they only exist here as the casualty share below.
+    if (!isAccident) {
+      const flavors = CONTACT_FLAVORS[channel]
+      const sawCombat = recordEvent(world, tick, {
+        type: 'saw-combat',
+        subjectId: personId,
+        otherId: deployment.enemyId,
+        detail: rng.pick(flavors),
+      })
+      grantCombatAction(world, tick, personId, sawCombat, enemy.name)
+    }
+
+    // Most contact ends with everyone walking away.
+    if (!rng.chance(250, 1_000)) continue
 
     // Severity of the month that went wrong. Fatal only at the far tail.
     const severity = rng.nextBellInt(300, 1000)
