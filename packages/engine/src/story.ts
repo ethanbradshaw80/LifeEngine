@@ -74,6 +74,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         return `${year} — Began courting ${nameOf(world, event.subjectId)}.`
       case 'married':
         return `${year} — Married ${nameOf(world, event.subjectId)}.`
+      case 'reconciled':
+        return `${year} — ${nameOf(world, event.subjectId)} chose to stay and try again.`
       case 'divorced':
         return `${year} — Separated from ${nameOf(world, event.subjectId)}.`
       case 'had-child':
@@ -107,6 +109,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return null // job-change departures read better as the arrival line alone
     case 'was-introduced':
       return `${year} — Introduced to ${nameOf(world, event.otherId)} at ${event.detail ?? 'a town social'}.`
+    case 'convalesced':
+      return event.detail === 'rest'
+        ? `${year} — Took to the bed and let it heal.`
+        : `${year} — Worked through it.`
+    case 'declined-board':
+      return `${year} — Let the promotion board go by.`
+    case 'kept-heads-down':
+      return `${year} — Pinned down under fire; kept low and held.`
+    case 'reconciled':
+      return `${year} — Chose to stay and try again with ${nameOf(world, event.otherId)}.`
     case 'befriended':
       return `${year} — Became friends with ${nameOf(world, event.otherId)}.`
     case 'friendship-lapsed':

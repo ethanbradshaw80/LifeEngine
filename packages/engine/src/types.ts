@@ -653,6 +653,12 @@ export type EventType =
   | 'dropped-selection'
   /** Scored the annual fitness test — promotion points for the body's work. */
   | 'fitness-tested'
+  /** P1 — the four player choices that were recorded but invisible. Each
+   *  carries its decision's tick so the Why? resolves. */
+  | 'convalesced'
+  | 'declined-board'
+  | 'kept-heads-down'
+  | 'reconciled'
   /** Crime & justice (C1). The thief's own timeline knows what they did. */
   | 'committed-theft'
   | 'was-robbed'

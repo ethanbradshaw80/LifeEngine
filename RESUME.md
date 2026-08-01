@@ -617,20 +617,60 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — P1, THE RECORD READS BACK (second milestone of the pivot)
+### Next up — P2, THE VERBS (third milestone of the pivot)
 
-Read `docs/PLAYER_EXPERIENCE_AUDIT.md` §P1 — it is the spec: Why?
-mappings for 6 unmapped events (records.ts EVENT_EXPLAINED_BY), events
-for the 4 invisible recorded choices (convalesce/board-pass/keep-down/
-reconcile — SIMULATION_VERSION bump), the father sees his child born,
-stakes screens gain the modelled facts they omit (7 listed), Home-tab
-ledger reconciles (lifestyle line), asked-class pendings defer 1-2 months
-instead of silently dropping (board-retry template). Then P2 verbs (needs
-D2's working pipeline — have it now), P3 surfaces, C2. TECHNICAL DEBT NOW
-URGENT: the O(n²) friendship loop — D2 towns GROW, the full suite is ~7.5
-min (timeouts raised to 300s as a stopgap); build the cohort index
-(performance-reviewer mandatory) before P2 lands more verbs. Import-graph
-test still queued too.
+Read `docs/PLAYER_EXPERIENCE_AUDIT.md` §P2 — the spec. Player-initiated
+verbs, all log-before-roll with honest refusals through the existing
+shared functions: court <friend> / propose / separate / tend-the-marriage
+/ end-courtship (gives the sim its missing courtship-ended path) /
+try-for-child; quit / ask-for-a-raise / apply-at-<workplace> / the
+foreman's-warning pending; re-enrol 18-24; household spending stance;
+convalesce stance repeatable; request-discharge (honest refusal);
+retrain-at-reenlistment. C2 (player crime) lands with or right after.
+FIRST, SMALL: profile the tick loop (review evidence says partnerOf's
+per-call graph re-sort at least as much as the O(n²) friendship loop —
+vitest.config comment has the note), then the cohort index/partner-map
+fix with performance-reviewer. Import-graph test still queued. P2 review
+notes to carry: reconcile() now derives its subject safely for NPC
+callers (tend-the-marriage can reuse it); player.ts writes world.service
+directly in several verbs (pre-existing DOMAIN_MAP §6 violation — fix
+while adding request-discharge); board stakes print the base cutoff but
+resolution adds +15/pass-over (show the real bar).
+
+**P1 — COMPLETE** (the record reads back; SIMULATION_VERSION 24, golden
+c396b96b, NO schema change)
+WHY? MAPPINGS (records.ts): enlisted/discharged/reenlisted→enlistment,
+deployed/wounded-in-action/kept-heads-down→deployment, started-school→
+employment-change (the fork RECORDS employment-change — mapping follows
+data; NPC compulsory schooling rightly unexplained), convalesced→
+convalescence, declined-board→promotion, reconciled→separation. FOUR
+INVISIBLE CHOICES got feed events: 'convalesced' (rest|push-on 🛌),
+'declined-board' 📋, 'kept-heads-down' ⛑️, 'reconciled' 💞 (subject
+derived safely for future NPC callers). FATHER SEES HIS CHILD:
+deliverChild emits had-child for BOTH parents (the one NPC-visible
+change; golden moved for it alone). STAKES SPEAK THE MODEL: education
+(real pay bands from OCCUPATIONS + exported COLLEGE/TRADE_YEARS),
+courtship/marriage (compatibility in WORDS + earners), child (net
+recomputed WITH the child at the household's own spend habit — review
+S2: lifestyle absorbs most of the cost, the naive subtraction lied),
+separation (names the modelled strains), convalesce (severity in words,
+honest mark risk), specialty (unlocks by name). LEDGER RECONCILES: Home
+tab shows lifestyle + net; chip and rows agree to the cent. NO SILENT
+LOSS: raisePending returns landed; convalesce's asked-bit and reenlist's
+term-zero only burn when landed (retry next month); combat-moment
+already fell through to the auto path. REVIEW (must-fix M1, fixed): the
+board question could fire the same tick as an automatic junior promotion
+— stale TIG opened the next board at 0 months in grade, the pass answer's
+Why? read the promotion's record, and put-in died silently; the board now
+never asks on a promotion month. Accepted corners: reenlist-retry month
+inflates term average ~2% (stop-loss precedent, commented); replay-from-
+log is a design property, not a code path (verified — player.log is
+serialization + dedupe only). KNOWN-OPEN for P2 (from review): player.ts
+writes world.service directly in tab verbs (pre-existing); board stakes
+show base cutoff not +15/pass-over bar; separation stakes say "no work"
+for a serving spouse (model flaw made visible); decisionForEvent is
+O(events×records) per story render. p1.test.ts: father on both timelines
+(600t), enlisted/deployed Why? resolution (900t), landed-flag.
 
 **D2 — COMPLETE** (the town must live; same session as the pivot)
 Partner-seeking (seekingIntent derived per tick — no stored state;

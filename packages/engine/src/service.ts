@@ -536,6 +536,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
+  let promotedThisMonth = false
   if (rank < ladder.length - 1) {
     const competitiveFrom = COMPETITIVE_FROM[branch]
     let promote = false
@@ -558,6 +559,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       }
     }
     if (promote) {
+      promotedThisMonth = true
       rank += 1
       rankSinceTick = tick
       recordEvent(world, tick, {
@@ -695,7 +697,12 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // question held the month (a wound's convalescence, say), the ask
     // retries for two more months; the player's own log is the dedupe, so
     // an answered board never re-asks inside its year.
-    const gates = competitiveGates(specialty, rank)
+    // Never on a month a promotion just landed (P1 review M1): the stale
+    // time-in-grade would open the NEXT board with zero months in the new
+    // grade — a same-tick second 'promotion' record hijacks the Why?, and
+    // a put-in dies against its own fresh rankSinceTick. The board waits
+    // for a month in grade like the soldier does.
+    const gates = promotedThisMonth ? null : competitiveGates(specialty, rank)
     if (gates) {
       const over = timeInGrade - gates.tigNeeded
       const askedRecently = world.player.log.some(
@@ -795,7 +802,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // Term's end. The player signs or leaves; an NPC's retention is a weighing
   // of the same things (rank earned, other doors), resolved by their own roll.
   if (person.id === world.player.personId) {
-    raisePending(world, {
+    const landed = raisePending(world, {
       tick,
       kind: 'reenlist',
       personId: person.id,
@@ -806,8 +813,17 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       placeId: null,
       options: ['stay', 'leave'],
     })
-    // The clock halts on the pending; the term is settled by the answer.
-    world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 0 })
+    if (landed) {
+      // The clock halts on the pending; the term is settled by the answer.
+      world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 0 })
+    } else {
+      // Another question held the slot: the term holds one more month and
+      // the office asks again (P1: no silent loss of the term's question).
+      // Accepted corner (review S3): the retry month still adds to
+      // termPerformanceSum, inflating the closing term's average ~2% — the
+      // same shape stop-loss already accepts over far longer holds.
+      world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 1 })
+    }
     return
   }
 

@@ -123,6 +123,22 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'committed-theft': 'crime',
   'was-convicted': 'justice',
   'was-acquitted': 'justice',
+  // P1: events that had records nobody could reach, and the four new
+  // choice events. Every entry verified against the decision type actually
+  // recorded at the same (tick, subject). 'reenlisted' resolves only on
+  // the player path — the NPC path records no decision, honestly.
+  enlisted: 'enlistment',
+  discharged: 'enlistment',
+  reenlisted: 'enlistment',
+  deployed: 'deployment',
+  'wounded-in-action': 'deployment',
+  // The education fork records its choice as an employment-change (the
+  // fork IS a career decision); the mapping follows the data.
+  'started-school': 'employment-change',
+  convalesced: 'convalescence',
+  'declined-board': 'promotion',
+  'kept-heads-down': 'deployment',
+  reconciled: 'separation',
 }
 
 /**

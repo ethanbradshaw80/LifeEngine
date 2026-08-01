@@ -39,6 +39,8 @@ export const GOLDEN_TICKS = 120
  * relationships domain replaced the placeholder friendship model, so every
  * seed produces a different world than it did under v1.
  *
+ * Changed at P1 (SIMULATION_VERSION 24): the record reads back — both
+ * parents carry had-child, so every seed's event log grew.
  * Changed at D2 (SIMULATION_VERSION 23, schema v17): the town must live —
  * seeking, meetings, family plans, remarriage. Every seed's people now
  * pair, wed and build families at believable ages; populations grow.
@@ -73,7 +75,7 @@ export const GOLDEN_TICKS = 120
  * identically; only the serialized shape differs. The playable tests assert
  * that a played world differs and a watched world does not.
  */
-export const GOLDEN_HASH_HEX = '55e49d20'
+export const GOLDEN_HASH_HEX = 'c396b96b'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -146,7 +148,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":23')
+    expect(text).toContain('"simulationVersion":24')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

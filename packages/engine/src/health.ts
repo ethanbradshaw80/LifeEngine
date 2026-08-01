@@ -200,8 +200,10 @@ function recoverOrWorsen(
     !record.askedConvalesce &&
     record.severity >= CONVALESCE_ASK_SEVERITY
   ) {
-    world.health.set(person.id, { ...record, askedConvalesce: true })
-    raisePending(world, {
+    // P1: the asked bit burns only when the question actually landed —
+    // if another question held the slot this month, the ailment asks
+    // again next month instead of losing its one chance silently.
+    const landed = raisePending(world, {
       tick,
       kind: 'convalesce',
       personId: person.id,
@@ -212,7 +214,10 @@ function recoverOrWorsen(
       placeId: null,
       options: ['rest', 'push-on'],
     })
-    return
+    if (landed) {
+      world.health.set(person.id, { ...record, askedConvalesce: true })
+      return
+    }
   }
 
   // Worsening: uncommon, likelier for the old and the frail.

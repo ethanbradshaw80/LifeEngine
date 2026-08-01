@@ -47,8 +47,9 @@ import { placesOfKind } from './worldgen.js'
 const SCHOOL_START_AGE = 6
 const PRIMARY_YEARS = 6
 const SECONDARY_YEARS = 6
-const TRADE_YEARS = 2
-const COLLEGE_YEARS = 4
+export const TRADE_YEARS = 2
+// Exported for the education stakes text (P1) — prose must not drift.
+export const COLLEGE_YEARS = 4
 const WORKING_AGE = 18
 const RETIREMENT_AGE = 66
 const LEAVE_HOME_AGE = 19
@@ -1093,6 +1094,9 @@ export function deliverChild(
   addToHousehold(world, household.id, childId)
   recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
   recordEvent(world, tick, { type: 'had-child', subjectId: motherId, otherId: childId })
+  // P1: the father was invisible at his own child's birth — eventsFor
+  // matches subject/other only, and he was neither. Both parents carry it.
+  recordEvent(world, tick, { type: 'had-child', subjectId: partnerId, otherId: childId })
   return childId
 }
 

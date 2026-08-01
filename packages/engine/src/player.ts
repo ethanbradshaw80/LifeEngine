@@ -26,7 +26,8 @@ import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import type { ServiceBranch } from './content.js'
 import { withArticle } from './text.js'
-import { householdCosts, householdIncome, inArrears } from './finances.js'
+import { householdCosts, householdIncome, inArrears, monthlyNetOf } from './finances.js'
+import { LIVING_COST_CHILD } from './content.js'
 import { currentDeployment, evacuateHome, volunteerForDeployment } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
@@ -57,6 +58,7 @@ import { rentFor } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import {
+  compatibility,
   performSeparation,
   promoteToCourting,
   promoteToSpouse,
@@ -65,6 +67,7 @@ import {
 } from './relationships.js'
 import {
   birthEligible,
+  COLLEGE_YEARS,
   deliverChild,
   enrolPlayer,
   hirePerson,
@@ -72,6 +75,7 @@ import {
   performDeath,
   performMoveOut,
   retirePerson,
+  TRADE_YEARS,
 } from './systems.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 
@@ -537,14 +541,22 @@ function resolveMomentCasualty(
   if (severity >= 600) evacuateHome(world, tick, person.id)
 }
 
-/** Called by systems at a player choice point. Halts the clock. */
+/**
+ * Called by systems at a player choice point. Halts the clock. Returns
+ * whether the question actually LANDED — one question at a time, and a
+ * caller holding a one-shot flag (convalesce's asked bit, a term's last
+ * month) must not burn it on a question nobody saw (P1: no silent loss).
+ * Most moments need no guard: their conditions persist and the site
+ * re-fires on a later month's roll.
+ */
 export function raisePending(
   world: World,
   spec: Omit<PendingDecision, 'id'>,
-): void {
-  if (world.player.pending !== null) return // one question at a time
+): boolean {
+  if (world.player.pending !== null) return false // one question at a time
   world.player.pending = { ...spec, id: world.player.nextDecisionId }
   world.player.nextDecisionId += 1
+  return true
 }
 
 /** True while the world is halted awaiting the player. */
@@ -688,6 +700,11 @@ export function resolvePending(world: World, choice: string): void {
 
     case 'convalesce': {
       applyConvalescence(world, pending.tick, person.id, choice === 'rest')
+      recordEvent(world, pending.tick, {
+        type: 'convalesced',
+        subjectId: person.id,
+        detail: choice === 'rest' ? 'rest' : 'push-on',
+      })
       recordDecision(world, pending.tick, {
         subjectId: person.id,
         decision: 'convalescence',
@@ -788,6 +805,8 @@ export function resolvePending(world: World, choice: string): void {
       } else {
         // Letting it go by is a choice too, and it is on the record — the
         // stakes text promises exactly that, so the code keeps the promise.
+        // P1: and now the FEED keeps it too.
+        recordEvent(world, pending.tick, { type: 'declined-board', subjectId: person.id })
         recordDecision(world, pending.tick, {
           subjectId: person.id,
           decision: 'promotion',
@@ -881,6 +900,11 @@ export function resolvePending(world: World, choice: string): void {
         })
         resolveMomentCasualty(world, pending.tick, person, pending.otherId, rng, 450, 450)
       } else {
+        recordEvent(world, pending.tick, {
+          type: 'kept-heads-down',
+          subjectId: person.id,
+          ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
+        })
         recordDecision(world, pending.tick, {
           subjectId: person.id,
           decision: 'deployment',
@@ -1090,10 +1114,39 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
   const other = pending.otherId === null ? undefined : world.people.get(pending.otherId)
   const lines: string[] = []
 
+  // Compatibility in words — the stakes speak the town's language, not the
+  // model's numbers (P1).
+  function matchWords(match: number): string {
+    if (match >= 800) return 'People are rarely so well matched'
+    if (match >= 650) return 'You are well matched'
+    if (match >= 500) return 'You are different in ways that rub'
+    return 'You are an odd match, and both of you know it'
+  }
+
   switch (pending.kind) {
     case 'education': {
-      lines.push('College opens the best-paid work: teaching, engineering, accountancy.')
-      lines.push('Trade school is two years, not four, and leads to solid skilled work.')
+      // The modelled facts, not slogans: what each road actually pays in
+      // THIS world's occupation table (P1).
+      const bandFor = (level: 'trade' | 'college') => {
+        const jobs = OCCUPATIONS.filter((o) => o.requires === level)
+        if (jobs.length === 0) return null
+        const top = Math.max(...jobs.map((o) => o.maxMonthlyPay))
+        const names = jobs
+          .slice()
+          .sort((x, y) => y.maxMonthlyPay - x.maxMonthlyPay)
+          .slice(0, 3)
+          .map((o) => o.title)
+          .join(', ')
+        return { top, names }
+      }
+      const college = bandFor('college')
+      const trade = bandFor('trade')
+      if (college) {
+        lines.push(`College is ${String(COLLEGE_YEARS)} years and opens ${college.names} — up to ${formatMoney(college.top as never)} a month.`)
+      }
+      if (trade) {
+        lines.push(`Trade school is ${String(TRADE_YEARS)} years and opens ${trade.names} — up to ${formatMoney(trade.top as never)} a month.`)
+      }
       lines.push('Working now means wages immediately, and the education question is closed.')
       break
     }
@@ -1137,6 +1190,13 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const otherAge = ageAt(other.birthTick, pending.tick)
         const job = world.employment.get(other.id)
         lines.push(`${other.givenName} is ${otherAge}${job ? ' and working' : ''}.`)
+        // The same factors the record will cite, in words (P1).
+        lines.push(`${matchWords(compatibility(person, other))}.`)
+        const tie = relationshipBetween(world, person.id, other.id)
+        if (tie) {
+          const years = Math.floor((pending.tick - tie.formedAtTick) / TICKS_PER_YEAR)
+          lines.push(years >= 1 ? `You have known each other ${String(years)} year${years === 1 ? '' : 's'}.` : 'You have not known each other long.')
+        }
         lines.push('Courting closes the door on other courtships while it lasts.')
       }
       break
@@ -1147,6 +1207,18 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const years = Math.floor((pending.tick - tie.typeSinceTick) / TICKS_PER_YEAR)
         lines.push(years >= 1 ? `You have been courting ${String(years)} year${years === 1 ? '' : 's'}.` : 'The courtship is young.')
       }
+      if (other) {
+        lines.push(`${matchWords(compatibility(person, other))}.`)
+        const earners =
+          (world.employment.has(person.id) ? 1 : 0) + (world.employment.has(other.id) ? 1 : 0)
+        lines.push(
+          earners === 2
+            ? 'Two wages would share one roof.'
+            : earners === 1
+              ? 'One of you has work today.'
+              : 'Neither of you has work today.',
+        )
+      }
       break
     }
     case 'child': {
@@ -1156,6 +1228,25 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           world.people.get(id)?.parentIds.includes(person.id),
         ).length
         lines.push(children === 0 ? 'It would be your first.' : `You have ${children} at home already.`)
+        // The number that decides it, honestly (P1, corrected by review
+        // S2): lifestyle spending flexes with the surplus, so a child's
+        // cost mostly comes out of lifestyle, not out of the net. Show the
+        // month AS IT WOULD BE, at the household's own spending habit.
+        const net = monthlyNetOf(world, household)
+        const surplusNow = householdIncome(world, household) - householdCosts(world, household)
+        const surplusThen = surplusNow - LIVING_COST_CHILD
+        if (surplusNow > 0 && surplusThen > 0) {
+          const netThen = Math.floor((surplusThen * net) / surplusNow)
+          lines.push(
+            `A child adds about ${formatMoney(LIVING_COST_CHILD)} a month; lifestyle spending absorbs most of it. The month would clear about ${formatMoney(netThen as never)}.`,
+          )
+        } else if (surplusThen <= 0) {
+          lines.push(
+            `A child adds about ${formatMoney(LIVING_COST_CHILD)} a month — and that would put the month under water.`,
+          )
+        } else {
+          lines.push(`A child adds about ${formatMoney(LIVING_COST_CHILD)} a month.`)
+        }
         if (inArrears(world, household.id)) {
           lines.push('The household is already behind on money.')
         }
@@ -1227,6 +1318,22 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         }).length
         if (children > 0) lines.push(`${children} ${children === 1 ? 'child lives' : 'children live'} at home. One of you moves out; they stay.`)
       }
+      // Name what actually weakened it — the same modelled strains the
+      // record will cite (P1).
+      if (other) {
+        const strains: string[] = []
+        if (household && inArrears(world, household.id)) strains.push('money has been short')
+        if (!world.employment.has(person.id) && !world.employment.has(other.id)) {
+          strains.push('neither of you has work')
+        }
+        if (compatibility(person, other) < 550) strains.push('you have always been different people')
+        if (strains.length > 0) {
+          const joined = strains.join('; ')
+          lines.push(`What wore it down: ${joined}.`)
+        } else {
+          lines.push('Nothing names itself; the years alone have worn it.')
+        }
+      }
       lines.push('Staying is a real attempt — it restores some closeness, but the strains remain.')
       break
     }
@@ -1248,7 +1355,12 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const sp = SPECIALTIES.find((x) => x.id === id)
         if (!sp) continue
         const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
-        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${sp.civilianUnlocks.length > 0 ? ' — a trade you keep' : ''}.`)
+        // Name the doors it opens, not just that doors exist (P1).
+        const unlocks =
+          sp.civilianUnlocks.length > 0
+            ? ` — opens ${sp.civilianUnlocks.map((id) => occupationById(id).title).join(', ')} after the service`
+            : ''
+        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${unlocks}.`)
       }
       break
     }
@@ -1266,8 +1378,16 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'convalesce': {
       const record = world.health.get(pending.personId)
       if (record) {
+        // How bad it actually is, in words scaled to the model (P1).
+        lines.push(
+          record.severity >= 750
+            ? 'It is grave — the kind people do not always come back from.'
+            : record.severity >= 600
+              ? 'It is serious, and getting through it will take months.'
+              : 'It is serious enough that how you carry it matters.',
+        )
         lines.push('Resting heals faster but the work will slip.')
-        lines.push('Pushing on keeps the job sharp and the body slow to mend — and mending badly can leave a lasting mark.')
+        lines.push('Pushing on keeps the job sharp and the body slow to mend — and an illness this deep can already leave a permanent mark.')
         const job = world.employment.get(person.id)
         if (job) lines.push(`You are working as ${withArticle(occupationById(job.occupationId).title)}.`)
       }

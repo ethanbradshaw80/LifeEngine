@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v24 — P1. The record reads back: both parents carry 'had-child' (a
+ *      father was invisible at his own child's birth), and the four
+ *      player choices that were recorded but invisible gain feed events
+ *      (convalesced / declined-board / kept-heads-down / reconciled).
+ *      Six existing events gain Why? mappings; stakes screens speak the
+ *      model's real numbers. NPC behaviour unchanged except the father
+ *      event; every seed's serialized history differs from v23.
  * v23 — D2. The town must live: partner-seeking with meeting moments,
  *      family-intent marriage timing, family-size aspiration decided and
  *      recorded at the wedding, remarriage after recovery. The measured
@@ -116,7 +123,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 23
+export const SIMULATION_VERSION = 24
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

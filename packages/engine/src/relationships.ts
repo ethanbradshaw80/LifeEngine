@@ -916,8 +916,23 @@ export function reconcile(
     ...relationship,
     strength: Math.min(1000, relationship.strength + 160),
   })
+  // The subject is whichever spouse made the choice — the player when the
+  // player is IN this marriage, the lower id otherwise (P1 review S1: a
+  // future NPC-path caller must not attribute a stranger's reconciliation
+  // to the player).
+  const playerId = world.player.personId
+  const subjectId =
+    playerId !== null && (playerId === relationship.a || playerId === relationship.b)
+      ? playerId
+      : relationship.a
+  // P1: the fought-for marriage shows in the feed, not only the record.
+  recordEvent(world, tick, {
+    type: 'reconciled',
+    subjectId,
+    otherId: subjectId === relationship.a ? relationship.b : relationship.a,
+  })
   recordDecision(world, tick, {
-    subjectId: world.player.personId ?? relationship.a,
+    subjectId,
     decision: 'separation',
     significance: 'defining',
     inputs: [

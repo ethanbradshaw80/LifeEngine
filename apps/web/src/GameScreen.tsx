@@ -32,6 +32,7 @@ import {
   fullName,
   householdCosts,
   householdIncome,
+  discretionaryFor,
   monthlyNetOf,
   newsSince,
   OCCUPATIONS,
@@ -106,6 +107,10 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   widowed: '🖤',
   'left-home': '🚪',
   'was-introduced': '💫',
+  convalesced: '🛌',
+  'declined-board': '📋',
+  'kept-heads-down': '⛑️',
+  reconciled: '💞',
   'moved-in-together': '🏠',
   'moved-house': '🚚',
   'had-child': '👶',
@@ -446,7 +451,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 {household.savings < 0 && <span className="muted"> (behind)</span>}
                 <span className="muted small">
                   {' '}· {formatMoney(householdIncome(world, household))} in ·{' '}
-                  {formatMoney(householdCosts(world, household))} out
+                  {formatMoney(householdCosts(world, household))} out ·{' '}
+                  {formatMoney(discretionaryFor(world, household))} lifestyle ·{' '}
+                  {formatMoney(monthlyNetOf(world, household))} net
                 </span>
               </dd>
               <dt>Household</dt>
