@@ -49,12 +49,16 @@ next arc over government/politics and businesses/economy.
   empty — nobody's past is invented). Hiring reads it; `enlistmentBar` reads
   it. Feed/News surfaces it. Court is `the courthouse` — the workplace that
   has stood in `content.ts` since M-DEPTH2, waiting.
-- **C2 — The player and the law.** The desperation moment (deep arrears →
-  a pending with both roads real), being caught or not, the plea question,
-  months served on-screen, the record following you into every application
-  the Jobs tab already models. Same interception pattern as everything.
-- **C3 — Justice depth.** Sentencing variety, probation, the constable as
-  an occupation, town crime pressure as news, record-fade gates, and the
+- **C2 — The player and the law. [FOLDED INTO THE P-ARC — ADR-0018,
+  2026-08-01. Do not build standalone; it lands with the player-agency
+  milestones per PLAYER_EXPERIENCE_AUDIT.md.]** The desperation moment
+  (deep arrears → a pending with both roads real), being caught or not,
+  the plea question, months served on-screen, the record following you
+  into every application the Jobs tab already models. Same interception
+  pattern as everything.
+- **C3 — Justice depth. [DEFERRED by ADR-0018 with the other
+  institutions.]** Sentencing variety, probation, the constable as an
+  occupation, town crime pressure as news, record-fade gates, and the
   victim's side as player experience.
 
 Deferred beyond C3, deliberately: violent crime (needs care the first pass

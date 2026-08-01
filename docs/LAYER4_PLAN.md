@@ -1,6 +1,8 @@
 # Layer 4 Plan — Military First
 
-**Status:** Planning complete, pending owner approval of ADR-0017.
+**Status:** ADR-0017 Accepted 2026-07-31; the five military milestones are
+COMPLETE through M-HARM. Further Layer 4 institutions are paused by
+ADR-0018 (2026-08-01) in favour of the D/P/W arcs.
 **Written:** 2026-07-31, with Layers 1–3 built and playable (simulation v6,
 168 tests). Companion to `MILITARY_AND_WAR_FOUNDATION.md`, which remains the
 design authority; this document is about *building* it against the engine
@@ -16,8 +18,9 @@ not order them. The owner's priority — consistent since the original spec,
 whose largest single section is §8 Military — is the military system.
 
 **Decision (ADR-0017): Layer 4 is entered military-first.** Economy, government,
-crime, media, and transportation are deferred within the layer. Two consequences
-are accepted openly:
+media, and transportation are deferred within the layer. (Since written:
+crime C1 is COMPLETE; C2 belongs to the player-experience arc per ADR-0018;
+C3 stays deferred.) Two consequences are accepted openly:
 
 - Wars will move markets that do not exist yet. Economic consequences of
   conflict (§9 of the foundation doc) will be stubbed as narrative events, not

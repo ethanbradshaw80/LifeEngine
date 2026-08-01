@@ -54,8 +54,9 @@ const RETIREMENT_AGE = 66
 const LEAVE_HOME_AGE = 19
 /** Months a household must exist before it will consider moving again. */
 const SETTLING_MONTHS = 24
-const CHILDBEARING_MIN_AGE = 20
-const CHILDBEARING_MAX_AGE = 42
+// Exported so demographics.ts's copies are testable against these (D1).
+export const CHILDBEARING_MIN_AGE = 20
+export const CHILDBEARING_MAX_AGE = 42
 
 // ---------------------------------------------------------------------------
 // Shared helpers

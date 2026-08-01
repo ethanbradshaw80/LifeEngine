@@ -33,6 +33,9 @@ Reversibility · Review trigger.
 | 0015 | **Product stages gated on criteria; monetization deferred** | **Accepted** |
 | 0016 | **Accounts deferred until the game is playable** | Accepted |
 | 0017 | **Layer 4 entered military-first; nations aggregate-only** | **Accepted** |
+| 0018 | **Simulation institutions paused; player experience is the arc** | **Accepted** |
+| 0019 | **Demographics repaired by modelled decisions, not rates** | **Accepted** |
+| 0020 | **World presets; Real World Mode alongside Classic** | **Accepted** |
 
 ---
 
@@ -499,7 +502,8 @@ exactly why it is fixed now.
 
 ## Approval status
 
-**All ADRs are Accepted as of 2026-07-30.** Nothing is outstanding.
+**All ADRs are Accepted as of 2026-08-01.** Nothing is outstanding.
+(0018/0019/0020 approved 2026-08-01; everything earlier by 2026-07-31.)
 
 ADR-0008, 0009, 0010, 0011, 0012, 0013, and 0015 were approved together by the owner
 after review.
@@ -525,3 +529,96 @@ remain binding, and changing one still requires a new ADR.
 
 Determinism (Law 11) is not an ADR because it is not optional. It cannot be retrofitted
 at any price, and it must be built in from the first commit.
+
+## ADR-0018 — Simulation institutions paused; player experience becomes the arc
+
+**Status:** Accepted (owner direction, 2026-08-01)
+**Date:** 2026-08-01
+
+**Context.** C1 (crime & justice) completed its core exit criteria — the
+second Layer 4 institution. The owner then audited the game as a GAME and
+directed: stop adding major simulation systems; the player experiences the
+world through one life, and today five of seven domains are watch-and-wait
+for a played character (PLAYER_EXPERIENCE_AUDIT.md — 19 decision surfaces
+exist; only the military tab is a complete loop).
+
+**Decision.**
+
+1. No new major simulation institutions (government, economy/businesses,
+   media, transportation, C3 justice depth) until the P-arc and D-arc land.
+2. The player-experience redesign proceeds as PLAYER_EXPERIENCE_AUDIT.md's
+   P1 (explanations) → P2 (verbs) → P3 (surfaces). C2 (player crime) folds
+   into this arc — it was already the player side of C1.
+3. The redesign principle is binding: the simulation stays authoritative;
+   player choice is raised at modelled moments or initiated through
+   log-before-roll verbs with honest refusals, resolved through the same
+   shared functions the auto path uses. No UI-driven simulation logic.
+4. The demographic repair (ADR-0019) runs FIRST: relationships verbs need a
+   working partnering pipeline to act on.
+
+**Rationale.** Law 9 (show what matters) and the product identity
+(BitLife-style story-first game, M-GAME) both say depth the player cannot
+touch is inventory, not gameplay. The engine outgrew its interface; the
+correction is deliberate.
+
+## ADR-0019 — Demographic realism repaired by modelled decisions, not rates
+
+**Status:** Accepted (owner direction, 2026-08-01)
+**Date:** 2026-08-01
+
+**Context.** Measured (DEMOGRAPHICS_AUDIT.md, D1 instrumentation): living
+population declines ~100 → 18-41 within 150 years on every seed. Completed
+fertility 1.29-1.67 vs ~2.1 replacement; 33-46% of completed women
+childless; courtships ~1-2 per decade town-wide; median marriage age 38-44;
+remarriage effectively absent. Mortality is healthy — the cradle, not the
+grave.
+
+**Decision.** D2 implements partner-seeking intent, family-intent-driven
+marriage timing, family-size aspiration decided and recorded by couples,
+and remarriage after a modelled recovery period — per DEMOGRAPHICS_AUDIT.md
+§D2. **Artificial birth-rate multipliers are forbidden**; every change must
+be a modelled decision with a causal record, tuned against D1's measured
+targets (completed fertility 2.1-2.6, childless 10-20%, median first
+marriage 22-27, stable-to-growing population over 150 years, 3 seeds).
+
+**Rationale.** Law 1 (simulation is the source of truth) and Law 3 (every
+outcome explainable): a fertility multiplier explains nothing, while "they
+married young because they wanted a family, and the town had a dance"
+explains everything. The owner's constraint and the constitution agree.
+
+## ADR-0020 — World configuration system; Real World Mode alongside Classic
+
+**Status:** Accepted (owner direction, 2026-08-01)
+**Date:** 2026-08-01
+
+**Context.** The owner wants a believable real-world setting (real US
+geography, states, installations) with the fictional world preserved as an
+option, extensible to future presets. Full placeholder inventory and legal
+rulings in WORLD_MODES_PLAN.md.
+
+**Decision.**
+
+1. A WorldSpec chosen at world creation, recorded in the save header,
+   immutable per world. Determinism becomes seed + preset + version +
+   decisions; one golden fingerprint per preset. Launch presets: Classic
+   (today's content, every existing save) and American Heartland.
+2. Rulings: real geography/states/climate REAL; homeland may be the United
+   States per preset; foreign nations and named military units FICTIONAL
+   permanently; service branches real by NAME only (no insignia); bases
+   real by name; companies, decorations, attended universities
+   realistic-fictional; politicians/media/celebrities/private individuals
+   fictional always.
+3. Two narrow constitution amendments land with W2, not before:
+   MILITARY_AND_WAR_FOUNDATION §3 scopes "fictional" to FOREIGN countries;
+   CLAUDE.md §3 distinguishes branches (preset-real, name-only) from units
+   (always fictional).
+4. Engine logic never branches on a preset name; everything preset-specific
+   lives on the spec. Implementation order W1 (extraction, zero behavior
+   change for Classic) → W2 (Heartland) → W3 (place depth), AFTER the P/D
+   arcs per ADR-0018.
+
+**Rationale.** The charter always said "realistic simulated United States"
+— the fictional homeland was L4-M1's deviation, now made a preset choice
+rather than a constant. The fictional-foreign-wars line holds because
+generated wars with real countries would fabricate history onto permanent
+records (R-14), which no preset may do.

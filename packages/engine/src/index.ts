@@ -94,6 +94,15 @@ export { SPECIAL_UNITS, specialUnitById } from './content.js'
 // Crime & justice (C1)
 export { crimeNewsSince, criminalRecordOf, hasRecentConviction, isJailed } from './crime.js'
 
+// Demographics (D1) — read-side measures
+export {
+  fertilityCohort,
+  partneringFunnel,
+  populationAt,
+  yearlyDemographics,
+} from './demographics.js'
+export type { FertilityCohort, PartneringFunnel, YearDemographics } from './demographics.js'
+
 // Awards (L4-M5)
 export {
   decorationsOf,

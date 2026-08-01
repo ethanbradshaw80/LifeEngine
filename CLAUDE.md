@@ -4,7 +4,12 @@
 repository. The original specification is preserved in `LIFE_ENGINE_BOOTSTRAP.md`;
 where the two disagree, this file and `docs/DECISION_LOG.md` win.
 
-Current phase: **Foundation — documentation and architecture. No gameplay implemented.**
+Current phase: **Player-experience-first (ADR-0018, 2026-08-01).** Layers 1–3
+plus two Layer 4 institutions (military, crime C1) are built and playable.
+New simulation institutions are paused; the active arcs are the demographic
+repair (ADR-0019, `docs/DEMOGRAPHICS_AUDIT.md`), the player-agency redesign
+(`docs/PLAYER_EXPERIENCE_AUDIT.md`), then world presets (ADR-0020,
+`docs/WORLD_MODES_PLAN.md`).
 
 ---
 
@@ -70,6 +75,12 @@ be used where legally and ethically appropriate. **People, companies, brands,
 politicians, parties, media organizations, sports organizations, and military units
 are fictional** — this reduces privacy, licensing, trademark, publicity-rights, and
 IP risk. No real private individuals, ever.
+
+World identity is becoming a **preset** (ADR-0020): Classic keeps today's
+fully fictional world; Real World Mode grounds the homeland in the real
+United States under the rulings in `docs/WORLD_MODES_PLAN.md` (foreign
+nations and named military units stay fictional in every preset; the two
+narrow amendments this paragraph needs land with milestone W2, not before).
 
 The player begins as one person in a world of autonomous simulated people. The world
 continues through childhood, education, careers, friendship, romance, marriage,

@@ -617,24 +617,48 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — C2, THE PLAYER AND THE LAW
+### Next up — D2, THE TOWN MUST LIVE (first milestone of the 2026-08-01 pivot)
 
-Read `docs/CRIME_PLAN.md` (one page). C2: the desperation moment — deep
-arrears raises a pending with BOTH roads real (remove the C1 player guard
-in runCrime and raise the pending at that exact spot; the auto path's
-attemptTheft is the shared helper the answer calls, custom-birth replay
-pattern applies), being caught or not, the plea question, months served
-on-screen, the record following into applyForJob's honest refusals.
-architecture-reviewer on the pending shape. FIRST, though (queued from C1
-review, small): write the DOMAIN_MAP §4 Rule 4 import-graph test — the
-engine graph currently has function-level cycles (two predate C1); either
-dissolve them with a command seam or bless them in an ADR, then make the
-test enforce whatever was decided.
+**THE PIVOT (ADR-0018/0019/0020, owner direction 2026-08-01):** new
+simulation institutions are PAUSED. Three arcs, in order: **D** (demographic
+repair), **P** (player agency: P1 explanations → P2 verbs → P3 surfaces;
+C2 folds into this arc), **W** (world presets: W1 WorldSpec extraction →
+W2 American Heartland real-world preset → W3 place depth). The three
+governing docs are `docs/DEMOGRAPHICS_AUDIT.md`,
+`docs/PLAYER_EXPERIENCE_AUDIT.md`, `docs/WORLD_MODES_PLAN.md` — each is
+short and IS the spec, with file:line receipts. D before P2 because
+relationship verbs need a partnering pipeline that actually flows.
 
-M-DEPTH3 landed the queued small items (machines named in workplace
-incidents, anniversaries, Enlist label). Older still-open notes: survivor
-benefits decision, families on PCS, branch bases, HYT TIS approximation,
-Ember contact-cap corner, relationships.ts separation split not calling
+**D1 — COMPLETE** (this pivot's measurement layer, same session as the
+audits): `packages/engine/src/demographics.ts` (yearlyDemographics /
+partneringFunnel / fertilityCohort / populationAt, all read-side, golden
+untouched), demographics.test.ts (rows reconcile births−deaths=Δpop
+exactly; funnel partitions; measuring changes no byte), 📊 panel on the
+observer dashboard. THE MEASURED TRUTH: living pop ~100 → 18-41 in 150y
+on 3 seeds; completed fertility 1.29-1.67 (need ~2.1); 33-46% of completed
+women childless; courtships 1-2/DECADE; median marriage 38-44; remarriage
+~absent. Mortality is fine. The owner's "reaches ~190" was
+world.people.size — the dead included. (First-draft cohort instrument
+counted founder women whose children predate the record — review caught
+it; the numbers here are from the corrected instrument, and a 240-tick
+regression test keeps founders out of the cohort.)
+
+**D2 spec (DEMOGRAPHICS_AUDIT.md §D2):** partner-seeking intent with
+modelled MEETING moments; family-intent marriage timing; family-size
+aspiration decided AND recorded at marriage; remarriage after modelled
+recovery; verify cohabitation lag. NO artificial birth multipliers
+(ADR-0019 forbids). Tune against D1 targets: completed fertility 2.1-2.6,
+childless 10-20%, median first marriage 22-27, stable-to-growing pop,
+150y × 3 seeds. SIMULATION_VERSION bump + golden + twin-world tests +
+architecture-reviewer (relationship graph is core state). Recreate the
+audit-runner pattern (a temp test writing a report file — deleted after
+use) for the tuning loop.
+
+Still queued from C1 review (small, do inside D2 or before): DOMAIN_MAP §4
+Rule 4 import-graph test — the engine graph has function-level cycles (two
+predate C1); dissolve with a command seam or bless via ADR, then enforce.
+Older notes: survivor benefits, families on PCS, branch bases, HYT TIS,
+Ember contact-cap, relationships.ts separation split not calling
 noteArrearsCrossing.
 
 ### Superseded — the old L4-M5 next-up (kept for context)

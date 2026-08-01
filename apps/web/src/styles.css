@@ -1054,3 +1054,32 @@ ul.welcome-points li + li {
   border-style: solid;
   font-style: normal;
 }
+
+/* Demographics panel (D1) — observer dashboard */
+.demographics {
+  margin: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.demographics summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.demo-table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-table th,
+.demo-table td {
+  padding: 0.15rem 0.6rem;
+  text-align: right;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 25%, transparent);
+}
+
+.demo-table th:first-child,
+.demo-table td:first-child {
+  text-align: left;
+}

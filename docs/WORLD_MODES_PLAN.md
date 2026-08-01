@@ -1,0 +1,115 @@
+# World Modes — Real World Mode and the WorldSpec
+
+**Status: audited and designed, 2026-08-01 (owner direction). Not yet
+implemented.** The owner wants the game to support a believable real-world
+setting alongside fully fictional worlds, via a world configuration system
+extensible to future presets. The full placeholder inventory (every proper
+noun in the game, with file:line) was taken 2026-08-01; rulings and
+architecture below. Implementation is the W-arc, after the P/D arcs.
+
+## The two launch presets
+
+- **Classic (today's world, unchanged):** Haverlock, the Republic, 12
+  fictional nations, fictional branches — every current save loads as this
+  preset forever.
+- **American Heartland (Real World Mode):** a REALISTIC-FICTIONAL town in a
+  real US state and county; homeland = the United States; real geography
+  and climate priors; real service branch names; real installation names;
+  era-weighted real name pools; START_YEAR configurable. Foreign nations
+  REMAIN FICTIONAL (below).
+
+## Real vs fictional — the rulings
+
+| Content | Ruling | Why |
+|---|---|---|
+| US states, counties, geography, climate | REAL | Facts; public-domain government data. Already sanctioned by CLAUDE.md §3. |
+| The player's town | REALISTIC-FICTIONAL in a real county | A real small town implies real residents and businesses. Real metros acceptable later. |
+| Streets/neighbourhoods | REALISTIC-FICTIONAL | Real addresses imply real occupants. |
+| Homeland nation | REAL (United States) | CLAUDE.md §3 already says "realistic simulated United States"; the fictional Republic was the deviation. Requires the two amendments below. Frame explicitly as alternate history (1970 start + generated wars). |
+| Foreign nations & wars | FICTIONAL, permanently | R-14 + MILITARY_AND_WAR_FOUNDATION §3: generated wars with real countries put fabricated history on permanent records; real wars make real casualties a mechanic. The foundation's compromise stands: real domestic, fictional theatres. |
+| Service branches | REAL names, NO insignia | Nominative use of "US Army/Navy/Air Force" in an expressive work; DoD licenses emblems — never ship them. Rank ladders are already real by owner direction. |
+| Bases/installations | REAL names | Facts about government property; foundation §3 already sanctions. Care: era-correct names (2023 renamings); never attach invented scandal to a named real base. |
+| Named military units | FICTIONAL, permanently | Real units carry real casualty history and living members; insignia trademarked. Pathfinders/Ember stay. |
+| Decorations | REALISTIC-FICTIONAL (stay) | Already litigated in-repo twice (verbatim names reverted at v13→v14 and M-HARM). "Medal of Honor" is also a game trademark. |
+| Universities | REALISTIC-FICTIONAL when attended; real names only in inert factual references | Flunking the player out of a named real school is avoidable risk; mascots/seals licensed. (Also text.ts's article() mishandles "a university" — fix before any such content.) |
+| Companies/branded workplaces | REALISTIC-FICTIONAL | Charter forbids real companies; the sim bankrupts and injures people at work. Never real small businesses. |
+| Politicians, parties, media, sports, celebrities, private individuals | FICTIONAL-ALWAYS | Publicity rights, defamation, charter. Unchanged. |
+| Person name pools | REAL ordinary names, era/region weighted, no real individuals | Already the model; extend with era weighting. |
+| Occupations, calendar | REAL (already are) | No IP in job titles or months. |
+
+**Constitution amendments required (exactly two, both narrow):**
+1. MILITARY_AND_WAR_FOUNDATION §3 "All countries… fictional" → "all
+   FOREIGN countries fictional; the homeland is preset-defined."
+2. CLAUDE.md §3 "military units are fictional" → distinguish branches
+   (real, name-only, per preset) from units (always fictional). Same
+   clarification in the charter.
+   The content.ts:71-73 "no real places on permanent records" rule
+   re-scopes to foreign theatres.
+
+## Architecture — the WorldSpec
+
+**Seam:** `createWorld(seed, population)` → `createWorld(seed, population,
+spec)` (worldgen.ts:130). The spec is chosen at world creation, recorded in
+the save header, and IMMUTABLE for that world's life. Determinism statement
+becomes seed + **preset** + version + decisions. One golden fingerprint per
+preset.
+
+**The spec carries (from the measured read sites):** given/family name
+pools; town gazetteer (town name, neighbourhoods, workplaces, civic
+places, schools, bases); nation set (homeland identity, foreign pool,
+count, blocs); service content (branches with ladders/pay/TIG, specialties,
+schools, units, decoration titles); START_YEAR; region/state identity and
+climate priors (Heartland). Balance constants (pay tables, prices,
+cutoffs) are TUNING, not world identity — they stay engine-owned and split
+out of content.ts.
+
+**Known resistances (all measured, all must be handled in W1):**
+1. **Id-shift trap:** places allocate before people and person ids seed
+   trait streams (worldgen.ts:79-111, 293-297) — presets with different
+   place counts produce different people from the same seed. Acceptable
+   (preset fixed at creation); document it, never "switch" a save's
+   preset.
+2. **Throwing string lookups:** occupationById/specialtyById throw on
+   unknown ids that live in saves (content.ts:284, 447) — content resolved
+   per-preset, additively versioned; a build carries every shipped
+   preset's content forever.
+3. **ServiceBranch is a compile-time union** keying five tables
+   (content.ts:149-208) — becomes data on the spec.
+4. **Display names as logic keys:** unit-selection dedupe and pass-over
+   dedupe string-match names (service.ts:228-230, 280-282, 663-665) — key
+   on ids before any preset work.
+5. **Names minted into permanent records** (headlines, fronts,
+   campaign-medal titles): correct-before-generation, never renamed after
+   (the Ashkelon→Veskarn doctrine, migrations.ts:448-451).
+6. **Prose hardcodes:** "the Republic" in player.ts:485/1044/1239/1241 and
+   "Haverlock" in Welcome.tsx:24 → render homeland(world).name /
+   world.town.name. (Cheap; do in W1.)
+
+## Structure Real World Mode needs that does not exist
+
+Town→county→state→nation chain (today the town and the homeland nation are
+completely unlinked); optional lat/long or region tags; climate priors
+(new system, new append-only stream, own milestone); multiple towns and
+migration (LARGE — deferred, gated on the O(n²) tick-loop fix per
+PERFORMANCE_BASELINE). Time zones: skipped — meaningless at monthly ticks.
+
+## W-milestones
+
+- **W1 — WorldSpec extraction.** Classic preset = current content
+  verbatim; engine reads the spec everywhere content.ts is read today;
+  resistances 2-4 and 6 fixed; save header gains preset id (schema bump;
+  old saves = classic); golden per preset; determinism docs updated.
+  Zero behavior change for Classic (same golden hash is the exit
+  criterion).
+- **W2 — American Heartland preset.** The rulings above become content:
+  real state/county frame, fictional town, US homeland + real branches
+  and bases, era name pools, configurable START_YEAR; the two
+  constitution amendments land with this milestone's ADR; military-scope-
+  reviewer mandatory.
+- **W3 — Place depth (scoped later).** Climate/seasons; university
+  institutions behind the education level; regional priors. Each gated by
+  the Three Gates on its own.
+
+No hardcoded assumption may prevent adding future countries or custom
+presets: everything preset-specific lives on the spec, nothing in engine
+logic branches on a preset NAME.
