@@ -73,28 +73,42 @@ export function other(relationship: Relationship, self: EntityId): EntityId {
   return relationship.a === self ? relationship.b : relationship.a
 }
 
-/** Current spouse, if any. Former spouses are history and are not returned. */
-export function spouseOf(world: World, personId: EntityId): EntityId | null {
-  // Sorted so that, in the impossible-but-guard-worthy case of two spouse
-  // edges, the same one is always returned.
-  for (const [, relationship] of sortedRelationships(world)) {
-    if (relationship.type !== 'spouse') continue
-    if (relationship.a === personId || relationship.b === personId) {
-      return other(relationship, personId)
+/** Among this person's matching edges, the one first in (a, b) order — the
+ *  same edge a sorted scan would find first, without sorting. These queries
+ *  run per person inside per-tick loops, and re-sorting the whole graph on
+ *  every call was 86% of tick time on a grown town (see the profile note in
+ *  vitest.config.ts). In the impossible-but-guard-worthy case of two matching
+ *  edges, the (a, b) tie-break keeps the answer deterministic. */
+function firstEdgeWith(
+  world: World,
+  personId: EntityId,
+  matches: (type: Relationship['type']) => boolean,
+): Relationship | null {
+  let best: Relationship | null = null
+  for (const relationship of world.relationships.values()) {
+    if (!matches(relationship.type)) continue
+    if (relationship.a !== personId && relationship.b !== personId) continue
+    if (
+      best === null ||
+      relationship.a < best.a ||
+      (relationship.a === best.a && relationship.b < best.b)
+    ) {
+      best = relationship
     }
   }
-  return null
+  return best
+}
+
+/** Current spouse, if any. Former spouses are history and are not returned. */
+export function spouseOf(world: World, personId: EntityId): EntityId | null {
+  const edge = firstEdgeWith(world, personId, (type) => type === 'spouse')
+  return edge === null ? null : other(edge, personId)
 }
 
 /** Spouse or courting partner — whoever a person is currently paired with. */
 export function partnerOf(world: World, personId: EntityId): EntityId | null {
-  for (const [, relationship] of sortedRelationships(world)) {
-    if (relationship.type !== 'spouse' && relationship.type !== 'courting') continue
-    if (relationship.a === personId || relationship.b === personId) {
-      return other(relationship, personId)
-    }
-  }
-  return null
+  const edge = firstEdgeWith(world, personId, (type) => type === 'spouse' || type === 'courting')
+  return edge === null ? null : other(edge, personId)
 }
 
 export function friendsOf(world: World, personId: EntityId): EntityId[] {

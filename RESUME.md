@@ -627,10 +627,16 @@ try-for-child; quit / ask-for-a-raise / apply-at-<workplace> / the
 foreman's-warning pending; re-enrol 18-24; household spending stance;
 convalesce stance repeatable; request-discharge (honest refusal);
 retrain-at-reenlistment. C2 (player crime) lands with or right after.
-FIRST, SMALL: profile the tick loop (review evidence says partnerOf's
-per-call graph re-sort at least as much as the O(n²) friendship loop —
-vitest.config comment has the note), then the cohort index/partner-map
-fix with performance-reviewer. Import-graph test still queued. P2 review
+PROFILE-FIRST ITEM DONE: partnerOf/spouseOf's per-call graph re-sort
+WAS 86% of tick time on a 150y town; fixed with a sort-free min-(a,b)
+scan (byte-identical, golden untouched, 11.4→1.2 ms/tick, 292 tests).
+Friendship loop measured 2.3% at that scale — cohort index stays
+deferred (performance-reviewer concurred; watch-note: runHouseholds'
+per-person partnerOf calls are aggregate O(P·E) — if a scaled bench
+ever shows them hot, currentPartners() is the established cure).
+PERFORMANCE_BASELINE.md regenerated at SIMULATION_VERSION 24 (old doc
+was M3-era; populations differ by version drift, reproduced exactly
+across runs). Import-graph test still queued. P2 review
 notes to carry: reconcile() now derives its subject safely for NPC
 callers (tend-the-marriage can reuse it); player.ts writes world.service
 directly in several verbs (pre-existing DOMAIN_MAP §6 violation — fix
