@@ -617,9 +617,14 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — M-ARMY2 (owner direction, 2026-08-01, given mid-P2)
+### Next up — M-ARMY2 (owner direction, 2026-08-01, two rounds mid-P2)
 
-Ethan's words, itemized. military-scope-reviewer MANDATORY.
+Ethan's words, itemized. military-scope-reviewer MANDATORY. The
+2026-08-01 army audit (temp runner, deleted) measured 120y × 3 seeds:
+enlistments 2.3-3.1/decade (NPCs DO join — a VISIBILITY problem),
+serving-at-once 0-8, tours 1-10/120y, contacts 1-11/120y, wounded 0-2,
+died-serving 1 across 360 sim-years, combat deaths ZERO. Item 3 is a
+real rarity, not bad luck; item 4 is surfacing, not rates.
 1. PEACETIME ROTATIONS: deployments to ALLY countries while at peace —
    the wartime button is now correctly labelled "Volunteer for
    deployment" (done in P2); rotations are the new thing. Points earned,
@@ -628,21 +633,46 @@ Ethan's words, itemized. military-scope-reviewer MANDATORY.
    from geopolitical STATE — a peacetime posting's risk profile is
    accident/illness-shaped, not combat) and the exposure-profile rule.
 2. COMBAT POP-UPS WITH ~3 OPTIONS "which can determine the outcome and
-   possible death": the combat-moment pending exists (2 options, both
-   roll real danger via resolveMomentCasualty — the machinery to extend);
-   owner wants richer, more frequent choice moments.
-3. "YET TO SEE A CHARACTER DIE IN THE ARMY": deaths ARE modelled
-   (severity>=940 fatal tail 2/5 via performDeath; theatre disease) —
-   MEASURE actual KIA/disease-death rates per tour and per war before
-   tuning; the audit-runner pattern. If rates are honest but invisible,
-   it is a surfacing problem; if truly rare, a tuning one. Foundation §6
-   bounds it (most military work is not combat).
-4. NPC ENLISTMENT "people dont enlist on their own": propensity is
-   jobless 110 / employed 16 per 12k/mo (L4-M3 tuning) — measure how
-   many actually enlist per decade at current town size; the owner
-   expects visible peers in uniform. Also "ability to enlist for the
-   sims" — possibly a per-sim enlist verb when TAKING OVER a life?
-   Clarify with owner if ambiguous after measurement.
+   possible death": extend the combat-moment machinery (both answers
+   already roll real danger via resolveMomentCasualty). SPECIAL UNITS
+   (owner round 2): "if you are in the special units your combat
+   missions and deployments should be different in aspects that make
+   you feel like your apart of a special unit" — distinct moment kinds
+   / mission texture for Pathfinders/Ember, not just the exposure
+   multipliers M-SPECOPS gave them.
+3. ARMY DEATHS: measured ~zero combat deaths ever. Wars are generational
+   by design (M-GAMEDEPTH pacing) — decide deliberately: more contact
+   lethality per tour when wars DO come + rotation risk filling the
+   peace, vs foundation §6 (most military work is not combat). Tune
+   against the measurement, on the record.
+4. NPC ENLISTMENT VISIBILITY + ENLISTING THE UNPLAYED (owner round 2
+   clarified: "like enlisting a character you're not currently playing,
+   I want others to make the choice to join up too"): surface NPC
+   enlistments (news/feed cards — they already happen ~3/decade); for
+   DIRECTING an unplayed sim, a straight god-verb collides with Law 2 /
+   charter §2 (NPCs are not the player's to command). Proposed
+   resolution to put to the owner: an ENCOURAGE-TO-ENLIST verb through
+   a real relationship (parent/sibling/friend raises the modelled
+   propensity; the sim still decides — the C1 "modelled moments" idiom),
+   PLUS the existing Take-over-a-life path for full control. If the
+   owner insists on the god-verb after seeing the trade, it needs an
+   ADR amending the charter's player-scope language.
+5. CAREER SHAPE (owner round 2, all tuning constants + one rule):
+   - HYT/up-or-out ONLY BELOW SGT: "people shouldn't be forced out of
+     service after missing rank promotions past like SGT because a ton
+     of people retire at SGT, SSG" — HIGH_YEAR_TENURE_TIG applies below
+     the SGT grade; at/above SGT you serve on unless you ERR (item 6).
+   - Max career 30 YEARS; max join age 38 (today 18-26); max age in
+     uniform 62 (mandatory retirement).
+   All change NPC behaviour → SIMULATION_VERSION bump, demographics
+   re-measured (more/longer careers shift D2's bands slightly).
+6. MISTAKES AT BASE → non-judicial punishment ("Article 15's and
+   such"): modelled misconduct incidents — rank reduction, forfeited
+   pay, extra duty, on the record — which also becomes the honest
+   removal path past SGT. NAMING: "Article 15" is real UCMJ language;
+   the project's fictional-institutions rule (foundation §2) wants an
+   invented equivalent ("company punishment" family) — decide at
+   design, military-scope-reviewer rules on it.
 Then C2 (CRIME_PLAN.md:52-55: desperation pending, plea question, months
 served on-screen, record following into applications — applyForJob needs
 the hasRecentConviction refusal AND an isJailed gate, noted by review),
