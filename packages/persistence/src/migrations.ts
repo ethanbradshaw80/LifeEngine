@@ -465,7 +465,31 @@ const V13_TO_V14: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14]
+/** v14 → v15 (M-SPECOPS). Special units and promotion points arrive;
+ *  service records gain `unitId: null` (no membership predates the units)
+ *  and an untested fitness score (the first test happens now, not in a
+ *  reconstructed past). */
+const V14_TO_V15: Migration = {
+  from: 14,
+  to: 15,
+  describe: 'add special-unit membership and fitness scores (none reconstructed)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const service = Array.isArray(world['service']) ? world['service'] : []
+    const migrated = service.map((entry) => {
+      const record = requireObject(entry, 'save.world.service[]')
+      return { ...record, unitId: null, fitnessScore: 0, fitnessTestedAtTick: null }
+    })
+    const nextWorld: Record<string, unknown> = { ...world, service: migrated }
+    return {
+      header: { ...header, schemaVersion: 15, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

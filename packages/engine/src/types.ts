@@ -248,6 +248,18 @@ export interface ServiceRecord {
    * month's noise happened to be. Reset when a new term begins.
    */
   readonly termPerformanceSum: number
+  /**
+   * Special unit (M-SPECOPS), or null for the line. Earned through a
+   * selection that can be failed; carries duty pay and a sharper war.
+   * Survives discharge with the rest of the record.
+   */
+  readonly unitId: string | null
+  /**
+   * Latest fitness test score, 0-300 promotion points (M-SPECOPS). The body
+   * is one of the roads to the board; it ages, and the test says so.
+   */
+  readonly fitnessScore: number
+  readonly fitnessTestedAtTick: Tick | null
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +461,12 @@ export type PendingKind =
   | 'job-application'
   /** LOG-ONLY: the player walked into the recruiting office themselves. */
   | 'walk-in-enlist'
+  /** LOG-ONLY: asked for a school slot from the Service tab. */
+  | 'school-request'
+  /** LOG-ONLY: put in for a special unit's selection. */
+  | 'unit-tryout'
+  /** LOG-ONLY: took the fitness test from the Service tab. */
+  | 'fitness-test'
   /**
    * A custom life brought into the world at the picker. NEVER raised as a
    * live question — createCustomLife writes the log entry directly, so the
@@ -554,6 +572,12 @@ export type EventType =
   /** Asked after work and the town said no (M-SERVICE-PLAY). The answer is
    *  part of the story, like the asking was. */
   | 'turned-down'
+  /** Selected for a special unit (M-SPECOPS). */
+  | 'joined-unit'
+  /** Went to selection and did not make it. On the record, without shame. */
+  | 'dropped-selection'
+  /** Scored the annual fitness test — promotion points for the body's work. */
+  | 'fitness-tested'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
@@ -601,6 +625,11 @@ export type DecisionType =
   | 'award'
   /** The pension board's finding — explained by the recorded disability. */
   | 'pension'
+  /** A school attended (M-SPECOPS) — its own kind, so a same-month
+   *  selection's Why? never answers with the schoolhouse. */
+  | 'training'
+  /** A special unit's selection, made or missed. */
+  | 'selection'
   | 'deployment'
   | 'geopolitics'
 

@@ -116,6 +116,9 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'passed-over': 'promotion',
   awarded: 'award',
   'granted-pension': 'pension',
+  'joined-unit': 'selection',
+  'dropped-selection': 'selection',
+  'completed-training': 'training',
 }
 
 /**

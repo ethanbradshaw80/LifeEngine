@@ -214,6 +214,12 @@ export interface ServiceSpecialty {
   readonly schoolMonths: number
   /** The qualification this trade can earn, in words. L4-M5 reads these. */
   readonly qualification: string
+  /**
+   * Offset on the board's points cutoff (M-SPECOPS): every trade promotes
+   * at its own speed, the way the real monthly cutoff lists work. Negative
+   * means the trade needs people and promotes faster.
+   */
+  readonly boardCutoffOffset: number
   readonly exposure: ExposureProfile
   /** Civilian occupations this specialty's training unlocks for veterans. */
   readonly civilianUnlocks: readonly string[]
@@ -222,37 +228,37 @@ export interface ServiceSpecialty {
 export const SPECIALTIES: readonly ServiceSpecialty[] = [
   {
     id: 'rifleman', title: 'rifleman', branch: 'land-forces', requires: 'none',
-    schoolMonths: 2, qualification: 'expert marksman',
+    schoolMonths: 2, qualification: 'expert marksman', boardCutoffOffset: -40,
     exposure: { directCombat: 850, convoy: 300, baseAttack: 300, accident: 300 },
     civilianUnlocks: [],
   },
   {
     id: 'transport', title: 'transport driver', branch: 'land-forces', requires: 'primary',
-    schoolMonths: 2, qualification: 'master driver',
+    schoolMonths: 2, qualification: 'master driver', boardCutoffOffset: -20,
     exposure: { directCombat: 150, convoy: 850, baseAttack: 250, accident: 450 },
     civilianUnlocks: [],
   },
   {
     id: 'mechanic', title: 'field mechanic', branch: 'land-forces', requires: 'primary',
-    schoolMonths: 4, qualification: 'master mechanic',
+    schoolMonths: 4, qualification: 'master mechanic', boardCutoffOffset: 20,
     exposure: { directCombat: 80, convoy: 200, baseAttack: 350, accident: 400 },
     civilianUnlocks: ['machinist', 'electrician', 'carpenter'],
   },
   {
     id: 'medic', title: 'medic', branch: 'land-forces', requires: 'secondary',
-    schoolMonths: 4, qualification: 'field trauma certification',
+    schoolMonths: 4, qualification: 'field trauma certification', boardCutoffOffset: 30,
     exposure: { directCombat: 350, convoy: 400, baseAttack: 300, accident: 250 },
     civilianUnlocks: ['nurse'],
   },
   {
     id: 'signals', title: 'signals operator', branch: 'air-guard', requires: 'secondary',
-    schoolMonths: 4, qualification: 'senior signals rating',
+    schoolMonths: 4, qualification: 'senior signals rating', boardCutoffOffset: 40,
     exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
     civilianUnlocks: ['clerk'],
   },
   {
     id: 'deckhand', title: 'deckhand', branch: 'naval-service', requires: 'none',
-    schoolMonths: 2, qualification: 'seamanship rating',
+    schoolMonths: 2, qualification: 'seamanship rating', boardCutoffOffset: 0,
     exposure: { directCombat: 120, convoy: 60, baseAttack: 500, accident: 550 },
     civilianUnlocks: ['millhand'],
   },
@@ -277,6 +283,114 @@ export function servicePay(branch: ServiceBranch, rank: number): Money {
 
 /** Standard enlistment term, months. */
 export const SERVICE_TERM_MONTHS = 48
+
+/**
+ * Board cutoffs (M-SPECOPS): promotion runs on POINTS — performance, the
+ * fitness test, badges, decorations, seniority — against a per-trade cutoff.
+ * Multiple roads to the same board, so a middling month is not a life
+ * sentence: go to a school, hold a rating, keep the body ready.
+ */
+export const BOARD_CUTOFF_BASE = 550
+export const BOARD_CUTOFF_STEP = 90
+export const POINTS_PER_BADGE = 40
+export const POINTS_PER_CAMPAIGN = 25
+export const POINTS_PER_GOOD_CONDUCT = 20
+export const POINTS_PER_WOUND_RECOGNITION = 15
+/** The awards bucket is CAPPED, as in the real points model — service is
+ *  recognized, but a rack cannot buy a board on its own (review: without
+ *  this, the points-optimal life is collecting wounds). */
+export const MAX_DECORATION_POINTS = 125
+export const MAX_SENIORITY_POINTS = 100
+export const MAX_FITNESS_POINTS = 300
+
+// ---------------------------------------------------------------------------
+// Special schools and special units (M-SPECOPS)
+//
+// School TITLES are generic capability names (jump school, sniper school —
+// every military on earth has these); UNIT names are fictional per the
+// foundation §3, with the authentic structure kept: badge gates, selection
+// you can fail, a tier above the tier, duty pay, and a sharper war.
+// ---------------------------------------------------------------------------
+
+export interface ServiceSchool {
+  readonly id: string
+  readonly title: string
+  /** Branches admitted; empty = all. */
+  readonly branches: readonly ServiceBranch[]
+  /** Specialties admitted; empty = any. */
+  readonly specialtyIds: readonly string[]
+  readonly minRank: number
+  readonly minPerformance: number
+  /** The badge the course pins on — routed through the awards machinery. */
+  readonly badge: string
+  readonly performanceBoost: number
+}
+
+export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
+  {
+    id: 'jump-school', title: 'Jump School', branches: ['land-forces'], specialtyIds: [],
+    minRank: 1, minPerformance: 450, badge: 'parachutist', performanceBoost: 40,
+  },
+  {
+    id: 'air-assault', title: 'the Air-Mobile Assault Course', branches: ['land-forces', 'air-guard'], specialtyIds: [],
+    minRank: 1, minPerformance: 450, badge: 'air assault', performanceBoost: 40,
+  },
+  {
+    id: 'sniper-school', title: 'Sniper School', branches: ['land-forces'], specialtyIds: ['rifleman'],
+    minRank: 2, minPerformance: 600, badge: 'sniper qualified', performanceBoost: 60,
+  },
+  {
+    id: 'combat-diver', title: 'the Combat Diver Course', branches: ['naval-service'], specialtyIds: [],
+    minRank: 2, minPerformance: 550, badge: 'combat diver', performanceBoost: 50,
+  },
+  {
+    id: 'leaders-course', title: 'the Junior Leaders Course', branches: [], specialtyIds: [],
+    minRank: 4, minPerformance: 500, badge: 'small-unit leader', performanceBoost: 50,
+  },
+]
+
+export function schoolById(id: string): ServiceSchool | undefined {
+  return SERVICE_SCHOOLS.find((s) => s.id === id)
+}
+
+export interface SpecialUnit {
+  readonly id: string
+  /** Fictional name, authentic weight. */
+  readonly name: string
+  /** 1 = the elite battalion; 2 = the quiet tier above it. */
+  readonly tier: 1 | 2
+  readonly branches: readonly ServiceBranch[]
+  readonly minRank: number
+  readonly minPerformance: number
+  readonly requiredBadges: readonly string[]
+  /** Selection draws from this unit first, or null. */
+  readonly feederUnitId: string | null
+  /** chance(clamp(perf − minPerf + 60, 10, 400), THIS). Selection fails people. */
+  readonly selectionDenominator: number
+  /** Monthly special-duty pay on top of grade pay, cents. */
+  readonly dutyPay: number
+  /** Direct-combat exposure multiplier, per-mille. The sharp end, sharper. */
+  readonly exposureMultiplier: number
+}
+
+export const SPECIAL_UNITS: readonly SpecialUnit[] = [
+  {
+    id: 'pathfinders', name: 'the Pathfinder Battalion', tier: 1,
+    branches: ['land-forces'], minRank: 2, minPerformance: 550,
+    requiredBadges: ['parachutist'], feederUnitId: null,
+    selectionDenominator: 500, dutyPay: dollars(150), exposureMultiplier: 1250,
+  },
+  {
+    id: 'task-unit-ember', name: 'Task Unit Ember', tier: 2,
+    branches: ['land-forces'], minRank: 5, minPerformance: 720,
+    requiredBadges: ['parachutist'], feederUnitId: 'pathfinders',
+    selectionDenominator: 900, dutyPay: dollars(400), exposureMultiplier: 1500,
+  },
+]
+
+export function specialUnitById(id: string): SpecialUnit | undefined {
+  return SPECIAL_UNITS.find((u) => u.id === id)
+}
 
 /**
  * Up or out (M-SERVICE-PLAY): months in the same grade before the service

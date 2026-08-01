@@ -49,6 +49,9 @@ function worldWithASoldier(): { world: World; soldierId: EntityId } {
     dischargedAtTick: null,
     dischargeReason: null,
     termPerformanceSum: 0,
+    unitId: null,
+    fitnessScore: 0,
+    fitnessTestedAtTick: null,
   })
   return { world, soldierId: person.id }
 }

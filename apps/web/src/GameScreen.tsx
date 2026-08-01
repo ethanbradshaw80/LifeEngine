@@ -43,7 +43,20 @@ import {
   timelineFor,
   veteranUnlocks,
 } from '@life-engine/engine'
-import { BRANCH_NAMES, enlistmentBar, healthOf, isDeployed, isServing, rankTitle, specialtyById } from '@life-engine/engine'
+import {
+  boardStandingFor,
+  BRANCH_NAMES,
+  enlistmentBar,
+  healthOf,
+  isDeployed,
+  isServing,
+  rankTitle,
+  schoolOptionsFor,
+  servicePayOf,
+  specialtyById,
+  specialUnitById,
+  unitOptionsFor,
+} from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -72,6 +85,9 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'granted-pension': '🏛️',
   'passed-over': '⏳',
   'turned-down': '🚪',
+  'joined-unit': '🪂',
+  'dropped-selection': '↩️',
+  'fitness-tested': '🏃',
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',
@@ -130,6 +146,10 @@ interface Props {
   /** Tab verbs (M-SERVICE-PLAY): ask after work; walk into the recruiter. */
   readonly onApplyJob: (occupationId: string) => void
   readonly onRequestEnlist: () => void
+  readonly onRequestSchool: (schoolId: string) => void
+  readonly onTryUnit: (unitId: string) => void
+  readonly onRequestDeploy: () => void
+  readonly onFitnessTest: () => void
   /** The world's short answer to the last action ("no place this month"). */
   readonly notice: string | null
 }
@@ -152,7 +172,7 @@ function PersonLink({
   )
 }
 
-export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, notice }: Props) {
+export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
   const feedRef = useRef<HTMLDivElement | null>(null)
@@ -671,12 +691,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   </dd>
                   <dt>Enlisted</dt>
                   <dd>{formatYear(record.enlistedAtTick)}</dd>
+                  {record.unitId !== null && (
+                    <>
+                      <dt>Unit</dt>
+                      <dd>{specialUnitById(record.unitId)?.name ?? record.unitId}</dd>
+                    </>
+                  )}
                   {record.dischargedAtTick === null && (
                     <>
                       <dt>Posting</dt>
                       <dd>{world.places.get(record.baseId)?.name ?? 'unknown'}</dd>
                       <dt>Pay</dt>
-                      <dd>{formatMoney(record.monthlyPay)} a month</dd>
+                      <dd>
+                        {formatMoney(servicePayOf(world, person.id) as never)} a month
+                        {record.unitId !== null && <span className="muted small"> incl. special-duty pay</span>}
+                      </dd>
                     </>
                   )}
                   {unlocks.length > 0 && (
@@ -693,6 +722,67 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )}
                 </dl>
+                {record.dischargedAtTick === null && (
+                  <>
+                    <h3>Actions</h3>
+                    <div className="svc-actions">
+                      <button type="button" className="apply" disabled={busy} onClick={onRequestDeploy}>
+                        🛫 Volunteer for the rotation
+                      </button>
+                      <button type="button" className="apply" disabled={busy} onClick={onFitnessTest}>
+                        🏃 Train for the fitness test
+                      </button>
+                    </div>
+                    {(() => {
+                      const standing = boardStandingFor(world, person.id)
+                      if (!standing) return null
+                      return (
+                        <p className="muted small">
+                          Promotion points: {standing.points.total} against the {standing.targetTitle} cutoff
+                          of {standing.cutoff} — evaluation {standing.points.performance}, fitness{' '}
+                          {standing.points.fitness}, badges {standing.points.badges}, decorations{' '}
+                          {standing.points.decorations}, seniority {standing.points.seniority}.
+                        </p>
+                      )
+                    })()}
+                    <h3>Schools</h3>
+                    <ul className="job-list">
+                      {schoolOptionsFor(world, person.id).map((option) => (
+                        <li key={option.id}>
+                          <span className="job-title">{option.title}</span>
+                          <span className="muted small">
+                            {option.open ? `earns ${option.badge}` : option.reason}
+                          </span>
+                          {option.open && (
+                            <button type="button" className="apply" disabled={busy} onClick={() => onRequestSchool(option.id)}>
+                              Request
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    <h3>Special units</h3>
+                    <ul className="job-list">
+                      {unitOptionsFor(world, person.id).map((option) => (
+                        <li key={option.id}>
+                          <span className="job-title">{option.name}</span>
+                          <span className="muted small">
+                            {option.open
+                              ? option.tier === 2
+                                ? 'selection — the quiet tier'
+                                : 'selection — it can be failed'
+                              : option.reason}
+                          </span>
+                          {option.open && (
+                            <button type="button" className="apply" disabled={busy} onClick={() => onTryUnit(option.id)}>
+                              Try out
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
                 {(() => {
                   const decorations = decorationsOf(world, person.id)
                   if (decorations.length === 0) return null

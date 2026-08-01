@@ -180,6 +180,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
     case 'passed-over':
       return `${year} — Went before the ${event.detail ?? 'promotion'} board; not selected.`
+    case 'joined-unit':
+      return `${year} — Selected for ${event.detail ?? 'a special unit'}.`
+    case 'dropped-selection':
+      return `${year} — Went to ${event.detail ?? 'a special unit'} selection; came back without it.`
+    case 'fitness-tested':
+      return `${year} — Scored ${event.detail ?? 'the standard'} on the fitness test.`
     case 'turned-down':
       return `${year} — Asked after work as ${event.detail !== null ? withArticle(event.detail) : 'something new'}; no place this time.`
     case 'granted-pension': {

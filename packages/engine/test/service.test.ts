@@ -203,6 +203,9 @@ describe('veterans', () => {
       dischargedAtTick: 0 as never,
       dischargeReason: 'end of term',
       termPerformanceSum: 0,
+      unitId: null,
+      fitnessScore: 0,
+      fitnessTestedAtTick: null,
     })
 
     expect(isVeteran(world, person.id)).toBe(true)

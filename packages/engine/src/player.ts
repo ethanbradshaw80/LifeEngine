@@ -39,8 +39,11 @@ import {
   isServing,
   rankTitle,
   reenlist as reenlistService,
+  schoolOptionsFor,
+  unitOptionsFor,
   veteranUnlocks,
 } from './service.js'
+import { MAX_FITNESS_POINTS, schoolById, specialUnitById } from './content.js'
 import { placesOfKind } from './worldgen.js'
 import {
   BRANCH_NAMES,
@@ -299,6 +302,189 @@ export function requestEnlistment(world: World): { asked: boolean; reason: strin
   return { asked: true, reason: '' }
 }
 
+/**
+ * Ask for a school slot, now, from the Service tab. The door's state comes
+ * from schoolOptionsFor; a slot still has to exist this cycle. One request
+ * per half-year — the schoolhouse is not a vending machine.
+ */
+export function requestSchool(world: World, schoolId: string): { attended: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { attended: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { attended: false, reason: 'A decision is already waiting.' }
+  const record = world.service.get(person.id)
+  if (!record || record.dischargedAtTick !== null) return { attended: false, reason: 'Not serving.' }
+  if (world.tick - record.enlistedAtTick <= 2 + specialtyById(record.specialtyId).schoolMonths) {
+    return { attended: false, reason: 'Finish the pipeline first.' }
+  }
+  const school = schoolById(schoolId)
+  if (!school) return { attended: false, reason: 'No such school.' }
+  const option = schoolOptionsFor(world, person.id).find((o) => o.id === schoolId)
+  if (!option) return { attended: false, reason: 'No such school.' }
+  if (!option.open) return { attended: false, reason: option.reason }
+  if (
+    world.player.log.some((entry) => entry.kind === 'school-request' && world.tick - entry.tick < 6)
+  ) {
+    return { attended: false, reason: 'The schoolhouse answered this half-year already.' }
+  }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'school-request',
+    choice: schoolId,
+  })
+  world.player.nextDecisionId += 1
+
+  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 8777)
+  if (!rng.chance(1, 3)) {
+    return { attended: false, reason: `No slot at ${school.title} this cycle. Ask again next season.` }
+  }
+
+  recordEvent(world, world.tick, { type: 'completed-training', subjectId: person.id, detail: school.title })
+  const badgeEvent = recordEvent(world, world.tick, {
+    type: 'earned-qualification',
+    subjectId: person.id,
+    detail: school.badge,
+  })
+  grantQualificationBadge(world, world.tick, person.id, badgeEvent, school.badge)
+  world.service.set(person.id, {
+    ...world.service.get(person.id)!,
+    performance: Math.min(1000, record.performance + school.performanceBoost),
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'training',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000), factor('ambition', person.traits.ambition)],
+    chosen: `asked for and got a slot at ${school.title}`,
+    rejected: [],
+    streamId: Stream.Employment,
+  })
+  return { attended: true, reason: '' }
+}
+
+/**
+ * Put in for a special unit's selection, from the Service tab. The gates
+ * are stated in unitOptionsFor; selection itself can be failed, the failure
+ * is on the record without shame, and the file allows two tries.
+ */
+export function tryOutForUnit(world: World, unitId: string): { joined: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { joined: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { joined: false, reason: 'A decision is already waiting.' }
+  const record = world.service.get(person.id)
+  if (!record || record.dischargedAtTick !== null) return { joined: false, reason: 'Not serving.' }
+  const unit = specialUnitById(unitId)
+  if (!unit) return { joined: false, reason: 'No such unit.' }
+  const option = unitOptionsFor(world, person.id).find((o) => o.id === unitId)
+  if (!option) return { joined: false, reason: 'No such unit.' }
+  if (!option.open) return { joined: false, reason: option.reason }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'unit-tryout',
+    choice: unitId,
+  })
+  world.player.nextDecisionId += 1
+
+  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 7333)
+  const margin = Math.max(10, Math.min(400, record.performance - unit.minPerformance + 60))
+  const selected = rng.chance(margin, unit.selectionDenominator)
+
+  if (selected) {
+    world.service.set(person.id, { ...world.service.get(person.id)!, unitId: unit.id })
+    recordEvent(world, world.tick, { type: 'joined-unit', subjectId: person.id, detail: unit.name })
+    recordDecision(world, world.tick, {
+      subjectId: person.id,
+      decision: 'selection',
+      significance: 'defining',
+      inputs: [factor('own-choice', 1000), factor('strong-performance', record.performance)],
+      chosen: `selected for ${unit.name}`,
+      rejected: [],
+      streamId: Stream.Employment,
+    })
+    return { joined: true, reason: '' }
+  }
+
+  recordEvent(world, world.tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.name })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'selection',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000), factor('strong-performance', record.performance)],
+    chosen: `went to ${unit.name} selection; came back without it`,
+    rejected: [],
+    streamId: Stream.Employment,
+  })
+  return { joined: false, reason: `Selection said not this time. The trying is on the record.` }
+}
+
+/**
+ * Train for the fitness test, from the Service tab. The TEST is mandatory
+ * and annual for everyone — nobody opts out of it, and nobody keeps a score
+ * the body no longer holds. The player's hand on it is TRAINING: a real
+ * bump now, twice a year at most, and age still gets its say when the test
+ * comes around.
+ */
+export function trainFitness(world: World): { trained: boolean; score: number; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { trained: false, score: 0, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { trained: false, score: 0, reason: 'A decision is already waiting.' }
+  const record = world.service.get(person.id)
+  if (!record || record.dischargedAtTick !== null) return { trained: false, score: 0, reason: 'Not serving.' }
+  if (world.player.log.some((entry) => entry.kind === 'fitness-test' && world.tick - entry.tick < 6)) {
+    return { trained: false, score: record.fitnessScore, reason: 'The body needs the months between blocks of training.' }
+  }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'fitness-test',
+    choice: 'trained',
+  })
+  world.player.nextDecisionId += 1
+
+  const score = Math.min(MAX_FITNESS_POINTS, record.fitnessScore + 40)
+  world.service.set(person.id, { ...record, fitnessScore: score })
+  recordEvent(world, world.tick, {
+    type: 'completed-training',
+    subjectId: person.id,
+    detail: 'a block of fitness training',
+  })
+  return { trained: true, score, reason: '' }
+}
+
+/**
+ * Raise a hand for the rotation, on demand. Same machinery as the pending —
+ * this is the button for the player who is not waiting to be asked.
+ */
+export function requestDeployment(world: World): { deployed: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { deployed: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { deployed: false, reason: 'A decision is already waiting.' }
+  const record = world.service.get(person.id)
+  if (!record || record.dischargedAtTick !== null) return { deployed: false, reason: 'Not serving.' }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    tick: world.tick,
+    kind: 'volunteer-deploy',
+    choice: 'walk-in',
+  })
+  world.player.nextDecisionId += 1
+
+  if (volunteerForDeployment(world, world.tick, person.id)) {
+    return { deployed: true, reason: '' }
+  }
+  const home = homeland(world)
+  const atWar = home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
+  return {
+    deployed: false,
+    reason: atWar ? 'Not yet — finish the pipeline, or come home first.' : 'The Republic is not at war.',
+  }
+}
+
 /** Called by systems at a player choice point. Halts the clock. */
 export function raisePending(
   world: World,
@@ -488,14 +674,16 @@ export function resolvePending(world: World, choice: string): void {
         const standing = boardStandingFor(world, person.id)
         if (record && record.dischargedAtTick === null && standing && standing.timeInGrade >= standing.tigNeeded) {
           const rng = openStream(world.seed, Stream.Employment, person.id, pending.tick + 5666)
-          const prepped = record.performance + 40
-          // The board reads the file: each recorded non-selection for this
-          // rank raises what it takes. That is what makes 'pass' a real
-          // choice — an unready packet costs the next one.
-          const barWithFile = standing.bar + standing.priorPassOvers * 15
+          // POINTS against the trade's cutoff (M-SPECOPS): evaluation,
+          // fitness, badges, decorations, seniority — plus the packet work
+          // of putting in. The board reads the file too: each recorded
+          // non-selection raises what it takes, which is what makes 'pass'
+          // a real choice — an unready packet costs the next one.
+          const prepped = standing.points.total + 40
+          const cutoffWithFile = standing.cutoff + standing.priorPassOvers * 15
           const selected =
-            prepped >= barWithFile &&
-            rng.chance(2 + Math.floor(Math.max(0, prepped - barWithFile) / 60), 24)
+            prepped >= cutoffWithFile &&
+            rng.chance(2 + Math.floor(Math.max(0, prepped - cutoffWithFile) / 60), 24)
           if (selected) {
             const newRank = record.rank + 1
             world.service.set(person.id, {
@@ -582,7 +770,7 @@ export function resolvePending(world: World, choice: string): void {
           }
           recordDecision(world, pending.tick, {
             subjectId: person.id,
-            decision: 'enlistment',
+            decision: 'training',
             significance: 'notable',
             inputs: [factor('own-choice', 1000), factor('ambition', person.traits.ambition)],
             chosen: 'took a slot at an advanced school',
@@ -608,7 +796,10 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'job-application':
-    case 'walk-in-enlist': {
+    case 'walk-in-enlist':
+    case 'school-request':
+    case 'unit-tryout':
+    case 'fitness-test': {
       // Log-only, like custom-birth: the tab verbs write these themselves.
       throw new Error(`${pending.kind} is a log entry, not a live decision`)
     }
@@ -760,6 +951,12 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Asked after work.' // log-only
     case 'walk-in-enlist':
       return 'Walked into the recruiting office.' // log-only
+    case 'school-request':
+      return 'Asked for a school slot.' // log-only
+    case 'unit-tryout':
+      return 'Put in for selection.' // log-only
+    case 'fitness-test':
+      return 'Took the fitness test.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(record.branch, record.rank) : 'soldier'
@@ -974,14 +1171,19 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       // the board's.
       const standing = boardStandingFor(world, pending.personId)
       if (standing) {
-        lines.push(`Your standing is ${String(standing.performance)} against a bar around ${String(standing.bar)}.`)
+        lines.push(
+          `Your points: ${String(standing.points.total)} against the ${standing.targetTitle} cutoff of ${String(standing.cutoff)} for your trade.`,
+        )
+        lines.push(
+          `Evaluation ${String(standing.points.performance)} · fitness ${String(standing.points.fitness)} · badges ${String(standing.points.badges)} · decorations ${String(standing.points.decorations)} · seniority ${String(standing.points.seniority)}.`,
+        )
         lines.push(`${String(standing.timeInGrade)} months in grade; the board asks ${String(standing.tigNeeded)}.`)
         if (standing.priorPassOvers > 0) {
           lines.push(
             `The file shows ${String(standing.priorPassOvers)} prior non-selection${standing.priorPassOvers === 1 ? '' : 's'}; the board reads it.`,
           )
         }
-        lines.push('An unready packet goes in the file the next board reads. Letting it go by is quieter — and a choice on the record too.')
+        lines.push('Schools, the fitness test and decorations all raise the points. An unready packet goes in the file; letting it go by is quieter — and a choice on the record too.')
       }
       break
     }

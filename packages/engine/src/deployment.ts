@@ -25,7 +25,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { grantCampaignMedal, grantWoundRecognition } from './awards.js'
-import { specialtyById } from './content.js'
+import { specialtyById, specialUnitById } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { inflictWound } from './health.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -284,10 +284,16 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     const exposure = specialtyById(record.specialtyId).exposure
     const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 7000)
 
+    // A special unit's tour points at the fight (M-SPECOPS): the unit
+    // multiplies the DIRECT-COMBAT exposure — a fact about what the job is,
+    // never about where it is. The permanent rule stands.
+    const unit = record.unitId === null ? undefined : specialUnitById(record.unitId)
+    const unitMult = unit?.exposureMultiplier ?? 1000
+
     // One channel is checked per month — the month's dominant hazard, chosen
     // by the crossed weights. Most draws land on nothing at all.
     const channels = [
-      { id: 'direct-combat-exposure' as const, weight: threat.directCombat * exposure.directCombat },
+      { id: 'direct-combat-exposure' as const, weight: Math.floor((threat.directCombat * exposure.directCombat * unitMult) / 1000) },
       { id: 'convoy-exposure' as const, weight: threat.convoy * exposure.convoy },
       { id: 'base-attack-exposure' as const, weight: threat.baseAttack * exposure.baseAttack },
       { id: 'battlefield-accident' as const, weight: threat.accident * exposure.accident },

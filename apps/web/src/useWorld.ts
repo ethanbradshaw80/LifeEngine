@@ -39,6 +39,14 @@ export interface WorldController {
   applyJob: (occupationId: string) => void
   /** Walk into the recruiting office, from the Service tab. */
   requestEnlist: () => void
+  /** Ask for a named school slot, from the Service tab. */
+  requestSchool: (schoolId: string) => void
+  /** Put in for a special unit's selection. */
+  tryUnit: (unitId: string) => void
+  /** Volunteer for the rotation, on demand. */
+  requestDeploy: () => void
+  /** Take the annual fitness test — promotion points for the body. */
+  fitnessTest: () => void
   /** Answer the pending decision. */
   choose: (choice: string) => void
   save: () => void
@@ -162,6 +170,28 @@ export function useWorld(initialSeed: number): WorldController {
     send({ type: 'request-enlist' })
   }, [send])
 
+  const requestSchool = useCallback(
+    (schoolId: string) => {
+      send({ type: 'request-school', schoolId })
+    },
+    [send],
+  )
+
+  const tryUnit = useCallback(
+    (unitId: string) => {
+      send({ type: 'try-unit', unitId })
+    },
+    [send],
+  )
+
+  const requestDeploy = useCallback(() => {
+    send({ type: 'request-deploy' })
+  }, [send])
+
+  const fitnessTest = useCallback(() => {
+    send({ type: 'fitness-test' })
+  }, [send])
+
   const choose = useCallback(
     (choice: string) => {
       send({ type: 'choose', choice })
@@ -201,6 +231,10 @@ export function useWorld(initialSeed: number): WorldController {
     createLife,
     applyJob,
     requestEnlist,
+    requestSchool,
+    tryUnit,
+    requestDeploy,
+    fitnessTest,
     choose,
     save,
     discardSave,

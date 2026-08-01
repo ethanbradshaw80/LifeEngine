@@ -68,6 +68,9 @@ function putInUniform(
     dischargedAtTick: null,
     dischargeReason: null,
     termPerformanceSum: overrides.termPerformanceSum ?? 700 * 6,
+    unitId: null,
+    fitnessScore: 200,
+    fitnessTestedAtTick: null,
   })
   world.employment.delete(personId)
 }

@@ -19,10 +19,14 @@ import {
   applyForJob,
   createCustomLife,
   createWorld,
+  requestDeployment,
   requestEnlistment,
+  requestSchool,
   resolvePending,
   setPlayer,
   SIMULATION_VERSION,
+  trainFitness,
+  tryOutForUnit,
 } from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
 import { fromSaveFile } from '@life-engine/persistence'
@@ -46,6 +50,10 @@ export type WorkerRequest =
   | { readonly type: 'create-life'; readonly spec: CreateLifeSpec }
   | { readonly type: 'apply-job'; readonly occupationId: string }
   | { readonly type: 'request-enlist' }
+  | { readonly type: 'request-school'; readonly schoolId: string }
+  | { readonly type: 'try-unit'; readonly unitId: string }
+  | { readonly type: 'request-deploy' }
+  | { readonly type: 'fitness-test' }
 
 export type WorkerResponse =
   | {
@@ -137,6 +145,46 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         }
         const result = requestEnlistment(world)
         send(0, result.asked ? undefined : result.reason)
+        return
+      }
+
+      case 'request-school': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const result = requestSchool(world, request.schoolId)
+        send(0, result.attended ? undefined : result.reason)
+        return
+      }
+
+      case 'try-unit': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const result = tryOutForUnit(world, request.unitId)
+        send(0, result.joined ? undefined : result.reason)
+        return
+      }
+
+      case 'request-deploy': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const result = requestDeployment(world)
+        send(0, result.deployed ? undefined : result.reason)
+        return
+      }
+
+      case 'fitness-test': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const result = trainFitness(world)
+        send(0, result.trained ? undefined : result.reason)
         return
       }
 

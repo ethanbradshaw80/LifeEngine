@@ -27,18 +27,30 @@ import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { grantGoodConduct, grantQualificationBadge } from './awards.js'
 import { ageAt } from './clock.js'
 import {
+  BOARD_CUTOFF_BASE,
+  BOARD_CUTOFF_STEP,
   BRANCH_GRADES,
   BRANCH_NAMES,
   BRANCH_RANKS,
   COMPETITIVE_FROM,
   HIGH_YEAR_TENURE_TIG,
   JUNIOR_TIG_MONTHS,
+  MAX_DECORATION_POINTS,
+  MAX_FITNESS_POINTS,
+  MAX_SENIORITY_POINTS,
   PENSION_CENTS_PER_POINT,
   PENSION_THRESHOLD,
+  POINTS_PER_BADGE,
+  POINTS_PER_CAMPAIGN,
+  POINTS_PER_GOOD_CONDUCT,
+  POINTS_PER_WOUND_RECOGNITION,
+  SERVICE_SCHOOLS,
   SERVICE_TERM_MONTHS,
   servicePay,
+  SPECIAL_UNITS,
   SPECIALTIES,
   specialtyById,
+  specialUnitById,
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { ServiceBranch, ServiceSpecialty } from './content.js'
@@ -70,10 +82,13 @@ export function isVeteran(world: World, personId: EntityId): boolean {
   return record !== undefined && record.dischargedAtTick !== null
 }
 
-/** Monthly service pay for the household ledger. Zero when not serving. */
+/** Monthly service pay for the household ledger — grade pay plus any
+ *  special-duty pay the unit carries. Zero when not serving. */
 export function servicePayOf(world: World, personId: EntityId): number {
   const record = world.service.get(personId)
-  return record !== undefined && record.dischargedAtTick === null ? record.monthlyPay : 0
+  if (record === undefined || record.dischargedAtTick !== null) return 0
+  const unit = record.unitId === null ? undefined : specialUnitById(record.unitId)
+  return record.monthlyPay + (unit?.dutyPay ?? 0)
 }
 
 /** The branch's own title for a ladder index — 'PFC', 'PO2', 'SSgt'. */
@@ -83,12 +98,13 @@ export function rankTitle(branch: string, rank: number): string {
 }
 
 /** The gates on the NEXT competitive step, or null when the next step is
- *  junior (time-based) or the ladder is topped out. */
+ *  junior (time-based) or the ladder is topped out. The cutoff is POINTS,
+ *  per trade — the real monthly-cutoff-list shape (M-SPECOPS). */
 export function competitiveGates(
-  branch: ServiceBranch,
+  specialty: ServiceSpecialty,
   rank: number,
-  holdsQual: boolean,
-): { readonly targetRank: number; readonly tigNeeded: number; readonly bar: number } | null {
+): { readonly targetRank: number; readonly tigNeeded: number; readonly cutoff: number } | null {
+  const branch = specialty.branch
   const ladder = BRANCH_RANKS[branch]
   const competitiveFrom = COMPETITIVE_FROM[branch]
   if (rank >= ladder.length - 1) return null
@@ -100,8 +116,127 @@ export function competitiveGates(
   // alone (owner: two mid-career promotions in a year reads wrong).
   const sameGrade = grades[rank + 1] === grades[rank]
   const tigNeeded = sameGrade ? 12 : 12 + stepsUp * 6
-  const bar = 520 + stepsUp * 70 - (holdsQual ? 50 : 0)
-  return { targetRank: rank + 1, tigNeeded, bar }
+  const cutoff = BOARD_CUTOFF_BASE + stepsUp * BOARD_CUTOFF_STEP + specialty.boardCutoffOffset
+  return { targetRank: rank + 1, tigNeeded, cutoff }
+}
+
+export interface PromotionPoints {
+  readonly performance: number
+  readonly fitness: number
+  readonly badges: number
+  readonly decorations: number
+  readonly seniority: number
+  readonly total: number
+}
+
+/**
+ * Promotion points (M-SPECOPS): the several roads to the same board.
+ * Performance is the evaluation; the fitness test is the body's share;
+ * badges are the schools attended; decorations are the service recorded;
+ * seniority is time in grade. A middling evaluation can still make the
+ * cutoff through work the player chooses to do — which is the point.
+ */
+export function promotionPointsFor(world: World, personId: EntityId): PromotionPoints {
+  const record = world.service.get(personId)
+  if (!record) {
+    return { performance: 0, fitness: 0, badges: 0, decorations: 0, seniority: 0, total: 0 }
+  }
+  const decorations = world.awards.get(personId) ?? []
+  const badgeCount = decorations.filter((a) => a.kind === 'qualification-badge').length
+  const decorationPoints = decorations.reduce((sum, award) => {
+    if (award.kind === 'campaign') return sum + award.count * POINTS_PER_CAMPAIGN
+    if (award.kind === 'good-conduct') return sum + award.count * POINTS_PER_GOOD_CONDUCT
+    if (award.kind === 'wound-recognition') return sum + award.count * POINTS_PER_WOUND_RECOGNITION
+    return sum
+  }, 0)
+  const points = {
+    performance: Math.floor(record.performance / 2),
+    fitness: Math.min(MAX_FITNESS_POINTS, record.fitnessScore),
+    badges: badgeCount * POINTS_PER_BADGE,
+    // Capped like the real awards bucket: a rack cannot buy a board alone.
+    decorations: Math.min(MAX_DECORATION_POINTS, decorationPoints),
+    seniority: Math.min(MAX_SENIORITY_POINTS, world.tick - record.rankSinceTick),
+  }
+  return {
+    ...points,
+    total: points.performance + points.fitness + points.badges + points.decorations + points.seniority,
+  }
+}
+
+/** What the annual fitness test finds: the body, honestly, with age in it. */
+export function fitnessScoreFor(person: Person, age: number, noise: number): number {
+  const base = Math.floor(person.traits.vitality / 5) + Math.floor(person.traits.resilience / 10)
+  const ageDrag = Math.max(0, (age - 30) * 3)
+  return Math.max(0, Math.min(MAX_FITNESS_POINTS, base - ageDrag + noise))
+}
+
+/** Badges this person wears — qualification-badge decorations, by title. */
+export function badgesOf(world: World, personId: EntityId): readonly string[] {
+  return (world.awards.get(personId) ?? [])
+    .filter((a) => a.kind === 'qualification-badge')
+    .map((a) => a.title)
+}
+
+/**
+ * The Service tab's school list, with the door open or the reason it is not
+ * — engine-authored words, so the UI renders rather than writes.
+ */
+export function schoolOptionsFor(
+  world: World,
+  personId: EntityId,
+): readonly { id: string; title: string; badge: string; open: boolean; reason: string }[] {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return []
+  const specialty = specialtyById(record.specialtyId)
+  const badges = badgesOf(world, personId)
+  return SERVICE_SCHOOLS.map((school) => {
+    let reason = ''
+    if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
+      reason = `${BRANCH_NAMES[specialty.branch]} does not send people here.`
+    } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
+      reason = 'Not this trade.'
+    } else if (badges.includes(school.badge)) {
+      reason = 'Already earned.'
+    } else if (record.rank < school.minRank) {
+      reason = `Opens at ${rankTitle(record.branch, school.minRank)}.`
+    } else if (record.performance < school.minPerformance) {
+      reason = 'The work is not there yet.'
+    }
+    return { id: school.id, title: school.title, badge: school.badge, open: reason === '', reason }
+  })
+}
+
+/** The special units, with the selection door open or the stated bar. */
+export function unitOptionsFor(
+  world: World,
+  personId: EntityId,
+): readonly { id: string; name: string; tier: number; open: boolean; reason: string }[] {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return []
+  const specialty = specialtyById(record.specialtyId)
+  const badges = badgesOf(world, personId)
+  return SPECIAL_UNITS.map((unit) => {
+    let reason = ''
+    const drops = world.events.filter(
+      (e) => e.type === 'dropped-selection' && e.subjectId === personId && e.detail === unit.name,
+    ).length
+    if (record.unitId === unit.id) {
+      reason = 'Already wearing the tab.'
+    } else if (!unit.branches.includes(specialty.branch)) {
+      reason = `${BRANCH_NAMES[specialty.branch]} does not feed this unit.`
+    } else if (unit.feederUnitId !== null && record.unitId !== unit.feederUnitId) {
+      reason = `Selection draws from ${specialUnitById(unit.feederUnitId)?.name ?? 'the feeder unit'}.`
+    } else if (record.rank < unit.minRank) {
+      reason = `Looks at ${rankTitle(record.branch, unit.minRank)} and above.`
+    } else if (unit.requiredBadges.some((b) => !badges.includes(b))) {
+      reason = `Wants ${unit.requiredBadges.filter((b) => !badges.includes(b)).join(', ')} first.`
+    } else if (record.performance < unit.minPerformance) {
+      reason = 'The file is not strong enough yet.'
+    } else if (drops >= 2) {
+      reason = 'Two selections is what the file allows.'
+    }
+    return { id: unit.id, name: unit.name, tier: unit.tier, open: reason === '', reason }
+  })
 }
 
 /**
@@ -116,23 +251,24 @@ export function boardStandingFor(
   readonly targetTitle: string
   readonly timeInGrade: number
   readonly tigNeeded: number
-  readonly bar: number
-  readonly performance: number
+  /** The trade's points cutoff for the next rank. */
+  readonly cutoff: number
+  readonly points: PromotionPoints
   /** Recorded non-selections for this same rank — the file the board reads. */
   readonly priorPassOvers: number
 } | null {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
   const specialty = specialtyById(record.specialtyId)
-  const gates = competitiveGates(specialty.branch, record.rank, record.qualifications.includes(specialty.qualification))
+  const gates = competitiveGates(specialty, record.rank)
   if (!gates) return null
   const targetTitle = rankTitle(record.branch, gates.targetRank)
   return {
     targetTitle,
     timeInGrade: world.tick - record.rankSinceTick,
     tigNeeded: gates.tigNeeded,
-    bar: gates.bar,
-    performance: record.performance,
+    cutoff: gates.cutoff,
+    points: promotionPointsFor(world, personId),
     priorPassOvers: world.events.filter(
       (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === targetTitle,
     ).length,
@@ -231,6 +367,9 @@ export function enlistPerson(
     dischargedAtTick: null,
     dischargeReason: null,
     termPerformanceSum: 0,
+    unitId: null,
+    fitnessScore: 0,
+    fitnessTestedAtTick: null,
   })
 
   recordEvent(world, tick, {
@@ -359,26 +498,40 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   let rankSinceTick = record.rankSinceTick
   const timeInGrade = tick - record.rankSinceTick
   const isPlayer = person.id === world.player.personId
+
+  // The annual fitness test, run for EVERYONE — nobody opts out of it, and
+  // nobody keeps a score their body no longer holds (review: the opt-in
+  // version punished forgetting the button AND let one peak score fund a
+  // twenty-year career). The player's ACTION is training for it, not
+  // whether it happens.
+  let fitnessScore = record.fitnessScore
+  let fitnessTestedAtTick = record.fitnessTestedAtTick
+  if (monthsIn > 0 && monthsIn % 12 === 5) {
+    fitnessScore = fitnessScoreFor(person, ageAt(person.birthTick, tick), rng.nextInt(-15, 16))
+    fitnessTestedAtTick = tick
+    if (isPlayer) {
+      recordEvent(world, tick, { type: 'fitness-tested', subjectId: person.id, detail: String(fitnessScore) })
+    }
+  }
+
   if (rank < ladder.length - 1) {
     const competitiveFrom = COMPETITIVE_FROM[branch]
-    const holdsQual = record.qualifications.includes(specialty.qualification)
     let promote = false
     if (rank + 1 < competitiveFrom) {
       const due = JUNIOR_TIG_MONTHS[branch][rank] ?? 6
       promote = timeInGrade >= due && performance >= 300
     } else if (!isPlayer) {
-      // The board ranks, NPC path. A held qualification counts toward the
-      // bar (promotion points, the real mechanism), and the wait shortens
-      // the further past the bar the work is — the draw stands in for slot
-      // timing, not for merit. THE PLAYER never promotes through this
-      // branch: their stripes come only through the board question
-      // (M-SERVICE-PLAY) — put in for, not received.
-      const gates = competitiveGates(branch, rank, holdsQual)
-      if (gates) {
+      // The board ranks, NPC path: PROMOTION POINTS against the trade's
+      // cutoff — evaluation, fitness, badges, decorations, seniority. The
+      // draw stands in for slot timing, not for merit. THE PLAYER never
+      // promotes through this branch: their stripes come only through the
+      // board question (M-SERVICE-PLAY) — put in for, not received.
+      const gates = competitiveGates(specialty, rank)
+      if (gates && timeInGrade >= gates.tigNeeded) {
+        const points = promotionPointsFor(world, person.id).total
         promote =
-          timeInGrade >= gates.tigNeeded &&
-          performance >= gates.bar &&
-          rng.chance(2 + Math.floor(Math.max(0, performance - gates.bar) / 60), 24)
+          points >= gates.cutoff &&
+          rng.chance(2 + Math.floor(Math.max(0, points - gates.cutoff) / 60), 24)
       }
     }
     if (promote) {
@@ -396,7 +549,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         inputs: [
           factor('time-in-grade', Math.min(1000, timeInGrade * 10)),
           factor('strong-performance', performance),
-          ...(holdsQual && rank >= competitiveFrom ? [factor('holds-qualification', 400)] : []),
+          ...(record.qualifications.length > 0 ? [factor('holds-qualification', 400)] : []),
         ],
         chosen: `made ${rankTitle(branch, rank)}`,
         rejected: [],
@@ -411,6 +564,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // years after, and a posting moves mid-term. None of it while deployed —
   // the deployment system owns those months.
   let baseId = record.baseId
+  let unitId = record.unitId
   const qualifications = [...record.qualifications]
   if (monthsIn === 2) {
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: 'basic training' })
@@ -455,6 +609,57 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         detail: specialty.qualification,
       })
       grantQualificationBadge(world, tick, person.id, qualEvent, specialty.qualification)
+    } else if (!isPlayer && rng.chance(1, 40)) {
+      // NPCs go to schools too — the player is not special (charter §2).
+      // Their path is quieter: the first open school takes them.
+      const badges = badgesOf(world, person.id)
+      const school = SERVICE_SCHOOLS.find(
+        (s) =>
+          (s.branches.length === 0 || s.branches.includes(branch)) &&
+          (s.specialtyIds.length === 0 || s.specialtyIds.includes(record.specialtyId)) &&
+          rank >= s.minRank &&
+          performance >= s.minPerformance &&
+          !badges.includes(s.badge),
+      )
+      if (school) {
+        recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: school.title })
+        const badgeEvent = recordEvent(world, tick, {
+          type: 'earned-qualification',
+          subjectId: person.id,
+          detail: school.badge,
+        })
+        grantQualificationBadge(world, tick, person.id, badgeEvent, school.badge)
+      }
+    } else if (!isPlayer && rng.chance(1, 240)) {
+      // And some try for the special units — the SAME selection the player
+      // faces: the roll can fail, failures are on the record, two drops
+      // close the file, and tier 2 draws from the feeder unit. The player
+      // is not special (charter §2), and a unit a descendant finds must
+      // have had more than one member, ever (foundation §13).
+      const badges = badgesOf(world, person.id)
+      const dropsFor = (unitName: string): number =>
+        world.events.filter(
+          (e) => e.type === 'dropped-selection' && e.subjectId === person.id && e.detail === unitName,
+        ).length
+      const unit = SPECIAL_UNITS.find(
+        (u) =>
+          u.branches.includes(branch) &&
+          record.unitId !== u.id &&
+          (u.feederUnitId === null ? record.unitId === null : record.unitId === u.feederUnitId) &&
+          rank >= u.minRank &&
+          performance >= u.minPerformance &&
+          u.requiredBadges.every((b) => badges.includes(b)) &&
+          dropsFor(u.name) < 2,
+      )
+      if (unit) {
+        const margin = Math.max(10, Math.min(400, performance - unit.minPerformance + 60))
+        if (rng.chance(margin, unit.selectionDenominator)) {
+          unitId = unit.id
+          recordEvent(world, tick, { type: 'joined-unit', subjectId: person.id, detail: unit.name })
+        } else {
+          recordEvent(world, tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.name })
+        }
+      }
     }
   }
 
@@ -467,7 +672,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // question held the month (a wound's convalescence, say), the ask
     // retries for two more months; the player's own log is the dedupe, so
     // an answered board never re-asks inside its year.
-    const gates = competitiveGates(branch, rank, record.qualifications.includes(specialty.qualification))
+    const gates = competitiveGates(specialty, rank)
     if (gates) {
       const over = timeInGrade - gates.tigNeeded
       const askedRecently = world.player.log.some(
@@ -532,6 +737,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     rankSinceTick,
     qualifications,
     baseId,
+    unitId,
+    fitnessScore,
+    fitnessTestedAtTick,
     performance,
     monthlyPay: servicePay(branch, rank),
     termMonthsLeft,

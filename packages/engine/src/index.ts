@@ -48,9 +48,13 @@ export {
   motherCandidates,
   playerIsAlive,
   playerPerson,
+  requestDeployment,
   requestEnlistment,
+  requestSchool,
   resolvePending,
   setPlayer,
+  trainFitness,
+  tryOutForUnit,
 } from './player.js'
 export type { CustomLifeSpec } from './player.js'
 
@@ -72,15 +76,20 @@ export type { InjuryContext } from './wounds.js'
 
 // Service (L4-M3)
 export {
+  badgesOf,
   boardStandingFor,
   enlistmentBar,
   isServing,
   isVeteran,
   pensionOf,
+  promotionPointsFor,
   rankTitle,
+  schoolOptionsFor,
   servicePayOf,
+  unitOptionsFor,
   veteranUnlocks,
 } from './service.js'
+export { SPECIAL_UNITS, specialUnitById } from './content.js'
 
 // Awards (L4-M5)
 export {
