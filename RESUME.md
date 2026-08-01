@@ -645,18 +645,37 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
    lethality per tour when wars DO come + rotation risk filling the
    peace, vs foundation §6 (most military work is not combat). Tune
    against the measurement, on the record.
-4. NPC ENLISTMENT VISIBILITY + ENLISTING THE UNPLAYED (owner round 2
-   clarified: "like enlisting a character you're not currently playing,
-   I want others to make the choice to join up too"): surface NPC
-   enlistments (news/feed cards — they already happen ~3/decade); for
-   DIRECTING an unplayed sim, a straight god-verb collides with Law 2 /
-   charter §2 (NPCs are not the player's to command). Proposed
-   resolution to put to the owner: an ENCOURAGE-TO-ENLIST verb through
-   a real relationship (parent/sibling/friend raises the modelled
-   propensity; the sim still decides — the C1 "modelled moments" idiom),
-   PLUS the existing Take-over-a-life path for full control. If the
-   owner insists on the god-verb after seeing the trade, it needs an
-   ADR amending the charter's player-scope language.
+4. NPC ENLISTMENT — OWNER SETTLED THE DESIGN (round 3, direct quote:
+   "People should join the military how it would be in real life,
+   trouble finding a job? military. Don't want to go to college and get
+   a tradition job, military. If your parents served it should increase
+   the likelyhood a little as well... news stories that encourage
+   people to join... should influence people"). NO god-verb, NO
+   encourage-verb — DEEPEN THE PROPENSITY MODEL, exactly ADR-0019's
+   modelled-circumstance idiom:
+   - jobless pull exists (110 vs 16 /12k/mo) — keep, maybe re-tune at
+     the new town size;
+   - the 18 fork: chose 'work' but no job landed within N months →
+     raised propensity (the no-college-no-trade road);
+   - SERVICE TRADITION: a parent with a service record raises the
+     child's propensity ("a little" — owner's words; the
+     'service-tradition' FactorId already exists, cite it in the
+     record);
+   - RECRUITING DRIVES: occasional news items ("the recruiting board
+     comes through town") that temporarily raise town-wide propensity —
+     the moment that makes a sim think "I'm going to the recruiter";
+   - surface every enlistment as a news/feed card so the town's uniforms
+     are VISIBLE.
+   4b. STARTING POPULATION 300-500 (owner: "so we have it all mixed and
+   not too many people join but still have other jobs"). This is a
+   WORLD-SCALE change, its own workstream inside the milestone:
+   DEFAULT_POPULATION ~100 → 300-500 moves the golden and every
+   population-sensitive test; D2's demographic bands must be
+   RE-MEASURED at the new size (the audit-runner); perf is fine by
+   measurement (1,000 people = 11.7 ms/tick post-P2-perf-fix, budget
+   100) but the person list / feed UI needs a look at 500; save ~1 MB.
+   Do 4b FIRST inside M-ARMY2 — every army rate above reads differently
+   at 4-5x the town.
 5. CAREER SHAPE (owner round 2, all tuning constants + one rule):
    - HYT/up-or-out ONLY BELOW SGT: "people shouldn't be forced out of
      service after missing rank promotions past like SGT because a ton
