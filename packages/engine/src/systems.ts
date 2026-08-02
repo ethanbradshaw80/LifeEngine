@@ -14,7 +14,9 @@ import { ageAt, isBirthdayMonth } from './clock.js'
 import {
   educationRank,
   FEMALE_GIVEN_NAMES,
+  FEMALE_GIVEN_WEIGHTS,
   MALE_GIVEN_NAMES,
+  MALE_GIVEN_WEIGHTS,
   meetsRequirement,
   OCCUPATIONS,
   occupationById,
@@ -1231,7 +1233,11 @@ export function deliverChild(
   world.people.set(childId, {
     id: childId,
     givenName:
-      overrides?.givenName ?? rng.pick(childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES),
+      overrides?.givenName ??
+      rng.pickWeighted(
+        childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES,
+        childSex === 'female' ? FEMALE_GIVEN_WEIGHTS : MALE_GIVEN_WEIGHTS,
+      ),
     familyName: overrides?.familyName ?? partner?.familyName ?? mother.familyName,
     sex: childSex,
     birthTick: tick,

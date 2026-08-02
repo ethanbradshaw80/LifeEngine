@@ -27,9 +27,12 @@ import { freshHealth } from './health.js'
 import {
   BASE_NAMES,
   CIVIC_NAMES,
+  FAMILY_NAME_WEIGHTS,
   FAMILY_NAMES,
   FEMALE_GIVEN_NAMES,
+  FEMALE_GIVEN_WEIGHTS,
   MALE_GIVEN_NAMES,
+  MALE_GIVEN_WEIGHTS,
   NEIGHBOURHOOD_NAMES,
   SCHOOL_NAME,
   TOWN_NAME,
@@ -172,7 +175,9 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
   while (created < population) {
     const householdId = allocateId(world)
     const home = genRng.pick(neighbourhoods)
-    const familyName = genRng.pick(FAMILY_NAMES)
+    // Weighted by real census frequency: a town should hold several Smiths
+    // and one Kowalczyk, which is what the numbers are carried for.
+    const familyName = genRng.pickWeighted(FAMILY_NAMES, FAMILY_NAME_WEIGHTS)
     const memberIds: EntityId[] = []
 
     // 55% of households are a couple, the rest a single adult.
@@ -310,11 +315,12 @@ function makePerson(world: World, genRng: Rng, spec: PersonSpec): EntityId {
   const traits = rollTraits(traitRng)
 
   const givenNames = spec.sex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES
+  const givenWeights = spec.sex === 'female' ? FEMALE_GIVEN_WEIGHTS : MALE_GIVEN_WEIGHTS
   const birthTick = makeTick(0) - spec.age * TICKS_PER_YEAR - genRng.nextInt(0, TICKS_PER_YEAR)
 
   const person: Person = {
     id,
-    givenName: genRng.pick(givenNames),
+    givenName: genRng.pickWeighted(givenNames, givenWeights),
     familyName: spec.familyName,
     sex: spec.sex,
     birthTick: birthTick as Tick,

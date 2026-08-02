@@ -11,29 +11,21 @@ import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
 import type { EducationLevel, Occupation } from './types.js'
 
-export const MALE_GIVEN_NAMES: readonly string[] = [
-  'James', 'Robert', 'John', 'Michael', 'David', 'William', 'Richard', 'Joseph',
-  'Thomas', 'Charles', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul',
-  'Steven', 'Andrew', 'Kenneth', 'George', 'Edward', 'Brian', 'Ronald', 'Timothy',
-  'Jason', 'Jeffrey', 'Ryan', 'Gary', 'Nicholas', 'Eric', 'Stephen', 'Larry',
-]
-
-export const FEMALE_GIVEN_NAMES: readonly string[] = [
-  'Mary', 'Patricia', 'Jennifer', 'Linda', 'Elizabeth', 'Barbara', 'Susan',
-  'Jessica', 'Sarah', 'Karen', 'Nancy', 'Lisa', 'Margaret', 'Betty', 'Sandra',
-  'Ashley', 'Dorothy', 'Kimberly', 'Emily', 'Donna', 'Michelle', 'Carol',
-  'Amanda', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Laura', 'Helen',
-  'Sharon', 'Cynthia', 'Kathleen',
-]
-
-export const FAMILY_NAMES: readonly string[] = [
-  'Abbott', 'Alderman', 'Ashfield', 'Barlow', 'Brennan', 'Calloway', 'Chandler',
-  'Corbin', 'Delaney', 'Doherty', 'Eastwood', 'Fairbanks', 'Ferris', 'Gaines',
-  'Halloran', 'Hargrove', 'Ingram', 'Kettering', 'Lambert', 'Lindqvist',
-  'Marsden', 'Mercer', 'Nakamura', 'Okafor', 'Pennington', 'Prescott', 'Quill',
-  'Rasmussen', 'Redfern', 'Sandoval', 'Stroud', 'Tavares', 'Thorne', 'Underhill',
-  'Vance', 'Vasquez', 'Whitlock', 'Winslow', 'Yardley', 'Zielinski',
-]
+/**
+ * NAMES come from the 1990 US Census now (names.ts, owner-supplied): 300
+ * male and 500 female given names, 1,000 family names, each with its real
+ * frequency. The old lists were 32/32/40 invented ones, which in a town of
+ * four hundred meant a dozen Jameses and everybody a Whitlock or a Thorne.
+ * Re-exported from here so every existing import keeps working.
+ */
+export {
+  FAMILY_NAME_WEIGHTS,
+  FAMILY_NAMES,
+  FEMALE_GIVEN_NAMES,
+  FEMALE_GIVEN_WEIGHTS,
+  MALE_GIVEN_NAMES,
+  MALE_GIVEN_WEIGHTS,
+} from './names.js'
 
 export const NEIGHBOURHOOD_NAMES: readonly string[] = [
   'Millbrook', 'Cedar Flats', 'Old Quarry', 'Riverside', 'Kestrel Hill',

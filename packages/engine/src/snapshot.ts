@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v39 — CENSUS NAMES (owner-supplied). The town drew from 32 male, 32
+ *      female and 40 invented family names, so four hundred people meant a
+ *      dozen Jameses and everybody a Thorne or a Whitlock. It now draws
+ *      from the 1990 US Census — 300 / 500 / 1,000 — WEIGHTED by real
+ *      frequency, so a town holds several Smiths and one Kowalczyk. Draw
+ *      counts are unchanged (pickWeighted spends one draw like pick did),
+ *      so every life plays out exactly as it did; only the names differ.
  * v38 — C2: THE PLAYER AND THE LAW. C1 kept the played life a bystander,
  *      because an off-screen theft would be an unchosen crime on a chosen
  *      timeline. Now the desperation moment the simulation already rolled
@@ -248,7 +255,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 38
+export const SIMULATION_VERSION = 39
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
