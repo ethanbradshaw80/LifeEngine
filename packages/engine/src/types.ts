@@ -996,6 +996,7 @@ export type PendingKind =
   | 'combat-moment'
   | 'unit-moment'
   | 'crime-victim'
+  | 'trial'
   | 'deployment-order'
   /** P2. The foreman has noticed the work slipping — the modelled dismissal
    *  threshold gets a warning moment before the axe. Player-only; NPCs are
@@ -1169,6 +1170,11 @@ export type EventType =
   | 'used-lethal-force'
   | 'charge-declined'
   | 'charged'
+  | 'arraigned'
+  | 'stood-trial'
+  | 'testified'
+  | 'stayed-silent'
+  | 'verdict'
   | 'pleaded-self-defense'
   | 'ruled-justified'
   | 'plea-deal-offered'

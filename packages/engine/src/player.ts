@@ -44,6 +44,9 @@ import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } fro
 import type { SceneChoice } from './scenes.js'
 import {
   answerDesperation,
+  answerCase,
+  caseSceneOf,
+  openCase,
   answerVictimMoment,
   defendTheHouse,
   describePleaDeal,
@@ -53,6 +56,7 @@ import {
   sentenceInWords,
 } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
+import type { Offence } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
@@ -1267,6 +1271,10 @@ export function awaitingPlayer(world: World): boolean {
 export function resolvePending(world: World, choice: string): void {
   const pending = world.player.pending
   if (!pending) throw new Error('No decision is pending')
+  // Carries the trial's next scene out of the switch below, so it can be
+  // raised after commit() with the pending slot free.
+  let trialNext: string | null = null
+  let trialOpens: { offence: Offence; taken: number } | null = null
   if (!pending.options.includes(choice)) {
     throw new Error(`"${choice}" is not one of: ${pending.options.join(', ')}`)
   }
@@ -1578,13 +1586,16 @@ export function resolvePending(world: World, choice: string): void {
       // The court sits either way; the plea decides how it goes.
       const offence = pending.occupationId === null ? null : (offenceById(pending.occupationId) ?? null)
       const rng = openStream(world.seed, Stream.Crime, person.id, pending.tick + 6363)
+      // STANDING TRIAL IS PLAYED NOW (owner: "I just click stand trial and
+      // then I get convicted"). The three scenes are raised after commit,
+      // and the verdict comes out of what the defendant actually did.
+      if (choice === 'stand-trial' && offence !== null) {
+        trialOpens = { offence, taken: pending.monthlyPay ?? 0 }
+        break
+      }
       resolveCourt(
         world, pending.tick, person, pending.monthlyPay ?? 0, rng,
-        choice === 'plead-guilty'
-          ? 'plead-guilty'
-          : choice === 'take-plea-deal'
-            ? 'take-plea-deal'
-            : 'stand-trial',
+        choice === 'plead-guilty' ? 'plead-guilty' : 'take-plea-deal',
         offence,
       )
       break
@@ -1600,6 +1611,14 @@ export function resolvePending(world: World, choice: string): void {
         const casualty = world.people.get(pending.otherId)
         if (casualty) resolveFieldAid(world, pending.tick, person, casualty.id, choice)
       }
+      break
+    }
+
+    case 'trial': {
+      // The next scene is raised AFTER commit — raisePending refuses while
+      // this one still holds the slot, which is the trap this file has now
+      // shipped broken three times.
+      trialNext = answerCase(world, pending.tick, person, pending.occupationId, choice).next
       break
     }
 
@@ -1939,6 +1958,29 @@ export function resolvePending(world: World, choice: string): void {
     askToAcknowledgeOrders(world, pending.tick, person.id)
   }
 
+  // The trial opens with the slot free, for the same reason.
+  if (trialOpens !== null) {
+    openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
+  }
+
+  // The trial's next scene, with the slot free.
+  if (trialNext !== null) {
+    const showing = caseSceneOf(world, person.id, trialNext, pending.tick)
+    if (showing !== null) {
+      raisePending(world, {
+        tick: pending.tick,
+        kind: 'trial',
+        personId: person.id,
+        otherId: null,
+        occupationId: trialNext,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: showing.scene.options.map((o) => o.id),
+      })
+    }
+  }
+
   // Dropping a packet is a commitment, and a commitment has to arrive
   // somewhere: 'push' puts the player in front of selection itself. Raised
   // after commit for the same reason as everything else in this block —
@@ -2269,6 +2311,11 @@ export function describePending(world: World, pending: PendingDecision): string 
     }
     case 'unit-moment':
       return unitMomentById(momentIdOf(pending.occupationId))?.tell ?? 'The unit has something to say to you.'
+
+    case 'trial': {
+      const showing = caseSceneOf(world, pending.personId, pending.occupationId, pending.tick)
+      return showing === null ? 'The court is sitting.' : showing.scene.tell
+    }
 
     case 'crime-victim': {
       const taken = pending.monthlyPay ?? 0

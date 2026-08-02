@@ -150,6 +150,13 @@ export {
   hasRecentConviction,
   isJailed,
   offenceBar,
+  expungementBar,
+  gateStrengthOf,
+  sentenceInWords,
+  recordGateOf,
+  petitionForExpungement,
+  crimePressureOf,
+  isOnProbation,
 } from './crime.js'
 export { GRADE_TITLES, isFelony, OFFENCES, offenceById } from './content.js'
 export type { Offence, OffenceGrade } from './content.js'

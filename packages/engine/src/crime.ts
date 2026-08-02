@@ -31,6 +31,18 @@ import {
 import type { NewsItem } from './geopolitics.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import {
+  acquits,
+  beatSwing,
+  counselSwing,
+  COUNSEL_COST,
+  decodeCase,
+  encodeCase,
+  evidenceFor,
+  nextStage,
+  sceneFor,
+} from './trial.js'
+import type { TrialScene } from './trial.js'
 import { inflictWound } from './health.js'
 import { performDeath } from './systems.js'
 import { discharge as dischargeService, isServing } from './service.js'
@@ -1870,6 +1882,151 @@ export function defendTheHouse(
   // Charged. The trial weighs the same circumstances the prosecutor did.
   if (tryJustification(world, tick, person, charge, justification, rng)) return
   resolveCourt(world, tick, person, 0, rng, 'stand-trial', charge)
+}
+
+/**
+ * C3 §15b. The case opens: counsel first, then the trial, then the verdict.
+ */
+export function openCase(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  offence: Offence,
+  taken: number,
+): boolean {
+  const evidence = evidenceFor(world, personId, offence, tick)
+  const scene = sceneFor('counsel', offence, evidence)
+  recordEvent(world, tick, { type: 'arraigned', subjectId: personId, detail: offence.id })
+  return raisePending(world, {
+    tick,
+    kind: 'trial',
+    personId,
+    otherId: null,
+    occupationId: encodeCase(offence.id, 'counsel', 0, 0, taken),
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: scene.options.map((o) => o.id),
+  })
+}
+
+/** What the pending is currently showing, for the prompt and the buttons. */
+export function caseSceneOf(
+  world: World,
+  personId: EntityId,
+  encoded: string | null,
+  tick: Tick,
+): { scene: TrialScene; offence: Offence } | null {
+  const state = decodeCase(encoded)
+  const offence = offenceById(state.offenceId)
+  if (offence === undefined) return null
+  const evidence = evidenceFor(world, personId, offence, tick)
+  return { scene: sceneFor(state.stage, offence, evidence), offence }
+}
+
+/**
+ * One answer in the case. Returns the next scene's encoded state, or null
+ * when the case is done — the caller raises it AFTER commit, because
+ * raisePending refuses while the answered pending still holds the slot.
+ */
+export function answerCase(
+  world: World,
+  tick: Tick,
+  person: Person,
+  encoded: string | null,
+  choice: string,
+): { next: string | null } {
+  const state = decodeCase(encoded)
+  const offence = offenceById(state.offenceId)
+  if (offence === undefined) return { next: null }
+  const evidence = evidenceFor(world, person.id, offence, tick)
+  const scene = sceneFor(state.stage, offence, evidence)
+  const chosen = scene.options.find((o) => o.id === choice) ?? scene.options[0]
+
+  let defence = state.defence
+  let sympathy = state.sympathy
+
+  if (state.stage === 'counsel') {
+    let gained = counselSwing(chosen?.id ?? '')
+    // AN ATTORNEY COSTS REAL MONEY, and somebody who cannot pay does not
+    // get the benefit of having said it.
+    if (chosen?.id === 'hire-attorney') {
+      const householdId = person.householdId
+      const savings = householdId === null ? 0 : (world.households.get(householdId)?.savings ?? 0)
+      if (householdId !== null && savings >= COUNSEL_COST) {
+        chargeHousehold(world, tick, householdId, COUNSEL_COST)
+      } else {
+        gained = counselSwing('public-defender')
+      }
+    }
+    defence += gained
+  } else if (state.stage !== 'verdict') {
+    let gained = beatSwing(chosen?.id ?? '')
+    // Taking the stand is the big swing in BOTH directions, which is why
+    // real defendants agonise over it: a record follows you up there.
+    if (chosen?.id === 'take-the-stand') {
+      const priors = world.criminal.get(person.id)?.convictions.filter((c) => c.sealed !== true).length ?? 0
+      if (priors > 0) gained = Math.max(0, gained - priors * 100)
+      if (evidence.strength >= 700) gained = Math.floor(gained / 2)
+    }
+    if (chosen?.id === 'appeal-for-sympathy') sympathy += 200
+    defence += gained
+  }
+
+  recordEvent(world, tick, {
+    type:
+      chosen?.id === 'take-the-stand'
+        ? 'testified'
+        : chosen?.id === 'stay-silent'
+          ? 'stayed-silent'
+          : state.stage === 'verdict'
+            ? 'verdict'
+            : 'stood-trial',
+    subjectId: person.id,
+    detail: `${offence.id}:${state.stage}:${chosen?.id ?? ''}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'justice',
+    significance: state.stage === 'verdict' ? 'major' : 'notable',
+    inputs: [factor('own-choice', 1000)],
+    chosen: chosen?.says ?? 'answered the court',
+    rejected: scene.options.filter((o) => o.id !== chosen?.id).map((o) => o.says),
+    streamId: Stream.Crime,
+  })
+
+  const after = nextStage(state.stage)
+  if (after !== null) {
+    return { next: encodeCase(offence.id, after, defence, sympathy, state.taken) }
+  }
+
+  // SCENE 3. The jury returns, and this is what the case was building to.
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 5959)
+  if (acquits(evidence, defence, rng)) {
+    recordEvent(world, tick, {
+      type: 'was-acquitted',
+      subjectId: person.id,
+      detail: `${offence.id}:verdict`,
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'justice',
+      significance: 'major',
+      inputs: [factor('own-choice', Math.min(1000, defence)), factor('clean-record', 600)],
+      chosen: 'was acquitted at trial',
+      rejected: ['a conviction'],
+      streamId: Stream.Crime,
+    })
+    return { next: null }
+  }
+  // Guilty. Sympathy earned in the closing is mitigation at sentencing —
+  // a guilty plea's discount, bought a different way.
+  resolveCourt(
+    world, tick, person, state.taken, rng,
+    sympathy >= 200 ? 'plead-guilty' : 'stand-trial',
+    offence,
+  )
+  return { next: null }
 }
 
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {

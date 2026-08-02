@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { CountyRecords } from './CountyRecords.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
   activeWars,
@@ -88,7 +89,6 @@ import {
   GRADE_TITLES,
   OFFENCES,
   offenceBar,
-  offenceById,
   placesOfKind,
 } from '@life-engine/engine'
 import type { EntityId, Money } from '@life-engine/shared'
@@ -183,6 +183,34 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
  * difference between a screen you use and one you give up on.
  */
 type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'record'
+
+/**
+ * C3 §18. The Crime section: the acts, and the county's own record of them.
+ *
+ * One tab used to hold both, and with fifty-nine charges in the catalogue
+ * that made it a wall. 'acts' is what you can do; 'records' is the clerk's
+ * office — anybody's public convictions, the recent docket, and your own
+ * rap sheet with the one action that is yours to take.
+ */
+type CrimeTab = 'acts' | 'records'
+
+const CRIME_TABS: readonly { readonly id: CrimeTab; readonly label: string }[] = [
+  { id: 'acts', label: 'Crime' },
+  { id: 'records', label: 'County Records' },
+]
+
+/**
+ * C3 §18. The charges, grouped, because fifty-nine of them in one list is
+ * not a menu — it is a phone book.
+ */
+const OFFENCE_GROUPS: readonly { readonly title: string; readonly match: (id: string, grade: string, violent: boolean) => boolean }[] = [
+  { title: 'Public order', match: (_id, grade, violent) => !violent && grade.includes('misdemeanor') },
+  { title: 'Property and theft', match: (id, _g, violent) => !violent && /theft|burglary|robbery|looting|stolen|vandal|arson|trespass/.test(id) },
+  { title: 'Fraud and money', match: (id, _g, violent) => !violent && /fraud|launder|forgery|embezzle|bribery|extortion|tax|check|identity/.test(id) },
+  { title: 'Drugs', match: (id) => /drug|possession/.test(id) },
+  { title: 'Weapons', match: (id) => /firearm|weapon|brandish|discharge/.test(id) },
+  { title: 'Violence', match: (_id, _g, violent) => violent },
+]
 
 const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
   { id: 'career', label: 'Career' },
@@ -502,6 +530,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
   const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
+  const [crimeTab, setCrimeTab] = useState<CrimeTab>('acts')
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -1980,41 +2009,32 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   </p>
                 )}
 
-                <h3>The record</h3>
-                {record === undefined || record.convictions.length === 0 ? (
-                  <p className="muted">Nothing on it. Absence is the clean record.</p>
-                ) : (
-                  <ol className="timeline">
-                    {record.convictions.map((conviction, i) => {
-                      const offence = offenceById(conviction.kind)
-                      return (
-                        <li key={`${String(conviction.tick)}-${String(i)}`}>
-                          <div className="row">
-                            <span className="year">{formatYear(world, conviction.tick)}</span>
-                            <span className="what">
-                              {offence?.title ?? conviction.kind}
-                              {offence !== undefined && (
-                                <span className="muted small"> · {GRADE_TITLES[offence.grade]}</span>
-                              )}
-                              {' — '}
-                              {conviction.sentenceMonths > 0
-                                ? `${conviction.sentenceMonths} months`
-                                : `fined ${formatMoney(conviction.fine as never)}`}
-                            </span>
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ol>
-                )}
-                {record !== undefined && record.convictions.length > 0 && (
+                <div className="sub-tabs" role="tablist" aria-label="Crime">
+                  {CRIME_TABS.map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={crimeTab === entry.id}
+                      className={crimeTab === entry.id ? 'active' : ''}
+                      onClick={() => setCrimeTab(entry.id)}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+
+                {crimeTab === 'records' && <CountyRecords world={world} person={person} />}
+
+                {crimeTab === 'records' && record !== undefined && record.convictions.length > 0 && (
                   <p className="muted small">
-                    A conviction closes doors for ten years — every job you ask for, and the
-                    recruiting office. It never leaves the record.
+                    A conviction gates hardest when it is fresh, softens with the years, and
+                    eventually stops being read at all — a violent felony never does. It never
+                    leaves the record either way.
                   </p>
                 )}
 
-                <h3>What you could do</h3>
+                {crimeTab === 'acts' && <h3>What you could do</h3>}
                 <p className="muted small">
                   The town has a courthouse and it works. Every one of these can end in a
                   cell, and what you take is real money out of somebody's real ledger.
@@ -2023,7 +2043,31 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <p className="muted">Not yet eighteen.</p>
                 ) : (
                   <ul className="offences">
-                    {OFFENCES.map((offence) => {
+                    {/* C3 §18. GROUPED, because fifty-nine charges in one
+                        list is not a menu — it is a phone book. Each charge
+                        appears once, under the first group that claims it. */}
+                    {/* C3 §18. GROUPED: fifty-nine charges in one flat list
+                        is not a menu, it is a phone book. Each charge lands
+                        in the first group that claims it, and anything no
+                        group claims still appears rather than vanishing. */}
+                    {(() => {
+                      const claimed = new Set<string>()
+                      const groups = OFFENCE_GROUPS.map((group) => ({
+                        title: group.title,
+                        offences: OFFENCES.filter((o) => {
+                          if (claimed.has(o.id)) return false
+                          if (!group.match(o.id, o.grade, o.violent === true)) return false
+                          claimed.add(o.id)
+                          return true
+                        }),
+                      })).filter((g) => g.offences.length > 0)
+                      const rest = OFFENCES.filter((o) => !claimed.has(o.id))
+                      if (rest.length > 0) groups.push({ title: 'Other', offences: rest })
+                      return groups.map((group) => (
+                        <li key={group.title} className="offence-group">
+                          <h4>{group.title}</h4>
+                          <ul className="offences">
+                            {group.offences.map((offence) => {
                       const bar = offenceBar(world, person.id, offence.id)
                       return (
                         <li key={offence.id}>
@@ -2054,7 +2098,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           {bar !== null && <p className="muted small">{bar}</p>}
                         </li>
                       )
-                    })}
+                            })}
+                          </ul>
+                        </li>
+                      ))
+                    })()}
                   </ul>
                 )}
               </>
