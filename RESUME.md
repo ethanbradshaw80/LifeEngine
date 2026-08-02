@@ -625,18 +625,36 @@ enlistments 2.3-3.1/decade (NPCs DO join — a VISIBILITY problem),
 serving-at-once 0-8, tours 1-10/120y, contacts 1-11/120y, wounded 0-2,
 died-serving 1 across 360 sim-years, combat deaths ZERO. Item 3 is a
 real rarity, not bad luck; item 4 is surfacing, not rates.
-### M-ARMY2 IS COMPLETE (items 1, 3, 4, 4b, 5, 6, 7, 8, 3b-replacement).
-Final state: SIMULATION_VERSION 33, golden 99faffe2, schema v19, 343
+### M-ARMY2 IS COMPLETE (items 1, 3, 4, 4b, 5, 6, 7, 8, 3b-replacement),
+### fully reviewed, plus retirement pay.
+Final state: SIMULATION_VERSION 35, golden 7264c3f4, schema v19, 349
 tests. Commits: 4d5b40c 400-town · a99626a enlistment · 4ec523d career+
 misconduct · dab8efa rotations · e6a2b4e review fixes+working-tab ·
-523b7c8 war lethality · ac9127f rosters+ally war · e3927fa wound diagram.
-STILL OPEN (small, carried): one military-scope review over rosters /
-ally-war support / field aid has NOT run (the batch shipped after the
-last review); DOMAIN_MAP §4 import-graph test still unwritten; survivor
-benefits; families on PCS; branch-appropriate bases; HYT on TIS;
-retirement PAY for the 20/30-year and age-62 discharges (reviewer S2 —
-pensionOf is disability-only, so a career retirement currently carries
-no money; finances/persistence own it).
+523b7c8 war lethality · ac9127f rosters+ally war · e3927fa wound diagram
+· 3352376 second review's fixes · 4d4448c retirement pay.
+SECOND MILITARY REVIEW (over rosters/ally-war/field-aid) FOUND TWO
+MUST-FIX AND BOTH WERE REAL — worth remembering how:
+  1. The ally-war support tour CLOSED ON ITS FIRST TICK. resolveTours
+     looked the tour's war up in the HOMELAND's war list; an ally's war
+     is by definition not in it. The feature shipped completely dead and
+     the tests did not advance a single tick. alliedwar.test.ts now
+     does exactly that. LESSON: a feature test that never runs the tick
+     loop tests nothing.
+  2. Field aid labelled every death 'wounds taken in action', so an
+     ACCIDENT death earned the wound decoration off a cause that never
+     happened — sailing past the negative test in awards.test.ts by
+     mislabelling the input rather than by breaking the guard.
+Also fixed: field aid was a mortality SURCHARGE (the automatic fatal roll
+had already run, so a player's wounds were ~1.5x as lethal as an NPC's
+and standing near a player medic was dangerous) — the moment now carries
+the whole tail and the automatic roll is skipped; the stakes text
+described tradeoffs the model inverted; the casualty's death record said
+they chose it; the medic could be summoned to another front; the
+combat-moment field-aid call was dead code (pending still held).
+STILL OPEN (small, carried): DOMAIN_MAP §4 import-graph test unwritten;
+survivor benefits (a pension still ends at death — now more consequential
+with retirement pay); families on PCS; branch-appropriate bases; HYT on
+TIS; nation.strength never degrades across a long war (geopolitics).
 NEXT ARC after this: P3 (the surfaces — relationships tab, finances tab,
 record view, traits in words, D1 stats in-game) then W1-W3 world presets,
 or C2 (player crime) — see PLAYER_EXPERIENCE_AUDIT.
