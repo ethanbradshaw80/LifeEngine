@@ -127,21 +127,47 @@ in-session. The recurring shapes, worth knowing before writing more:
 5. **A system that runs for the serving must ask whether they are a
    prisoner.** The schoolhouse did not, and pinned medals on a man in a cell.
 
-### THE QUEUE — what is NOT built
+### THE QUEUE — CRIME AND JUSTICE (C3)
 
-Nothing military is outstanding. The next work is whatever the owner asks
-for. If he asks for "more of the same", these are the honest candidates,
-in the order that would pay off:
+**The military module is closed.** The three loose ends the reviewers logged
+as out-of-scope are fixed too: nothing reaches a prisoner (one guard in
+`raisePending`, not fifteen at the raise sites), a cell is not a term of
+service, and nobody graduates a course from a theatre.
 
-1. **The player-agency gaps the reviewers logged as out-of-scope.**
-   Relationship, finance and convalescence questions still reach a deployed
-   person — a prisoner can be asked to rest or push on from a cell.
-2. **`termPerformanceSum` accrues while held**, so months in a cell feed the
-   term average that later grants Good Conduct.
-3. **A veteran's second act.** Discharge is modelled; the years after it are
+**THE OWNER IS WRITING THE DESIGN DOC.** He did this for the military
+module — the combat plan and the awards pack — and it worked: his specs made
+the design calls that would otherwise have been guessed at. Do not draft a
+C3 plan over the top of his. If the doc has not arrived, ask for it rather
+than inventing scope.
+
+What exists already, so nothing gets built twice
+(`packages/engine/src/crime.ts`, `OFFENCES` in `content.ts`):
+
+- 23 graded offences, 12 misdemeanors and 11 felonies, each with a sentence
+  range, fine, clearance rate and payoff
+- motive to offence to clearance to arrest to the plea question to verdict
+  to a fine or months; jail is absent, and the household takes the strain
+- a criminal record that hiring and `enlistmentBar` both read
+- the desperation moment, with both roads real
+- victims are real households and the money actually moves
+- crime in the news
+
+What `docs/CRIME_PLAN.md` scoped as C3 and nobody has built: sentencing
+variety, probation, the constable as an occupation, town crime pressure as a
+force rather than a per-person roll, record-fade beyond the flat gate, and
+the victim's side as player experience. Violent crime against the player,
+organized crime, civil disputes and juvenile justice were deliberately
+deferred beyond C3 — do not pull them forward without the owner saying so.
+
+### Still open, and honest about it
+
+1. **A veteran's second act.** Discharge is modelled; the years after it are
    thin — pension, disability, the civilian career the trade unlocked.
-4. **Performance:** `unitOptionsFor` scans `world.events` linearly per unit
+2. **Performance:** `unitOptionsFor` scans `world.events` linearly per unit
    per month for the player. Not hot yet; measure before touching it.
+3. **Nobody has played the new surfaces at length.** The orders sheet, the
+   ribbon rack and the badge marks are built, typechecked and tested, but
+   only the owner can say whether they read right on his screen.
 
 ## Rules that cannot be bent
 
