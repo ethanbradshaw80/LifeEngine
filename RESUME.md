@@ -704,7 +704,18 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
    likely for a window (opportunistic rivals, bloc obligations) instead
    of the current blanket damping. Measure per century before and after;
    demographics will move (more service, more casualties).
-3. ARMY DEATHS: measured ~zero combat deaths ever. Wars are generational
+3. ARMY DEATHS — DONE (SIMULATION_VERSION 31, golden 7f4af7b0, commit
+   523b7c8). ROOT CAUSE WAS ARITHMETIC: the fatal gate wanted severity
+   >=940 from nextBellInt(300,1000) (centre 650) — a ~1000:1 draw — then
+   took 2/5 of it. Measured: 20y attrition war × 40 enlisted × 3 seeds =
+   75-85 contacts, 25 wounded, ZERO dead. Threshold moved to 720 (inside
+   the serious band): 2-3 dead per long war, 8-33% of casualties fatal.
+   Player combat moments 1/4 → 3/5 of contacts; attend-school 1/36 →
+   1/72 and volunteer-deploy 1/6 → 1/12 (owner: base pop-ups crowded out
+   the life-or-death ones). deployment.test carries a permanent guard
+   (casualties AND deaths, kia < casualties/2). d2 seed-777 collapse bar
+   110 → 100, reason recorded (wars kill now; 106 from a founding 100).
+   Original note kept: ARMY DEATHS: measured ~zero combat deaths ever. Wars are generational
    by design (M-GAMEDEPTH pacing) — decide deliberately: more contact
    lethality per tour when wars DO come + rotation risk filling the
    peace, vs foundation §6 (most military work is not combat). Tune
