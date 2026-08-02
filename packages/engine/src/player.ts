@@ -42,7 +42,15 @@ import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
-import { answerDesperation, answerVictimMoment, isJailed, resolveCourt } from './crime.js'
+import {
+  answerDesperation,
+  answerVictimMoment,
+  describePleaDeal,
+  isJailed,
+  pleaDealFor,
+  resolveCourt,
+  sentenceInWords,
+} from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
@@ -1571,7 +1579,11 @@ export function resolvePending(world: World, choice: string): void {
       const rng = openStream(world.seed, Stream.Crime, person.id, pending.tick + 6363)
       resolveCourt(
         world, pending.tick, person, pending.monthlyPay ?? 0, rng,
-        choice === 'plead-guilty' ? 'plead-guilty' : 'stand-trial',
+        choice === 'plead-guilty'
+          ? 'plead-guilty'
+          : choice === 'take-plea-deal'
+            ? 'take-plea-deal'
+            : 'stand-trial',
         offence,
       )
       break
@@ -2730,6 +2742,25 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push(
         'Retraining sends you back through the schoolhouse — no orders until it finishes. The record, the rank, and every trade already served stay yours.',
       )
+      break
+    }
+
+    case 'plea': {
+      // C3 §13. THE TERMS ARE ON THE SCREEN. A deal the player cannot read
+      // is not a choice, and the gap between the offer and what a trial
+      // risks is the entire reason plea bargaining exists.
+      const charge = pending.occupationId === null ? undefined : offenceById(pending.occupationId)
+      if (charge !== undefined) {
+        const deal = pleaDealFor(world, person.id, charge, pending.tick)
+        if (deal !== null) {
+          lines.push(describePleaDeal(deal))
+          lines.push(
+            `Standing trial risks the full ${charge.title} charge — up to ${sentenceInWords(charge.maxMonths)} — and refusing a deal means no discount if it goes badly.`,
+          )
+        } else {
+          lines.push(`The state has offered nothing. The charge is ${charge.title}.`)
+        }
+      }
       break
     }
 

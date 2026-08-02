@@ -242,7 +242,6 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
   'support-deployment': { 'stay-and-fight': 'Stay and fight', 'go-home': 'Go home' },
   desperation: { 'take-it': 'Take it', 'go-without': 'Go without' },
-  plea: { 'plead-guilty': 'Plead guilty', 'stand-trial': 'Stand trial' },
   'first-aid': {
     'press-the-wound': 'Press the wound',
     'call-for-help': 'Call out for help',
@@ -255,6 +254,11 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
   'crime-victim': { report: 'Report it to the constable', 'let-it-go': 'Let it go' },
+  plea: {
+    'plead-guilty': 'Plead guilty',
+    'stand-trial': 'Plead not guilty — stand trial',
+    'take-plea-deal': 'Take the plea deal',
+  },
   'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
   retrain: { keep: 'Keep your trade' },
 }

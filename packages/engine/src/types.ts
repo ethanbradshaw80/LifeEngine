@@ -1166,6 +1166,8 @@ export type EventType =
   | 'was-robbed'
   | 'was-arrested'
   | 'was-convicted'
+  | 'plea-deal-offered'
+  | 'took-plea-deal'
   | 'was-assaulted'
   | 'escalated-charge'
   | 'placed-on-probation'

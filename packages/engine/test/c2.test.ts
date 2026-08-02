@@ -109,7 +109,10 @@ describe('committing an offence', () => {
       const pending = world.player.pending
       if (!pending || pending.kind !== 'plea') continue
       tested++
-      expect(pending.options).toEqual(['plead-guilty', 'stand-trial'])
+      // C3 §13: the arraignment can now carry a plea deal, so the option
+      // list is "the two pleas, and the offer where the state made one".
+      expect(pending.options).toContain('plead-guilty')
+      expect(pending.options).toContain('stand-trial')
       resolvePending(world, 'plead-guilty')
       // Guilty is guilty: never acquitted.
       expect(world.events.some((e) => e.type === 'was-acquitted' && e.subjectId === id)).toBe(false)

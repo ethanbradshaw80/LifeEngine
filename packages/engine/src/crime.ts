@@ -607,6 +607,14 @@ export function commitOffence(
   }
   recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
 
+  const deal = pleaDealFor(world, person.id, offence, tick)
+  if (deal !== null) {
+    recordEvent(world, tick, {
+      type: 'plea-deal-offered',
+      subjectId: person.id,
+      detail: `${deal.offenceId}:${String(deal.months)}:${deal.kind}`,
+    })
+  }
   const landed = raisePending(world, {
     tick,
     kind: 'plea',
@@ -616,7 +624,10 @@ export function commitOffence(
     workplaceId: null,
     monthlyPay: taken as never,
     placeId: null,
-    options: ['plead-guilty', 'stand-trial'],
+    options:
+      deal === null
+        ? ['plead-guilty', 'stand-trial']
+        : ['take-plea-deal', 'plead-guilty', 'stand-trial'],
   })
   if (!landed) resolveCourt(world, tick, person, taken, rng, null, offence)
   return { done: true, reason: '' }
@@ -963,6 +974,9 @@ function attemptTheft(
   // plea — the one moment in the chain where the accused genuinely decides
   // something — and resolveCourt runs from the answer instead.
   if (person.id === world.player.personId) {
+    // NO DEAL ON THIS ONE. The C1 desperation theft is not a catalogue
+    // charge — there is nothing to bargain the grade down to, and a
+    // sentence bargain over a range this short would be theatre.
     const landed = raisePending(world, {
       tick,
       kind: 'plea',
@@ -1065,7 +1079,7 @@ export function resolveCourt(
   person: Person,
   taken: number,
   rng: ReturnType<typeof openStream>,
-  plea: 'plead-guilty' | 'stand-trial' | null,
+  plea: 'plead-guilty' | 'stand-trial' | 'take-plea-deal' | null,
   offence: Offence | null = null,
 ): void {
   const priors = world.criminal.get(person.id)?.convictions.length ?? 0
@@ -1109,10 +1123,19 @@ export function resolveCourt(
     // sentence lands is the record — priors push it up, a guilty plea keeps
     // it in the lower half.
     const span = Math.max(0, offence.maxMonths - offence.minMonths)
+    // C3 §13. THE TRIAL PENALTY IS REAL, and it is the reason anybody takes
+    // a deal. A guilty plea keeps the sentence in the lower half. Standing
+    // trial and losing is sentenced on the original charge with no
+    // discount — and where a deal was on the table and refused, the state
+    // asks for the upper half, which is the gap the whole bargain lives in.
+    const refusedADeal =
+      plea === 'stand-trial' && offence !== null && pleaDealFor(world, person.id, offence, tick) !== null
     const roll =
       plea === 'plead-guilty'
         ? rng.nextIntInclusive(0, Math.floor(span / 2))
-        : rng.nextIntInclusive(0, span)
+        : refusedADeal
+          ? Math.floor(span / 2) + rng.nextIntInclusive(0, Math.ceil(span / 2))
+          : rng.nextIntInclusive(0, span)
     // Priors push the sentence up. `span/4` floored to nothing on every
     // short-range offence — a class C misdemeanor's whole span is one
     // month — so a repeat offender served the same as a first-timer on
@@ -1133,6 +1156,59 @@ export function resolveCourt(
     // roll landed on zero months and whose file barred a fine walked out
     // owing nothing, and the record showed "fined $0.00" (review S5).
     if (sentenceMonths === 0 && fine === 0) fine = Math.max(offence.fine, 5_000)
+  }
+
+  // C3 §13. THE DEAL IS A CERTAIN CONVICTION ON AGREED TERMS. No trial, so
+  // no acquittal — and no risk of the full sentence either. That trade is
+  // the whole of plea bargaining, and it is why the trial penalty below
+  // has to be real for the choice to mean anything.
+  if (plea === 'take-plea-deal' && offence !== null) {
+    const deal = pleaDealFor(world, person.id, offence, tick)
+    if (deal !== null) {
+      const agreed = offenceById(deal.offenceId) ?? offence
+      recordEvent(world, tick, {
+        type: 'took-plea-deal',
+        subjectId: person.id,
+        detail: `${offence.id}:${agreed.id}:${String(deal.months)}`,
+      })
+      const existingFile = world.criminal.get(person.id)
+      world.criminal.set(person.id, {
+        personId: person.id,
+        convictions: [
+          ...(existingFile?.convictions ?? []),
+          {
+            kind: agreed.id,
+            tick,
+            sentenceMonths: deal.months,
+            fine: deal.months > 0 ? 0 : Math.max(agreed.fine, 5_000),
+            disposition: deal.months > 0 ? 'jail' : 'fine',
+          },
+        ],
+        jailedUntilTick: deal.months > 0 ? ((tick + deal.months) as Tick) : (existingFile?.jailedUntilTick ?? null),
+        probationUntilTick: existingFile?.probationUntilTick ?? null,
+        suspendedMonths: existingFile?.suspendedMonths ?? 0,
+        restitutionOwed: existingFile?.restitutionOwed ?? 0,
+      })
+      recordEvent(world, tick, {
+        type: 'was-convicted',
+        subjectId: person.id,
+        detail:
+          deal.months > 0
+            ? `jail:${String(deal.months)}:jail`
+            : `fine:${String(Math.max(agreed.fine, 5_000))}`,
+      })
+      recordDecision(world, tick, {
+        subjectId: person.id,
+        decision: 'justice',
+        significance: isFelony(agreed.grade) ? 'defining' : 'major',
+        inputs: [factor('own-choice', 1000), factor('prior-record', priors * 200)],
+        chosen: `took the plea and was convicted of ${agreed.title}`,
+        rejected: ['to stand trial'],
+        streamId: Stream.Crime,
+      })
+      if (deal.months > 0) world.employment.delete(person.id)
+      return
+    }
   }
 
   // THE LADDER (C3 §1). The sentence above is what the statute allows; the
@@ -1497,6 +1573,119 @@ export function petitionForExpungement(
     streamId: Stream.Crime,
   })
   return { sealed, reason: '' }
+}
+
+/**
+ * C3 §13. What the prosecutor will offer, if anything.
+ *
+ * THE HONEST INVERSION, and the thing players should feel: a WEAK case
+ * bargains and a strong one does not have to. The state's leverage is the
+ * evidence — here, how likely the charge was to be cleared in the first
+ * place, which is the same number that decided whether there was an arrest
+ * at all — crossed with the defendant's priors.
+ *
+ * A shaky case on a small charge deals generously because a loss at trial
+ * costs the state more than a discount does. An overwhelming case on a
+ * serious charge deals stiffly or not at all: there is nothing to buy.
+ */
+export interface PleaDeal {
+  /** What they would plead to — sometimes a lesser charge entirely. */
+  readonly offenceId: string
+  /** Months agreed. Zero means the deal is probation or a fine. */
+  readonly months: number
+  /** Which of the three real forms this is, for the words on the screen. */
+  readonly kind: 'charge' | 'sentence'
+}
+
+/** The lesser charge a bargain drops to, where one is reachable. */
+function lesserThan(offence: Offence): Offence | undefined {
+  // Down one rung of the same family: the charge bargain's whole point is
+  // that the grade falls and everything the grade drives falls with it.
+  const order: Record<string, string> = {
+    burglary: 'trespassing',
+    'commercial-burglary': 'trespassing',
+    'armed-robbery': 'robbery',
+    robbery: 'grand-theft',
+    'aggravated-assault': 'simple-assault',
+    'assault-deadly-weapon': 'aggravated-assault',
+    'attempted-murder': 'assault-deadly-weapon',
+    'murder-second': 'voluntary-manslaughter',
+    'voluntary-manslaughter': 'involuntary-manslaughter',
+    'grand-theft': 'shoplifting',
+    'auto-theft': 'grand-theft',
+    'drug-trafficking': 'possession-with-intent',
+    'possession-with-intent': 'drug-possession',
+    'wire-fraud': 'petty-fraud',
+    'insurance-fraud': 'petty-fraud',
+    'credit-card-fraud': 'petty-fraud',
+    battery: 'disorderly-conduct',
+    'simple-assault': 'disorderly-conduct',
+  }
+  const lesser = order[offence.id]
+  const target = lesser === undefined ? undefined : offenceById(lesser)
+  // AND IT HAS TO ACTUALLY BE LESSER. The table above is hand-written and a
+  // pair slipped through where both charges carried the same ceiling
+  // (auto-theft and grand-theft are both class C felonies) — a "bargain"
+  // that drops nothing is worse than no bargain, because the player takes
+  // it believing it bought something.
+  if (target === undefined || target.maxMonths >= offence.maxMonths) return undefined
+  return target
+}
+
+export function pleaDealFor(
+  world: World,
+  personId: EntityId,
+  offence: Offence,
+  tick: Tick,
+): PleaDeal | null {
+  // No deal on the very worst of it. The state does not bargain away a
+  // capital charge, and mandatory minimums are the legislature saying so.
+  if (offence.grade === 'capital') return null
+
+  const priors = world.criminal.get(personId)?.convictions.length ?? 0
+  const rng = openStream(world.seed, Stream.Crime, personId, tick + 9191)
+
+  // STRENGTH OF THE CASE. Clearance is how readily this kind of offence is
+  // pinned on somebody; priors make a jury readier still.
+  const strength = Math.min(1000, offence.clearance + priors * 60)
+
+  // An overwhelming case on a serious charge has no reason to deal.
+  if (strength >= 700 && isFelony(offence.grade) && rng.chance(2, 3)) return null
+
+  const lesser = lesserThan(offence)
+  // A weak case buys a charge bargain where one exists — the grade falls,
+  // and with it the sentence, the gate and the fade.
+  if (strength < 560 && lesser !== undefined) {
+    return {
+      offenceId: lesser.id,
+      months: Math.max(
+        lesser.mandatoryMin ?? 0,
+        lesser.minMonths + rng.nextInt(0, Math.max(1, Math.floor((lesser.maxMonths - lesser.minMonths) / 4))),
+      ),
+      kind: 'charge',
+    }
+  }
+
+  // Otherwise a sentence bargain: the same charge, the bottom of its range,
+  // and never below a mandatory minimum — that floor is the whole reason
+  // one exists.
+  const floor = Math.max(offence.mandatoryMin ?? 0, offence.minMonths)
+  const span = Math.max(0, offence.maxMonths - floor)
+  return {
+    offenceId: offence.id,
+    months: floor + rng.nextInt(0, Math.max(1, Math.floor(span / 5))),
+    kind: 'sentence',
+  }
+}
+
+/** The deal in words, for the scene that offers it. */
+export function describePleaDeal(deal: PleaDeal): string {
+  const offence = offenceById(deal.offenceId)
+  const to = offence?.title ?? 'a lesser charge'
+  const term = deal.months <= 0 ? 'no custody' : sentenceInWords(deal.months)
+  return deal.kind === 'charge'
+    ? `Plead guilty to ${to} for ${term}.`
+    : `Plead guilty as charged for ${term}.`
 }
 
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {

@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v67 — C3 STEPS 7 AND 8: the victim's side, sealing a record, and plea
+ *      bargaining. Being robbed asks the player something; a petition can
+ *      seal what the fade would not; and the arraignment carries an offer
+ *      whose terms are on the screen, with a real trial penalty behind
+ *      refusing it. Weak cases bargain and strong ones do not have to.
  * v66 — C3 STEP 2: VIOLENCE HAS A VICTIM. Every offence used to be a
  *      thing that happened to a household's savings; an assault happens to
  *      a PERSON, who is wounded or killed through the same health and
@@ -434,7 +439,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 66
+export const SIMULATION_VERSION = 67
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
