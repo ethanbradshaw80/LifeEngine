@@ -104,6 +104,33 @@ describe('WCJC', () => {
     expect(quoted).toBeGreaterThan(0)
   })
 
+  it('does not ship broken prose', () => {
+    // Generated sentences are assembled from fragments, and the failures
+    // are always the same shapes: a doubled article where a template
+    // already carried one ("in the the Land Forces"), a bare number where
+    // an ordinal belongs ("in its 8 year"), a gap where a field was empty.
+    // A review caught two of these; this catches the next one.
+    for (const article of articles) {
+      // Filter before joining: an absent quote is not a gap in the copy,
+      // and joining an empty string would look like one.
+      const prose = [
+        article.headline,
+        article.lede,
+        ...article.body,
+        article.quote?.text,
+        article.closing,
+      ]
+        .filter((part): part is string => part !== undefined && part !== null && part.length > 0)
+        .join(' ')
+      expect(prose, 'doubled article').not.toMatch(/\b(the the|a a|an an|in in|of of)\b/i)
+      expect(prose, 'bare number where an ordinal belongs').not.toMatch(/in its \d+ year/)
+      expect(prose, 'double space from an empty fragment').not.toMatch(/ {2,}/)
+      expect(prose, 'space before punctuation').not.toMatch(/ [.,;]/)
+      expect(prose, 'undefined leaked into copy').not.toMatch(/undefined|null|NaN/)
+      expect(prose, 'empty parentheses or brackets').not.toMatch(/\(\s*\)|\[\s*\]/)
+    }
+  })
+
   it('does not print the same quote every time', () => {
     // Owner: every death used to be interviewed with one sentence. The
     // speaker and the line are drawn from a pure hash of (person, month),

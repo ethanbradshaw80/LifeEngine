@@ -318,13 +318,23 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
 
   const body: string[] = []
   if (months !== null && tour !== undefined) {
+    // (A ternary here once had the same word in both branches, so the
+    // sentence read the same however it was reached — review must-fix.)
+    const careerYears = Math.max(
+      1,
+      Math.floor((item.tick - (record?.enlistedAtTick ?? item.tick)) / 12),
+    )
     body.push(
-      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(tour.startedAtTick)}${enemy === null ? '' : ` on the ${enemy} front`}. It was ${who.split(' ')[0] === rank ? 'the' : 'the'} ${ordinal(tour.tourNumber)} tour of a career now in its ${String(Math.max(1, Math.floor((item.tick - (record?.enlistedAtTick ?? item.tick)) / 12)))} year.`,
+      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(tour.startedAtTick)}${enemy === null ? '' : ` on the ${enemy} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
     )
   }
   const household = householdOthers(world, person)
+  const home = person.householdId === null ? undefined : world.households.get(person.householdId)
+  const place = home === undefined ? undefined : world.places.get(home.placeId)?.name
   if (household.length > 0) {
-    body.push(`${person.givenName} returns to a household of ${String(household.length + 1)} at ${world.places.get(world.households.get(person.householdId ?? -1 as EntityId)?.placeId ?? (-1 as EntityId))?.name ?? world.town.name}.`)
+    body.push(
+      `${person.givenName} returns to a household of ${String(household.length + 1)}${place === undefined ? '' : ` in ${place}`}.`,
+    )
   }
 
   const spouse = livingSpouse(world, person.id)
