@@ -313,6 +313,25 @@ export interface UnitRoster {
  * Read side only. Everyone here is a full simulated person who can be
  * promoted, punished, hurt or killed, which is the point of showing them.
  */
+/**
+ * Somebody from this unit who has died in the last few months, or null.
+ *
+ * The ramp ceremony scene asserts a death; this is what makes the assertion
+ * true before it is spoken. Only the unit's own, only recently, and the
+ * roster helpers cannot answer it — they list the LIVING on purpose.
+ */
+export function deadFromTheUnit(world: World, unitId: string, tick: Tick): EntityId | null {
+  let found: EntityId | null = null
+  for (const record of world.service.values()) {
+    if (record.unitId !== unitId) continue
+    const person = world.people.get(record.personId)
+    if (!person || person.deathTick === null) continue
+    if (tick - person.deathTick > 3 || person.deathTick > tick) continue
+    if (found === null || record.personId < found) found = record.personId
+  }
+  return found
+}
+
 export function unitRosterOf(world: World, personId: EntityId): UnitRoster | null {
   return rosterFrom(world, personId, activeRecord(world, personId))
 }
@@ -1367,8 +1386,23 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // is what remembers: a cutscene the player has already been through is
     // not a cutscene the second time.
     if (world.player.pending === null) {
+      // ONCE PER LIFE, NOT ONCE PER SAVE. The player log is never cleared on
+      // succession — it is the deterministic replay record — so an unscoped
+      // dedupe would let the first life in a save answer reporting-in and
+      // silently deny every heir after them. Scoped to this enlistment, the
+      // way every other log dedupe in this file is scoped to something.
       const played = (id: string): boolean =>
-        world.player.log.some((entry) => entry.kind === 'unit-moment' && entry.choice.startsWith(`${id}:`))
+        world.player.log.some(
+          (entry) =>
+            entry.kind === 'unit-moment' &&
+            entry.tick >= record.enlistedAtTick &&
+            entry.choice.startsWith(`${id}:`),
+        )
+      // When selection said yes. The tryout is the player's own verb, so
+      // the log knows the month without a new field on the service record.
+      const joinedAt = world.player.log
+        .filter((entry) => entry.kind === 'unit-tryout' && entry.tick >= record.enlistedAtTick)
+        .reduce((latest, entry) => (entry.tick > latest ? entry.tick : latest), -1)
       const raiseMoment = (id: string, unitId: string | null): void => {
         raisePending(world, {
           tick,
@@ -1391,16 +1425,23 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           raiseMoment('packet-drop', open.id)
         }
       } else {
-        const unit = unitFor(world, unitId)
-        if (!played('reporting-in')) {
-          // First day in the team room, the month after selection said yes.
+        const monthsInUnit = joinedAt < 0 ? -1 : tick - joinedAt
+        if (!played('reporting-in') && monthsInUnit >= 0 && monthsInUnit <= 3) {
+          // First day in the team room — and it has to actually BE the first
+          // day. Ungated, this told a six-year veteran (and every migrated
+          // save) that nobody there was impressed yet, and wrote a fabricated
+          // first day into the record to go with it.
           raiseMoment('reporting-in', unitId)
-        } else if (!played('losing-one') && unit !== undefined && rng.chance(1, 90)) {
-          // Somebody from the team goes home in an aircraft. Rare, and it
-          // costs nothing but how it is carried.
+        } else if (!played('losing-one') && deadFromTheUnit(world, unitId, tick) !== null) {
+          // SOMEBODY HAS TO HAVE DIED. The scene states a fact about the
+          // world — a team member going home in an aircraft — and Law 1 does
+          // not let the cutscene be the thing that makes it true. It waits
+          // for a real death in the unit, or it never plays.
           raiseMoment('losing-one', unitId)
-        } else if (!played('the-old-hand') && monthsIn >= 96 && rng.chance(1, 48)) {
-          // Long enough in to be one of the ones they watch.
+        } else if (!played('the-old-hand') && monthsInUnit >= 36 && rng.chance(1, 48)) {
+          // Long enough IN THE UNIT to be one of the ones they watch. Time
+          // enlisted is not the same thing: eight years in a line unit does
+          // not make somebody the old hand of a team they joined last month.
           raiseMoment('the-old-hand', unitId)
         }
       }

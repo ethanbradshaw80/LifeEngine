@@ -501,7 +501,13 @@ function resolveSelectionDay(
   const unit = unitFor(world, unitId)
   if (!record || !unit) return
 
-  const rng = openStream(world.seed, Stream.Employment, person.id, tick + 7333)
+  // SALTED BY ATTEMPT. The draw is keyed on the tick, and selection can be
+  // re-entered the same month — so without this, a player who answered
+  // 'cover' and failed could ask again immediately, answer 'push', and turn
+  // the very same fixed roll into a free pass. The attempt count moves the
+  // stream, so a second try is a second roll.
+  const attempts = world.player.log.filter((entry) => entry.kind === 'unit-tryout').length
+  const rng = openStream(world.seed, Stream.Employment, person.id, tick + 7333 + attempts * 101)
   const effort = answer === 'push' ? 120 : answer === 'hold' ? 0 : -140
   const margin = Math.max(10, Math.min(400, record.performance - unit.minPerformance + 60 + effort))
   const selected = rng.chance(margin, unit.selectionDenominator)
@@ -509,7 +515,25 @@ function resolveSelectionDay(
   // THE COURSE IS WHAT BEATS PEOPLE HERE, not an enemy: emptying the tank
   // can cost a body, and it goes down as the field accident it is.
   if (answer === 'push' && rng.chance(1, 7)) {
-    inflictWound(world, tick, person.id, 300 + rng.nextInt(0, 250), 'field-accident', rng)
+    const severity = 300 + rng.nextInt(0, 250)
+    const wound = inflictWound(world, tick, person.id, severity, 'field-accident', rng)
+    // ON THE RECORD, with its cause. This wound is service-connected and can
+    // reach a pension decades later; Law 3 does not make an exception for the
+    // ones that happen on a course instead of in a war.
+    recordEvent(world, tick, {
+      type: 'was-injured',
+      subjectId: person.id,
+      detail: `minor:${wound.description}`,
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'selection',
+      significance: 'notable',
+      inputs: [factor('own-choice', 1000), factor('unit-standard', unit.minPerformance)],
+      chosen: `was hurt emptying the tank at ${unit.name} selection`,
+      rejected: [],
+      streamId: Stream.Employment,
+    })
   }
 
   if (selected) {
@@ -1518,17 +1542,28 @@ export function resolvePending(world: World, choice: string): void {
         subjectId: person.id,
         detail: `${momentId}:${answer}`,
       })
-      recordDecision(world, pending.tick, {
-        subjectId: person.id,
-        decision: 'selection',
-        significance: moment?.id === 'selection-day' ? 'defining' : 'notable',
-        inputs: [factor('own-choice', 1000), factor('unit-standard', 700)],
-        chosen: did,
-        rejected: SCENE_OPTIONS.filter((option) => option !== answer).map(
-          (option) => moment?.did[option] ?? `to ${option}`,
-        ),
-        streamId: Stream.CombatResolution,
-      })
+      // NOT for selection day: resolveSelectionDay writes the record that
+      // says how it ENDED, and two 'selection' records at one tick means the
+      // Why? finds this one first and the outcome becomes unreachable.
+      if (moment !== undefined && moment.id !== 'selection-day') {
+        const standard = unitFor(world, unitIdOf(pending.occupationId))?.minPerformance
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'selection',
+          significance: 'notable',
+          // Only real numbers here. A ramp ceremony is not explained by a
+          // unit standard, so it does not claim to be.
+          inputs:
+            standard === undefined
+              ? [factor('own-choice', 1000)]
+              : [factor('own-choice', 1000), factor('unit-standard', standard)],
+          chosen: did,
+          rejected: SCENE_OPTIONS.filter((option) => option !== answer).map(
+            (option) => moment.did[option] ?? `to ${option}`,
+          ),
+          streamId: Stream.CombatResolution,
+        })
+      }
 
       if (moment?.id === 'selection-day') {
         resolveSelectionDay(world, person, unitIdOf(pending.occupationId), answer, pending.tick)
@@ -1767,7 +1802,7 @@ export function resolvePending(world: World, choice: string): void {
 
   // A wound taken during the combat moment is still a wound somebody has
   // to work on — and only now is the pending slot free to ask (review S7).
-  if (pending.kind === 'combat-moment' || pending.kind === 'unit-moment') {
+  if (pending.kind === 'combat-moment') {
     const hurt = world.health.get(person.id)
     if (hurt && hurt.ailment !== null && person.deathTick === null) {
       offerFieldAid(world, pending.tick, person.id, hurt.severity)

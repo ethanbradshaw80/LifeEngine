@@ -14,6 +14,7 @@ import { ageAt } from '../src/clock.js'
 import { createWorld } from '../src/index.js'
 import { describePending, resolvePending, setPlayer, tryOutForUnit } from '../src/player.js'
 import { UNIT_MOMENTS, unitMomentById } from '../src/scenes.js'
+import { timelineFor } from '../src/story.js'
 import { livingPeople } from '../src/systems.js'
 import type { Person, World } from '../src/types.js'
 
@@ -154,5 +155,47 @@ describe('unit moments', () => {
     resolvePending(world, 'cover')
     expect(world.player.pending).toBe(null)
     expect(world.player.log.some((entry) => entry.choice === 'packet-drop:cover')).toBe(true)
+  })
+
+  it('a second try at selection is a second roll, not the same one with better odds', () => {
+    // The draw is keyed on the tick and selection can be re-entered the same
+    // month. Unsalted, a player could fail on 'cover' and immediately pass on
+    // 'push' off the identical roll — a free win for asking twice.
+    let sameAnswerTwice = 0
+    for (let s = 0; s < 40; s++) {
+      const world = createWorld(makeSeed(5000 + s), 60)
+      const person = aPlayedSoldier(world)
+      tryOutForUnit(world, 'pathfinders')
+      resolvePending(world, 'hold')
+      if (world.service.get(person.id)?.unitId === 'pathfinders') continue
+      tryOutForUnit(world, 'pathfinders')
+      resolvePending(world, 'hold')
+      if (world.service.get(person.id)?.unitId === 'pathfinders') sameAnswerTwice += 1
+    }
+    // Same answer, same month, different roll: some of them pass the second
+    // time. With one fixed draw for the tick, none of them ever could.
+    expect(sameAnswerTwice).toBeGreaterThan(0)
+  })
+
+  it('an answered moment reaches the life story instead of vanishing', () => {
+    const world = createWorld(makeSeed(4244), 60)
+    const person = aPlayedSoldier(world)
+    world.player.pending = {
+      id: world.player.nextDecisionId,
+      tick: world.tick,
+      kind: 'unit-moment',
+      personId: person.id,
+      otherId: null,
+      occupationId: 'losing-one:push',
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['push', 'hold', 'cover'],
+    }
+    resolvePending(world, 'push')
+    const line = timelineFor(world, person.id).find((entry) => entry.text.includes('ramp ceremony'))
+    expect(line, 'the moment is on the timeline').toBeDefined()
+    // And the Why? behind it can be reached, not just written.
+    expect(line?.decision ?? null).not.toBe(null)
   })
 })

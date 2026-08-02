@@ -16,6 +16,7 @@
  * worth reading, no interface will rescue it.
  */
 
+import { unitMomentById } from './scenes.js'
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
@@ -65,6 +66,21 @@ function objectPronoun(person: Person): string {
  * naming the unit and the rank they always named; nothing is migrated and
  * nothing is lost.
  */
+/**
+ * What a unit moment's "moment-id:answer" detail says in words. The catalogue
+ * owns the phrasing; this only picks the one that was answered.
+ */
+function unitMomentWordsFor(detail: string | null): string {
+  const said = (words: string): string => words.charAt(0).toUpperCase() + words.slice(1)
+  if (detail === null) return said('answered the unit')
+  const cut = detail.lastIndexOf(':')
+  if (cut === -1) return said('answered the unit')
+  const moment = unitMomentById(detail.slice(0, cut))
+  const answer = detail.slice(cut + 1)
+  if (!moment || (answer !== 'push' && answer !== 'hold' && answer !== 'cover')) return said('answered the unit')
+  return said(moment.did[answer])
+}
+
 function unitWordsFor(world: World, detail: string | null): string {
   if (detail === null) return 'a special unit'
   return unitFor(world, detail)?.name ?? detail
@@ -265,6 +281,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
     case 'passed-over':
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
+    case 'unit-moment':
+      return `${year} — ${unitMomentWordsFor(event.detail)}.`
     case 'joined-unit':
       return `${year} — Selected for ${unitWordsFor(world, event.detail)}.`
     case 'dropped-selection':
