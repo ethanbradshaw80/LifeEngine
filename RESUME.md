@@ -65,9 +65,9 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `026f4ce`.
-SIMULATION_VERSION **42** · Classic golden **c83b07e9** · Heartland golden
-**05bf2c3d** · SCHEMA_VERSION **21** · **480 tests**, all green.
+**STATE:** clean tree, everything pushed, HEAD `de3164a`.
+SIMULATION_VERSION **45** · Classic golden **b94ae13c** · Heartland golden
+**b428a500** · SCHEMA_VERSION **23** · **501 tests**, all green.
 P3, W1 and W2 all COMPLETE and reviewed — six reviews, eighteen must-fixes,
 every one fixed.
 
@@ -83,93 +83,56 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
+**1. THE MILITARY & COMBAT MASTER PLAN** (`docs/MILITARY_COMBAT_PLAN.md`,
+owner spec 2026-08-02). His build order, and step 1 is DONE:
+  1. ~~Service sub-tabs + School Houses with a class calendar~~ (de3164a).
+  2. **DROP A PACKET as its own flow** — the tab exists and lists the units;
+     what is missing is the packet → selection-course → pass/fail shape the
+     spec describes, with the two-packet cap it already has.
+  3. **THE THREE-OPTION COMBAT SCENE.** The big one. `combat-moment` gains
+     `sceneId`, `threat` (light/heavy/overrun) and `unitId`; options become
+     push/hold/cover; the outcome is the (choice × threat) cell of the
+     matrix in the plan; the scene text TELLS the player the threat so it is
+     a read rather than a coin flip. Then the Tier 1 scenes.
+     WATCH: every cell keeps the fatal tail, and field aid must chain AFTER
+     commit() — that trap has shipped broken twice.
+  4. **Shared unit cutscenes** (packet drop, selection day, reporting in).
+  5. **Per-unit mission scenes**, one unit at a time.
+
+**2. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
 priors — and the two military items deferred since M-ARMY2 ("families
 follow a PCS", "branch-appropriate bases") which need real geography.
 
-**2. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
+**3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
 record-fade gates, the victim's side as player experience.
 
-### P3 — COMPLETE (the surfaces; reviewed, must-fix found and fixed)
-Commits bd08212 · bd2c671 · b7bc745 · 5554265 · ae7f60d · b381d3a.
-Every item on the audit's §P3 list shipped, all READ-side except one
-event field. SIMULATION_VERSION 40, golden 4930be31, schema UNCHANGED.
-  - **MONEY TAB.** `householdLedger()` decomposes the month into named
-    lines (wages / service pay / pension / survivor's share by person,
-    rent with the street, living costs with the mouths, lifestyle, net).
-    It is a DECOMPOSITION of householdIncome/householdCosts/
-    discretionaryFor, never a second implementation, and the test uses
-    those three as the oracle — so a change to the model breaks the
-    ledger loudly. Arrears spells, the spending stance and the streets
-    browser moved here; Home keeps the place and the household.
-  - **PEOPLE TAB.** Every tie with how long, how close (strength in
-    words + a bar), and how well matched. The verbs moved here and now
-    read the ENGINE's bars: `courtshipBar`/`proposalBar` decide whether
-    a button is live and supply the tooltip.
-  - **TEMPERAMENT IN WORDS.** `traitWords`/`describeTraits` in text.ts —
-    notable traits only, strongest first ("ambitious, private and hale").
-    A middling person gets NO adjectives. Under the name, and in
-    PersonDetail so you can read a friend before courting them.
-  - **TOWN TAB.** `TownStats.tsx` extracted so the observer dashboard and
-    the in-game tab are one component; in-game is bounded to the years
-    the player has lived.
-  - **STANDING & SCHOOLING** on the Jobs tab. The three performance
-    thresholds are now exported from systems.ts
-    (RAISE_MIN/WARNING/DISMISSAL_PERFORMANCE) and imported by the UI —
-    the rule is that a threshold which GATES behaviour is never retyped
-    in a component (docs/DOMAIN_MAP.md §6a, written this milestone).
-  - **THE REVIEW'S MUST-FIX WAS REAL:** arrearsHistoryOf read the
-    crossings by CURRENT household member, and crossings travel with a
-    person — a mover carried an unmatched fell-behind into their
-    partner's household, where it paired with that household's recovery
-    into a spell that happened to nobody. Crossing events now carry the
-    HOUSEHOLD id (that is the whole of SIMULATION_VERSION 40). Also
-    fixed: `moveBar()` so the streets browser stops offering buttons the
-    verb refuses; the Money tab's whole-log reads memoized; the ledger
-    itemizes on `!== 0`; the jail test built by hand after it turned out
-    seed 12345 has nobody in a cell at tick 720.
-  - **TWO THINGS A LIVE PLAYTHROUGH CAUGHT** that no test would have:
-    the balance line assumed a surplus ("-$1,214.45 a month is staying
-    put"), and founding couples read "married 0 months" because worldgen
-    stamps their wedding at tick 0 precisely BECAUSE it predates the
-    simulation. Pre-record ties now say so.
-  - KNOWN, LEFT: describeTraits can return four adjectives on a strongly
-    drawn person, which is a mouthful; the P3 audit's "Record view" item
-    was already delivered by C2's Record tab.
-
-### W1 — COMPLETE (the WorldSpec; reviewed three times)
-Commits 298fb0e · 1ee4dcb · 86d7bdf · 7c9e6bd · a2a064f · 7f5f021 ·
-4850c53 · 6129fb4 · afabf0d · cf0aa54 · 6ee7ad8.
-EVERYTHING a preset decides now comes from `world.spec`: name pools, the
-gazetteer (town, school, streets, workplaces, civic places, bases, news
-station), the homeland's name, the foreign nations, the service branches
-(name, ladder, pay grades, competitive threshold, junior TIG), the trades,
-the schools, the units, and the start year. `createWorld(seed, pop, spec)`;
-the save header records the preset id (schema v21; migration names every
-older save 'classic'); the worker's 'new world' message can carry one.
-**CLASSIC'S GOLDEN HASH NEVER MOVED** — the whole extraction is a proved
-pure refactor, which was the stated exit criterion.
-  - Resolution lives in ONE place (worldspec.ts) and every resolver is
-    TOTAL: branchSpecFor / specialtyFor / schoolFor / unitFor / specById /
-    occupationById. An id out of a save can no longer throw inside the
-    tick. An unresolvable branch is a BLANK, never a substitution — a rank
-    is an INDEX, so serving another service's ladder rewrites a career.
-  - Resistances 2, 3, 4 and 6 are CLOSED. **1 stands and always will**:
-    presets with different place counts or ORDER produce different people
-    from the same seed (place ids lead person ids lead trait streams), so a
-    save can never be switched to another preset.
-  - SEVEN MUST-FIXES across three reviews, every one real. The two worth
-    remembering: (a) newborn names drew from the spec's pool with the
-    MODULE's weights — a RangeError on the first birth under any
-    differently-sized pool, and the custom-spec test that existed never
-    advanced a tick so nobody was ever born to catch it; (b) the
-    enumerations still read Classic's tables long after the resolvers did
-    not, so a preset's own trades would never have been offered to anyone.
-  - AND: newsroom.ts contained two literal NUL bytes, which made ripgrep
-    treat it as BINARY and skip it — every grep-based audit in this repo
-    had a hole the size of the newsroom. purity.test.ts now fails on a NUL
-    in any engine source.
+### THE WAR SPEC — COMPLETE (owner spec, 2026-08-02, in three commits)
+7beaa4b · 15a4a29 · cfafbff, plus ADR-0022.
+  - **WAR LENGTH** is rolled at the outbreak: 2-15 years, quick when the
+    sides are mismatched, a grind when they are even. It is a ceiling —
+    weariness still ends a bloodbath early.
+  - **DIFFICULTY** is a country's combat rating (the owner's table for
+    Heartland; derived from strength for Classic's invented ones) plus what
+    its wars taught it — a point per decade of fighting, three at most. What
+    a soldier feels is the GAP between the two sides, not the enemy alone.
+  - **THE CALL TO ARMS** fires on DISTRESS, not a clock — his own answer,
+    and better than the spec's three-year timer: a country that is losing
+    badly asks for help, and a really bad war has asked before year five.
+    Allies who answer declare against the same enemy, so coalitions are
+    built out of ORDINARY PAIRWISE WARS and nothing in the war model had to
+    change. Measured: the homeland is pulled into ~2.4 wars it did not start
+    per 150 years, coalitions reach 7 countries.
+  - **ORDERS** needed no new plumbing at all — a war the homeland joined is
+    already a homeland war. What is new is that the player is ASKED: go, ask
+    to be excused (rarely granted, and a denial sends you anyway), or refuse
+    and take the court-martial — nine months, a misconduct discharge, and a
+    conviction the hiring gate reads for years.
+  - **THE ONE PLACE THE SPEC WAS NOT FOLLOWED**, recorded in ADR-0022 §4:
+    it says the player chooses whether their NATION joins a war. They do
+    not. There is no head-of-state seat in this design and Law 2 is why —
+    the player is one person, not a government. They get the decision the
+    charter says is theirs: whether THEY go.
 
 ### REAL COUNTRIES — SETTLED, option 3 (ADR-0021, commits 50d024e, 026f4ce)
 You picked 3: real countries, real (generated) wars. What that means now:
