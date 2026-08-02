@@ -625,7 +625,28 @@ enlistments 2.3-3.1/decade (NPCs DO join — a VISIBILITY problem),
 serving-at-once 0-8, tours 1-10/120y, contacts 1-11/120y, wounded 0-2,
 died-serving 1 across 360 sim-years, combat deaths ZERO. Item 3 is a
 real rarity, not bad luck; item 4 is surfacing, not rates.
-7. UNIT ROSTERS (owner round 4): "add unit info like who our squad members
+### M-ARMY2 IS COMPLETE (items 1, 3, 4, 4b, 5, 6, 7, 8, 3b-replacement).
+Final state: SIMULATION_VERSION 33, golden 99faffe2, schema v19, 343
+tests. Commits: 4d5b40c 400-town · a99626a enlistment · 4ec523d career+
+misconduct · dab8efa rotations · e6a2b4e review fixes+working-tab ·
+523b7c8 war lethality · ac9127f rosters+ally war · e3927fa wound diagram.
+STILL OPEN (small, carried): one military-scope review over rosters /
+ally-war support / field aid has NOT run (the batch shipped after the
+last review); DOMAIN_MAP §4 import-graph test still unwritten; survivor
+benefits; families on PCS; branch-appropriate bases; HYT on TIS;
+retirement PAY for the 20/30-year and age-62 discharges (reviewer S2 —
+pensionOf is disability-only, so a career retirement currently carries
+no money; finances/persistence own it).
+NEXT ARC after this: P3 (the surfaces — relationships tab, finances tab,
+record view, traits in words, D1 stats in-game) then W1-W3 world presets,
+or C2 (player crime) — see PLAYER_EXPERIENCE_AUDIT.
+
+7. UNIT ROSTERS — DONE (commit ac9127f). Derived (person, base) → squad,
+   so no schema moved and squadmates stay squadmates until a transfer;
+   roster sorts by rank then seniority so the leader is whoever holds it;
+   Service tab lists rank/name/role/away with each name clickable.
+   Original ask below.
+   UNIT ROSTERS (owner round 4): "add unit info like who our squad members
    are and our SGT etc like the rank structure of that unit." NEW
    STRUCTURE: soldiers belong to a squad/platoon/company at their base;
    the roster is other REAL simulated people with their real ranks; the
@@ -691,19 +712,22 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
    you feel like your apart of a special unit" — distinct moment kinds
    / mission texture for Pathfinders/Ember, not just the exposure
    multipliers M-SPECOPS gave them.
-3b. SIMULTANEOUS WARS (owner round 4): "Wars should also to be happening
-   at the same time like we should be able to be at war with 3 other
-   countries and get sent to any of them." THE MACHINERY IS ALREADY
-   THERE — issueOrders picks a war per person from ALL homeland wars
-   (deployment.ts), so a three-front republic already sends people to any
-   of them. What is missing is the GEOPOLITICS: M-GAMEDEPTH deliberately
-   cooled escalation to 1-1.5 homeland wars per CENTURY, so two at once
-   is near-impossible. This is a tuning decision with a real trade
-   (ADR-0019 pacing vs the owner's ask): raise concurrent-war odds for
-   the homeland specifically — e.g. a war makes further escalation MORE
-   likely for a window (opportunistic rivals, bloc obligations) instead
-   of the current blanket damping. Measure per century before and after;
-   demographics will move (more service, more casualties).
+3b. SIMULTANEOUS WARS — WITHDRAWN BY THE OWNER (round 6) and REPLACED by
+   the ally's war, which is DONE (commit ac9127f). Owner's words: "remove
+   this and edit the if a country we are allies with goes to war and send
+   us back to our home country we should actually be able to go and
+   deploy over there so that we can help and also get some combat time
+   ourself. Keep peacetime deployments and everything but I want the
+   option to be there as well so that we can get more combat if wanted."
+   SHIPPED: alliedWars() (same bloc, at peace with us, we are not a
+   belligerent); a 'support-deployment' pending when the host of your
+   rotation goes to war (stay-and-fight / go-home, NPCs roll 1-in-4 to
+   stay); volunteerForSupport() so a soldier can go LOOKING for an ally's
+   war in peacetime, offered ahead of a quiet rotation on the Service tab
+   button. Staying opens a real combat tour against the ally's enemy —
+   threatVectorFor reads that war's own state, so the permanent rule is
+   untouched. All three roads into a war (orders / volunteer / beside an
+   ally) share one startCombatTour opener.
 3. ARMY DEATHS — DONE (SIMULATION_VERSION 31, golden 7f4af7b0, commit
    523b7c8). ROOT CAUSE WAS ARITHMETIC: the fatal gate wanted severity
    >=940 from nextBellInt(300,1000) (centre 650) — a ~1000:1 draw — then
