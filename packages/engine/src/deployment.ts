@@ -175,7 +175,14 @@ export function threatVectorFor(war: GeoRelation, enemy: Nation, home?: Nation):
     baseAttack: scaled(Math.floor((reach * intensity * (phase === 'stalemate' ? 12 : 6)) / 1000)),
     // Operational tempo hurts by itself: vehicles, weather, fatigue — and it
     // does not care who is on the other side.
-    accident: 25 + Math.floor(intensity / 3),
+    //
+    // RAISED (owner: "fix the accident deaths too"). Measured at 25 + a
+    // third of intensity, four fifteen-year wars produced ZERO accident
+    // deaths — the channel wounded people and never killed one, in a model
+    // where non-hostile deaths are historically a fifth to a third of a
+    // war's dead. A helicopter goes down, a truck rolls, ordnance goes off
+    // on the wrong side of the wire.
+    accident: 90 + intensity,
   }
 }
 
@@ -1342,7 +1349,12 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // wounded-to-killed ratio near 5:1, where the real ones sit closer to
     // 2.5:1. The fatal band starts lower now. Contact is still not casualty
     // and most months hold neither.
-    const fatal = !aidComing && severity >= 640 && rng.chance(isAccident ? 1 : 2, 5)
+    // AN ACCIDENT IS NOT GENTLER THAN A FIREFIGHT. It used to be a fifth as
+    // likely to kill where enemy contact was two fifths, which is backwards
+    // for the things that actually cause it — a rollover, an aircraft going
+    // in, a round cooking off. The same odds now, because the vehicle does
+    // not care whose war it is.
+    const fatal = !aidComing && severity >= 640 && rng.chance(2, 5)
 
     const phaseFactor = factor('war-phase', war.warPhase === 'offensive' || war.warPhase === 'opening' ? 800 : 450)
     const chain = [
@@ -1555,7 +1567,11 @@ function resolveRotationMonth(
 
   // Rarely, and only at the tail — but it is real, and it is the same death
   // every other death uses. A vehicle on a wet road, a range gone wrong.
-  if (severity >= 900 && rng.chance(1, 4)) {
+  // WIDENED with the deployment accidents (owner). At 900 on a curve that
+  // rarely reaches it, times a quarter, a peacetime posting was very nearly
+  // survivable by construction — and peacetime training kills people every
+  // year in every real army.
+  if (severity >= 820 && rng.chance(1, 3)) {
     performDeath(world, tick, person, 'an accident on rotation', chain, Stream.CombatResolution)
     closeTour(world, tick, personId, currentDeployment(world, personId) ?? deployment, true)
     return

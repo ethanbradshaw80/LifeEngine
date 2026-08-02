@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v58 — ACCIDENTS KILL PEOPLE TOO (owner). Measured at v57: four wars,
+ *      seventy-two served, ZERO accident deaths — the channel almost never
+ *      won the month (four casualties across four wars) and was a fifth as
+ *      likely to kill as enemy contact when it did. The operational-tempo
+ *      threat is roughly three times what it was, and an accident kills at
+ *      the same rate as a firefight, because the vehicle does not care
+ *      whose war it is. Now about an eighth of a war's dead.
  * v57 — PEOPLE DIE IN WARS (owner). Measured at the old gates: four
  *      fifteen-year wars, 72 served, 177 contacts, 35 wounded, 7 killed —
  *      a wounded-to-killed ratio near 5:1 where real wars sit closer to
@@ -375,7 +382,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 57
+export const SIMULATION_VERSION = 58
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
