@@ -1018,9 +1018,22 @@ export function serviceNewsSince(
       if (record.dischargeReason !== 'died in service') continue
       const person = world.people.get(event.subjectId)
       if (!person) continue
+      // The event's own detail says what killed them. 'wounds taken in
+      // action' is the enemy; an accident on deployment is not, and neither
+      // is an illness in a theatre — the paper should not call any of those
+      // the same thing.
+      const cause = event.detail ?? ''
+      const killedInAction = cause.includes('wounds taken in action')
+      const howTheyDied = killedInAction
+        ? 'was killed in action'
+        : cause.includes('accident on deployment')
+          ? 'was killed in an accident on deployment'
+          : cause.includes('captivity')
+            ? 'died a prisoner'
+            : 'died in service'
       items.push({
         tick: event.tick,
-        text: `${person.givenName} ${person.familyName} died in service`,
+        text: `${person.givenName} ${person.familyName} ${howTheyDied}`,
         nearby: true,
         subjectId: person.id,
         kind: 'died-in-service',
@@ -1079,9 +1092,20 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
-  // Performance drifts toward what diligence can deliver, as at any work.
+  // HELD. Nothing about a month in a cell is a month of service: no course
+  // finishes, no training completes, no evaluation moves, and the term's
+  // own clock does not run.
+  const held = isCaptive(world, person.id)
+
+  // Performance drifts toward what diligence can deliver, as at any work —
+  // EXCEPT IN A CELL. Nobody is evaluating a prisoner, and letting the value
+  // drift meant a long captivity quietly improved the number the promotion
+  // boards read and the next term's Good Conduct is judged on. Freezing the
+  // running sum and not the value it comes from only fixed half of it.
   const pull = person.traits.diligence - record.performance
-  let performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
+  let performance = held
+    ? record.performance
+    : Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
 
   const specialty = specialtyFor(world, record.specialtyId)
   // The branch is the RECORD's, never re-derived from the trade. They are
@@ -1185,7 +1209,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   ) {
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
   }
-  if (monthsIn === 2) {
+  if (monthsIn === 2 && !held) {
     const basicDone = recordEvent(world, tick, {
       type: 'completed-training',
       subjectId: person.id,
@@ -1194,7 +1218,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // The first ribbon anybody gets, off the event that earns it.
     grantServiceRibbon(world, tick, person.id, basicDone)
     recordEvent(world, tick, { type: 'began-training', subjectId: person.id, detail: `${specialty.title} school` })
-  } else if (monthsIn === schoolDone) {
+  } else if (monthsIn === schoolDone && !held) {
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
     recordEvent(world, tick, {
       type: 'changed-post',
@@ -1535,7 +1559,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // MONTHS HELD DO NOT COUNT TOWARD THE TERM AVERAGE. They are not months
   // of service anybody can judge, and letting them in meant a captivity
   // quietly argued for the Good Conduct Medal at the end of it.
-  const heldThisMonth = isCaptive(world, person.id)
+
 
   // A CELL IS NOT A TERM OF SERVICE. Neither side of the average moves while
   // somebody is held: not the months, which the term counts, and not the
@@ -1543,7 +1567,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // on. Letting them move meant a captivity quietly argued for a decoration
   // for "a term of distinguished service, by the record" — and, because the
   // term kept counting down, could discharge a man in enemy hands.
-  const termMonthsLeft = heldThisMonth ? record.termMonthsLeft : record.termMonthsLeft - 1
+  const termMonthsLeft = held ? record.termMonthsLeft : record.termMonthsLeft - 1
 
   world.service.set(person.id, {
     ...record,
@@ -1560,7 +1584,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     termMonthsLeft,
     // The term's running ledger: good conduct is judged on the average of
     // every served month, not the last month's noise.
-    termPerformanceSum: heldThisMonth ? record.termPerformanceSum : record.termPerformanceSum + performance,
+    termPerformanceSum: held ? record.termPerformanceSum : record.termPerformanceSum + performance,
   })
 
   if (termMonthsLeft > 0) return
@@ -1966,7 +1990,20 @@ export function runSchools(world: World, tick: Tick): void {
     // graduating a course, collecting the badge and the ribbon that go with
     // it, from the other side of a war. The seat is KEPT in both cases — they
     // are away, not out — so the class resumes when they are home.
-    if (isCaptive(world, record.personId) || isDeployed(world, record.personId)) continue
+    if (isCaptive(world, record.personId) || isDeployed(world, record.personId)) {
+      // AWAY, SO THE CLASS DATE MOVES WITH THEM. Skipping alone left the
+      // date stale, and a stale date graduates on its own the month they
+      // get home — a badge for a course nobody sat in. The seat is held and
+      // the start rolls to the next class after they are back.
+      const away = world.spec.schools.find((sc) => sc.id === record.schoolId)
+      if (away !== undefined && record.schoolStartsAtTick !== null && tick >= record.schoolStartsAtTick) {
+        world.service.set(record.personId, {
+          ...record,
+          schoolStartsAtTick: nextClassTick(away, (tick + 1) as Tick),
+        })
+      }
+      continue
+    }
     if (record.dischargedAtTick !== null) {
       // Out of the service is out of the class.
       world.service.set(record.personId, { ...record, schoolId: null, schoolStartsAtTick: null })

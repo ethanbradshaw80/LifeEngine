@@ -883,7 +883,11 @@ function considerSeparation(world: World, tick: Tick): void {
     // marriage cannot. That asymmetry is the point of playing.
     const playerId = world.player.personId
     if (playerId !== null && (playerId === relationship.a || playerId === relationship.b)) {
-      raisePending(world, {
+      // ONLY IF IT LANDED — same reason as the house move. A marriage at its
+      // breaking point neither broke nor asked for every month a played
+      // character was held, which is a marriage frozen by a bug rather than
+      // by anything happening in it.
+      const asked = raisePending(world, {
         tick,
         kind: 'separation',
         personId: playerId,
@@ -894,7 +898,7 @@ function considerSeparation(world: World, tick: Tick): void {
         placeId: null,
         options: ['stay', 'separate'],
       })
-      continue
+      if (asked) continue
     }
 
     performSeparation(world, tick, relationship, [])

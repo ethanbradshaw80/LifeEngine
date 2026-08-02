@@ -487,7 +487,13 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
 
     const playerId = world.player.personId
     if (playerId !== null && household.memberIds.includes(playerId)) {
-      raisePending(world, {
+      // ONLY IF IT LANDED. raisePending refuses while another question is up
+      // — and, since the captivity guard, every month a played character is
+      // held. Continuing regardless meant the household never downsized for
+      // the whole captivity while rent and debt kept running. The prisoner
+      // cannot be asked; the family can still act, so an unasked month falls
+      // through to the automatic move below.
+      const asked = raisePending(world, {
         tick,
         kind: 'move-house',
         personId: playerId,
@@ -506,7 +512,7 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
             .map((p) => `to-${String(p.id)}`),
         ],
       })
-      continue
+      if (asked) continue
     }
 
     world.households.set(household.id, { ...household, placeId: target.id })

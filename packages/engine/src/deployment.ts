@@ -233,14 +233,18 @@ const SPELLED = [
   'sixteen', 'seventeen', 'eighteen',
 ]
 
-function stampDate(world: World, tick: Tick, day: number, short: boolean): string {
-  // The paperwork runs on 30-day months so a lead time can roll into the
-  // next one without the document claiming a date the calendar lacks.
-  const rolled = (tick + Math.floor((day - 1) / 30)) as Tick
-  const dayOfMonth = ((day - 1) % 30) + 1
-  const { year, month } = toDate(world, rolled)
+/**
+ * A date the sheet is allowed to claim.
+ *
+ * THE CLOCK IS MONTHLY, so the sheet says months. The first draft drew a
+ * day of the month off the seeded stream — deterministic, but a date the
+ * world does not have, and it read as simply wrong beside the game's own
+ * "June 1981". Paperwork may be flavour; a date is a fact.
+ */
+function stampDate(world: World, tick: Tick, monthsAhead: number, short: boolean): string {
+  const { year, month } = toDate(world, (tick + monthsAhead) as Tick)
   const name = ORDER_MONTHS[month - 1] ?? 'JANUARY'
-  return `${String(dayOfMonth).padStart(2, '0')} ${short ? name.slice(0, 3) : name} ${String(year)}`
+  return `${short ? name.slice(0, 3) : name} ${String(year)}`
 }
 
 /**
@@ -266,8 +270,9 @@ export function ordersSheetFor(
   const specialty = specialtyFor(world, record.specialtyId)
   const garrison = base?.name ?? 'the garrison'
 
-  const issuedDay = 1 + rng.nextInt(0, 19)
-  const lead = 14 + rng.nextInt(0, 14)
+  // Report by the end of the month, or the next one. The lead time is the
+  // only thing here the calendar does not already decide.
+  const lead = rng.nextInt(0, 1)
   const sequence = 100 + rng.nextInt(0, 899)
   const generalOrder = 10 + rng.nextInt(0, 89)
   const officerFamily = rng.pickWeighted(
@@ -298,7 +303,7 @@ export function ordersSheetFor(
     command: `${branchName(world, record.branch)} Command · ${garrison}`,
     ordersNo: `${variant === 'rotation' ? 'R' : 'D'}-${String(year)}-${String(sequence).padStart(4, '0')}`,
     controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
-    issued: stampDate(world, tick, issuedDay, false),
+    issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
     rank: `${rankTitle(world, record.branch, record.rank)} (E-${String(record.rank + 1)})`,
     specialty: specialty.title,
@@ -308,8 +313,8 @@ export function ordersSheetFor(
     frontName,
     tourMonths,
     tourText: `${spelledTour} (${String(tourMonths)}) months`,
-    reportBy: stampDate(world, tick, issuedDay + lead, false),
-    reportByShort: stampDate(world, tick, issuedDay + lead, true),
+    reportBy: stampDate(world, tick, lead, false),
+    reportByShort: stampDate(world, tick, lead, true),
     authority: `General Order ${String(generalOrder)}, ${garrison} Command`,
     signedBy: `${officerInitial}. ${officerFamily.toUpperCase()}`,
     signedRole: `Adjutant · ${garrison} Command`,
@@ -806,6 +811,17 @@ export function answerSupportDeployment(
  * (review S3 — the player's wounds were half again as lethal as anyone
  * else's, and standing near a player medic was dangerous).
  */
+/**
+ * Out there AND able to act. A prisoner still has an open tour, so
+ * `isDeployed` says yes for him — and this predicate is used to promise the
+ * player a decision. Promising one that cannot be raised suppressed a
+ * casualty's fatal roll on a decision nobody was ever asked (review S3's
+ * invariant, broken by the captivity guard).
+ */
+function isDeployedAndFree(world: World, personId: EntityId): boolean {
+  return isDeployed(world, personId) && !isCaptive(world, personId)
+}
+
 export function fieldAidWillBeOffered(
   world: World,
   casualtyId: EntityId,
@@ -821,7 +837,7 @@ export function fieldAidWillBeOffered(
   }
   const record = world.service.get(playerId)
   if (!record || record.dischargedAtTick !== null || record.specialtyId !== 'medic') return false
-  if (!isDeployed(world, playerId)) return false
+  if (!isDeployedAndFree(world, playerId)) return false
   const casualty = world.people.get(casualtyId)
   if (!casualty || casualty.deathTick !== null) return false
   if (!squadmatesOf(world, playerId).some((mate) => mate.personId === casualtyId)) return false

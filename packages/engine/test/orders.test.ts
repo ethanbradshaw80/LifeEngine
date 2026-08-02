@@ -10,7 +10,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
+import { toDate } from '../src/clock.js'
 import { ordersSheetFor } from '../src/deployment.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -45,6 +46,11 @@ function aSoldier(world: World): EntityId {
   })
   return person.id
 }
+
+const MONTHS = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+]
 
 describe('orders', () => {
   it('reads the record, and says the same thing every time it is read', () => {
@@ -91,6 +97,25 @@ describe('orders', () => {
     const rotation = ordersSheetFor(world, world.tick, personId, 'rotation', enemy.id)
     expect(rotation?.title).toBe('ROTATION ORDERS')
     expect(rotation?.carriesAwolWarning).toBe(false)
+  })
+
+  it('claims no date the world does not have', () => {
+    // THE CLOCK IS MONTHLY. The first draft drew a day of the month off the
+    // seeded stream — deterministic, but "14 JUNE 1981" beside a game that
+    // only knows June 1981 reads as simply wrong, which is how the owner
+    // read it. The sheet says exactly what the game's own clock says.
+    const world = createWorld(makeSeed(6103), 40)
+    advanceTicks(world, 137)
+    const personId = aSoldier(world)
+    const enemy = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[0]
+    if (!enemy) throw new Error('no enemy')
+    const sheet = ordersSheetFor(world, world.tick, personId, 'involuntary', enemy.id)
+    const { year, month } = toDate(world, world.tick)
+    expect(sheet?.issued).toBe(`${MONTHS[month - 1] ?? ''} ${String(year)}`)
+    // And the report-by is this month or the next — never a day, never a
+    // date behind the orders.
+    expect(sheet?.reportBy).toMatch(/^[A-Z]+ \d{4}$/)
+    expect(sheet?.issued).not.toMatch(/\d{2} /)
   })
 
   it('refuses to write orders for somebody who is not serving', () => {
