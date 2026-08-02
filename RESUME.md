@@ -65,10 +65,11 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `a2a064f`.
+**STATE:** clean tree, everything pushed, HEAD `6ee7ad8`.
 SIMULATION_VERSION **41** · golden **7ddc1784** · SCHEMA_VERSION **21** ·
-**415 tests**, all green. P3 shipped and reviewed; W1 shipped most of the
-way and reviewed twice (architecture + persistence), every finding fixed.
+**446 tests**, all green. P3 COMPLETE and reviewed. W1 COMPLETE and reviewed
+three times (architecture ×2 + persistence); seven must-fixes found across
+them, all fixed.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -78,25 +79,30 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
-**W1 IS PART DONE** — see the W1 record below for exactly what landed and
-what did not. What remains, in order:
-  - **W1 rest, and it is now small: service CONTENT and START_YEAR onto
-    the spec.** Branches are already data (resistance 3 is done). What is
-    left in content.ts as globals: SPECIALTIES, SERVICE_SCHOOLS,
-    SPECIAL_UNITS, decoration titles, and START_YEAR in clock.ts. Same
-    pattern as branches — shape in types.ts, Classic's data assembled from
-    the existing tables, resolved through the world. Then run
-    architecture-reviewer and call W1 done.
-  - **W2 the American Heartland preset.** The rulings are already written
-    in WORLD_MODES_PLAN.md's table; W2 turns them into content and lands
-    the TWO constitution amendments with its ADR (foundation §3 "all
-    countries fictional" → foreign only; CLAUDE.md §3 branches vs units).
-    military-scope-reviewer is MANDATORY for it.
-  - **W3 place depth.** Where "families follow a PCS" and
-    "branch-appropriate bases" finally become possible.
+**1. W2 — THE AMERICAN HEARTLAND PRESET** (`docs/WORLD_MODES_PLAN.md`,
+ADR-0020). W1 is done: the seam exists and is proved, so W2 is now mostly
+CONTENT plus two constitution amendments.
+  - The rulings are already written in WORLD_MODES_PLAN.md's table — real
+    US state/county frame, REALISTIC-FICTIONAL town and streets, homeland =
+    the United States, REAL branch names with NO insignia, real
+    installation names, era-weighted name pools, its own START_YEAR.
+    FOREIGN NATIONS AND NAMED UNITS STAY FICTIONAL, permanently.
+  - THE TWO AMENDMENTS LAND WITH ITS ADR, not before:
+    MILITARY_AND_WAR_FOUNDATION §3 "all countries fictional" → foreign
+    only; CLAUDE.md §3 "military units are fictional" → distinguishes
+    BRANCHES (real, name-only, per preset) from UNITS (always fictional).
+  - **military-scope-reviewer is MANDATORY** for it.
+  - Watch for: era-weighted names make the calendar year an INPUT rather
+    than a label, which is the moment startYear may need to move from the
+    spec to the save header (see the W1 record below).
+  - The UI has no preset PICKER yet. The worker's 'new world' message takes
+    a presetId; nothing sends one.
 
-**2. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
+**2. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
+priors — and the two military items deferred since M-ARMY2 ("families
+follow a PCS", "branch-appropriate bases") which need real geography.
+
+**3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
 record-fade gates, the victim's side as player experience.
 
@@ -147,79 +153,38 @@ event field. SIMULATION_VERSION 40, golden 4930be31, schema UNCHANGED.
     drawn person, which is a mouthful; the P3 audit's "Record view" item
     was already delivered by C2's Record tab.
 
-### W1 — PART DONE (the WorldSpec; commits 298fb0e, 1ee4dcb)
-Landed, all reviewed by test rather than by agent (the arc is not finished,
-so no milestone review yet — RUN architecture-reviewer BEFORE calling W1
-done):
-  - `packages/engine/src/worldspec.ts` holds the presets; the SHAPE lives
-    in types.ts because types.ts imports nothing but shared, and putting
-    it there is what stops worldspec → content → types closing a cycle.
-  - `createWorld(seed, population, spec = CLASSIC_SPEC)`; the world
-    carries `world.spec` for life. Name pools, gazetteer (town, school,
-    streets, workplaces, civic, bases) and foreign nation names all come
-    from it.
-  - Save header records the preset ID (schema v21; migration names every
-    older save 'classic'). NOT in the engine snapshot — the fingerprint
-    describes the town, not the recipe, which is why **Classic's golden
-    hash did not move**. That was W1's stated exit criterion.
-  - `specById` NEVER throws: a save from a later build with an unknown
-    preset loads as Classic (resistance 2).
-  - RESISTANCE 4 fixed (SIMULATION_VERSION 41): 'joined-unit',
-    'dropped-selection' and 'passed-over' carried DISPLAY NAMES in their
-    detail and two of them were string-matched to enforce the two-drop cap
-    and count prior non-selections. They carry the unit id and the ladder
-    index now; story.ts makes the words, falling back to the detail as
-    written so pre-W1 saves still read correctly.
-  - RESISTANCE 6 fixed: "the Republic" and "Haverlock" are gone from
-    engine and UI prose; a test fails if the literal reappears inside any
-    engine string.
-  - Found on the way: nations were named `i % pool.length`, so a preset
-    with fewer than twelve names would have produced four countries called
-    the same thing. Count is a balance constant, names are the preset's; a
-    short pool gets fewer nations, never duplicates.
-  - RESISTANCE 3 fixed (commit 86d7bdf): ServiceBranch was a compile-time
-    union keying FIVE Records in content.ts. It is one ServiceBranchSpec
-    object per service now, carried on the spec, resolved with
-    `branchSpecFor(world, id)` — which never returns undefined, because a
-    record naming a service the preset does not have must still load.
-    rankTitle/branchName/competitiveGates all take the world now (~20 call
-    sites). Verified live: the town list still reads "SSgt — signals
-    operator", "PV2 — rifleman".
-  - THE IMPORT RATCHET EARNED ITS KEEP: reaching for branchName inside
-    awards.ts added `awards → service`, and service imports awards. ONE new
-    edge, and the cycle test reported FOURTEEN new cycles because it
-    re-grouped half the graph. Fixed by reading the branch off world.spec
-    inline. That test was added at the end of M-ARMY2 for exactly this.
-  - persistence-reviewer found a real must-fix (commit 7c9e6bd): a world
-    whose preset this build does not know ran on Classic content — correct
-    — but the next save wrote 'classic' into its header, and the autosave
-    fires 600ms after any change. The world now carries `presetId` (what it
-    SAYS it is) beside `spec` (what this build can serve), and a test
-    round-trips an unknown preset twice.
-  - architecture-reviewer found THREE must-fix (commit a2a064f), all real,
-    and the worst would have crashed a birth: deliverChild drew the NAME
-    from the spec and the WEIGHTS from the module constants, so any preset
-    whose pool is a different length threw a RangeError on the first child
-    — inside the tick, inside the worker. The custom-spec test never
-    advanced a tick, so nobody was ever born to catch it. Also: servicePay
-    still read the compile-time tables (rendered fine, died the next
-    payday), and branchSpecFor's branches[0] fallback substituted a whole
-    LADDER, which re-reads every rank index and turns a 20-year career
-    ceiling into 30. An unknown branch is an honest BLANK now.
-NOT done, and the reviewer corrected my list — see WORLD_MODES_PLAN.md's
-W1 bullet for the full ordering. The short version:
-  1. **SPECIALTIES onto the spec** is the keystone: every branch id that
-     reaches a service record comes from `specialty.branch`, so
-     `spec.branches` is decorative until this moves.
-  2. **Homeland identity** ('the Republic' in geopolitics.ts) — W2's whole
-     premise, and it was missing from the plan's own open list.
-  3. **START_YEAR** — trivial mechanically (nothing in the tick path reads
-     the calendar year) but a DESIGN decision: if it is ever
-     player-selectable it belongs in the save header beside presetId, not
-     only on the spec. Do it before era-weighted names make the year a
-     determinism input.
-  4. NEWS_STATION, the two throwing lookups (specialtyById/occupationById),
-     and a preset seam in the worker's 'new world' message.
+### W1 — COMPLETE (the WorldSpec; reviewed three times)
+Commits 298fb0e · 1ee4dcb · 86d7bdf · 7c9e6bd · a2a064f · 7f5f021 ·
+4850c53 · 6129fb4 · afabf0d · cf0aa54 · 6ee7ad8.
+EVERYTHING a preset decides now comes from `world.spec`: name pools, the
+gazetteer (town, school, streets, workplaces, civic places, bases, news
+station), the homeland's name, the foreign nations, the service branches
+(name, ladder, pay grades, competitive threshold, junior TIG), the trades,
+the schools, the units, and the start year. `createWorld(seed, pop, spec)`;
+the save header records the preset id (schema v21; migration names every
+older save 'classic'); the worker's 'new world' message can carry one.
+**CLASSIC'S GOLDEN HASH NEVER MOVED** — the whole extraction is a proved
+pure refactor, which was the stated exit criterion.
+  - Resolution lives in ONE place (worldspec.ts) and every resolver is
+    TOTAL: branchSpecFor / specialtyFor / schoolFor / unitFor / specById /
+    occupationById. An id out of a save can no longer throw inside the
+    tick. An unresolvable branch is a BLANK, never a substitution — a rank
+    is an INDEX, so serving another service's ladder rewrites a career.
+  - Resistances 2, 3, 4 and 6 are CLOSED. **1 stands and always will**:
+    presets with different place counts or ORDER produce different people
+    from the same seed (place ids lead person ids lead trait streams), so a
+    save can never be switched to another preset.
+  - SEVEN MUST-FIXES across three reviews, every one real. The two worth
+    remembering: (a) newborn names drew from the spec's pool with the
+    MODULE's weights — a RangeError on the first birth under any
+    differently-sized pool, and the custom-spec test that existed never
+    advanced a tick so nobody was ever born to catch it; (b) the
+    enumerations still read Classic's tables long after the resolvers did
+    not, so a preset's own trades would never have been offered to anyone.
+  - AND: newsroom.ts contained two literal NUL bytes, which made ripgrep
+    treat it as BINARY and skip it — every grep-based audit in this repo
+    had a hole the size of the newsroom. purity.test.ts now fails on a NUL
+    in any engine source.
 
 ### RULES THAT KEEP BITING (read these before writing code)
 
