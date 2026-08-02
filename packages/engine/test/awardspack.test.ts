@@ -11,6 +11,9 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { closeTour, currentDeployment } from '../src/deployment.js'
+import { homeland } from '../src/geopolitics.js'
+import { decorationsOf } from '../src/awards.js'
 import {
   ACHIEVEMENT_TITLE,
   COMBAT_ACTION_BADGE,
@@ -156,7 +159,7 @@ describe('no award exists that cannot be earned', () => {
     expect(grantServiceRibbon(world, world.tick, personId as never, wrong)).toBeNull()
     expect(grantNcoDevelopment(world, world.tick, personId as never, wrong, 'small-unit leader')).toBeNull()
     expect(grantAchievement(world, world.tick, personId as never, wrong, 900)).toBeNull()
-    expect(grantOverseas(world, world.tick, personId as never, wrong)).toBeNull()
+    expect(grantOverseas(world, world.tick, personId as never, wrong, '')).toBeNull()
     expect(grantCommendation(world, world.tick, personId as never, wrong, 600)).toBeNull()
     expect(grantCombatMerit(world, world.tick, personId as never, wrong, 900)).toBeNull()
 
@@ -203,7 +206,7 @@ describe('no award exists that cannot be earned', () => {
       subjectId: personId as never,
       detail: 'rotation complete',
     })
-    expect(grantOverseas(world, world.tick, personId as never, home)?.title).toBe(OVERSEAS_TITLE)
+    expect(grantOverseas(world, world.tick, personId as never, home, 'Chile')?.title).toBe(OVERSEAS_TITLE)
 
     const war = recordEvent(world, world.tick, { type: 'wartime-service', subjectId: personId as never })
     expect(grantNationalDefense(world, world.tick, personId as never, war)?.title).toBe(
@@ -330,5 +333,85 @@ describe('the ribbons show up in a real career', () => {
       }
     }
     expect(anyAward).toBeGreaterThan(0)
+  })
+})
+
+describe('one award per deployment', () => {
+  it('a rotation earns the ribbon, a war earns the medal, and never both for one trip', () => {
+    // THE OWNER'S BUG: a tour closed with the Overseas Service Ribbon AND
+    // the Expeditionary Medal, handed over the same month for the same trip
+    // and described almost the same way. It read as two of one thing.
+    const world = createWorld(makeSeed(6600), 60)
+    const personId = aSoldier(world)
+    const home = homeland(world)
+    const enemy = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[0]
+    const ally = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[1]
+    if (!home || !enemy || !ally) throw new Error('no world to serve in')
+
+    // A peacetime posting: the ribbon that says you went, and no medal.
+    world.deployments.set(personId as never, [
+      {
+        personId: personId as never,
+        kind: 'rotation',
+        warA: null,
+        warB: null,
+        enemyId: null,
+        hostId: ally.id,
+        startedAtTick: world.tick,
+        endsAtTick: (world.tick + 6) as never,
+        returnedAtTick: null,
+        tourNumber: 1,
+        capturedAtTick: null,
+      },
+    ])
+    closeTour(world, world.tick, personId as never, currentDeployment(world, personId as never)!, false)
+
+    const afterRotation = decorationsOf(world, personId as never)
+    expect(afterRotation.some((a) => a.kind === 'overseas')).toBe(true)
+    expect(afterRotation.some((a) => a.kind === 'campaign'), 'a rotation is not a campaign').toBe(false)
+    // And the ribbon names where they went.
+    expect(afterRotation.find((a) => a.kind === 'overseas')?.citation).toContain(ally.name)
+  })
+
+  it('a second posting is the same ribbon worn again, with both places on it', () => {
+    const world = createWorld(makeSeed(6601), 60)
+    const personId = aSoldier(world)
+    const nations = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)
+    const first = nations[0]
+    const second = nations[1]
+    if (!first || !second) throw new Error('need two allies')
+
+    let tourNumber = 1
+    for (const host of [first, second, first]) {
+      const tours = world.deployments.get(personId as never) ?? []
+      world.deployments.set(personId as never, [
+        ...tours,
+        {
+          personId: personId as never,
+          kind: 'rotation',
+          warA: null,
+          warB: null,
+          enemyId: null,
+          hostId: host.id,
+          startedAtTick: world.tick,
+          endsAtTick: (world.tick + 6) as never,
+          returnedAtTick: null,
+          tourNumber,
+          capturedAtTick: null,
+        },
+      ])
+      closeTour(world, world.tick, personId as never, currentDeployment(world, personId as never)!, false)
+      tourNumber += 1
+    }
+
+    // ONE ribbon, not three.
+    const overseas = decorationsOf(world, personId as never).filter((a) => a.kind === 'overseas')
+    expect(overseas.length).toBe(1)
+    const ribbon = overseas[0]
+    expect(ribbon?.count, 'a device for each posting').toBe(3)
+    // And it says where, with the repeats counted: "X ×2, Y".
+    expect(ribbon?.citation).toContain(first.name)
+    expect(ribbon?.citation).toContain(second.name)
+    expect(ribbon?.citation).toContain('×2')
   })
 })

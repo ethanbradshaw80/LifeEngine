@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v52 — ONE AWARD PER DEPLOYMENT (owner). A tour used to close with the
+ *      Overseas Service Ribbon and the Expeditionary Medal both, for the
+ *      same trip and described almost the same way. A peacetime posting
+ *      earns the ribbon; a war earns the medal; each is worn again with its
+ *      place named in the citation. Fewer decorations on every serving
+ *      record than v51, which moves the boards that count them.
  * v51 — The review pass on aviation: the Air Medal is minted only for the
  *      channel that means they went up (a base attack is a night in a
  *      shelter, not a sortie); the senior parachutist is earnable by NPCs,
@@ -335,7 +341,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 51
+export const SIMULATION_VERSION = 52
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

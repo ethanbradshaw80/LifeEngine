@@ -312,6 +312,8 @@ export function grantCampaignMedal(
   enemyName: string,
   monthsInTheatre: number,
   casualty: boolean,
+  /** Every campaign so far, tallied: "Venezuela ×2, Chile ×1". */
+  campaigns?: string,
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (
@@ -338,7 +340,13 @@ export function grantCampaignMedal(
     kind: 'campaign',
     title: EXPEDITIONARY_MEDAL,
     qualifying,
-    citation: `service in the campaign against ${enemyName}`,
+    // ONE MEDAL, A DEVICE AND A LINE PER CAMPAIGN. Two tours against two
+    // countries is this medal worn twice, and the citation is where the
+    // campaigns are named.
+    citation:
+      campaigns === undefined || campaigns === ''
+        ? `service in the campaign against ${enemyName}`
+        : `service in the campaigns against ${campaigns}`,
     inputs: [factor('campaign-service', Math.min(1000, monthsInTheatre * 100))],
   })
 }
@@ -440,6 +448,11 @@ function grant(world: World, tick: Tick, personId: EntityId, spec: GrantSpec): A
       ...already,
       count: already.count + 1,
       qualifyingEventIds: [...already.qualifyingEventIds, spec.qualifying.id],
+      // AND THE CITATION IS REWRITTEN, not frozen at the first award. A
+      // ribbon that accumulates devices is one award for several tours, so
+      // its words have to describe all of them — "Chile ×2, Korea ×1" —
+      // rather than describing the first one forever.
+      citation: spec.citation,
     }
     world.awards.set(
       personId,
@@ -637,15 +650,21 @@ export function grantOverseas(
   tick: Tick,
   personId: EntityId,
   qualifying: WorldEvent,
+  /** Every posting so far, tallied: "Chile ×2, Korea ×1". */
+  places: string,
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'returned-home') return null
 
+  // ONE RIBBON, A DEVICE AND A LINE PER POSTING (owner, 2026-08-02). A
+  // second tour abroad is not a second ribbon — it is this ribbon, worn
+  // again — and the citation is where the places live, so a rack can say
+  // where a life was spent instead of saying "overseas" twice.
   return grant(world, tick, personId, {
     kind: 'overseas',
     title: OVERSEAS_TITLE,
     qualifying,
-    citation: 'for a tour of duty overseas',
+    citation: places === '' ? 'for a tour of duty overseas' : `for tours of duty overseas — ${places}`,
     inputs: [factor('under-orders', 300)],
   })
 }

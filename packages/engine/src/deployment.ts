@@ -1524,7 +1524,33 @@ function resolveRotationMonth(
   if (severity >= 600) closeTour(world, tick, personId, deployment, true)
 }
 
-function closeTour(
+/**
+ * Where somebody has been, tallied: "Chile ×2, Korea ×1".
+ *
+ * Read from the CLOSED TOURS themselves rather than parsed back out of a
+ * citation string, so the words on the ribbon and the record underneath
+ * cannot drift apart. `of` picks which side of the tour counts — the host
+ * of a rotation, or the enemy of a campaign.
+ */
+function tourTally(world: World, personId: EntityId, of: 'host' | 'enemy'): string {
+  const counts = new Map<string, number>()
+  for (const tour of world.deployments.get(personId) ?? []) {
+    if (tour.returnedAtTick === null) continue
+    if (of === 'host' && tour.kind !== 'rotation') continue
+    if (of === 'enemy' && tour.kind !== 'combat') continue
+    const nationId = of === 'host' ? tour.hostId : tour.enemyId
+    if (nationId === null) continue
+    const name = world.nations.get(nationId)?.name
+    if (name === undefined) continue
+    counts.set(name, (counts.get(name) ?? 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([name, n]) => (n === 1 ? name : `${name} ×${String(n)}`))
+    .join(', ')
+}
+
+export function closeTour(
   world: World,
   tick: Tick,
   personId: EntityId,
@@ -1548,13 +1574,15 @@ function closeTour(
     detail: reason ?? (medical ? 'evacuated' : deployment.kind === 'rotation' ? 'rotation complete' : 'tour complete'),
   })
 
-  // THE OVERSEAS SERVICE RIBBON (awards pack): a tour outside the homeland,
-  // whether or not anybody shot at you. That is the point of it — it says
-  // you went, not that you fought — so it hangs off the homecoming itself
-  // and covers the peacetime rotations too.
-  grantOverseas(world, tick, personId, homecoming)
-
+  // ONE AWARD PER DEPLOYMENT (owner, 2026-08-02). A tour used to close with
+  // the Overseas Service Ribbon AND the Expeditionary Medal, both handed
+  // over the same month for the same trip and described almost the same way
+  // — which read as the game giving out two of one thing. The peacetime
+  // posting earns the ribbon that says you went; the war earns the medal
+  // that says which campaign. Each is worn again, with a device and its
+  // place named in the citation, for every tour after the first.
   if (deployment.kind === 'rotation') {
+    grantOverseas(world, tick, personId, homecoming, tourTally(world, personId, 'host'))
     // No campaign medal — a campaign is a war. What a completed rotation
     // earns is what the work earns: a better standing at the next board.
     // A recall or an evacuation is not a completed rotation.
@@ -1572,6 +1600,7 @@ function closeTour(
     grantCampaignMedal(
       world, tick, personId, homecoming, enemyName,
       tick - deployment.startedAtTick, medical,
+      tourTally(world, personId, 'enemy'),
     )
   }
 }
