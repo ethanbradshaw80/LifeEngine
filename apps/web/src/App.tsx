@@ -3,19 +3,17 @@ import {
   advanceTicks,
   ageAt,
   createWorld,
-  fertilityCohort,
   formatDate,
   fullName,
   isServing,
   livingPeople,
-  partneringFunnel,
   personSummary,
   worldHashHex,
-  yearlyDemographics,
   courtOutcomeOf,
 } from '@life-engine/engine'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
+import { TownStats } from './TownStats.js'
 import { PersonDetail } from './PersonDetail.js'
 import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
 import { VerdictSheet } from './VerdictSheet.js'
@@ -133,17 +131,6 @@ export function App() {
 
     return { people: shown, deadCount: dead.length }
   }, [world, filter])
-
-  // Demographics recompute per world snapshot, not per keystroke — same
-  // pattern as the person list above (review D1-5).
-  const demographics = useMemo(() => {
-    if (!world) return null
-    return {
-      rows: yearlyDemographics(world),
-      funnel: partneringFunnel(world),
-      cohort: fertilityCohort(world),
-    }
-  }, [world])
 
   const selectedStillKnown = selected !== null && world !== null && world.people.has(selected)
 
@@ -374,56 +361,7 @@ export function App() {
 
       <details className="panel demographics" aria-label="Town demographics">
         <summary>📊 Demographics — {livingPeople(world).length} living</summary>
-        {demographics !== null && (() => {
-          const { rows, funnel, cohort } = demographics
-          const recent = rows.slice(-12)
-          const fertilityTenths =
-            cohort.completedWomen > 0 ? Math.round((cohort.totalChildren * 10) / cohort.completedWomen) : null
-          return (
-            <>
-              <table className="demo-table">
-                <thead>
-                  <tr>
-                    <th>Year</th>
-                    <th>Pop</th>
-                    <th>Births</th>
-                    <th>Deaths</th>
-                    <th>Weddings</th>
-                    <th>Courtships</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((r) => (
-                    <tr key={r.year}>
-                      <td>{r.year}</td>
-                      <td>{r.population}</td>
-                      <td>{r.births}</td>
-                      <td>{r.deaths}</td>
-                      <td>{r.marriages}</td>
-                      <td>{r.courtshipsBegun}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted">
-                Adults 18–45: {funnel.adults} — {funnel.marriedNow} married, {funnel.courtingNow} courting,{' '}
-                {funnel.singleNow} single ({funnel.neverPartnered} never partnered).{' '}
-                {funnel.formerlyPartneredAlone} widowed or divorced and alone; {funnel.remarriagesEver} remarriages
-                ever.
-                {cohort.completedWomen > 0 && fertilityTenths !== null && (
-                  <>
-                    {' '}
-                    Completed families: {cohort.completedWomen} women past 42 raised {cohort.totalChildren} children
-                    (about {Math.floor(fertilityTenths / 10)}.{fertilityTenths % 10} each; {cohort.childlessWomen} had
-                    none
-                    {cohort.medianAgeAtMarriage !== null && <>; median age at marriage {cohort.medianAgeAtMarriage}</>}
-                    ).
-                  </>
-                )}
-              </p>
-            </>
-          )
-        })()}
+        <TownStats world={world} />
       </details>
 
       <div className="columns">

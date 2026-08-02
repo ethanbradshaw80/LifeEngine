@@ -39,6 +39,7 @@ import {
   formatYear,
   fullName,
   householdLedger,
+  livingPeople,
   monthlyNetOf,
   newsSince,
   OCCUPATIONS,
@@ -86,6 +87,7 @@ import {
 import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
+import { TownStats } from './TownStats.js'
 import type { VerbRequest } from './engine.worker.js'
 
 /** One glyph per event type. Emoji: zero assets, universally shipped. */
@@ -155,7 +157,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   died: '⚰️',
 }
 
-type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'jobs' | 'news' | 'service' | 'health' | 'record'
+type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'jobs' | 'news' | 'stats' | 'service' | 'health' | 'record'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -170,6 +172,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'service', icon: '🪖', label: 'Service' },
   { id: 'health', icon: '🩺', label: 'Health' },
   { id: 'record', icon: '⚖️', label: 'Record' },
+  { id: 'stats', icon: '📊', label: 'Town' },
 ]
 
 const SCHOOLING_WORDS: Record<EducationLevel, string> = {
@@ -234,12 +237,23 @@ function compatibilityWords(score: number): string {
 
 /** e.g. "12 years", "7 months". Whole units, the way people say them. */
 function spanWords(months: number): string {
-  if (months < 24) {
-    const m = Math.max(0, months)
-    return `${m} ${m === 1 ? 'month' : 'months'}`
-  }
+  if (months < 1) return 'less than a month'
+  if (months < 24) return `${months} ${months === 1 ? 'month' : 'months'}`
   const years = Math.floor(months / 12)
   return `${years} years`
+}
+
+/**
+ * How long a tie has been what it is — or nothing, when the answer predates
+ * the record. Worldgen marries the founding couples at tick 0 precisely
+ * BECAUSE their wedding happened before the simulation began ("formedAtTick
+ * is 0 rather than invented"), so counting from there would put a number on
+ * a date the engine deliberately does not know. Law 6: unrecorded history
+ * stays unrecorded.
+ */
+function tieSpan(from: number, tick: number): string | null {
+  if (from <= 0) return null
+  return spanWords(tick - from)
 }
 
 /** A tie's strength as a bar. Decorative twin of the words beside it. */
@@ -633,7 +647,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     <span className="balance-sub">
                       {ledger.inArrears
                         ? 'behind — nothing goes on lifestyle until it is clear'
-                        : `${formatMoney(ledger.net)} a month is staying put`}
+                        : ledger.net < 0
+                          ? `${formatMoney(-ledger.net as Money)} a month more goes out than comes in`
+                          : `${formatMoney(ledger.net)} a month is staying put`}
                     </span>
                   </div>
 
@@ -878,9 +894,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <div className="tie-head">
                             <PersonLink world={world} id={otherId} onInspect={onInspect} />
                             <span className="muted small">
-                              {married ? 'married' : 'courting'} {spanWords(world.tick - tie.typeSinceTick)}
-                              {' · known '}
-                              {spanWords(world.tick - tie.formedAtTick)}
+                              {(() => {
+                                const since = tieSpan(tie.typeSinceTick, world.tick)
+                                const known = tieSpan(tie.formedAtTick, world.tick)
+                                const word = married ? 'married' : 'courting'
+                                if (since === null) return `${word} since before the record began`
+                                return known === null
+                                  ? `${word} ${since}`
+                                  : `${word} ${since} · known ${known}`
+                              })()}
                             </span>
                           </div>
                           <div className="tie-gauge">
@@ -962,7 +984,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <div className="tie-head">
                             <PersonLink world={world} id={friendId} onInspect={onInspect} />
                             <span className="muted small">
-                              known {spanWords(world.tick - tie.formedAtTick)}
+                              {tieSpan(tie.formedAtTick, world.tick) === null
+                                ? 'known since before the record began'
+                                : `known ${String(tieSpan(tie.formedAtTick, world.tick))}`}
                               {them !== undefined && ` · ${String(ageAt(them.birthTick, world.tick))}`}
                             </span>
                           </div>
@@ -1110,6 +1134,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             you fit it. Schooling, a clean record and good performance are what
             get you noticed.
           </p>
+        </div>
+      )}
+
+      {tab === 'stats' && (
+        <div className="panel" aria-label="The town">
+          {/* P3. The same D1 measures the observer dashboard shows, inside a
+              played life — but bounded to the years this person has actually
+              lived, because a life cannot see the century before it. */}
+          <h3 className="panel-heading">
+            {world.town.name} — {livingPeople(world).length} living
+          </h3>
+          <p className="muted small">
+            The years you have seen. Births, deaths, weddings and courtships
+            are the whole town's, not only yours.
+          </p>
+          <TownStats world={world} sinceYear={Number(formatYear(person.birthTick))} maxYears={16} />
         </div>
       )}
 
