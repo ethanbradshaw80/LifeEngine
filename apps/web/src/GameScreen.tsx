@@ -24,6 +24,9 @@ import {
   arrearsHistoryOf,
   canAfford,
   childrenIdsOf,
+  compatibility,
+  courtshipBar,
+  proposalBar,
   enrolmentBar,
   decorationsOf,
   deploymentsOf,
@@ -151,7 +154,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   died: '⚰️',
 }
 
-type Tab = 'story' | 'home' | 'money' | 'family' | 'jobs' | 'news' | 'service' | 'health' | 'record'
+type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'jobs' | 'news' | 'service' | 'health' | 'record'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -160,6 +163,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'home', icon: '🏠', label: 'Home' },
   { id: 'money', icon: '💰', label: 'Money' },
   { id: 'family', icon: '👪', label: 'Family' },
+  { id: 'people', icon: '💞', label: 'People' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'news', icon: '📰', label: 'News' },
   { id: 'service', icon: '🪖', label: 'Service' },
@@ -201,6 +205,50 @@ interface Props {
   readonly onAct: (action: VerbRequest) => void
   /** The world's short answer to the last action ("no place this month"). */
   readonly notice: string | null
+}
+
+/**
+ * P3 — the ties in words.
+ *
+ * The engine keeps a tie's strength as 0-1000 and nothing has ever rendered
+ * it. A raw number would be a leaked internal (Law 9); these are the same
+ * fact said the way a person would say it. Presentation only — no threshold
+ * here gates anything, the engine's bars do that.
+ */
+function closenessWords(strength: number): string {
+  if (strength >= 880) return 'inseparable'
+  if (strength >= 740) return 'very close'
+  if (strength >= 600) return 'close'
+  if (strength >= 440) return 'steady'
+  if (strength >= 300) return 'drifting'
+  return 'barely there'
+}
+
+function compatibilityWords(score: number): string {
+  if (score >= 820) return 'you see the world the same way'
+  if (score >= 660) return 'easy company'
+  if (score >= 480) return 'different in ways that show'
+  return 'chalk and cheese'
+}
+
+/** e.g. "12 years", "7 months". Whole units, the way people say them. */
+function spanWords(months: number): string {
+  if (months < 24) {
+    const m = Math.max(0, months)
+    return `${m} ${m === 1 ? 'month' : 'months'}`
+  }
+  const years = Math.floor(months / 12)
+  return `${years} years`
+}
+
+/** A tie's strength as a bar. Decorative twin of the words beside it. */
+function StrengthMeter({ strength }: { strength: number }) {
+  const pct = Math.max(0, Math.min(100, Math.round(strength / 10)))
+  return (
+    <span className="meter" aria-hidden="true">
+      <span className="meter-fill" style={{ width: `${String(pct)}%` }} />
+    </span>
+  )
 }
 
 function PersonLink({
@@ -735,8 +783,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <div className="panel" aria-label="Family">
           {(() => {
             const tree = familyTreeOf(world, person.id)
-            const ties = relationshipsOf(world, person.id)
-            const byType = (type: Relationship['type']) => ties.filter((tie) => tie.type === type)
             const groups = [
               ['Grandparents', tree.grandparents],
               ['Parents', tree.parents],
@@ -744,116 +790,220 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               ['Children', tree.children],
               ['Grandchildren', tree.grandchildren],
             ] as const
-            const adult = age >= 18
+            const anyKin = groups.some(([, ids]) => ids.length > 0)
             return (
-              <dl className="facts">
-                {(['spouse', 'courting', 'former-spouse'] as const).map((type) => {
-                  const group = byType(type)
-                  if (group.length === 0) return null
-                  const label =
-                    type === 'spouse' ? 'Married to' : type === 'courting' ? 'Courting' : 'Formerly married'
-                  return (
-                    <Fragment key={type}>
-                      <dt>{label}</dt>
-                      <dd>
-                        {group.map((tie, i) => (
-                          <span key={`${tie.a}:${tie.b}`}>
-                            {i > 0 && ', '}
-                            <PersonLink world={world} id={other(tie, person.id)} onInspect={onInspect} />
-                            <span className="muted small"> since {formatYear(tie.typeSinceTick)}</span>
-                          </span>
-                        ))}
-                        {/* P2 — the marriage and courtship verbs live beside
-                            the person they concern. The engine gates; these
-                            buttons only ask. */}
-                        {type === 'spouse' && adult && (
-                          <span className="verb-row">
-                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'tend-marriage' })}>
-                              💐 Make time
-                            </button>
-                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'try-for-child' })}>
-                              👶 Try for a child
-                            </button>
-                            {confirming === 'walk-out' ? (
-                              <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'walk-out' }) }}>
-                                💔 Leave — for certain?
-                              </button>
-                            ) : (
-                              <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('walk-out')}>
-                                💔 Leave the marriage
-                              </button>
-                            )}
-                          </span>
-                        )}
-                        {type === 'courting' && adult && (
-                          <span className="verb-row">
-                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'propose' })}>
-                              💍 Propose
-                            </button>
-                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'try-for-child' })}>
-                              👶 Try for a child
-                            </button>
-                            {confirming === 'end-courtship' ? (
-                              <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'end-courtship' }) }}>
-                                🥀 End it — for certain?
-                              </button>
-                            ) : (
-                              <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('end-courtship')}>
-                                🥀 End the courtship
-                              </button>
-                            )}
-                          </span>
-                        )}
-                      </dd>
-                    </Fragment>
-                  )
-                })}
-                {groups.map(([label, ids]) =>
-                  ids.length === 0 ? null : (
-                    <Fragment key={label}>
-                      <dt>{label}</dt>
-                      <dd>
-                        {ids.map((id, i) => (
-                          <span key={id}>
-                            {i > 0 && ', '}
-                            <PersonLink world={world} id={id} onInspect={onInspect} />
-                            {world.people.get(id)?.deathTick !== null && <span className="muted"> †</span>}
-                          </span>
-                        ))}
-                      </dd>
-                    </Fragment>
-                  ),
+              <>
+                {!anyKin && (
+                  <p className="feed-empty">
+                    No family on the record — not everyone is born into one.
+                  </p>
                 )}
-                <dt>Friends</dt>
-                <dd>
-                  {byType('friend').length === 0 ? (
-                    <span className="muted">none currently</span>
-                  ) : (
-                    <ul className="job-list">
-                      {byType('friend').map((tie) => {
-                        const friendId = other(tie, person.id)
-                        return (
-                          <li key={`${tie.a}:${tie.b}`}>
-                            <span className="job-title">
-                              <PersonLink world={world} id={friendId} onInspect={onInspect} />
+                <dl className="facts">
+                  {groups.map(([label, ids]) =>
+                    ids.length === 0 ? null : (
+                      <Fragment key={label}>
+                        <dt>{label}</dt>
+                        <dd>
+                          {ids.map((id, i) => (
+                            <span key={id}>
+                              {i > 0 && ', '}
+                              <PersonLink world={world} id={id} onInspect={onInspect} />
+                              {world.people.get(id)?.deathTick !== null && <span className="muted"> †</span>}
                             </span>
-                            <span className="verb-row">
-                              <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'spend-time', otherId: friendId })}>
-                                ☕ Spend time
-                              </button>
-                              {adult && (
-                                <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'court', otherId: friendId })}>
-                                  🌹 Court
+                          ))}
+                        </dd>
+                      </Fragment>
+                    ),
+                  )}
+                </dl>
+                <p className="muted small">
+                  Marriage, courtship and friendship live on the People tab.
+                </p>
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {tab === 'people' && (
+        <div className="panel" aria-label="People">
+          {(() => {
+            // P3. Everything the engine knows about a tie, in one place: who,
+            // how long, how close, and how well matched — plus the P2 verbs
+            // beside the person they concern. The engine's own bars supply
+            // the refusals, so a disabled button and its reason can never
+            // disagree with what the command would actually do.
+            const ties = relationshipsOf(world, person.id)
+            const byType = (type: Relationship['type']) => ties.filter((tie) => tie.type === type)
+            const adult = age >= 18
+            const partners = [...byType('spouse'), ...byType('courting')]
+            const friends = byType('friend')
+              .slice()
+              .sort((x, y) => y.strength - x.strength || other(x, person.id) - other(y, person.id))
+            const past = byType('former-spouse')
+            const proposeBar = proposalBar(world, person.id, world.tick)
+
+            return (
+              <>
+                <h3 className="panel-heading">
+                  {partners.length > 0
+                    ? partners[0]?.type === 'spouse'
+                      ? 'Married'
+                      : 'Courting'
+                    : 'Nobody yet'}
+                </h3>
+                {partners.length === 0 ? (
+                  <p className="muted small">
+                    {adult
+                      ? 'No one at the moment. Courtship starts with a friendship close enough to risk it.'
+                      : 'That comes later.'}
+                  </p>
+                ) : (
+                  <ul className="tie-list">
+                    {partners.map((tie) => {
+                      const otherId = other(tie, person.id)
+                      const them = world.people.get(otherId)
+                      const married = tie.type === 'spouse'
+                      return (
+                        <li key={`${tie.a}:${tie.b}`}>
+                          <div className="tie-head">
+                            <PersonLink world={world} id={otherId} onInspect={onInspect} />
+                            <span className="muted small">
+                              {married ? 'married' : 'courting'} {spanWords(world.tick - tie.typeSinceTick)}
+                              {' · known '}
+                              {spanWords(world.tick - tie.formedAtTick)}
+                            </span>
+                          </div>
+                          <div className="tie-gauge">
+                            <StrengthMeter strength={tie.strength} />
+                            <span className="muted small">
+                              {closenessWords(tie.strength)}
+                              {them !== undefined && ` · ${compatibilityWords(compatibility(person, them))}`}
+                            </span>
+                          </div>
+                          {tie.familySizeAspiration !== null && (
+                            <p className="muted small tie-note">
+                              At the wedding you both hoped for {tie.familySizeAspiration}{' '}
+                              {tie.familySizeAspiration === 1 ? 'child' : 'children'}.
+                            </p>
+                          )}
+                          {adult && (
+                            <div className="verb-row">
+                              {married && (
+                                <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'tend-marriage' })}>
+                                  💐 Make time
                                 </button>
                               )}
+                              {!married && (
+                                <button
+                                  type="button"
+                                  className="apply"
+                                  disabled={busy || proposeBar !== null}
+                                  title={proposeBar ?? undefined}
+                                  onClick={() => onAct({ verb: 'propose' })}
+                                >
+                                  💍 Propose
+                                </button>
+                              )}
+                              <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'try-for-child' })}>
+                                👶 Try for a child
+                              </button>
+                              {confirming === 'leave' ? (
+                                <button
+                                  type="button"
+                                  className="apply"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setConfirming(null)
+                                    onAct({ verb: married ? 'walk-out' : 'end-courtship' })
+                                  }}
+                                >
+                                  {married ? '💔 Leave — for certain?' : '🥀 End it — for certain?'}
+                                </button>
+                              ) : (
+                                <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('leave')}>
+                                  {married ? '💔 Leave the marriage' : '🥀 End the courtship'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          {!married && proposeBar !== null && adult && (
+                            <p className="muted small tie-note">{proposeBar}</p>
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                <h3 className="panel-heading">Friends</h3>
+                {friends.length === 0 ? (
+                  <p className="muted small">
+                    Nobody close right now. Friendships form where lives overlap — a
+                    home, a workplace, a street.
+                  </p>
+                ) : (
+                  <ul className="tie-list">
+                    {friends.map((tie) => {
+                      const friendId = other(tie, person.id)
+                      const them = world.people.get(friendId)
+                      const courtBar = courtshipBar(world, person.id, friendId, world.tick)
+                      return (
+                        <li key={`${tie.a}:${tie.b}`}>
+                          <div className="tie-head">
+                            <PersonLink world={world} id={friendId} onInspect={onInspect} />
+                            <span className="muted small">
+                              known {spanWords(world.tick - tie.formedAtTick)}
+                              {them !== undefined && ` · ${String(ageAt(them.birthTick, world.tick))}`}
                             </span>
-                          </li>
-                        )
-                      })}
+                          </div>
+                          <div className="tie-gauge">
+                            <StrengthMeter strength={tie.strength} />
+                            <span className="muted small">
+                              {closenessWords(tie.strength)}
+                              {them !== undefined && ` · ${compatibilityWords(compatibility(person, them))}`}
+                            </span>
+                          </div>
+                          <div className="verb-row">
+                            <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'spend-time', otherId: friendId })}>
+                              ☕ Spend time
+                            </button>
+                            {adult && (
+                              <button
+                                type="button"
+                                className="apply"
+                                disabled={busy || courtBar !== null}
+                                title={courtBar ?? undefined}
+                                onClick={() => onAct({ verb: 'court', otherId: friendId })}
+                              >
+                                🌹 Court
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                {past.length > 0 && (
+                  <>
+                    <h3 className="panel-heading">Formerly married</h3>
+                    <ul className="tie-list">
+                      {past.map((tie) => (
+                        <li key={`${tie.a}:${tie.b}`}>
+                          <div className="tie-head">
+                            <PersonLink world={world} id={other(tie, person.id)} onInspect={onInspect} />
+                            <span className="muted small">
+                              ended {formatYear(tie.endedAtTick ?? tie.typeSinceTick)}
+                            </span>
+                          </div>
+                        </li>
+                      ))}
                     </ul>
-                  )}
-                </dd>
-              </dl>
+                  </>
+                )}
+              </>
             )
           })()}
         </div>

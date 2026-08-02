@@ -1098,6 +1098,57 @@ ul.welcome-points li + li {
   font-weight: 600;
 }
 
+/* P3 — the People tab. One card per tie: who and how long on top, then the
+   closeness gauge, then the verbs that concern that person. */
+.tie-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tie-list li {
+  padding: 0.5rem 0.2rem 0.6rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.tie-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+}
+
+.tie-head .link {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tie-gauge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+.tie-note {
+  margin: 0.3rem 0 0;
+}
+
+.meter {
+  flex: 0 0 5.5rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 70%, transparent);
+  overflow: hidden;
+}
+
+.meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 /* A news article, opened from its headline. */
 .card-why.article p {
   margin: 0 0 0.4rem;
