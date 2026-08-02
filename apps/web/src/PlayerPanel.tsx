@@ -24,6 +24,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
+import { decodeScene, sceneById } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
@@ -271,6 +272,16 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
   ) {
     const place = world.places.get(pending.placeId)
     if (place) return `Move to ${place.name}`
+  }
+  // A combat scene names its three answers in its own words — "charge the
+  // position" is not "drive through it" — while the spectrum underneath is
+  // always push, hold, cover (owner's combat plan §2).
+  if (pending.kind === 'combat-moment') {
+    const { sceneId } = decodeScene(pending.occupationId)
+    const scene = sceneById(sceneId)
+    if (scene && (option === 'push' || option === 'hold' || option === 'cover')) {
+      return scene.labels[option]
+    }
   }
   // Specialty ids become their titles (also fixes the long-standing raw-id
   // labels on the enlistment specialty menu).

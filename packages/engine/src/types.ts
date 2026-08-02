@@ -1232,6 +1232,7 @@ export type FactorId =
   | 'base-attack-exposure'
   | 'battlefield-accident'
   | 'battlefield-chaos'
+  | 'threat-level'
   | 'tour-complete'
 
 export interface CausalFactor {

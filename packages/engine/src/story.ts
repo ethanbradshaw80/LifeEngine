@@ -408,6 +408,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'direct-combat-exposure': 'the front was the job',
   'base-attack-exposure': 'the base itself was a target',
   'battlefield-accident': 'of an accident under way out there',
+  'threat-level': 'how bad the moment was',
   'battlefield-chaos': 'of how badly the moment went',
   'tour-complete': 'the tour was done',
 }

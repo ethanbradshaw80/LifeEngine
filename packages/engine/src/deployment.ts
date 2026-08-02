@@ -61,6 +61,7 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
 import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
+import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import { boostServicePerformance, isServing, squadmatesOf } from './service.js'
@@ -850,18 +851,31 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         world.player.pending === null &&
         rng.chance(3, 5)
       ) {
-        raisePending(world, {
-          tick,
-          kind: 'combat-moment',
-          personId,
-          otherId: enemyId,
-          occupationId: null,
-          workplaceId: null,
-          monthlyPay: null,
-          placeId: null,
-          options: ['lead-the-break', 'keep-heads-down'],
-        })
-        continue
+        // THE SCENE, AND HOW BAD IT IS (owner's combat plan §2). The
+        // channel that found them picks the scene — the threat vector
+        // already decided whether this was a road, a wire or a doorway —
+        // and the threat level is rolled from that channel's own weight,
+        // so "overrun" means the war is going badly rather than that a die
+        // came up. The player is TOLD which before answering: it is a
+        // read, not a coin flip.
+        const unitId = world.service.get(personId)?.unitId ?? null
+        const scene = pickScene(channel, unitId, rng)
+        if (scene !== undefined) {
+          const weight = channels.find((c) => c.id === channel)?.weight ?? 0
+          const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)
+          raisePending(world, {
+            tick,
+            kind: 'combat-moment',
+            personId,
+            otherId: enemyId,
+            occupationId: encodeScene(scene.id, threat),
+            workplaceId: null,
+            monthlyPay: null,
+            placeId: null,
+            options: [...SCENE_OPTIONS],
+          })
+          continue
+        }
       }
     }
 

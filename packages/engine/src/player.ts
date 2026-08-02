@@ -40,6 +40,8 @@ import {
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
 import { alliedWars, deployUnderOrders } from './deployment.js'
+import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById } from './scenes.js'
+import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
@@ -1443,56 +1445,78 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'combat-moment': {
-      // The squad is pinned. Both answers are real and both go on the
-      // record — and BOTH are still a firefight: keeping down rolls the
-      // month's ordinary danger, going forward rolls more of it, with the
-      // same fatal tail the automatic resolver carries (review: the
-      // bravest act in the game must not be the only one that cannot
-      // kill). Only the act is optional; the exposure never was.
+      // THE THREE-OPTION SCENE (owner's combat plan §2). One spectrum —
+      // push, hold, cover — and the outcome is the cell where the answer
+      // meets how bad the moment actually was. The player was TOLD the
+      // threat before answering, so this is a read rather than a coin
+      // flip, and the record carries the threat as a factor so the Why?
+      // can say what it was.
+      //
+      // EVERY CELL KEEPS THE FATAL TAIL. That is the invariant the whole
+      // system hangs on: the bravest answer must not be the only one that
+      // can kill you, and the most careful must not be the only one that
+      // cannot.
+      const { sceneId, threat } = decodeScene(pending.occupationId)
+      const scene = sceneById(sceneId)
+      const answer: SceneChoice =
+        choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+      const outcome = outcomeFor(answer, threat)
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
       const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 9100)
-      if (choice === 'lead-the-break') {
+
+      const did = scene?.did[answer] ?? 'held the position under fire'
+
+      // Going forward is an ACT, and the act is what a decoration cites —
+      // so it goes on the record whether or not anybody writes it up.
+      if (outcome.valorInN > 0) {
         const act = recordEvent(world, pending.tick, {
           type: 'act-of-valor',
           subjectId: person.id,
           ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
-          detail: 'went forward under fire',
+          detail: did,
         })
-        // Not every brave act is decorated: the write-up has to happen,
-        // and mostly it does not (review: a star at ×8 is cosmetic
-        // leveling, whatever it cites). The ACT stays on the record
-        // either way — that part nobody can take.
-        if (rng.chance(1, 3)) {
-          grantValor(world, pending.tick, person.id, act, enemy?.name ?? 'the enemy')
+        // Not every brave act is decorated, and the odds are the cell's:
+        // pushing into an overrun is both the most dangerous thing in the
+        // game and the likeliest to be recognized.
+        if (rng.chance(1, outcome.valorInN)) {
+          grantValor(world, pending.tick, person.id, act, enemy?.name ?? 'the enemy', threat)
         }
-        recordDecision(world, pending.tick, {
-          subjectId: person.id,
-          decision: 'deployment',
-          significance: 'defining',
-          inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
-          chosen: 'went forward under fire',
-          rejected: ['to keep down'],
-          streamId: Stream.CombatResolution,
-        })
-        resolveMomentCasualty(world, pending.tick, person, pending.otherId, rng, 450, 450)
       } else {
         recordEvent(world, pending.tick, {
           type: 'kept-heads-down',
           subjectId: person.id,
           ...(pending.otherId !== null ? { otherId: pending.otherId } : {}),
+          detail: did,
         })
-        recordDecision(world, pending.tick, {
-          subjectId: person.id,
-          decision: 'deployment',
-          significance: 'notable',
-          inputs: [factor('own-choice', 1000)],
-          chosen: 'kept down and held the position',
-          rejected: ['to go forward'],
-          streamId: Stream.CombatResolution,
-        })
-        // Still pinned, still a firefight: the ordinary month's danger.
-        resolveMomentCasualty(world, pending.tick, person, pending.otherId, rng, 250, 300)
       }
+
+      recordDecision(world, pending.tick, {
+        subjectId: person.id,
+        decision: 'deployment',
+        significance: answer === 'push' ? 'defining' : 'notable',
+        inputs: [
+          factor('own-choice', 1000),
+          // How bad it was, on the record — so the Why? can explain the
+          // outcome rather than only the choice.
+          factor('threat-level', threat === 'overrun' ? 1000 : threat === 'heavy' ? 600 : 250),
+          factor('battlefield-chaos', 800),
+        ],
+        chosen: did,
+        rejected: SCENE_OPTIONS.filter((o) => o !== answer).map(
+          (o) => scene?.did[o] ?? `to ${o}`,
+        ),
+        streamId: Stream.CombatResolution,
+      })
+
+      resolveMomentCasualty(
+        world,
+        pending.tick,
+        person,
+        pending.otherId,
+        rng,
+        outcome.gate,
+        outcome.severityFloor,
+      )
       break
     }
 
@@ -1968,8 +1992,13 @@ export function describePending(world: World, pending: PendingDecision): string 
       const where = record?.ailmentSite ?? null
       return `${casualty?.givenName ?? 'One of yours'} is down${where === null ? '' : ` — the ${where}`}, and you are the medic. What do you do?`
     }
-    case 'combat-moment':
-      return 'Fire off the ridge; the squad is pinned where it lies. What do you do?'
+    case 'combat-moment': {
+      // THE TELL (owner's combat plan §2). The player is told how bad it
+      // is BEFORE answering — that is what makes the matrix a read rather
+      // than a lottery, and it is why the record can explain the outcome.
+      const { sceneId, threat } = decodeScene(pending.occupationId)
+      return sceneById(sceneId)?.tell[threat] ?? 'The squad is pinned. What do you do?'
+    }
     case 'foremans-warning': {
       const role = pending.occupationId ? occupationById(pending.occupationId).title : 'the job'
       return `The foreman pulls you aside: the ${role} work has been slipping. What do you do?`
@@ -2439,8 +2468,16 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     }
 
     case 'combat-moment': {
-      lines.push('Going forward is how it gets unpinned — and how people get hit, and worse.')
-      lines.push('Keeping down is still a firefight; the month is dangerous either way. Both answers go on the record.')
+      const { threat } = decodeScene(pending.occupationId)
+      lines.push(
+        threat === 'overrun'
+          ? 'This one is as bad as it gets. Going forward into it is the most dangerous thing you can do — and the likeliest to be written up.'
+          : threat === 'heavy'
+            ? 'It is a real fight. Going forward buys ground and costs for it; standing your ground is steady work.'
+            : 'It is not much of a contact. Going forward here is cheap, and cheap is where reputations start.',
+      )
+      lines.push('Covering survives it best — and none of the three is safe. Every answer can kill you.')
+      lines.push('All three go on the record, whichever you pick.')
       break
     }
 

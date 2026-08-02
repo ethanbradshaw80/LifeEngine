@@ -105,6 +105,8 @@ export type { NewsItem } from './geopolitics.js'
 
 // The newsroom (WCJC): structured articles, to the owner's brief.
 export { articleFor } from './newsroom.js'
+export { COMBAT_SCENES, decodeScene, outcomeFor, SCENE_OPTIONS, sceneById } from './scenes.js'
+export type { CombatScene, SceneChoice, Threat } from './scenes.js'
 export { describeTraits, sentenceCase, traitWords, withArticle } from './text.js'
 export type { NewsArticle, NewsQuote } from './newsroom.js'
 

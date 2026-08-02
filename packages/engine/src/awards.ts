@@ -159,13 +159,22 @@ export function grantValor(
   personId: EntityId,
   qualifying: WorldEvent,
   enemyName: string,
+  threat: 'light' | 'heavy' | 'overrun' = 'heavy',
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'act-of-valor') return null
 
   return grant(world, tick, personId, {
     kind: 'valor',
-    title: VALOR_TITLE,
+    // TIERED BY HOW BAD IT WAS (owner's pack §4). One qualifying event —
+    // 'act-of-valor', still the only one — and the decoration follows the
+    // moment the act was actually performed in.
+    title:
+      threat === 'overrun'
+        ? VALOR_TITLE_OVERRUN
+        : threat === 'light'
+          ? VALOR_TITLE_LIGHT
+          : VALOR_TITLE_HEAVY,
     qualifying,
     // The citation asserts only what the simulation can honour: the
     // person's own act, no squad the world does not model (review).
