@@ -159,7 +159,14 @@ export function threatVectorFor(war: GeoRelation, enemy: Nation, home?: Nation):
   // threat that is computed from the war's own state, and no channel is
   // ever read off a country's identity.
   const delta = home === undefined ? 0 : combatPowerOf(enemy) - combatPowerOf(home)
-  const overmatch = Math.max(400, Math.min(2000, 1000 + delta * 90))
+  // THE FLOOR IS A WAR, NOT A WALKOVER (owner, playing: five years deployed
+  // to a weaker enemy, "never saw combat one time as a medic, zero pop
+  // ups"). MEASURED at the old floor of 400: twelve five-year medic tours
+  // produced 25 contacts and 11 moments between them, and one tour in
+  // twelve had nothing happen at all. Outclassing somebody makes a war less
+  // dangerous; it does not make it a posting. The ceiling is untouched — a
+  // stronger enemy is as bad as it ever was.
+  const overmatch = Math.max(700, Math.min(2000, 1000 + delta * 90))
   const scaled = (base: number): number => Math.floor((base * overmatch) / 1000)
 
   return {
@@ -1329,7 +1336,13 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // player's wounds (and any wound a player medic can reach) far more
     // lethal than the same wound on anyone else (review S3).
     const aidComing = fieldAidWillBeOffered(world, personId, severity)
-    const fatal = !aidComing && severity >= 720 && rng.chance(isAccident ? 1 : 2, 5)
+    // MEASURED, THEN WIDENED (owner: "people die in war man... we should
+    // still be dying if we get shot in the head"). At severity 720 the four
+    // fifteen-year wars ran 177 contacts, 35 wounded and 7 killed — a
+    // wounded-to-killed ratio near 5:1, where the real ones sit closer to
+    // 2.5:1. The fatal band starts lower now. Contact is still not casualty
+    // and most months hold neither.
+    const fatal = !aidComing && severity >= 640 && rng.chance(isAccident ? 1 : 2, 5)
 
     const phaseFactor = factor('war-phase', war.warPhase === 'offensive' || war.warPhase === 'opening' ? 800 : 450)
     const chain = [

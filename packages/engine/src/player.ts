@@ -1171,7 +1171,12 @@ function resolveMomentCasualty(
   const enemy = enemyId === null ? undefined : world.nations.get(enemyId)
   const enemyName = enemy?.name ?? 'the enemy'
 
-  if (severity >= 940 && rng.chance(2, 5)) {
+  // AND THE PLAYER'S OWN SCENES WERE THE SAFEST PLACE IN THE WAR. A moment
+  // needed 940 on a curve that mostly lands well below it, so the one path
+  // the player actually watches was the least lethal thing in the game
+  // while NPCs died at 720. A scene the player answers should cost what
+  // anybody else's month costs.
+  if (severity >= 880 && rng.chance(2, 5)) {
     const deployment = currentDeployment(world, person.id)
     const monthsIn = deployment === undefined ? 0 : tick - deployment.startedAtTick
     performDeath(

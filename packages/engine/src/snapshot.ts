@@ -28,6 +28,20 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v57 — PEOPLE DIE IN WARS (owner). Measured at the old gates: four
+ *      fifteen-year wars, 72 served, 177 contacts, 35 wounded, 7 killed —
+ *      a wounded-to-killed ratio near 5:1 where real wars sit closer to
+ *      2.5:1. The fatal band starts lower, and the player's own combat
+ *      moments stop being the safest place in the war (they needed 940 on
+ *      a curve that rarely reaches it, while NPCs died at 720). Now 13
+ *      killed of 72, ratio 2.2:1.
+ * v56 — A WEAK ENEMY IS STILL A WAR (owner, playing: five years deployed,
+ *      "never saw combat one time as a medic, zero pop ups"). The threat
+ *      vector scaled down to 0.4x against an outclassed enemy, which made
+ *      a tour a posting. Floor raised to 0.7x — measured: twelve five-year
+ *      medic tours went from 25 contacts, 11 moments and one empty tour to
+ *      39 contacts, 22 moments and none. The ceiling is untouched, so a
+ *      stronger enemy is exactly as bad as it was.
  * v55 — A WAR STAYS A WAR (owner, playing: eleven nations declared on
  *      Belarus inside a year). A caller asked its entire bloc in one
  *      month, and every ally that joined got its own war relation which
@@ -361,7 +375,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 55
+export const SIMULATION_VERSION = 57
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
