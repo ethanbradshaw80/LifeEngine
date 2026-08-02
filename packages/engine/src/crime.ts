@@ -33,7 +33,7 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import { discharge as dischargeService, isServing } from './service.js'
 import { fullName } from './story.js'
-import type { CriminalRecord, Person, World, Conviction, GateStrength } from './types.js'
+import type { CriminalRecord, Person, World, Conviction, GateStrength, Disposition } from './types.js'
 
 /** Sentences and gates. RECORD_GATE_YEARS lives in content.ts so
  *  service.ts, which cannot import this module, reads the same number. */
@@ -676,6 +676,74 @@ function attemptTheft(
  * bargain there is, and an honest one to model: certainty of conviction,
  * but a fine where a trial would have meant months.
  */
+/**
+ * C3 §1 + §12. Which rung of the ladder this case lands on.
+ *
+ * Grade sets the range, priors and the plea move within it. The shape the
+ * doc asks for, and the shape a real docket has:
+ *
+ *  - the bottom of the catalogue mostly ends in diversion or money
+ *  - the middle is where probation lives, and it is the most useful rung
+ *    in the game because it leaves somebody in their life while still
+ *    costing them something
+ *  - the serious end is custody, and the top of it is custody only: no
+ *    probation for a class A felony, none at all for a capital offence
+ *
+ * A clean file buys a rung down; priors buy rungs up. Deterministic given
+ * the same stream, like everything else the court does.
+ */
+function dispositionFor(
+  offence: Offence | null,
+  priors: number,
+  pleadedGuilty: boolean,
+  rng: ReturnType<typeof openStream>,
+): Disposition {
+  const grade = offence?.grade ?? 'class-a-misdemeanor'
+  const clean = priors === 0
+  const lenient = clean && pleadedGuilty
+
+  // C3 §12's table, grade by grade, rather than one score for everything —
+  // a score let a burglary end in community service, which is not a thing
+  // that happens to a class B felon on any docket anywhere.
+  switch (grade) {
+    case 'capital':
+      // No probation, ever.
+      return 'jail'
+    case 'class-a-felony':
+      // No probation. A clean plea can buy a split sentence and nothing more.
+      return lenient && rng.chance(1, 4) ? 'split' : 'jail'
+    case 'class-b-felony':
+      // Custody, with a split for the cleanest files.
+      return clean && rng.chance(1, 3) ? 'split' : 'jail'
+    case 'class-c-felony':
+      // Probation on a clean first offence, else custody.
+      if (clean && rng.chance(1, 2)) return pleadedGuilty ? 'probation' : 'split'
+      return priors >= 2 ? 'jail' : rng.chance(1, 3) ? 'split' : 'jail'
+    case 'class-d-felony':
+    case 'class-e-felony':
+      if (clean) return pleadedGuilty ? 'probation' : rng.chance(1, 2) ? 'probation' : 'split'
+      if (priors === 1) return rng.chance(1, 2) ? 'split' : 'jail'
+      return 'jail'
+    case 'class-a-misdemeanor':
+      if (clean) return rng.chance(1, 2) ? 'service' : 'probation'
+      if (priors === 1) return rng.chance(1, 2) ? 'probation' : 'suspended'
+      return rng.chance(1, 2) ? 'split' : 'jail'
+    case 'class-b-misdemeanor':
+      if (clean) return rng.chance(1, 3) ? 'dismissed' : 'fine'
+      if (priors === 1) return rng.chance(1, 2) ? 'fine' : 'service'
+      return rng.chance(1, 2) ? 'service' : 'probation'
+    default:
+      // Class C misdemeanor: the bottom of the catalogue.
+      if (clean) return rng.chance(1, 2) ? 'dismissed' : 'fine'
+      return priors >= 3 ? 'service' : 'fine'
+  }
+}
+
+/** How long somebody stays on probation for a term of this size. */
+function probationMonthsFor(sentenceMonths: number): number {
+  return Math.max(6, Math.min(60, sentenceMonths * 2))
+}
+
 export function resolveCourt(
   world: World,
   tick: Tick,
@@ -752,19 +820,89 @@ export function resolveCourt(
     if (sentenceMonths === 0 && fine === 0) fine = Math.max(offence.fine, 5_000)
   }
 
+  // THE LADDER (C3 §1). The sentence above is what the statute allows; the
+  // disposition is what the court actually does with it, and the two rungs
+  // that matter most — probation and a suspended term — leave somebody in
+  // their life while still costing them something.
+  const disposition = dispositionFor(offence, priors, plea === 'plead-guilty', rng)
+  const custodyMonths =
+    disposition === 'jail'
+      ? Math.max(1, sentenceMonths)
+      : disposition === 'split'
+        ? Math.max(1, Math.floor(Math.max(1, sentenceMonths) / 3))
+        : 0
+  const hangingOver =
+    disposition === 'suspended' || disposition === 'probation' || disposition === 'split'
+      ? Math.max(1, sentenceMonths)
+      : 0
+  const probationMonths =
+    disposition === 'probation' || disposition === 'split'
+      ? probationMonthsFor(Math.max(1, sentenceMonths))
+      : 0
+  // Money still answers for the rungs that are money, and a conviction
+  // never costs nothing.
+  const finePaid =
+    disposition === 'fine' || disposition === 'service'
+      ? Math.max(fine, offence?.fine ?? 5_000)
+      : disposition === 'dismissed'
+        ? 0
+        : fine
+
+  // DIVERSION IS NOT A CONVICTION. The case ended and nothing goes on the
+  // file — which is the whole point of the bottom rung, and the reason a
+  // first small offence should not follow somebody for a decade.
+  if (disposition === 'dismissed') {
+    recordEvent(world, tick, {
+      type: 'was-acquitted',
+      subjectId: person.id,
+      detail: `${offence?.id ?? 'theft'}:dismissed`,
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'crime',
+      significance: 'notable',
+      inputs: [factor('own-choice', 300), factor('clean-record', 800)],
+      chosen: `the ${offence?.title ?? 'theft'} charge was dismissed`,
+      rejected: [],
+      streamId: Stream.Crime,
+    })
+    return
+  }
+
   const existing = world.criminal.get(person.id)
   world.criminal.set(person.id, {
     personId: person.id,
     convictions: [
       ...(existing?.convictions ?? []),
-      { kind: offence?.id ?? 'theft', tick, sentenceMonths, fine },
+      {
+        kind: offence?.id ?? 'theft',
+        tick,
+        sentenceMonths: custodyMonths,
+        fine: finePaid,
+        disposition,
+      },
     ],
     jailedUntilTick:
-      sentenceMonths > 0
-        ? ((tick + sentenceMonths) as Tick)
+      custodyMonths > 0
+        ? ((tick + custodyMonths) as Tick)
         : (existing?.jailedUntilTick ?? null),
+    probationUntilTick:
+      probationMonths > 0
+        ? ((tick + custodyMonths + probationMonths) as Tick)
+        : (existing?.probationUntilTick ?? null),
+    suspendedMonths: hangingOver > 0 ? hangingOver : (existing?.suspendedMonths ?? 0),
+    restitutionOwed: existing?.restitutionOwed ?? 0,
   })
-  const jailTime = sentenceMonths > 0
+  if (probationMonths > 0) {
+    recordEvent(world, tick, {
+      type: 'placed-on-probation',
+      subjectId: person.id,
+      detail: String(probationMonths),
+    })
+  }
+  sentenceMonths = custodyMonths
+  fine = finePaid
+  const jailTime = custodyMonths > 0
 
   recordEvent(world, tick, {
     type: 'was-convicted',

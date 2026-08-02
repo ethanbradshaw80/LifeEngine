@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v63 — C3 STEP 4: THE SENTENCING LADDER. The court had two answers, so a
+ *      five-time burglar and a first shoplifter landed in the same two
+ *      buckets. Seven rungs now — dismissed, fine, community service,
+ *      probation, suspended, split, jail — chosen grade by grade from the
+ *      C3 doc's own table. A first small offence can end without a
+ *      conviction at all; a class B felony and above is still custody.
  * v62 — THE TOWN GOES TO AN ALLY'S WAR (owner, playing). Support tours
  *      were reachable only from the player's own verb, so the played
  *      character was the only person in any world who ever fought beside
@@ -408,7 +414,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 62
+export const SIMULATION_VERSION = 63
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

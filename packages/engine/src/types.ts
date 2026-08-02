@@ -602,6 +602,14 @@ export interface Conviction {
   /** The fine, cents; 0 when the sentence was time. */
   readonly fine: number
   /**
+   * C3 §1. Which rung of the ladder the court chose. Optional so that
+   * convictions written before the ladder existed stay readable — they are
+   * a fine or a term, and say so.
+   */
+  readonly disposition?: Disposition
+  /** Owed to the victim, in cents. Rides any disposition (C3 §6). */
+  readonly restitution?: number
+  /**
    * C3 §5, Decision 2. SEALED, NEVER DELETED. An expungement stops every
    * gate reading this conviction — hiring, enlistment, the public record —
    * and changes nothing about the fact that it happened. A descendant
@@ -622,12 +630,47 @@ export interface Conviction {
  */
 export type GateStrength = 'hard' | 'soft' | 'none'
 
+/**
+ * C3 §1. What the court actually did, between "fined" and "months".
+ *
+ * The first pass had two answers and a five-time burglar landed in the same
+ * bucket as a first shoplifter. These are the rungs in between:
+ *
+ *  - 'dismissed'  — no conviction at all; the case ended
+ *  - 'fine'       — money, and it is over
+ *  - 'service'    — a fine and hours owed to the county
+ *  - 'probation'  — supervised, no custody, and revocable
+ *  - 'suspended'  — a term that only lands if they offend again
+ *  - 'split'      — a short stretch inside, then probation
+ *  - 'jail'       — custody, as before
+ *
+ * Restitution rides any of them where something was taken.
+ */
+export type Disposition =
+  | 'dismissed'
+  | 'fine'
+  | 'service'
+  | 'probation'
+  | 'suspended'
+  | 'split'
+  | 'jail'
+
 export interface CriminalRecord {
   readonly personId: EntityId
   /** Append-only. History never shortens (Law 6); GATES read recency. */
   readonly convictions: readonly Conviction[]
   /** Non-null while serving time. */
   readonly jailedUntilTick: Tick | null
+  /**
+   * C3 §2. Non-null while on probation. Probation is not custody — the job
+   * survives, the household survives — but it is revocable, and a new
+   * offence while it runs imposes what was hanging over them.
+   */
+  readonly probationUntilTick?: Tick | null
+  /** The term a suspended sentence or probation would impose on revocation. */
+  readonly suspendedMonths?: number
+  /** Still owed to victims, in cents. */
+  readonly restitutionOwed?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -1122,6 +1165,15 @@ export type EventType =
   | 'was-robbed'
   | 'was-arrested'
   | 'was-convicted'
+  | 'placed-on-probation'
+  | 'completed-probation'
+  | 'violated-probation'
+  | 'community-service'
+  | 'ordered-restitution'
+  | 'paid-restitution'
+  | 'conviction-expunged'
+  | 'reported-crime'
+  | 'declined-to-report'
   | 'was-acquitted'
   | 'released-from-jail'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
