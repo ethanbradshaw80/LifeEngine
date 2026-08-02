@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v59 — HISTORY IS COMPRESSED (Law 6, and the owner's lag). Nothing ever
+ *      compressed anything: the ledger grew forever, and handing it to the
+ *      interface costs more than simulating the month does. MEASURED at
+ *      year 2124: 36,134 events, 8,857 records, a 5.9ms tick and an 85.7ms
+ *      structured clone. The ordinary texture of people dead a generation
+ *      is dropped now — 26,641 events, 5,653 records, a 60ms clone. Lives
+ *      stay legible; nothing about a living person is touched.
  * v58 — ACCIDENTS KILL PEOPLE TOO (owner). Measured at v57: four wars,
  *      seventy-two served, ZERO accident deaths — the channel almost never
  *      won the month (four casualties across four wars) and was a fifth as
@@ -382,7 +389,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 58
+export const SIMULATION_VERSION = 59
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

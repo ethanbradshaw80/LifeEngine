@@ -19,6 +19,7 @@
  */
 
 import type { Tick } from '@life-engine/shared'
+import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
@@ -84,6 +85,13 @@ export function advanceTick(world: World): World {
   runHouseholds(world, next)
   runBirths(world, next)
   runMortality(world, next)
+
+  // LAST, AND RARELY. History compression (Law 6): the ledger is the only
+  // thing in this world that grows without bound, and handing it to the
+  // interface costs more than simulating the month does. Runs after
+  // everything else so nothing this month reads a ledger that moved under
+  // it, and only touches people who have been dead for a generation.
+  compactHistory(world, next)
 
   return world
 }
