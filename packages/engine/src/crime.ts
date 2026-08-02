@@ -31,6 +31,8 @@ import {
 import type { NewsItem } from './geopolitics.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import { inflictWound } from './health.js'
+import { performDeath } from './systems.js'
 import { discharge as dischargeService, isServing } from './service.js'
 import { fullName } from './story.js'
 import type { CriminalRecord, Person, World, Conviction, GateStrength, Disposition } from './types.js'
@@ -724,13 +726,106 @@ function offenceForCircumstance(
  * player's own verb so both walk the same courthouse — the money moves the
  * same way, the clearance is the same roll, and the record reads the same.
  */
+/**
+ * C3 §11. A violent charge has somebody on the other end of it.
+ *
+ * Until now every offence was a thing that happened to a household's
+ * savings. Violence is not: it happens to a PERSON, and the person it
+ * happens to is a simulated one with a body, a household and a life that
+ * carries on afterwards. Without this an assault was a line on the
+ * offender's record and nothing at all on anybody else's.
+ *
+ * Returns the charge actually committed — which is not always the charge
+ * intended. A death during a felony escalates it (C3 §11), which is the
+ * felony-murder road, and it is why somebody who set out to rob a house can
+ * end up facing a capital offence.
+ */
+function resolveViolence(
+  world: World,
+  tick: Tick,
+  offender: Person,
+  offence: Offence,
+  rng: ReturnType<typeof openStream>,
+): Offence {
+  // Somebody who is not the offender, alive, adult, and in the town.
+  const candidates: Person[] = []
+  for (const person of world.people.values()) {
+    if (person.id === offender.id || person.deathTick !== null) continue
+    if (ageAt(person.birthTick, tick) < 16) continue
+    candidates.push(person)
+  }
+  if (candidates.length === 0) return offence
+  candidates.sort((a, b) => a.id - b.id)
+  const victim = rng.pick(candidates)
+
+  recordEvent(world, tick, {
+    type: 'was-assaulted',
+    subjectId: victim.id,
+    otherId: offender.id,
+    detail: offence.id,
+  })
+
+  // How badly it goes. A weapon charge is worse than a bar fight, and the
+  // homicide charges are the ones that were always going to end this way.
+  // MEASURED AND TUNED DOWN, with the tension stated rather than hidden.
+  // The first numbers produced eight killings across three fifty-year
+  // towns. A real town of a hundred and forty at the American homicide rate
+  // sees one in roughly a hundred and forty YEARS, so that was eight times
+  // too many — and tuning it to the real rate would mean most playthroughs
+  // never see a homicide at all, which makes a third of the C3 catalogue
+  // invisible, the exact complaint that started this arc.
+  //
+  // This sits deliberately above the real rate and well below the first
+  // draft: a killing in living memory rather than one a decade, and the
+  // charges that model one stay reachable. Law 10 asks for believable over
+  // balanced; this is the honest edge of believable.
+  const lethalIntent = offence.maxMonths >= 180
+  const severity = rng.nextBellInt(lethalIntent ? 500 : 250, 1000)
+  const fatal = lethalIntent ? severity >= 760 : severity >= 940 && rng.chance(1, 5)
+
+  if (fatal) {
+    performDeath(
+      world, tick, victim, `violence at the hands of another`,
+      [factor('own-choice', 1000), factor('battlefield-chaos', severity)],
+      Stream.Crime,
+    )
+    // C3 §11. THE CHARGE FOLLOWS THE OUTCOME. A robbery where somebody dies
+    // is not a robbery any more — that is what escalatesTo is for, and it
+    // is the difference between ten years and the rest of a life.
+    const escalated = offence.escalatesTo === undefined ? undefined : offenceById(offence.escalatesTo)
+    if (escalated !== undefined) {
+      recordEvent(world, tick, {
+        type: 'escalated-charge',
+        subjectId: offender.id,
+        otherId: victim.id,
+        detail: `${offence.id}:${escalated.id}`,
+      })
+      return escalated
+    }
+    return offence
+  }
+
+  inflictWound(world, tick, victim.id, severity, 'direct-combat', rng)
+  recordEvent(world, tick, {
+    type: 'was-injured',
+    subjectId: victim.id,
+    otherId: offender.id,
+    detail: `${severity >= 600 ? 'serious' : 'minor'}:hurt in an assault`,
+  })
+  return offence
+}
+
 function carryOutOffence(
   world: World,
   tick: Tick,
   person: Person,
-  offence: Offence,
+  intended: Offence,
   rng: ReturnType<typeof openStream>,
 ): void {
+  // Violence lands on somebody, and what it does to them can change what
+  // this was: a death during a felony is a different charge (C3 §11).
+  const offence = intended.violent === true ? resolveViolence(world, tick, person, intended, rng) : intended
+
   let taken = 0
   if (offence.gainMax > 0 && person.householdId !== null) {
     const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)

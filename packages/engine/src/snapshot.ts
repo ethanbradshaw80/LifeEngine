@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v66 — C3 STEP 2: VIOLENCE HAS A VICTIM. Every offence used to be a
+ *      thing that happened to a household's savings; an assault happens to
+ *      a PERSON, who is wounded or killed through the same health and
+ *      death systems everything else uses. And the charge follows the
+ *      outcome — a death during a felony escalates, which is the
+ *      felony-murder road. Measured: 61 assaults, 57 injured, 4 killed
+ *      across three fifty-year towns.
  * v65 — C3 STEP 6: THE CONSTABLE AND THE TOWN'S WEATHER. Law enforcement
  *      is a job anybody can hold, it is a scarce public office rather than
  *      an ordinary trade, and the town's constables raise how much crime
@@ -427,7 +434,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 65
+export const SIMULATION_VERSION = 66
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
