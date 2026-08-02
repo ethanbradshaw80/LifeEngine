@@ -186,6 +186,235 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
     unitId: null,
     biasToward: null,
   },
+
+  // -------------------------------------------------------------------------
+  // UNIT SCENES (owner's combat plan §4). These raise only while the person
+  // is serving in that unit, and they lean heavy or overrun — the unit takes
+  // the sharpest jobs, which is why both the danger and the valor run high
+  // there. The spectrum underneath is the same three answers; what changes
+  // is what they are called and what they cost.
+  //
+  // Sober, non-graphic, and never triumphal (Law 10). These are people at
+  // work in the worst job there is.
+  // -------------------------------------------------------------------------
+
+  // --- the Pathfinder Battalion: raids, airfields, landing zones -----------
+  {
+    id: 'airfield-seizure',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'The strip is dark and the guards are somewhere else. It might stay that way.',
+      heavy: 'There is fire from the tower end and the runway is a very open place to be.',
+      overrun: 'The whole far side is awake and the birds are inbound regardless.',
+    },
+    labels: {
+      push: 'Lead the assault onto the runway',
+      hold: 'Hold support-by-fire',
+      cover: 'Set the perimeter security',
+    },
+    did: {
+      push: 'led the assault onto the runway',
+      hold: 'held the support-by-fire position',
+      cover: 'set security on the perimeter',
+    },
+    unitId: 'pathfinders',
+    biasToward: 'overrun',
+  },
+  {
+    id: 'mark-the-lz',
+    channels: ['direct-combat-exposure', 'base-attack-exposure'],
+    tell: {
+      light: 'The field is quiet. Marking it is a two-minute job.',
+      heavy: 'The field is being watched, and smoke tells them exactly where to look.',
+      overrun: 'They are already firing onto the field and the flight is three minutes out.',
+    },
+    labels: {
+      push: 'Pop smoke in the open',
+      hold: 'Mark it from cover',
+      cover: 'Wave the birds off',
+    },
+    did: {
+      push: 'marked the landing zone from the open',
+      hold: 'marked the landing zone from cover',
+      cover: 'waved the flight off the landing zone',
+    },
+    unitId: 'pathfinders',
+    biasToward: 'heavy',
+  },
+  {
+    id: 'hold-the-block',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'Something is moving toward the blocking position, unhurried.',
+      heavy: 'They are trying to get past you and they have worked out where you are.',
+      overrun: 'They are coming through in numbers and the rally point is a long way back.',
+    },
+    labels: {
+      push: 'Push out to meet them',
+      hold: 'Hold the blocking position',
+      cover: 'Collapse back to the rally point',
+    },
+    did: {
+      push: 'pushed out to meet them',
+      hold: 'held the blocking position',
+      cover: 'collapsed back to the rally point',
+    },
+    unitId: 'pathfinders',
+    biasToward: 'heavy',
+  },
+
+  // --- the Trident Detachment: maritime, dive, boarding --------------------
+  {
+    id: 'over-the-beach',
+    channels: ['direct-combat-exposure', 'battlefield-accident'],
+    tell: {
+      light: 'The swim was long and the beach is empty. So far this is just cold.',
+      heavy: 'There are lights moving on the beach and the team is still in the water.',
+      overrun: 'The approach is blown, the surf is bad, and there is nowhere on that beach to be.',
+    },
+    labels: {
+      push: 'Press to the objective',
+      hold: 'Hold in the surf and reassess',
+      cover: 'Abort back to the water',
+    },
+    did: {
+      push: 'pressed inland from the beach',
+      hold: 'held in the surf until it was clear',
+      cover: 'aborted back into the water',
+    },
+    unitId: 'trident',
+    biasToward: 'heavy',
+  },
+  {
+    id: 'ship-takedown',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'The deck is dark and nobody is looking over the side.',
+      heavy: 'There is movement on deck and the ladder puts you in the open for all of it.',
+      overrun: 'They know, they are waiting at the rail, and the ladder is the only way up.',
+    },
+    labels: {
+      push: 'First up the ladder',
+      hold: 'Cover from the boat',
+      cover: 'Hold the boarding stack',
+    },
+    did: {
+      push: 'went first up the caving ladder',
+      hold: 'covered the boarding from the boat',
+      cover: 'held in the boarding stack',
+    },
+    unitId: 'trident',
+    biasToward: 'heavy',
+  },
+  {
+    id: 'last-swimmer-out',
+    channels: ['direct-combat-exposure', 'battlefield-accident'],
+    tell: {
+      light: 'Everyone is accounted for and the water is fifty metres away.',
+      heavy: 'The last two are still coming and there is fire on the treeline behind them.',
+      overrun: 'They are on the beach with you and the water is the only way out for anybody.',
+    },
+    labels: {
+      push: 'Hold the beach until everyone is in the water',
+      hold: 'Bound back by pairs',
+      cover: 'Go now',
+    },
+    did: {
+      push: 'held the beach until the last man was in the water',
+      hold: 'bounded back to the water by pairs',
+      cover: 'went into the water first',
+    },
+    unitId: 'trident',
+    biasToward: 'overrun',
+  },
+
+  // --- the Guardian Flight: combat rescue ----------------------------------
+  {
+    id: 'reach-the-downed',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'The wreck is close and the field is quiet. This should be quick.',
+      heavy: 'There is fire across the open ground between you and the wreck.',
+      overrun: 'They are closing on the wreck too, and whoever gets there first keeps him.',
+    },
+    labels: {
+      push: 'Sprint to the wreck',
+      hold: 'Bound forward with cover',
+      cover: 'Direct the bird to a safer landing zone',
+    },
+    did: {
+      push: 'ran to the wreck across open ground',
+      hold: 'bounded to the wreck under cover',
+      cover: 'moved the pickup to safer ground',
+    },
+    unitId: 'guardian-flight',
+    biasToward: 'heavy',
+  },
+  {
+    id: 'hoist-under-fire',
+    channels: ['direct-combat-exposure', 'base-attack-exposure'],
+    tell: {
+      light: 'The hoist is turning and nothing is coming up at you yet.',
+      heavy: 'Rounds are coming past the aircraft and the cable is only half in.',
+      overrun: 'The aircraft is being hit and the man on the cable is halfway to the door.',
+    },
+    labels: {
+      push: 'Stay exposed and finish the hoist',
+      hold: 'Drop and re-approach',
+      cover: 'Wave off and try again',
+    },
+    did: {
+      push: 'stayed on the hoist until it was finished',
+      hold: 'dropped the cable and came back around',
+      cover: 'waved off the recovery',
+    },
+    unitId: 'guardian-flight',
+    biasToward: 'overrun',
+  },
+
+  // --- the Grey Section: precise, deniable, and quiet about it -------------
+  {
+    id: 'compromised-on-infil',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'Somebody saw the team go past. They kept walking.',
+      heavy: 'A herdsman has seen all six of you and the objective is two hours away.',
+      overrun: 'The alarm has gone up ahead of you and the ground behind is closing.',
+    },
+    labels: {
+      push: 'Press on, fast',
+      hold: 'Hold and wait them out',
+      cover: 'Abort the mission',
+    },
+    did: {
+      push: 'pressed on after the team was seen',
+      hold: 'held in place until the ground was quiet',
+      cover: 'aborted the infiltration',
+    },
+    unitId: 'grey-section',
+    biasToward: 'heavy',
+  },
+  {
+    id: 'the-quiet-job',
+    channels: ['direct-combat-exposure'],
+    tell: {
+      light: 'The house is quiet and the team has time. Nobody outside knows you are here.',
+      heavy: 'There are more of them inside than the picture showed, and time is running out.',
+      overrun: 'It has gone loud, the whole street is awake, and the exfil is not where it should be.',
+    },
+    labels: {
+      push: 'Finish it',
+      hold: 'Take what you have and exfil clean',
+      cover: 'Abort',
+    },
+    did: {
+      push: 'finished the job',
+      hold: 'took what the team had and left clean',
+      cover: 'called the job off',
+    },
+    unitId: 'grey-section',
+    biasToward: 'overrun',
+  },
 ]
 
 /** The scene anything unrecognized falls back to. */

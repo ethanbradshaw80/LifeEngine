@@ -128,3 +128,46 @@ describe('the scenes', () => {
     expect(THREATS).toContain(legacy.threat)
   })
 })
+
+describe('unit scenes', () => {
+  it('exist for every unit a player can actually be selected into', async () => {
+    // A unit you can join and never see is a line on a record. Each one that
+    // takes people has scenes of its own (owner's combat plan §4).
+    const { SPECIAL_UNITS } = await import('../src/content.js')
+    const withScenes = new Set(
+      COMBAT_SCENES.filter((s) => s.unitId !== null).map((s) => s.unitId),
+    )
+    for (const unit of SPECIAL_UNITS) {
+      // Tier 2 feeds off tier 1 and shares its work; what must not happen is
+      // a whole branch with nothing of its own.
+      if (unit.tier === 1 || unit.tier === 3) {
+        expect(withScenes.has(unit.id), `${unit.name} has no scenes of its own`).toBe(true)
+      }
+    }
+  })
+
+  it('lean toward the sharp end, because that is the work', () => {
+    const unitScenes = COMBAT_SCENES.filter((s) => s.unitId !== null)
+    expect(unitScenes.length).toBeGreaterThan(5)
+    for (const scene of unitScenes) {
+      expect(scene.biasToward, `${scene.id} is a unit scene with no bias`).not.toBeNull()
+    }
+    // And the ordinary scenes do not: an ordinary contact is an ordinary
+    // contact whoever is standing in it.
+    for (const scene of COMBAT_SCENES.filter((s) => s.unitId === null)) {
+      expect(scene.biasToward).toBeNull()
+    }
+  })
+
+  it('are preferred while you serve there, and never reach anyone else', () => {
+    const rng = openStream(makeSeed(3), Stream.CombatResolution, 3, 3)
+    for (let i = 0; i < 40; i++) {
+      const picked = pickScene('direct-combat-exposure', 'pathfinders', rng)
+      expect(picked?.unitId, 'a pathfinder got somebody else’s scene').toBe('pathfinders')
+    }
+    for (let i = 0; i < 40; i++) {
+      const picked = pickScene('direct-combat-exposure', null, rng)
+      expect(picked?.unitId, 'a line soldier got a unit scene').toBeNull()
+    }
+  })
+})
