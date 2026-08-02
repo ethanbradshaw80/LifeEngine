@@ -28,6 +28,14 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
+import { describeAilment } from './wounds.js'
+import {
+  DEATH_OPENERS,
+  DEATH_QUOTES,
+  HOUSE_GRIT,
+  pickPhrase,
+  WOUND_CLAUSES,
+} from './newsvoice.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
@@ -132,6 +140,51 @@ export function articleFor(world: World, item: NewsItem): NewsArticle | null {
 // A death in service — the heaviest thing this station prints
 // ---------------------------------------------------------------------------
 
+/**
+ * The wound that killed somebody, in the words the record already holds.
+ *
+ * OWNER'S SPEC §1: the engine records the specific facts and the article
+ * was not reading them. `causeOfDeath` is a summary — "wounds taken in
+ * action" — while the health record knows it was a gunshot to the shoulder
+ * and the ledger knows the convoy was ambushed. Nothing here is invented;
+ * it is the same facts, read one level deeper.
+ */
+function woundWords(world: World, personId: EntityId, tick: Tick): string | null {
+  // THE EVENT, NOT THE HEALTH RECORD. A dead person's health record no
+  // longer carries the ailment that killed them — that is the record of
+  // the living — but the wound event does, and it was written with the
+  // wound's own description in it.
+  for (let i = world.events.length - 1; i >= 0; i--) {
+    const event = world.events[i]
+    if (!event) continue
+    if (tick - event.tick > 2) break
+    if (event.subjectId !== personId) continue
+    if (event.type !== 'wounded-in-action' && event.type !== 'was-injured') continue
+    const described = (event.detail ?? '').split(':')[1]
+    if (described !== undefined && described !== '') return described
+  }
+  const health = world.health.get(personId)
+  if (health?.ailment != null) {
+    return describeAilment(health.ailment, health.ailmentKind, health.ailmentSite)
+  }
+  return null
+}
+
+/** How the month's contact went, from the contact event's own flavour. */
+function contactWords(world: World, personId: EntityId, tick: Tick): string | null {
+  for (let i = world.events.length - 1; i >= 0; i--) {
+    const event = world.events[i]
+    if (!event) continue
+    if (tick - event.tick > 2) break
+    if (event.subjectId !== personId) continue
+    if (event.type === 'saw-combat' && event.detail !== null) {
+      // The flavour is already a sentence fragment about what happened.
+      return event.detail.charAt(0).toLowerCase() + event.detail.slice(1)
+    }
+  }
+  return null
+}
+
 function deathInService(
   world: World,
   item: NewsItem,
@@ -159,6 +212,15 @@ function deathInService(
   const onTour = lastTour !== undefined && lastTour.returnedAtTick === item.tick
 
   const who = rank === null ? fullName(person) : `${rank} ${fullName(person)}`
+  // OWNER'S SPEC §1 and §2: the specific wound, the specific circumstance,
+  // and an opener chosen from a wide seeded pool so two deaths in one town
+  // do not read as the same sentence with the names swapped.
+  const wound = woundWords(world, person.id, item.tick)
+  const how = contactWords(world, person.id, item.tick)
+  const grit = HOUSE_GRIT
+  const opener = pickPhrase(DEATH_OPENERS[grit], world.seed, person.id * 31, item.tick)
+  const woundClause =
+    wound === null ? null : pickPhrase(WOUND_CLAUSES[grit], world.seed, person.id * 37, item.tick)
   const where = onTour && away !== null
     ? lastTour.kind === 'rotation'
       ? ` while posted to ${away}`
@@ -171,6 +233,11 @@ function deathInService(
       // BRANCH_NAMES already carry their article ("the Land Forces").
       `${fullName(person)} had served ${String(years)} year${years === 1 ? '' : 's'} in ${branch} as a ${trade}, and held the rank of ${rank ?? 'private'} at the time of death.`,
     )
+  }
+  // OWNER'S SPEC §1: what the month's contact actually was, in the words
+  // the ledger already holds.
+  if (how !== null) {
+    body.push(`${how.charAt(0).toUpperCase()}${how.slice(1)}.`)
   }
   if (onTour && lastTour !== undefined) {
     const months = item.tick - lastTour.startedAtTick
@@ -216,9 +283,27 @@ function deathInService(
       : 'The service record closes with this month\'s date and remains open to anyone entitled to it.'
 
   return {
-    headline: `${who} dies in service at ${String(age)}`,
+    // The headline names the thing that happened, not the fact of a death:
+    // "killed in a convoy ambush" is a story and "dies in service" is a
+    // form. The detail is read, so it is only ever as specific as the
+    // record actually is.
+    headline:
+      // The front is the where; the contact's own words are a sentence of
+      // their own in the body, because the flavours the engine records are
+      // a mix of clauses and noun phrases and splicing them into a headline
+      // cannot be made to read right for both.
+      `${who} killed${where === '' ? ' in service' : where}`,
     dateline,
-    lede: `${who}, ${String(age)}, of ${world.town.name}, died in ${formatDate(world, item.tick)}${where}, according to service records.`,
+    // ORDER MATTERS: opener, then WHERE, then the wound. The high-grit
+    // wound clauses carry their own tail ("gone before the medic got a hand
+    // on it"), and putting the front after that stranded it mid-sentence.
+    lede: `${opener
+      .replace('{who}', who)
+      .replace('{age}', String(age))
+      .replace('{town}', world.town.name)
+      .replace('{when}', formatDate(world, item.tick))}${where}${
+      woundClause === null ? '' : `, ${woundClause.replace('{wound}', wound ?? 'wounds')}`
+    }.`,
     body: body.slice(0, 4),
     quote,
     closing,
@@ -251,6 +336,11 @@ function deathQuote(
     const speaker = speakers[draw % speakers.length]
     if (speaker !== undefined) {
       const lines: string[] = [
+        // OWNER'S TONE OVERRIDE (§4): the paper stops sanitising, and a
+        // shaken squadmate is allowed to sound like one. The graphic pool
+        // is folded in beside the restrained lines rather than replacing
+        // them, so the same seed still produces variety across a war.
+        ...DEATH_QUOTES[HOUSE_GRIT],
         `${person.givenName} was in ${unitName} with us. That is who we lost.`,
         `We served together in ${unitName}. You do not replace somebody like that on a roster.`,
         `${person.givenName} pulled the same duty the rest of us pulled, every day, without a word about it.`,

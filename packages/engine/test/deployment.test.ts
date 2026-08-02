@@ -282,9 +282,12 @@ describe('what the war costs', () => {
     expect(wounded.length).toBeGreaterThan(0)
 
     for (const event of wounded) {
-      // The family's version is short.
+      // The family's version is short. 'fatal' joined the grades when the
+      // newsroom work made a killing record WHAT killed somebody — before
+      // that a fatal hit recorded no wound at all, so the paper could only
+      // ever say "wounds taken in action".
       const grade = String(event.detail).split(':')[0]
-      expect(grade === 'serious' || grade === 'minor').toBe(true)
+      expect(grade === 'serious' || grade === 'minor' || grade === 'fatal').toBe(true)
       // The wound is SPECIFIC (M-WOUNDS): the detail names what happened.
       expect(String(event.detail).includes(':')).toBe(true)
       // The record's version carries the chain (§8): enemy, phase, channel.

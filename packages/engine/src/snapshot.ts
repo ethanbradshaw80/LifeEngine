@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v68 — A KILLING RECORDS WHAT KILLED SOMEBODY. A fatal hit used to write
+ *      no wound at all — only survivable ones did — so the paper could say
+ *      "wounds taken in action" and never what the wound was. It draws and
+ *      records one now (inflicting nothing; they are already dead), which
+ *      consumes a draw and shifts every seed where anybody was killed.
  * v67 — C3 STEPS 7 AND 8: the victim's side, sealing a record, and plea
  *      bargaining. Being robbed asks the player something; a petition can
  *      seal what the fade would not; and the arraignment carries an offer
@@ -439,7 +444,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 67
+export const SIMULATION_VERSION = 68
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

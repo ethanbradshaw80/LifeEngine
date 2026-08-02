@@ -60,6 +60,7 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
 }
 import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
+import { describeAilment, pickInjury } from './wounds.js'
 import { raisePending } from './player.js'
 import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { toDate } from './clock.js'
@@ -1429,7 +1430,32 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       factor('battlefield-chaos', severity),
     ]
 
+    // The channel that found them shapes the harm, dead or alive — so the
+    // map is read before the fatal branch, which needs it too.
+    const context =
+      channel === 'direct-combat-exposure'
+        ? ('direct-combat' as const)
+        : channel === 'convoy-exposure'
+          ? ('convoy' as const)
+          : channel === 'base-attack-exposure'
+            ? ('base-attack' as const)
+            : ('field-accident' as const)
+
     if (fatal) {
+      // WHAT KILLED THEM, ON THE RECORD (newsroom spec §1). A fatal hit
+      // used to record no wound at all — only survivable ones did — so the
+      // paper could say "wounds taken in action" and never what the wound
+      // was. The same draw the wound system uses, written as an event, so
+      // the story can read the shoulder and the artery rather than a
+      // summary. It inflicts nothing: they are already dead.
+      const mortal = pickInjury(rng, context)
+      recordEvent(world, tick, {
+        type: isAccident ? 'was-injured' : 'wounded-in-action',
+        subjectId: personId,
+        otherId: enemyId,
+        detail: `fatal:${describeAilment('injury', mortal.kind, mortal.site)}`,
+      })
+
       // The short fact the family gets; the chain the record keeps (§8).
       performDeath(
         world, tick, person,
@@ -1468,14 +1494,6 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // them shapes the harm. A convoy strike is blast and shrapnel; a base
     // attack burns. The health system carries it from here — evacuation home
     // when it is bad enough that the war is over for them this tour.
-    const context =
-      channel === 'direct-combat-exposure'
-        ? ('direct-combat' as const)
-        : channel === 'convoy-exposure'
-          ? ('convoy' as const)
-          : channel === 'base-attack-exposure'
-            ? ('base-attack' as const)
-            : ('field-accident' as const)
     const wound = inflictWound(world, tick, personId, severity, context, rng)
     const woundEvent = recordEvent(world, tick, {
       type: isAccident ? 'was-injured' : 'wounded-in-action',
