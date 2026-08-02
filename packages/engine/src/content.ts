@@ -130,6 +130,12 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(1500), maxMonthlyPay: dollars(2300) },
   { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(2100), maxMonthlyPay: dollars(3400) },
   { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(2000), maxMonthlyPay: dollars(3000) },
+  // C3 §3. LAW ENFORCEMENT AS A JOB, not a fixed dice value behind the
+  // scenes. A town with no constables is easy pickings; a town with several
+  // clears more of what happens in it, and that is the lever that makes the
+  // crime-pressure index respond to something the player can see and even
+  // take a hand in.
+  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(1900), maxMonthlyPay: dollars(2900) },
   { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(2900), maxMonthlyPay: dollars(4400) },
   { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(3600), maxMonthlyPay: dollars(6000) },
 ]

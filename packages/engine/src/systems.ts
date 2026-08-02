@@ -273,6 +273,31 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
 // Employment
 // ---------------------------------------------------------------------------
 
+/**
+ * C3 §3. Whether the county has a constable's post going.
+ *
+ * A CONSTABLE IS A PUBLIC OFFICE, NOT A TRADE. Left as an ordinary
+ * occupation it was picked like any other and a town of sixty adults hired
+ * four of them — one working adult in fifteen wearing a badge, which is
+ * about thirty times the real ratio and flattened the crime-pressure index
+ * to nothing on its own.
+ *
+ * One post per two hundred and fifty adults, and always at least one: even
+ * a small town has somebody to call.
+ */
+function constableSeatOpen(world: World): boolean {
+  let adults = 0
+  let serving = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    const age = ageAt(person.birthTick, world.tick)
+    if (age < 18 || age > 65) continue
+    adults += 1
+    if (world.employment.get(person.id)?.occupationId === 'constable') serving += 1
+  }
+  return serving < Math.max(1, Math.floor(adults / 250) + 1)
+}
+
 export function runEmployment(world: World, tick: Tick): void {
   const workplaces = placesOfKind(world, 'workplace')
   if (workplaces.length === 0) return
@@ -338,7 +363,7 @@ export function runEmployment(world: World, tick: Tick): void {
     const unlocked = veteranUnlocks(world, person.id)
     const eligible = OCCUPATIONS.filter(
       (o) => meetsRequirement(education.level, o.requires) || unlocked.includes(o.id),
-    )
+    ).filter((o) => o.id !== 'constable' || constableSeatOpen(world))
     if (eligible.length === 0) continue
 
     // Hiring is not guaranteed — ambition and diligence improve the odds,

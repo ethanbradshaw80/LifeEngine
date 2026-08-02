@@ -232,8 +232,89 @@ function runProbation(world: World, tick: Tick): void {
   }
 }
 
+/**
+ * C3 §4. What the town is like to live in this year, 0-1000.
+ *
+ * Crime was a per-person roll against a per-person circumstance, which made
+ * it invisible: nothing about the town itself pushed or pulled. This is the
+ * weather — read from conditions the world already tracks, so it cannot
+ * drift from the town it describes:
+ *
+ *  - how many households are behind on the rent
+ *  - how many working-age adults have no work
+ *  - and how many constables the town employs, which pulls the other way
+ *
+ * It is not a scalar danger dial on a country (the permanent rule's
+ * cousin): it is computed from the town's own measured conditions, every
+ * one of which the player can see elsewhere in the game.
+ */
+export function crimePressureOf(world: World): number {
+  let households = 0
+  let behind = 0
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick !== null || household.memberIds.length === 0) continue
+    households += 1
+    if (inArrears(world, household.id)) behind += 1
+  }
+
+  let adults = 0
+  let jobless = 0
+  let constables = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    const age = ageAt(person.birthTick, world.tick)
+    if (age < 18 || age > 65) continue
+    adults += 1
+    const job = world.employment.get(person.id)
+    if (job === undefined && !isServing(world, person.id)) jobless += 1
+    else if (job !== undefined && job.occupationId === 'constable') constables += 1
+  }
+
+  if (households === 0 || adults === 0) return 0
+  // MEASURED BEFORE SCALING, because the first version read a flat zero on
+  // every town and that was nearly honest: these towns run 0-78 households
+  // per thousand behind on the rent and 0-22 adults per thousand out of
+  // work. Halving numbers that small produced nothing anybody could read.
+  // Scaled to the range the world actually produces, a settled town sits
+  // near 80 and a struggling one near 300.
+  const arrearsShare = Math.floor((behind * 1000) / households)
+  const joblessShare = Math.floor((jobless * 1000) / adults)
+  const hardship = arrearsShare * 4 + joblessShare * 6
+
+  // AND POLICING SCALES IT RATHER THAN SUBTRACTING. Subtraction let one
+  // constable in a small town wipe the whole index to zero — a cliff, and
+  // the same shape of mistake the flat conviction gate was. A town with
+  // somebody watching has less of this weather; it does not have none.
+  const policing = Math.min(500, Math.floor((constables * 12_000) / adults))
+  return Math.max(0, Math.min(1000, Math.floor((hardship * (1000 - policing)) / 1000)))
+}
+
+/**
+ * C3 §3. How much the town's own law enforcement improves the odds that a
+ * crime is cleared, per 1000 added to the offence's own rate.
+ *
+ * A town with nobody looking is a town where things are not solved.
+ */
+export function clearanceBonusOf(world: World): number {
+  let adults = 0
+  let constables = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    const age = ageAt(person.birthTick, world.tick)
+    if (age < 18 || age > 65) continue
+    adults += 1
+    if (world.employment.get(person.id)?.occupationId === 'constable') constables += 1
+  }
+  if (adults === 0) return 0
+  return Math.min(200, Math.floor((constables * 200 * 200) / adults / 10))
+}
+
 export function runCrime(world: World, tick: Tick): void {
   runProbation(world, tick)
+
+  // Read once for the month, not once per person: it is a fact about the
+  // town, and computing it sixty times would say the same thing sixty times.
+  const townPressure = crimePressureOf(world)
 
   for (const person of livingSorted(world)) {
     const record = world.criminal.get(person.id)
@@ -264,7 +345,11 @@ export function runCrime(world: World, tick: Tick): void {
     // veteran is jobless (review S1).
     const behind = inArrears(world, person.householdId)
     const jobless = !world.employment.has(person.id) && !isServing(world, person.id)
-    let pressure = BASELINE_PRESSURE
+    // C3 §4. THE TOWN LEANS ON THE PERSON. The same Law-10 circumstance
+    // logic the individual terms use, lifted to the town: a place where a
+    // third of the households are behind makes crime thinkable for more
+    // people than a place where nobody is.
+    let pressure = BASELINE_PRESSURE + Math.floor(townPressure / 20)
     if (behind) pressure += 90
     if (jobless) pressure += 40
     if (behind && jobless) pressure += 30 // both at once is its own weather
@@ -673,7 +758,8 @@ function carryOutOffence(
   })
 
   // Cleared, or not — the same door the player's own offence goes through.
-  if (!rng.chance(offence.clearance, 1_000)) return
+  // C3 §3. The town's own constables improve the odds it is solved.
+  if (!rng.chance(Math.min(1000, offence.clearance + clearanceBonusOf(world)), 1_000)) return
   recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
 
   // C3 §2. OFFENDING ON PROBATION IS THE VIOLATION THAT MATTERS. The term
@@ -1091,6 +1177,24 @@ export function sentenceInWords(months: number): string {
 
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
   const items: NewsItem[] = []
+
+  // C3 §4. THE WEATHER, ONCE A YEAR. The index is a fact about the town
+  // computed from things the player can already see — how many households
+  // are behind, how many people are out of work, how many constables the
+  // county employs — and this is where it becomes something they read
+  // rather than something that quietly moves the odds.
+  if (world.tick % 12 === 0 && world.tick > sinceTick - 12) {
+    const pressure = crimePressureOf(world)
+    const line =
+      pressure >= 260
+        ? 'petty crime is up sharply this year, and the courthouse is busy'
+        : pressure >= 150
+          ? 'petty crime is up this year'
+          : pressure <= 40
+            ? 'a quiet year for the county courthouse'
+            : null
+    if (line !== null) items.push({ tick: world.tick, text: line, nearby: false })
+  }
   for (const event of world.events) {
     if (event.tick < sinceTick) continue
     if (event.type === 'committed-theft') {

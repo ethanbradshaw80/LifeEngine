@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v65 — C3 STEP 6: THE CONSTABLE AND THE TOWN'S WEATHER. Law enforcement
+ *      is a job anybody can hold, it is a scarce public office rather than
+ *      an ordinary trade, and the town's constables raise how much crime
+ *      is solved. A crime-pressure index computed from arrears, joblessness
+ *      and policing leans on every person's own threshold and is printed
+ *      once a year. Measured: towns read 77 to 243.
  * v64 — C3 STEP 5: PROBATION RUNS. The rung the ladder needed most: a
  *      monthly supervision pass, a revocation that imposes what was
  *      hanging over somebody, and a new offence while supervised as the
@@ -421,7 +427,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 64
+export const SIMULATION_VERSION = 65
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
