@@ -1945,3 +1945,31 @@ ol.orders-body .nlt { color: #a4241f; font-weight: 700; }
   .orders-stamp { bottom: 66px; right: 8px; font-size: 11px; padding: 4px 7px; }
   .orders-titlebar { flex-direction: column; gap: 2px; }
 }
+
+/* ---------------------------------------------------------------------------
+   The Crime section (C3 §18). Fifty-nine charges need headings, and the
+   county's records need to read like records rather than a feed.
+--------------------------------------------------------------------------- */
+
+.offence-group {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.9rem;
+  border: none;
+}
+
+.offence-group > h4 {
+  margin: 0.8rem 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.25rem;
+}
+
+.offence-group > .offences {
+  margin: 0;
+  padding: 0;
+}

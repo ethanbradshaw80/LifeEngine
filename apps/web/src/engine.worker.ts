@@ -29,6 +29,7 @@ import {
   quitJob,
   requestDeployment,
   commitOffence,
+  petitionForExpungement,
   playerPerson,
   requestDischarge,
   requestEnlistment,
@@ -79,6 +80,7 @@ export type VerbRequest =
   | { readonly verb: 'convalesce-stance'; readonly rest: boolean }
   | { readonly verb: 'request-discharge' }
   | { readonly verb: 'commit-offence'; readonly offenceId: string }
+  | { readonly verb: 'petition-expungement' }
 
 export type WorkerRequest =
   | {
@@ -316,6 +318,19 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'request-discharge': {
             const r = requestDischarge(world)
             outcome = { ok: r.discharged, reason: r.reason }
+            break
+          }
+          case 'petition-expungement': {
+            const person = playerPerson(world)
+            if (!person) {
+              outcome = { ok: false, reason: 'Nobody is being played.' }
+              break
+            }
+            const r = petitionForExpungement(world, person.id, world.tick)
+            outcome = {
+              ok: r.sealed > 0,
+              reason: r.reason === '' ? 'The court sealed nothing.' : r.reason,
+            }
             break
           }
           case 'commit-offence': {

@@ -42,9 +42,14 @@ const GATE_WORDS: Readonly<Record<string, string>> = {
 export function CountyRecords({
   world,
   person,
+  busy,
+  onPetition,
 }: {
   readonly world: World
   readonly person: Person
+  readonly busy: boolean
+  /** The one action here. Everything else is a read-only record. */
+  readonly onPetition: () => void
 }): JSX.Element {
   // The public docket: everyone with a conviction the county may disclose.
   const docket: { readonly who: Person; readonly tick: number; readonly text: string }[] = []
@@ -133,7 +138,20 @@ export function CountyRecords({
             history — a descendant reading your life still finds them — but hiring and the
             recruiting office no longer see them. A violent felony is never sealed.
           </p>
-          <p className="muted small">{bar === null ? 'The court would hear a petition now.' : bar}</p>
+          <div className="offence-foot">
+            <span className="muted small">
+              {bar === null ? 'The court would hear a petition now.' : bar}
+            </span>
+            <button
+              type="button"
+              className="apply"
+              disabled={busy || bar !== null}
+              title={bar ?? undefined}
+              onClick={onPetition}
+            >
+              File the petition
+            </button>
+          </div>
         </>
       )}
     </>

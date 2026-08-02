@@ -234,7 +234,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'news', icon: '📰', label: 'News' },
   { id: 'service', icon: '🪖', label: 'Service' },
   { id: 'health', icon: '🩺', label: 'Health' },
-  { id: 'record', icon: '⚖️', label: 'Record' },
+  { id: 'record', icon: '⚖️', label: 'Crime' },
   { id: 'stats', icon: '📊', label: 'Town' },
 ]
 
@@ -1990,7 +1990,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       )}
 
       {tab === 'record' && (
-        <div className="panel" aria-label="Record">
+        <div className="panel" aria-label="Crime">
           {(() => {
             const record = criminalRecordOf(world, person.id)
             const jailedUntil = record?.jailedUntilTick ?? null
@@ -2024,7 +2024,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   ))}
                 </div>
 
-                {crimeTab === 'records' && <CountyRecords world={world} person={person} />}
+                {crimeTab === 'records' && <CountyRecords
+                    world={world}
+                    person={person}
+                    busy={busy}
+                    onPetition={() => onAct({ verb: 'petition-expungement' })}
+                  />}
 
                 {crimeTab === 'records' && record !== undefined && record.convictions.length > 0 && (
                   <p className="muted small">
