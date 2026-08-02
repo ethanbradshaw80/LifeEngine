@@ -119,6 +119,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Let the promotion board go by.`
     case 'disciplined':
       return `${year} — Took a company punishment: ${event.detail ?? 'a mark on the file'}.`
+    case 'field-aid':
+      return `${year} — ${event.detail ?? 'Worked a wound in the field'}.`
     case 'kept-heads-down':
       return `${year} — Pinned down under fire; kept low and held.`
     case 'reconciled':

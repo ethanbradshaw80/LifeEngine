@@ -31,6 +31,7 @@ import {
   answerSupportDeployment,
   currentDeployment,
   evacuateHome,
+  offerFieldAid,
   rotationAvailable,
   supportDeploymentAvailable,
   volunteerForDeployment,
@@ -39,7 +40,7 @@ import {
 } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { alliedWars } from './deployment.js'
-import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
+import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
   addServiceQualification,
@@ -1017,7 +1018,13 @@ function resolveMomentCasualty(
     detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
   })
   grantWoundRecognition(world, tick, person.id, woundEvent, enemyName)
-  if (severity >= 600) evacuateHome(world, tick, person.id)
+  if (severity >= 600) {
+    // The minutes after, before the ride home (M-ARMY2). Raised from the
+    // combat moment too — a wound taken while going forward is still a
+    // wound somebody has to work on.
+    offerFieldAid(world, tick, person.id, severity)
+    evacuateHome(world, tick, person.id)
+  }
 }
 
 /**
@@ -1348,6 +1355,19 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'first-aid': {
+      resolveFieldAid(world, pending.tick, person, person.id, choice)
+      break
+    }
+
+    case 'treat-casualty': {
+      if (pending.otherId !== null) {
+        const casualty = world.people.get(pending.otherId)
+        if (casualty) resolveFieldAid(world, pending.tick, person, casualty.id, choice)
+      }
+      break
+    }
+
     case 'combat-moment': {
       // The squad is pinned. Both answers are real and both go on the
       // record — and BOTH are still a firefight: keeping down rolls the
@@ -1532,6 +1552,117 @@ function askRetrain(world: World, tick: PendingDecision['tick'], personId: Entit
   })
 }
 
+/**
+ * M-ARMY2. The minutes after a serious wound resolved.
+ *
+ * THE RULE THIS OBEYS (the combat-moment precedent): a choice is never a
+ * discount on the wound. Every answer is a real attempt with a real cost,
+ * the odds come from the severity the model already rolled, and the worst
+ * outcome — a wound that was going to be survivable being lost — stays
+ * reachable from all three. What the answer moves is how much, and at
+ * what price.
+ *
+ * `actor` is who is doing the work; `casualtyId` is who is bleeding. They
+ * are the same person for self-aid, and different for a medic's squadmate.
+ */
+function resolveFieldAid(
+  world: World,
+  tick: PendingDecision['tick'],
+  actor: Person,
+  casualtyId: EntityId,
+  choice: string,
+): void {
+  const record = world.health.get(casualtyId)
+  if (!record || record.ailment === null) return
+  const casualty = world.people.get(casualtyId)
+  if (!casualty || casualty.deathTick !== null) return
+
+  const severity = record.severity
+  const rng = openStream(world.seed, Stream.Health, casualtyId, tick + 8200)
+  const selfAid = casualtyId === actor.id
+  const trained =
+    world.service.get(actor.id)?.specialtyId === 'medic' ? 250 : 0
+
+  // How well it goes: the wound's own severity against the hands working
+  // on it. Pressing is the most effective and the most exposed; calling
+  // brings better hands but costs the minutes it takes them to arrive;
+  // lying still risks least and helps least.
+  let skill: number
+  let extraExposure: number
+  let chosen: string
+  switch (choice) {
+    case 'press-the-wound':
+    case 'work-the-wound':
+      skill = 420 + trained + Math.floor(actor.traits.resilience / 5)
+      extraExposure = 120
+      chosen = selfAid ? 'kept pressure on it and held on' : 'worked the wound where it lay'
+      break
+    case 'call-for-help':
+    case 'call-the-evac':
+      skill = 340 + trained + Math.floor(actor.traits.sociability / 8)
+      extraExposure = 40
+      chosen = selfAid ? 'called out, and waited for hands' : 'called the evacuation in'
+      break
+    default: // lie-still / drag-them-out
+      skill = selfAid ? 240 + Math.floor(actor.traits.resilience / 6) : 300 + trained
+      extraExposure = selfAid ? 0 : 200
+      chosen = selfAid ? 'lay still and let it clot' : 'dragged them out of it first'
+      break
+  }
+
+  // The tail that kills. A grave wound can be lost whatever anyone does —
+  // and good hands genuinely move it.
+  const mortalPressure = Math.max(0, severity - 600) * 2 + extraExposure
+  const lost = rng.chance(Math.max(10, mortalPressure - Math.floor(skill / 3)), 1_000)
+
+  const inputs = [
+    factor('own-choice', 1000),
+    factor('battlefield-chaos', severity),
+    ...(trained > 0 ? [factor('holds-qualification', 400)] : []),
+  ]
+
+  if (lost) {
+    performDeath(world, tick, casualty, 'wounds taken in action', inputs, Stream.Health)
+    evacuateHome(world, tick, casualtyId)
+    for (let i = world.events.length - 1; i >= 0; i--) {
+      const died = world.events[i]
+      if (!died || died.type !== 'died' || died.subjectId !== casualtyId) continue
+      grantWoundRecognition(world, tick, casualtyId, died, 'the enemy')
+      break
+    }
+    recordDecision(world, tick, {
+      subjectId: actor.id,
+      decision: 'convalescence',
+      significance: 'defining',
+      inputs,
+      chosen: selfAid ? chosen : `${chosen} — and lost them`,
+      rejected: [],
+      streamId: Stream.Health,
+    })
+    return
+  }
+
+  // Held on. Better work leaves less behind; the peak the body already hit
+  // is untouched, so any permanent mark it earned is still earned.
+  const helped = -Math.floor(skill / 4)
+  adjustAilmentSeverity(world, casualtyId, helped + extraExposure / 2)
+  recordEvent(world, tick, {
+    type: 'field-aid',
+    subjectId: actor.id,
+    ...(selfAid ? {} : { otherId: casualtyId }),
+    detail: selfAid ? chosen : `${chosen} — ${casualty.givenName} held on`,
+  })
+  recordDecision(world, tick, {
+    subjectId: actor.id,
+    decision: 'convalescence',
+    significance: 'notable',
+    inputs,
+    chosen,
+    rejected: [],
+    streamId: Stream.Health,
+  })
+}
+
 /** The specialty menu: every branch role this person's schooling admits. */
 function askSpecialty(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
   const person = world.people.get(personId)
@@ -1634,6 +1765,19 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'support-deployment': {
       const ally = pending.placeId === null ? undefined : world.nations.get(pending.placeId)
       return `${ally?.name ?? 'The country you are posted to'} has gone to war while you stand on its soil. Go home, or stay and fight beside them?`
+    }
+    case 'first-aid': {
+      const record = world.health.get(pending.personId)
+      const where = record?.ailmentSite ?? null
+      return where === null
+        ? 'You are hit, and still awake. What do you do?'
+        : `You are hit — the ${where} — and still awake. What do you do?`
+    }
+    case 'treat-casualty': {
+      const casualty = pending.otherId === null ? undefined : world.people.get(pending.otherId)
+      const record = pending.otherId === null ? undefined : world.health.get(pending.otherId)
+      const where = record?.ailmentSite ?? null
+      return `${casualty?.givenName ?? 'One of yours'} is down${where === null ? '' : ` — the ${where}`}, and you are the medic. What do you do?`
     }
     case 'combat-moment':
       return 'Fire off the ridge; the squad is pinned where it lies. What do you do?'
@@ -2077,6 +2221,37 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'combat-moment': {
       lines.push('Going forward is how it gets unpinned — and how people get hit, and worse.')
       lines.push('Keeping down is still a firefight; the month is dangerous either way. Both answers go on the record.')
+      break
+    }
+
+    case 'first-aid':
+    case 'treat-casualty': {
+      const casualtyId = pending.kind === 'first-aid' ? pending.personId : pending.otherId
+      const record = casualtyId === null ? undefined : world.health.get(casualtyId)
+      if (record) {
+        // How bad it is, in the words the model actually supports.
+        lines.push(
+          record.severity >= 850
+            ? 'It is bleeding badly. This is the kind people do not always come back from.'
+            : record.severity >= 720
+              ? 'It is serious, and it is not going to hold on its own.'
+              : 'It is bad, but it is the kind that gets dressed and carried.',
+        )
+        if (record.ailmentKind !== null && record.ailmentSite !== null) {
+          lines.push(`${withArticle(String(record.ailmentKind))} to the ${record.ailmentSite}.`)
+        }
+      }
+      if (pending.kind === 'first-aid') {
+        lines.push('Pressing the wound works best and keeps you in the open longest.')
+        lines.push('Calling out brings better hands, and costs the minutes it takes them.')
+        lines.push('Lying still is the safest thing to do and the least help.')
+      } else {
+        lines.push('Working it where they lie is the best medicine and the worst cover.')
+        lines.push('Dragging them out first costs them minutes and buys you both cover.')
+        lines.push('Calling the evacuation is steadier, and slower.')
+        lines.push('Your training counts here — this is the trade.')
+      }
+      lines.push('Whatever you choose, a wound this bad can still be lost.')
       break
     }
 

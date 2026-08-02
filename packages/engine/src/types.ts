@@ -557,6 +557,12 @@ export type PendingKind =
    *  home, or stay and fight beside them — a real tour against their
    *  enemy. otherId is the enemy; placeId is the ally. */
   | 'support-deployment'
+  /** M-ARMY2. Hit, and still conscious: the minutes that decide whether a
+   *  serious wound is survived. The diagram shows where and how bad. */
+  | 'first-aid'
+  /** M-ARMY2. A medic's own moment: a squadmate is down. otherId is the
+   *  casualty, who is a real person with a real wound. */
+  | 'treat-casualty'
   /**
    * LOG-ONLY (like 'custom-birth'): the player asked after work at a
    * particular trade — a tab verb, recorded so replay stays exact. Never a
@@ -740,6 +746,9 @@ export type EventType =
   /** A documented act under fire — the player's own recorded choice, and
    *  the ONLY thing valor recognition may ever read (foundation §11). */
   | 'act-of-valor'
+  /** M-ARMY2. Field aid worked on a wound — the player's own, or a
+   *  medic's on a squadmate (otherId). */
+  | 'field-aid'
   /** M-ARMY2. A company punishment — the mistake at base, on the record.
    *  detail carries the infraction; a third inside five years ends the
    *  career by misconduct discharge. */

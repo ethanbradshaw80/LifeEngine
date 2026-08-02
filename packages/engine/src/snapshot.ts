@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v33 — M-ARMY2. The minutes after a wound (owner direction). A serious
+ *      wound now stops the world for the person carrying it: a diagram of
+ *      where it landed, how bad it is and what it may leave, and a real
+ *      choice — press it, call out, or lie still. A player MEDIC gets the
+ *      same moment aimed at a squadmate. The odds come from the severity
+ *      the model already rolled; every answer can still lose a grave
+ *      wound, and none of them rewrites the peak the body hit, because
+ *      that is what lasting damage is judged on. Player-path only, so the
+ *      unplayed world is untouched.
  * v32 — M-ARMY2. Unit rosters and an ally's war. A soldier now serves in a
  *      named squad at their posting — derived from (person, base), so no
  *      schema moved and squadmates stay squadmates until someone
@@ -192,7 +201,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 32
+export const SIMULATION_VERSION = 33
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

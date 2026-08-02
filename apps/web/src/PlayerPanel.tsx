@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { BodyDiagram } from './BodyDiagram.js'
 import {
   ageAt,
   describePending,
@@ -232,6 +233,16 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
   'support-deployment': { 'stay-and-fight': 'Stay and fight', 'go-home': 'Go home' },
+  'first-aid': {
+    'press-the-wound': 'Press the wound',
+    'call-for-help': 'Call out for help',
+    'lie-still': 'Lie still',
+  },
+  'treat-casualty': {
+    'work-the-wound': 'Work the wound here',
+    'drag-them-out': 'Drag them to cover',
+    'call-the-evac': 'Call the evacuation',
+  },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
   'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
   retrain: { keep: 'Keep your trade' },
@@ -281,6 +292,13 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
           </div>
         )}
         <h2>{describePending(world, pending)}</h2>
+        {/* The wound, on a body, where the simulation actually put it. */}
+        {(pending.kind === 'first-aid' || pending.kind === 'treat-casualty') && (
+          <BodyDiagram
+            world={world}
+            personId={pending.kind === 'first-aid' ? pending.personId : (pending.otherId ?? pending.personId)}
+          />
+        )}
         {stakes.length > 0 && (
           <ul className="stakes">
             {stakes.map((line) => (

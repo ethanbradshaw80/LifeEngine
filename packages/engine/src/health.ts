@@ -395,6 +395,24 @@ export function inflictFieldIllness(
  * rest heals a solid step now; pushing on keeps the month's work sharp but
  * lets the ailment linger. Neither is free — that is what makes it a choice.
  */
+/**
+ * M-ARMY2. Move a live ailment's severity — what field aid does or fails
+ * to do in the hour after a wound. Health owns the write; the deployment
+ * and player systems ask (the distributeEstate pattern). Peak severity is
+ * NEVER lowered: the body's worst hour is what lasting damage is judged
+ * on, and good aid afterwards does not un-happen it.
+ */
+export function adjustAilmentSeverity(world: World, personId: EntityId, delta: number): void {
+  const record = world.health.get(personId)
+  if (!record || record.ailment === null) return
+  const severity = Math.max(1, Math.min(1000, record.severity + delta))
+  world.health.set(personId, {
+    ...record,
+    severity,
+    peakSeverity: Math.max(record.peakSeverity, severity),
+  })
+}
+
 export function applyConvalescence(world: World, tick: Tick, personId: EntityId, rest: boolean): void {
   void tick
   const record = world.health.get(personId)

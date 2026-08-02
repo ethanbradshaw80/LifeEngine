@@ -62,7 +62,7 @@ import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import { boostServicePerformance, isServing } from './service.js'
+import { boostServicePerformance, isServing, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
 
@@ -558,6 +558,66 @@ export function answerSupportDeployment(
   )
 }
 
+/**
+ * M-ARMY2 (owner direction). The minutes after a serious wound, which the
+ * simulation already had numbers for and never let anyone live through.
+ *
+ * Raised for the PLAYER when their own wound is serious, and for a player
+ * MEDIC when a squadmate goes down beside them. Returns whether a question
+ * landed, so the caller knows the outcome is now the answer's business.
+ *
+ * The wound itself is already inflicted and its peak already recorded —
+ * what the answer decides is whether it is survived and what it leaves
+ * behind. A choice is never a discount on being shot.
+ */
+export function offerFieldAid(
+  world: World,
+  tick: Tick,
+  casualtyId: EntityId,
+  severity: number,
+): boolean {
+  const playerId = world.player.personId
+  if (playerId === null || world.player.pending !== null) return false
+  if (severity < 600) return false // the minor ones are dressed and forgotten
+
+  if (casualtyId === playerId) {
+    const person = world.people.get(playerId)
+    if (!person || person.deathTick !== null) return false
+    return raisePending(world, {
+      tick,
+      kind: 'first-aid',
+      personId: playerId,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['press-the-wound', 'call-for-help', 'lie-still'],
+    })
+  }
+
+  // The medic's moment: their own trade, their own squad, their own choice.
+  const record = world.service.get(playerId)
+  if (!record || record.dischargedAtTick !== null) return false
+  if (record.specialtyId !== 'medic') return false
+  if (!isDeployed(world, playerId)) return false
+  const casualty = world.people.get(casualtyId)
+  if (!casualty || casualty.deathTick !== null) return false
+  if (!squadmatesOf(world, playerId).some((mate) => mate.personId === casualtyId)) return false
+
+  return raisePending(world, {
+    tick,
+    kind: 'treat-casualty',
+    personId: playerId,
+    otherId: casualtyId,
+    occupationId: null,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: ['work-the-wound', 'drag-them-out', 'call-the-evac'],
+  })
+}
+
 /** Medical evacuation from outside the monthly resolver — a combat-moment
  *  wound bad enough that the war is over for them this tour. */
 export function evacuateHome(world: World, tick: Tick, personId: EntityId): void {
@@ -791,6 +851,9 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // For an accident the event is 'was-injured' and the grant refuses —
     // which is the eligibility rule doing its job, not a missing case.
     grantWoundRecognition(world, tick, personId, woundEvent, enemy.name)
+    // Hit and still conscious — the minutes that decide it, if this is the
+    // player's own wound or one their medic's hands can reach (M-ARMY2).
+    offerFieldAid(world, tick, personId, severity)
     if (!isAccident) {
       recordDecision(world, tick, {
         subjectId: personId,

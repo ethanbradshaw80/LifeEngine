@@ -948,6 +948,64 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* The wound diagram: where it landed, how bad, what it leaves. */
+.wound-diagram {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 0.6rem 0 0.2rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--line) 12%, transparent);
+}
+
+.wound-diagram svg {
+  flex: 0 0 auto;
+  width: 74px;
+  height: 111px;
+}
+
+.wound-diagram .figure {
+  stroke: var(--muted);
+  opacity: 0.75;
+}
+
+.wound-diagram .wound-halo {
+  animation: wound-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes wound-pulse {
+  0%,
+  100% {
+    opacity: 0.12;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.wound-detail {
+  min-width: 0;
+}
+
+.wound-headline {
+  margin: 0 0 0.15rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.wound-marks {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wound-diagram .wound-halo {
+    animation: none;
+  }
+}
+
 /* The squad roster: rank, name, role — the shape of a real duty roster. */
 .roster {
   list-style: none;
