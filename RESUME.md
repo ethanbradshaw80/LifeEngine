@@ -3,9 +3,11 @@
 **Paste this into a new Claude Code session started in `Documents\LifeEngine`:**
 
 ```
-Read RESUME.md and continue from "Next up". Do not re-read the other docs
-unless the task needs them. Write all code yourself; only ask me to do things
-that need physical access to my computer, explained in one or two sentences.
+Read RESUME.md, follow START HERE, and work down THE QUEUE on your own.
+Do not re-read the other docs unless the task needs them. Write all code
+yourself. I am asleep — do not stop to ask me questions; pick the sensible
+option, write down why, commit as you go, and keep working. Only ask for
+things needing physical access to my computer.
 ```
 
 That is all you need to type. Everything below is for Claude, not for you.
@@ -58,6 +60,105 @@ Dev server at http://localhost:5173
 **GitHub:** https://github.com/ethanbradshaw80/LifeEngine (PRIVATE).
 Remote `origin` is configured and `gh` is authenticated as ethanbradshaw80.
 Push normally with `git push`.
+
+---
+
+## START HERE (handoff, end of 2026-08-02)
+
+**STATE:** clean tree, everything pushed, HEAD `63d24bc`.
+SIMULATION_VERSION **39** · golden **e8656367** · SCHEMA_VERSION **20** ·
+**384 tests**, all green. 35 commits this session.
+
+**THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
+sleep and wants work to continue without him. Keep going down the queue
+below, autonomously, committing as you go. He will read it when he wakes
+and fix what he does not like. Do NOT stop to ask questions — pick the
+sensible option, write down why, and keep moving.
+
+### THE QUEUE, in order
+
+**1. P3 — THE SURFACES** (`docs/PLAYER_EXPERIENCE_AUDIT.md` §P3 is the
+spec). The largest remaining gap between what the simulation models and
+what the player can see. In the audit's own priority order:
+  - **Finances tab.** Ranked the SECOND-worst agency deficit and still
+    open. Full monthly ledger (wages, service pay, pension, survivor
+    share, rent, living, lifestyle, net), arrears history, the affordable
+    -streets browser. Every query already exists: `householdIncome`,
+    `householdCosts`, `discretionaryFor`, `monthlyNetOf`, `pensionOf`,
+    `survivorPensionOf`, `rentFor`, `canAfford`. This is a READ-side tab
+    over things that are already true — no engine work needed beyond
+    maybe one aggregate query.
+  - **Relationships tab.** People with strength/duration/compatibility
+    and the P2 verbs gathered in one place (they currently live scattered
+    on the Family tab). Queries exist: `relationshipsOf`, `compatibility`,
+    `partnerOf`, `friendsOf`, plus the bars (`courtshipBar`,
+    `proposalBar`).
+  - **Traits sheet in words** ("diligent, restless") so the Why? texts
+    land — the numbers are on `person.traits` and nothing renders them.
+  - **Stats tab** surfacing the D1 demographics in-game
+    (`yearlyDemographics`, `partneringFunnel`, `fertilityCohort` all
+    exist and are already rendered on the OBSERVER dashboard — this is
+    the same panel inside a played life).
+  - Education/skills view incl. visible job performance.
+
+**2. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
+W1 extract a WorldSpec, W2 the American Heartland preset, W3 place depth.
+The largest remaining piece of the original vision. NOTE: W3 is where
+"families follow a PCS" and "branch-appropriate bases" become possible —
+both are deferred waiting on real geography, and both are recorded below.
+
+**3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
+variety, the constable as an occupation, town crime pressure as news,
+record-fade gates, the victim's side as player experience.
+
+### RULES THAT KEEP BITING (read these before writing code)
+
+1. **If a moment can raise a FOLLOW-UP question, resolve it AFTER
+   `commit()`.** `raisePending` refuses while a pending is held, and it
+   returns a boolean nobody checks. This has now shipped broken TWICE —
+   the combat moment's field aid, then C2's plea, which meant the player
+   was sentenced off-screen for the whole life of the feature. The cure
+   both times was moving the call below `commit(world, pending, choice)`
+   in `resolvePending`.
+2. **A test that never advances the tick loop tests nothing.** The
+   allied-war support tour shipped completely dead — closing on its first
+   tick — with green tests that only checked the tour was created.
+3. **Measure before tuning, and re-measure after.** The war that killed
+   nobody was a 1000:1 severity gate, not bad luck; the enlistment "bug"
+   was the News tab showing forty years of history at once. Both were
+   found by writing a temp audit test that writes a report file, then
+   deleting it. That pattern is the house style — use it.
+4. **The owner's play notes find more than the reviews do.** When he
+   reports something, believe the report and go measure it.
+5. **Reviews are mandatory and they always find something.** Every single
+   milestone reviewed today produced a real must-fix. Run the right
+   reviewer (`military-scope-reviewer`, `architecture-reviewer`,
+   `persistence-reviewer`, `documentation-reviewer`) before calling a
+   milestone done.
+6. **Golden + SIMULATION_VERSION.** The hash lives in TWO places
+   (`determinism.test.ts` and `apps/web/src/App.tsx`) and must move
+   together. Bump SIMULATION_VERSION for changes to the UNPLAYED world;
+   player-path-only changes ride the schema version (DETERMINISM §7) —
+   C2 correctly did NOT bump.
+7. **Engine purity is enforced by test.** `toLocaleString` and anything
+   else locale/time dependent will fail `purity.test.ts`. Use the
+   deterministic helpers.
+
+### WHAT SHIPPED TODAY (all reviewed, all pushed)
+
+Perf: the tick loop was re-sorting the relationship graph on every partner
+lookup — 86% of tick time on a grown town; sort-free scan, ~10x, byte
+identical. · **P2** the fourteen player verbs. · **The 400-person town.** ·
+**M-ARMY2** entire: enlistment as modelled pull + recruiting drives,
+career shape (up-or-out below E-5, 30-year careers, join to 38, out at
+62), company punishments, peacetime rotations to allies, war lethality
+(wars killed NOBODY before), unit rosters, allied-war support deployments,
+the wound diagram + first-aid moment. · **Retirement pay** and **survivor
+benefits** (a widow draws 55%). · **Wars grind nations down.** · **The
+import-graph ratchet** (12 known cycles, fails on a new one). · **C2**:
+desperation moment, plea, 22-offence charge sheet, verdict sheet. · **The
+Why? answers what came of it.** · **Census names** (owner-supplied). ·
+**The WCJC newsroom.** · **The left tab rail.**
 
 **Milestone 0 — COMPLETE** (`0620632`)
 Monorepo: `packages/shared` (branded primitives, integer money),
@@ -617,7 +718,8 @@ the same fingerprint and displays pass/fail.
 > both AND bump `SIMULATION_VERSION` in `snapshot.ts`. Never edit the constant
 > quietly to make a test pass.
 
-### Next up — M-ARMY2 (owner direction, 2026-08-01, two rounds mid-P2)
+### M-ARMY2 — COMPLETE. (Historical record of the arc follows; the live
+### queue is in START HERE at the top of this file.)
 
 Ethan's words, itemized. military-scope-reviewer MANDATORY. The
 2026-08-01 army audit (temp runner, deleted) measured 120y × 3 seeds:
