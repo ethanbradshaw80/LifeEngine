@@ -92,6 +92,40 @@ describe('the field-aid moment', () => {
     expect(recorded).toBeGreaterThan(0)
   })
 
+  it('never turns an accident into a combat death or a combat decoration', () => {
+    // REVIEW M2: the losing branch used to label every death "wounds taken
+    // in action" — so a truck rollover earned the wound decoration and a
+    // record that lied about the cause. The wound event is the truth.
+    let checked = 0
+    for (let seedValue = 1; seedValue <= 60 && checked < 3; seedValue++) {
+      const world = createWorld(makeSeed(seedValue), 100)
+      const person = livingPeople(world).find((p) => p.deathTick === null)
+      if (!person) continue
+      setPlayer(world, person.id)
+      const rng = openStream(world.seed, Stream.Health, person.id, world.tick)
+      // An ACCIDENT wound: the event the engine writes for one.
+      inflictWound(world, world.tick, person.id, 950, 'field-accident', rng)
+      world.events.push({
+        id: 90_000 + seedValue,
+        tick: world.tick,
+        type: 'was-injured',
+        subjectId: person.id,
+        otherId: null,
+        placeId: null,
+        detail: 'serious:a crush injury',
+      })
+      if (!offerFieldAid(world, world.tick, person.id, 950)) continue
+      resolvePending(world, 'lie-still')
+      checked++
+      const dead = world.people.get(person.id)?.deathTick !== null
+      if (!dead) continue
+      expect(world.people.get(person.id)?.causeOfDeath).toBe('an accident on deployment')
+      const awards = world.awards.get(person.id) ?? []
+      expect(awards.some((a) => a.kind === 'wound-recognition')).toBe(false)
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
   it('does not fire while another question holds the world', () => {
     const { world, id } = woundedPlayer(12345, 800)
     world.player.pending = {

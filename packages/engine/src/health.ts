@@ -336,8 +336,16 @@ export function inflictWound(
     const worse = Math.min(1000, record.severity + Math.floor(severity / 2))
     world.health.set(personId, {
       ...record,
+      // The NEW wound is the one being carried and the one being treated,
+      // so it is the one the record names (review S8: the diagram showed
+      // last month's injury — or an illness — beside this month's
+      // gunshot). The severity still compounds: the body carries both.
+      ailment: 'injury',
+      ailmentKind: injury.kind,
+      ailmentSite: injury.site,
       severity: worse,
       peakSeverity: Math.max(record.peakSeverity, worse),
+      askedConvalesce: false,
     })
     return { kind: injury.kind, site: injury.site, description }
   }

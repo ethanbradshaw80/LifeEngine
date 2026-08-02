@@ -1018,13 +1018,12 @@ function resolveMomentCasualty(
     detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
   })
   grantWoundRecognition(world, tick, person.id, woundEvent, enemyName)
-  if (severity >= 600) {
-    // The minutes after, before the ride home (M-ARMY2). Raised from the
-    // combat moment too — a wound taken while going forward is still a
-    // wound somebody has to work on.
-    offerFieldAid(world, tick, person.id, severity)
-    evacuateHome(world, tick, person.id)
-  }
+  // NOTE: field aid for a combat-moment wound cannot be raised here — the
+  // moment's own pending is still held until resolvePending commits, so
+  // the ask would be silently refused (review S7 found this comment
+  // claiming otherwise). resolvePending raises it after the commit; the
+  // evacuation is what happens here.
+  if (severity >= 600) evacuateHome(world, tick, person.id)
 }
 
 /**
@@ -1514,6 +1513,15 @@ export function resolvePending(world: World, choice: string): void {
 
   commit(world, pending, choice)
 
+  // A wound taken during the combat moment is still a wound somebody has
+  // to work on — and only now is the pending slot free to ask (review S7).
+  if (pending.kind === 'combat-moment') {
+    const hurt = world.health.get(person.id)
+    if (hurt && hurt.ailment !== null && person.deathTick === null) {
+      offerFieldAid(world, pending.tick, person.id, hurt.severity)
+    }
+  }
+
   // Follow-up questions: an accepted enlistment immediately asks WHICH
   // uniform. Raised after commit so the pending slot is free again.
   if (pending.kind === 'enlist' && choice === 'accept') {
@@ -1589,52 +1597,95 @@ function resolveFieldAid(
   // lying still risks least and helps least.
   let skill: number
   let extraExposure: number
+  let delayCost: number
   let chosen: string
   switch (choice) {
     case 'press-the-wound':
     case 'work-the-wound':
-      skill = 420 + trained + Math.floor(actor.traits.resilience / 5)
-      extraExposure = 120
+      skill = 520 + trained + Math.floor(actor.traits.resilience / 5)
+      extraExposure = 140
+      delayCost = 0
       chosen = selfAid ? 'kept pressure on it and held on' : 'worked the wound where it lay'
       break
     case 'call-for-help':
     case 'call-the-evac':
-      skill = 340 + trained + Math.floor(actor.traits.sociability / 8)
+      skill = 380 + trained + Math.floor(actor.traits.sociability / 8)
       extraExposure = 40
+      delayCost = 60
       chosen = selfAid ? 'called out, and waited for hands' : 'called the evacuation in'
       break
     default: // lie-still / drag-them-out
-      skill = selfAid ? 240 + Math.floor(actor.traits.resilience / 6) : 300 + trained
-      extraExposure = selfAid ? 0 : 200
+      skill = selfAid ? 260 + Math.floor(actor.traits.resilience / 6) : 340 + trained
+      extraExposure = selfAid ? 0 : 60
+      delayCost = selfAid ? 0 : 110
       chosen = selfAid ? 'lay still and let it clot' : 'dragged them out of it first'
       break
   }
 
-  // The tail that kills. A grave wound can be lost whatever anyone does —
-  // and good hands genuinely move it.
-  const mortalPressure = Math.max(0, severity - 600) * 2 + extraExposure
+  // WHAT THE WOUND WAS. An accident is not enemy action, and a death from
+  // one must not be dressed as a combat death — the decoration would then
+  // be granted off a cause that never happened (review M2). The month's
+  // own wound event is the honest source.
+  let enemyAction = false
+  for (let i = world.events.length - 1; i >= 0; i--) {
+    const event = world.events[i]
+    if (!event || event.tick !== tick || event.subjectId !== casualtyId) continue
+    if (event.type === 'wounded-in-action') { enemyAction = true; break }
+    if (event.type === 'was-injured') break
+  }
+  const enemyId = currentDeployment(world, casualtyId)?.enemyId ?? null
+  const enemyName = (enemyId === null ? undefined : world.nations.get(enemyId)?.name) ?? 'the enemy'
+
+  // The tail that kills. The severity is the weight, the hands working on
+  // it are the counterweight, and delay adds to it. Exposure is the
+  // ACTOR's risk — which for self-aid is the casualty's own (review S5:
+  // the text promised this and the model did the opposite).
+  const mortalPressure =
+    Math.max(0, severity - 600) * 2 + delayCost + (selfAid ? extraExposure : 0)
   const lost = rng.chance(Math.max(10, mortalPressure - Math.floor(skill / 3)), 1_000)
 
-  const inputs = [
+  // The casualty was SHOT; they did not choose this. Their own record says
+  // so, and when someone else worked on them it names them (review S4).
+  const casualtyInputs = [
+    factor('battlefield-chaos', severity),
+    ...(selfAid ? [factor('own-choice', 1000)] : [factor('holds-qualification', 400, actor.id)]),
+  ]
+  const actorInputs = [
     factor('own-choice', 1000),
     factor('battlefield-chaos', severity),
     ...(trained > 0 ? [factor('holds-qualification', 400)] : []),
   ]
 
   if (lost) {
-    performDeath(world, tick, casualty, 'wounds taken in action', inputs, Stream.Health)
+    performDeath(
+      world, tick, casualty,
+      enemyAction ? 'wounds taken in action' : 'an accident on deployment',
+      casualtyInputs, Stream.Health,
+    )
     evacuateHome(world, tick, casualtyId)
-    for (let i = world.events.length - 1; i >= 0; i--) {
-      const died = world.events[i]
-      if (!died || died.type !== 'died' || died.subjectId !== casualtyId) continue
-      grantWoundRecognition(world, tick, casualtyId, died, 'the enemy')
-      break
+    if (enemyAction) {
+      for (let i = world.events.length - 1; i >= 0; i--) {
+        const died = world.events[i]
+        if (!died || died.type !== 'died' || died.subjectId !== casualtyId) continue
+        grantWoundRecognition(world, tick, casualtyId, died, enemyName)
+        break
+      }
     }
+    // The losing branch gets its event too — a medic's timeline must not
+    // be silent about the person who died under their hands (review S4).
+    recordEvent(world, tick, {
+      type: 'field-aid',
+      subjectId: actor.id,
+      ...(selfAid ? {} : { otherId: casualtyId }),
+      detail: selfAid
+        ? `${chosen} — it was not enough`
+        : `${chosen}; ${casualty.givenName} did not make it`,
+    })
     recordDecision(world, tick, {
       subjectId: actor.id,
       decision: 'convalescence',
       significance: 'defining',
-      inputs,
+      inputs: actorInputs,
       chosen: selfAid ? chosen : `${chosen} — and lost them`,
       rejected: [],
       streamId: Stream.Health,
@@ -1644,8 +1695,7 @@ function resolveFieldAid(
 
   // Held on. Better work leaves less behind; the peak the body already hit
   // is untouched, so any permanent mark it earned is still earned.
-  const helped = -Math.floor(skill / 4)
-  adjustAilmentSeverity(world, casualtyId, helped + extraExposure / 2)
+  adjustAilmentSeverity(world, casualtyId, -Math.floor(skill / 4) + Math.floor(delayCost / 2))
   recordEvent(world, tick, {
     type: 'field-aid',
     subjectId: actor.id,
@@ -1656,7 +1706,7 @@ function resolveFieldAid(
     subjectId: actor.id,
     decision: 'convalescence',
     significance: 'notable',
-    inputs,
+    inputs: actorInputs,
     chosen,
     rejected: [],
     streamId: Stream.Health,

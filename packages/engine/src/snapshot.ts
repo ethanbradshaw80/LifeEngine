@@ -28,6 +28,17 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v34 — M-ARMY2, military review fixes. A support tour looks its war up by
+ *      its own pair instead of the homeland's list, so fighting beside an
+ *      ally now actually happens — it used to close on the first tick,
+ *      which made the whole feature a one-month bus ride. Field aid no
+ *      longer stacks a second death roll on a wound the automatic
+ *      resolver already judged (the player's wounds were half again as
+ *      lethal as anyone else's, and standing near a player medic was
+ *      dangerous); the moment now carries the tail instead. An accident
+ *      death is recorded as an accident and earns no combat decoration.
+ *      A compounded wound records the NEW injury's kind and site, so the
+ *      diagram cannot show last month's.
  * v33 — M-ARMY2. The minutes after a wound (owner direction). A serious
  *      wound now stops the world for the person carrying it: a diagram of
  *      where it landed, how bad it is and what it may leave, and a real
@@ -201,7 +212,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 33
+export const SIMULATION_VERSION = 34
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

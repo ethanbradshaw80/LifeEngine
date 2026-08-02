@@ -244,8 +244,13 @@ export function supportDeploymentAvailable(world: World): boolean {
  * is the record: this was asked for, not ordered.
  */
 export function volunteerForSupport(world: World, tick: Tick, personId: EntityId): boolean {
-  const options = alliedWars(world)
-  const chosen = options[0]
+  // Our own war comes first. A soldier does not go to an ally's front
+  // while the Republic is fighting for itself — the orders system has a
+  // prior claim on them (test: the support door is shut in our own war).
+  const home = homeland(world)
+  if (!home) return false
+  if (activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return false
+  const chosen = alliedWars(world)[0]
   if (!chosen) return false
 
   const person = world.people.get(personId)
@@ -257,7 +262,7 @@ export function volunteerForSupport(world: World, tick: Tick, personId: EntityId
 
   startCombatTour(world, tick, personId, chosen.war, chosen.enemy.id, [
     factor('own-choice', 1000),
-    factor('war-demanded-troops', chosen.enemy.strength),
+    factor('war-demanded-troops', Math.min(1000, chosen.enemy.strength)),
   ], `volunteered for the ${chosen.enemy.name} front alongside ${chosen.ally.name}`, [
     'to stay at the home station',
   ])
@@ -570,6 +575,41 @@ export function answerSupportDeployment(
  * what the answer decides is whether it is survived and what it leaves
  * behind. A choice is never a discount on being shot.
  */
+/**
+ * Whether the wound about to be inflicted will stop the world for a
+ * decision. The monthly resolver asks this BEFORE its own fatal roll: when
+ * a moment is coming, the answer carries the whole mortal tail, so field
+ * aid is never a surcharge on top of a death roll that already happened
+ * (review S3 — the player's wounds were half again as lethal as anyone
+ * else's, and standing near a player medic was dangerous).
+ */
+export function fieldAidWillBeOffered(
+  world: World,
+  casualtyId: EntityId,
+  severity: number,
+  pendingSlotFree = true,
+): boolean {
+  const playerId = world.player.personId
+  if (playerId === null || severity < 600) return false
+  if (pendingSlotFree && world.player.pending !== null) return false
+  if (casualtyId === playerId) {
+    const person = world.people.get(playerId)
+    return person !== undefined && person.deathTick === null
+  }
+  const record = world.service.get(playerId)
+  if (!record || record.dischargedAtTick !== null || record.specialtyId !== 'medic') return false
+  if (!isDeployed(world, playerId)) return false
+  const casualty = world.people.get(casualtyId)
+  if (!casualty || casualty.deathTick !== null) return false
+  if (!squadmatesOf(world, playerId).some((mate) => mate.personId === casualtyId)) return false
+  // Same war, same tour — a medic's hands do not reach another front
+  // (review S6). Squad membership is a base fact; being there is not.
+  const mine = currentDeployment(world, playerId)
+  const theirs = currentDeployment(world, casualtyId)
+  if (!mine || !theirs) return false
+  return mine.warA === theirs.warA && mine.warB === theirs.warB && mine.enemyId === theirs.enemyId
+}
+
 export function offerFieldAid(
   world: World,
   tick: Tick,
@@ -578,11 +618,9 @@ export function offerFieldAid(
 ): boolean {
   const playerId = world.player.personId
   if (playerId === null || world.player.pending !== null) return false
-  if (severity < 600) return false // the minor ones are dressed and forgotten
+  if (!fieldAidWillBeOffered(world, casualtyId, severity)) return false
 
   if (casualtyId === playerId) {
-    const person = world.people.get(playerId)
-    if (!person || person.deathTick !== null) return false
     return raisePending(world, {
       tick,
       kind: 'first-aid',
@@ -596,15 +634,8 @@ export function offerFieldAid(
     })
   }
 
-  // The medic's moment: their own trade, their own squad, their own choice.
-  const record = world.service.get(playerId)
-  if (!record || record.dischargedAtTick !== null) return false
-  if (record.specialtyId !== 'medic') return false
-  if (!isDeployed(world, playerId)) return false
-  const casualty = world.people.get(casualtyId)
-  if (!casualty || casualty.deathTick !== null) return false
-  if (!squadmatesOf(world, playerId).some((mate) => mate.personId === casualtyId)) return false
-
+  // The medic's moment: their own trade, their own squad, their own war —
+  // every gate already checked by fieldAidWillBeOffered above.
   return raisePending(world, {
     tick,
     kind: 'treat-casualty',
@@ -666,7 +697,17 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       continue
     }
 
-    const war = wars.find((w) => w.a === deployment.warA && w.b === deployment.warB)
+    // The tour's OWN war, looked up by its own pair — not filtered to the
+    // homeland's wars (review M1). A support tour answers an ALLY's war,
+    // which by definition is not one of ours, so the old filtered lookup
+    // never found it and closed the tour on the first tick: the player
+    // answered "stay and fight" and came home a month later, having seen
+    // nothing. One lookup now serves every kind of tour.
+    const ongoing =
+      deployment.warA === null || deployment.warB === null
+        ? undefined
+        : relationBetween(world, deployment.warA, deployment.warB)
+    const war = ongoing !== undefined && ongoing.state === 'war' ? ongoing : undefined
     const record = world.service.get(personId)
 
     // The war ended, or the tour did: home. A discharged record mid-tour
@@ -792,7 +833,12 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // casualties, which the same measurement puts at two or three
     // townspeople across a long war. Accidents keep their lower share.
     const severity = rng.nextBellInt(300, 1000)
-    const fatal = severity >= 720 && rng.chance(isAccident ? 1 : 2, 5)
+    // When the wound will stop the world for a decision, the DECISION
+    // carries the mortal tail — rolling here as well would make the
+    // player's wounds (and any wound a player medic can reach) far more
+    // lethal than the same wound on anyone else (review S3).
+    const aidComing = fieldAidWillBeOffered(world, personId, severity)
+    const fatal = !aidComing && severity >= 720 && rng.chance(isAccident ? 1 : 2, 5)
 
     const phaseFactor = factor('war-phase', war.warPhase === 'offensive' || war.warPhase === 'opening' ? 800 : 450)
     const chain = [
@@ -936,7 +982,7 @@ function resolveRotationMonth(
       closeTour(world, tick, personId, deployment, false, 'stayed to fight')
       startCombatTour(
         world, tick, personId, support.war, support.enemy.id,
-        [factor('own-choice', 1000), factor('war-demanded-troops', support.enemy.strength)],
+        [factor('own-choice', 1000), factor('war-demanded-troops', Math.min(1000, support.enemy.strength))],
         `stayed on to fight beside ${support.ally.name}`,
         ['to go home'],
       )
