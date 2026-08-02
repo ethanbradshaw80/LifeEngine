@@ -900,3 +900,50 @@ quietly asserted that no war this simulation runs has ever taken a prisoner.
 where the Republic fought. SCHEMA_VERSION 25 with a real migration — every
 migrated tour is set free, because no build before this one could take
 anybody, and guessing otherwise would invent captivity that never happened.
+
+---
+
+## ADR-0026 — Aviation, the Air Medal, and the end of the HOLD list
+
+**Date.** 2026-08-02. **Status.** Accepted.
+
+**Context.** The second of ADR-0024's two held items. The Air Medal and the
+aircrew badges had no system behind them, and the owner's rule is that no
+award exists that cannot be earned.
+
+**Decision.**
+
+1. **Two flying trades, not one.** `aviator` (college-entry, twelve months
+   of schooling) and `aircrew`. Their exposure profiles are the honest shape
+   of the job rather than a flat "dangerous": an aircraft is never in a
+   convoy, is rarely in a firefight, and the machine itself is the hazard —
+   accidents dominate both profiles.
+
+2. **Contact for aircrew is a mission flown into it.** The month that gives
+   a rifleman a firefight gives them a sortie: `aerial-mission`, recorded,
+   and the Air Medal grants off it.
+
+3. **The Air Medal repeats.** The real decoration is awarded again and again
+   to the same aircrew — the clusters are the usual case — and the grant
+   helper's own count carries it, so a long tour of flying reads as one.
+
+4. **The Nighthawk Squadron**, air-guard tier 2, fed by the Guardian Flight
+   and gated behind Flight School's senior aviator badge. Fictional name,
+   permanently, like every named unit in every preset (charter §3).
+
+5. **The HOLD list is now empty**, and the earnability test asserts it in
+   both directions: a kind in the union must have a grant, and a kind
+   without a system must not be in the union. Any future award waits for its
+   system the same way.
+
+**Consequences.** SIMULATION_VERSION 49 — new trades change who takes which
+job at enlistment and which civilian career follows, so every seed's working
+lives differ, not only the ones who flew.
+
+**Two things the work turned up.** The first draft pointed the aviator trade
+at a `pilot` civilian job that does not exist in `OCCUPATIONS` — a promise
+the veteran could never collect on. The test now walks every specialty
+unlock against the occupation list, and it immediately caught a second one.
+Separately, the lifetime-savings ceiling turned out to be tuned to a single
+draw; it was measured across five seeds ($540k–$1.62m) before being widened,
+rather than moved to get a green result.

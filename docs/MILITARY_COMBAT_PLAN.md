@@ -18,6 +18,17 @@ ruling was needed the ruling is marked **[DECIDED]** with its reason.
 4. **Shared unit cutscenes** (packet drop, selection day, reporting in) — makes joining a unit feel like something.
 5. **Per-unit mission scenes**, one unit at a time, starting with whichever unit a player reaches first.
 
+**All five are built as of 2026-08-02.** Step 4 landed with its own pending
+kind, `'unit-moment'`, deliberately NOT routed through the combat casualty
+resolver: a ramp ceremony is not enemy contact, and reusing that resolver
+would have put a rifle round in a moment where nobody is shooting. Selection
+stopped being a silent coin flip in the same change — it is played now, and
+the answer moves the odds off the same stream and the same margin.
+
+Since then, and beyond the plan: the awards pack in full (ADR-0024), the
+capture system and the Prisoner of War Medal (ADR-0025), aviation and the
+Air Medal (ADR-0026), the ribbon rack and a drawn mark for every badge.
+
 ---
 
 ## 1. Service tab structure
