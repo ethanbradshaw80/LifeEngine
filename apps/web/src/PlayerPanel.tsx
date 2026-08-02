@@ -253,7 +253,11 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     'call-the-evac': 'Call the evacuation',
   },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
-  'crime-victim': { report: 'Report it to the constable', 'let-it-go': 'Let it go' },
+  'crime-victim': {
+    report: 'Report it to the constable',
+    'let-it-go': 'Let it go',
+    defend: 'Meet them with force',
+  },
   plea: {
     'plead-guilty': 'Plead guilty',
     'stand-trial': 'Plead not guilty — stand trial',

@@ -45,6 +45,7 @@ import type { SceneChoice } from './scenes.js'
 import {
   answerDesperation,
   answerVictimMoment,
+  defendTheHouse,
   describePleaDeal,
   isJailed,
   pleaDealFor,
@@ -1603,6 +1604,10 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'crime-victim': {
+      if (choice === 'defend') {
+        defendTheHouse(world, pending.tick, person, pending.occupationId ?? 'burglary')
+        break
+      }
       answerVictimMoment(
         world,
         pending.tick,
@@ -2765,6 +2770,10 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     }
 
     case 'crime-victim': {
+      // C3 §15. THE THIRD OPTION IS NOT A FREE ONE, and the player has to
+      // know that before they take it — using force does not clear you,
+      // in this game or in the country it is modelled on.
+      lines.push('Meeting them with force does not clear you: the county decides what to make of it, and a fleeing burglar shot in the back is the weakest case there is.')
       lines.push('Reporting it gives the constables something to work with — most burglaries are never solved, and a report is worth real odds rather than a certainty.')
       lines.push('If they catch whoever did it, the court can order the money paid back.')
       lines.push('Letting it go costs nothing and is on the record all the same.')

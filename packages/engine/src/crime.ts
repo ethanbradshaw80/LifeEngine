@@ -552,7 +552,11 @@ export function commitOffence(
           workplaceId: null,
           monthlyPay: taken as never,
           placeId: null,
-          options: ['report', 'let-it-go'],
+          // C3 §15. THE THIRD OPTION IS NOT A FREE ONE. Defending the
+          // house with force routes through the same system a crime does,
+          // because in America it does: a clean case may never be charged,
+          // a questionable one goes to trial.
+          options: ['report', 'let-it-go', 'defend'],
         })
       }
 
@@ -1686,6 +1690,186 @@ export function describePleaDeal(deal: PleaDeal): string {
   return deal.kind === 'charge'
     ? `Plead guilty to ${to} for ${term}.`
     : `Plead guilty as charged for ${term}.`
+}
+
+/**
+ * C3 §15. How strong a claim of justified force is, 0-1000.
+ *
+ * THE AMERICAN SHAPE, and the part players get wrong: using force on
+ * somebody in your house does NOT automatically clear you. What decides it
+ * is the circumstances, and they are the ones the doc names:
+ *
+ *  - castle doctrine: were they unlawfully inside the home
+ *  - was the intruder armed
+ *  - were they FLEEING, which is the weakest case there is — shooting
+ *    somebody in the back as they leave is not defence of anything
+ *  - and proportionality: what was actually at stake
+ *
+ * The same frame generalises: defence of others, defence of property
+ * (weak — deadly force is rarely justified for property alone), duress and
+ * necessity. None of them is an automatic pass, and none is an automatic
+ * conviction.
+ */
+export interface ForceCircumstances {
+  readonly inTheHome: boolean
+  readonly intruderArmed: boolean
+  readonly intruderFleeing: boolean
+  /** True where the force used was lethal. */
+  readonly lethal: boolean
+}
+
+export function justificationOf(circumstances: ForceCircumstances): number {
+  let score = 300
+  if (circumstances.inTheHome) score += 350
+  if (circumstances.intruderArmed) score += 250
+  // The one that sinks a case. A fleeing burglar is not a threat, and the
+  // law is not sentimental about it.
+  if (circumstances.intruderFleeing) score -= 450
+  // Killing over property alone is where the proportionality question bites.
+  if (circumstances.lethal && !circumstances.intruderArmed) score -= 150
+  return Math.max(0, Math.min(1000, score))
+}
+
+/**
+ * C3 §14. Whether the state files at all.
+ *
+ * Not every crime reaches a courtroom — the prosecutor decides, and this is
+ * what makes §15 honest: a clean self-defence shooting may never be
+ * charged, while a questionable one goes to trial. A declined case ends
+ * here and is recorded, naming nobody publicly (the C1 asymmetry).
+ */
+export function chargeDecision(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offence: Offence,
+  justification: number,
+): 'file' | 'decline' {
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 7373)
+  // An overwhelming justification is not charged; a weak one is; the middle
+  // is where the grand jury and the prosecutor's judgement live.
+  const fileOdds = Math.max(20, Math.min(980, 1000 - justification))
+  if (rng.chance(fileOdds, 1_000)) {
+    recordEvent(world, tick, { type: 'charged', subjectId: person.id, detail: offence.id })
+    return 'file'
+  }
+  recordEvent(world, tick, {
+    type: 'charge-declined',
+    subjectId: person.id,
+    detail: offence.id,
+  })
+  recordEvent(world, tick, { type: 'ruled-justified', subjectId: person.id, detail: offence.id })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'justice',
+    significance: 'defining',
+    inputs: [factor('own-choice', 500), factor('clean-record', justification)],
+    chosen: 'used force and the county declined to charge it',
+    rejected: [],
+    streamId: Stream.Crime,
+  })
+  return 'decline'
+}
+
+/**
+ * C3 §15. The self-defence plea, weighed at trial.
+ *
+ * An affirmative defence: the act is admitted and the justification is what
+ * is argued. Justified acquits; not justified convicts on the underlying
+ * charge, at its full weight — which is the risk of running it.
+ */
+export function tryJustification(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offence: Offence,
+  justification: number,
+  rng: ReturnType<typeof openStream>,
+): boolean {
+  recordEvent(world, tick, { type: 'pleaded-self-defense', subjectId: person.id, detail: offence.id })
+  if (!rng.chance(justification, 1_000)) return false
+  recordEvent(world, tick, { type: 'ruled-justified', subjectId: person.id, detail: offence.id })
+  recordEvent(world, tick, { type: 'was-acquitted', subjectId: person.id, detail: `${offence.id}:justified` })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'justice',
+    significance: 'defining',
+    inputs: [factor('own-choice', 600), factor('clean-record', justification)],
+    chosen: 'was acquitted, the force ruled justified',
+    rejected: ['to plead to the charge'],
+    streamId: Stream.Crime,
+  })
+  return true
+}
+
+/**
+ * C3 §15. The player met the intruder.
+ *
+ * The force is used, and then the STATE decides what to make of it — which
+ * is the honest shape and the one the doc insists on. Nothing here clears
+ * anybody automatically.
+ */
+export function defendTheHouse(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offenceId: string,
+): void {
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 6262)
+  const thief = recentThiefOf(world, person.id, tick)
+
+  // What the moment actually was. Nothing is asserted that the world does
+  // not already imply: it happened in the home, because that is where the
+  // burglary was, and the rest is drawn.
+  const intruderArmed = rng.chance(1, 3)
+  const intruderFleeing = rng.chance(2, 5)
+  const lethal = rng.chance(intruderArmed ? 1 : 3, 10) === false ? rng.chance(1, 4) : rng.chance(1, 2)
+
+  recordEvent(world, tick, {
+    type: 'used-lethal-force',
+    subjectId: person.id,
+    ...(thief !== undefined ? { otherId: thief.id } : {}),
+    detail: `${offenceId}:${lethal ? 'lethal' : 'force'}`,
+  })
+
+  if (thief !== undefined) {
+    if (lethal) {
+      performDeath(
+        world, tick, thief, 'shot during a burglary',
+        [factor('own-choice', 800), factor('battlefield-chaos', 700)],
+        Stream.Crime,
+      )
+    } else {
+      inflictWound(world, tick, thief.id, 500 + rng.nextInt(0, 300), 'direct-combat', rng)
+      recordEvent(world, tick, {
+        type: 'was-injured',
+        subjectId: thief.id,
+        otherId: person.id,
+        detail: 'serious:hurt breaking into a house',
+      })
+    }
+  }
+
+  const justification = justificationOf({
+    inTheHome: true,
+    intruderArmed,
+    intruderFleeing,
+    lethal,
+  })
+
+  // A wounding that hurts nobody badly is not a case at all.
+  if (!lethal && justification >= 500) {
+    recordEvent(world, tick, { type: 'ruled-justified', subjectId: person.id, detail: offenceId })
+    return
+  }
+
+  const charge = offenceById(lethal ? 'voluntary-manslaughter' : 'aggravated-assault')
+  if (charge === undefined) return
+  if (chargeDecision(world, tick, person, charge, justification) === 'decline') return
+
+  // Charged. The trial weighs the same circumstances the prosecutor did.
+  if (tryJustification(world, tick, person, charge, justification, rng)) return
+  resolveCourt(world, tick, person, 0, rng, 'stand-trial', charge)
 }
 
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
