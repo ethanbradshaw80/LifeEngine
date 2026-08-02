@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v55 — A WAR STAYS A WAR (owner, playing: eleven nations declared on
+ *      Belarus inside a year). A caller asked its entire bloc in one
+ *      month, and every ally that joined got its own war relation which
+ *      then ran its own calls to arms. One ally asked per war per month
+ *      now, and a ceiling of three counted across every war against the
+ *      same enemy. Coalitions differ from v54 in every world that had one.
  * v54 — CRIME STOPS REQUIRING DESPERATION (owner, playing: no court
  *      stories in the paper). The gate wanted arrears to clear it, so a
  *      solvent town committed nothing: fifty years and a hundred and forty
@@ -355,7 +361,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 54
+export const SIMULATION_VERSION = 55
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

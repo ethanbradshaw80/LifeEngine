@@ -13,6 +13,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { specialtyById } from '../src/content.js'
 import { homeland, relationKey } from '../src/geopolitics.js'
+import { HEARTLAND_SPEC } from '../src/heartland.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { alliedWars, currentDeployment, volunteerForSupport } from '../src/deployment.js'
 import { enlistPerson, isServing } from '../src/service.js'
@@ -133,5 +134,41 @@ describe("an ally's war", () => {
     if (!soldier) return
     // Our own war takes precedence — the support door is shut.
     expect(volunteerForSupport(world, world.tick, soldier.personId)).toBe(false)
+  })
+})
+
+describe('a war stays a war, not a world war', () => {
+  it('never lets more than a handful of countries pile onto one nation', () => {
+    // THE OWNER, PLAYING: eleven nations declared on Belarus inside a year —
+    // "not everybody at once man." Two multipliers did it. A caller asked
+    // its ENTIRE bloc in one month, and every ally that joined got its own
+    // war relation, which then ran its own calls to arms from a new mouth.
+    //
+    // One ally asked per war per month, and a hard ceiling counted across
+    // every war against the same enemy. Measured at exactly 3 on all three
+    // seeds; the assertion allows a little headroom rather than pinning the
+    // measurement, because the ceiling is the claim, not the number.
+    for (const seedValue of [12345, 999, 4242]) {
+      const world = createWorld(makeSeed(seedValue), 60, HEARTLAND_SPEC)
+      let peak = 0
+      let peakName = ''
+      for (let month = 0; month < 900; month++) {
+        advanceTicks(world, 1)
+        const counts = new Map<number, number>()
+        for (const relation of world.geoRelations.values()) {
+          if (relation.state !== 'war') continue
+          for (const id of [relation.a, relation.b]) {
+            counts.set(id, (counts.get(id) ?? 0) + 1)
+          }
+        }
+        for (const [id, n] of counts) {
+          if (n > peak) {
+            peak = n
+            peakName = world.nations.get(id as never)?.name ?? '?'
+          }
+        }
+      }
+      expect(peak, `${peakName} was fighting ${String(peak)} countries at once`).toBeLessThanOrEqual(4)
+    }
   })
 })

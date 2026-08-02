@@ -33,6 +33,19 @@ import type { GeoRelation, Nation, World } from './types.js'
 
 /** A war must be under way this long before anybody asks for help. */
 const MIN_CALL_MONTHS = 12
+
+/**
+ * How many countries may be fighting one enemy at once, coalition included.
+ *
+ * THREE. The owner, watching eleven nations declare on Belarus in a single
+ * year: "not everybody at once man." A great-power alliance does not empty
+ * itself into every quarrel one member picks — it sends somebody. Beyond
+ * this nobody else is asked, however badly the war is going, which is also
+ * why the ceiling has to count the ENEMY'S side of every war rather than
+ * one relation: an ally who joins is a new war of its own, and without the
+ * count those new wars each opened their own recruiting drive.
+ */
+const MAX_BELLIGERENTS = 3
 /** Below this a country is coping and does not go asking. */
 const MIN_CALL_DISTRESS = 150
 /** Distress at which the call is certain — "if the war is really that bad". */
@@ -140,11 +153,28 @@ export function joinScoreFor(
 }
 
 /**
+ * How many countries are at war with this one right now.
+ *
+ * Counts every war relation the enemy is in, on either side, because a
+ * coalition is not one relation: each ally that joins declares its own war,
+ * and the ceiling has to see all of them or it sees nothing.
+ */
+function belligerentsAgainst(world: World, enemyId: EntityId): number {
+  let count = 0
+  for (const relation of world.geoRelations.values()) {
+    if (relation.state !== 'war') continue
+    if (relation.a === enemyId || relation.b === enemyId) count += 1
+  }
+  return count
+}
+
+/**
  * The monthly pass: who is in trouble, who they ask, and who answers.
  *
  * Called from the geopolitics tick, after wars have advanced — the distress
  * that decides a call is this month's, not last month's.
  */
+
 export function runCallsToArms(world: World, tick: Tick): void {
   // Ascending pair order, as everywhere: processing order must be reproducible.
   const wars = [...world.geoRelations.values()]
@@ -174,6 +204,11 @@ export function runCallsToArms(world: World, tick: Tick): void {
       const enemy = world.nations.get(enemyId)
       if (!caller || !enemy) continue
 
+      // THE FIGHT IS ALREADY BIG ENOUGH. Counted across every war against
+      // this enemy, not just this one relation, because each ally that
+      // joins becomes its own war and would otherwise start recruiting too.
+      if (belligerentsAgainst(world, enemyId) >= MAX_BELLIGERENTS) continue
+
       for (const ally of alliesOf(world, sideId)) {
         if (ally.id === enemyId) continue
         // Already in it, on either side.
@@ -194,6 +229,12 @@ export function runCallsToArms(world: World, tick: Tick): void {
         } else {
           declineCall(world, tick, ally, caller, enemy, score)
         }
+        // ONE ASKED, THEN STOP. A country picks up the telephone once a
+        // month, not eight times in an afternoon — and the whole bloc
+        // arriving together is exactly what made a border war look like a
+        // world war. The next ally, if the war is still going badly, gets
+        // asked next month.
+        break
       }
     }
   }
