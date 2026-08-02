@@ -65,9 +65,9 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `1ee4dcb`.
+**STATE:** clean tree, everything pushed, HEAD `7c9e6bd`.
 SIMULATION_VERSION **41** · golden **7ddc1784** · SCHEMA_VERSION **21** ·
-**412 tests**, all green.
+**413 tests**, all green.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -80,11 +80,13 @@ sensible option, write down why, and keep moving.
 **1. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
 **W1 IS PART DONE** — see the W1 record below for exactly what landed and
 what did not. What remains, in order:
-  - **W1 rest: service content and START_YEAR onto the spec**, and
-    RESISTANCE 3 — ServiceBranch is a compile-time union
-    (`type ServiceBranch = 'land-forces' | ...`) keying five tables in
-    content.ts. It has to become DATA on the spec before a preset can name
-    real branches, and it is the largest remaining piece of W1.
+  - **W1 rest, and it is now small: service CONTENT and START_YEAR onto
+    the spec.** Branches are already data (resistance 3 is done). What is
+    left in content.ts as globals: SPECIALTIES, SERVICE_SCHOOLS,
+    SPECIAL_UNITS, decoration titles, and START_YEAR in clock.ts. Same
+    pattern as branches — shape in types.ts, Classic's data assembled from
+    the existing tables, resolved through the world. Then run
+    architecture-reviewer and call W1 done.
   - **W2 the American Heartland preset.** The rulings are already written
     in WORLD_MODES_PLAN.md's table; W2 turns them into content and lands
     the TWO constitution amendments with its ADR (foundation §3 "all
@@ -174,10 +176,27 @@ done):
     with fewer than twelve names would have produced four countries called
     the same thing. Count is a balance constant, names are the preset's; a
     short pool gets fewer nations, never duplicates.
-NOT done, and the next thing to do: service content and START_YEAR on the
-spec, and RESISTANCE 3 (ServiceBranch as a compile-time union keying five
-tables in content.ts — it must become data before W2 can name real
-branches).
+  - RESISTANCE 3 fixed (commit 86d7bdf): ServiceBranch was a compile-time
+    union keying FIVE Records in content.ts. It is one ServiceBranchSpec
+    object per service now, carried on the spec, resolved with
+    `branchSpecFor(world, id)` — which never returns undefined, because a
+    record naming a service the preset does not have must still load.
+    rankTitle/branchName/competitiveGates all take the world now (~20 call
+    sites). Verified live: the town list still reads "SSgt — signals
+    operator", "PV2 — rifleman".
+  - THE IMPORT RATCHET EARNED ITS KEEP: reaching for branchName inside
+    awards.ts added `awards → service`, and service imports awards. ONE new
+    edge, and the cycle test reported FOURTEEN new cycles because it
+    re-grouped half the graph. Fixed by reading the branch off world.spec
+    inline. That test was added at the end of M-ARMY2 for exactly this.
+  - persistence-reviewer found a real must-fix (commit 7c9e6bd): a world
+    whose preset this build does not know ran on Classic content — correct
+    — but the next save wrote 'classic' into its header, and the autosave
+    fires 600ms after any change. The world now carries `presetId` (what it
+    SAYS it is) beside `spec` (what this build can serve), and a test
+    round-trips an unknown preset twice.
+NOT done: service CONTENT (specialties, schools, units, decoration titles)
+and START_YEAR on the spec. Then architecture-reviewer, then W1 is done.
 
 ### RULES THAT KEEP BITING (read these before writing code)
 
