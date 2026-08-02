@@ -42,9 +42,14 @@ describe('the charge sheet', () => {
       'class-c-misdemeanor': 1,
       'class-b-misdemeanor': 6,
       'class-a-misdemeanor': 12,
+      'class-e-felony': 48,
       'class-d-felony': 60,
       'class-c-felony': 120,
       'class-b-felony': 240,
+      // C3 §8 opened the serious end. A capital offence's ceiling is a life,
+      // which the engine counts in months like everything else.
+      'class-a-felony': 600,
+      capital: 900,
     }
     for (const offence of OFFENCES) {
       expect(GRADE_TITLES[offence.grade]).toBeDefined()

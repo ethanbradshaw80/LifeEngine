@@ -604,17 +604,23 @@ export type OffenceGrade =
   | 'class-c-misdemeanor'
   | 'class-b-misdemeanor'
   | 'class-a-misdemeanor'
+  | 'class-e-felony'
   | 'class-d-felony'
   | 'class-c-felony'
   | 'class-b-felony'
+  | 'class-a-felony'
+  | 'capital'
 
 export const GRADE_TITLES: Readonly<Record<OffenceGrade, string>> = {
   'class-c-misdemeanor': 'Class C misdemeanor',
   'class-b-misdemeanor': 'Class B misdemeanor',
   'class-a-misdemeanor': 'Class A misdemeanor',
+  'class-e-felony': 'Class E felony',
   'class-d-felony': 'Class D felony',
   'class-c-felony': 'Class C felony',
   'class-b-felony': 'Class B felony',
+  'class-a-felony': 'Class A felony',
+  capital: 'capital offense',
 }
 
 export interface Offence {
@@ -635,7 +641,33 @@ export interface Offence {
   readonly needsJob?: boolean
   /** True where a household is robbed and its money actually moves. */
   readonly takesFromHousehold?: boolean
+  /**
+   * C3 §9. WHERE THE DANGER OF DOING IT LIVES, which is what the player's
+   * commission scene is built from: a confrontation, the heat, or the
+   * paper trail. Not how bad the charge is — how it goes wrong.
+   */
+  readonly danger?: OffenceDanger
+  /** Force against a person. Gates expungement and the fade (C3 §5). */
+  readonly violent?: boolean
+  /**
+   * What this becomes when somebody dies during it — the felony-murder
+   * road. An offence id, resolved through offenceById.
+   */
+  readonly escalatesTo?: string
+  /** Months a plea cannot bargain below (C3 §13). */
+  readonly mandatoryMin?: number
 }
+
+/**
+ * C3 §9. The three ways a crime goes wrong, and the three shapes the
+ * player's commission scene takes.
+ *
+ * 'physical' is somebody in the room — the confrontation. 'police' is the
+ * street and the siren — the heat. 'discovery' is a ledger somebody else
+ * will read one day — the paper trail. A charge has exactly one, because a
+ * scene has to pick one.
+ */
+export type OffenceDanger = 'police' | 'physical' | 'discovery'
 
 /**
  * What a person can be charged with here. Twenty-two offences, weighted
@@ -668,15 +700,73 @@ export const OFFENCES: readonly Offence[] = [
   { id: 'robbery', title: 'robbery', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 620, gainMin: 40_000, gainMax: 200_000, takesFromHousehold: true },
   { id: 'aggravated-assault', title: 'aggravated assault', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 700, gainMin: 0, gainMax: 0 },
   { id: 'arson', title: 'arson', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 560, gainMin: 0, gainMax: 0 },
+  // --- C3 §10: the catalogue grows -----------------------------------------
+  // Added by the owner's C3 doc. The existing twenty-three are untouched;
+  // these fill in the ends the first pass left out — the traffic and public
+  // order a small town actually sees, the fraud that hides in paperwork,
+  // and the violent end the first pass deliberately deferred.
+  //
+  // The grades, sentences and fines are the doc's table. Clearance follows
+  // the pattern already here: a thing done in the street is cleared far
+  // more often than a thing done in a ledger.
+
+  // Public order and traffic
+  { id: 'disturbing-peace', title: 'disturbing the peace', grade: 'class-c-misdemeanor', minMonths: 0, maxMonths: 1, fine: 15_000, clearance: 640, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'loitering', title: 'loitering and prowling', grade: 'class-c-misdemeanor', minMonths: 0, maxMonths: 1, fine: 10_000, clearance: 600, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'obstruction', title: 'obstruction of justice', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 50_000, clearance: 700, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'evading-police', title: 'evading the police', grade: 'class-a-misdemeanor', minMonths: 3, maxMonths: 12, fine: 50_000, clearance: 760, gainMin: 0, gainMax: 0, danger: 'physical' },
+  { id: 'contempt', title: 'contempt of court', grade: 'class-b-misdemeanor', minMonths: 0, maxMonths: 6, fine: 25_000, clearance: 900, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'suspended-license', title: 'driving on a suspended license', grade: 'class-b-misdemeanor', minMonths: 0, maxMonths: 3, fine: 30_000, clearance: 560, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'hit-and-run-property', title: 'hit and run', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 60_000, clearance: 460, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'hit-and-run-injury', title: 'hit and run causing injury', grade: 'class-e-felony', minMonths: 12, maxMonths: 48, fine: 200_000, clearance: 540, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'vehicular-assault', title: 'vehicular assault', grade: 'class-c-felony', minMonths: 24, maxMonths: 96, fine: 0, clearance: 620, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'vehicular-manslaughter', title: 'vehicular manslaughter', grade: 'class-b-felony', minMonths: 36, maxMonths: 180, fine: 0, clearance: 720, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+
+  // Drugs
+  { id: 'possession-with-intent', title: 'possession with intent to distribute', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 100_000, clearance: 420, gainMin: 20_000, gainMax: 90_000, danger: 'police' },
+  { id: 'drug-trafficking', title: 'drug trafficking', grade: 'class-b-felony', minMonths: 36, maxMonths: 240, fine: 250_000, clearance: 380, gainMin: 80_000, gainMax: 400_000, danger: 'physical', mandatoryMin: 36 },
+  { id: 'drug-manufacturing', title: 'manufacturing a controlled substance', grade: 'class-b-felony', minMonths: 36, maxMonths: 240, fine: 250_000, clearance: 400, gainMin: 60_000, gainMax: 300_000, danger: 'physical' },
+
+  // Property and theft
+  { id: 'receiving-stolen', title: 'receiving stolen property', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 80_000, clearance: 440, gainMin: 20_000, gainMax: 120_000, danger: 'police' },
+  { id: 'commercial-burglary', title: 'commercial burglary', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 0, clearance: 480, gainMin: 40_000, gainMax: 200_000, danger: 'physical' },
+  { id: 'armed-robbery', title: 'armed robbery', grade: 'class-a-felony', minMonths: 60, maxMonths: 300, fine: 0, clearance: 660, gainMin: 60_000, gainMax: 300_000, danger: 'physical', violent: true, mandatoryMin: 60, escalatesTo: 'felony-murder' },
+  { id: 'extortion', title: 'extortion', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 180_000, clearance: 400, gainMin: 50_000, gainMax: 250_000, danger: 'discovery' },
+  { id: 'looting', title: 'looting', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 0, clearance: 500, gainMin: 40_000, gainMax: 200_000, danger: 'physical' },
+
+  // Fraud and white collar
+  { id: 'credit-card-fraud', title: 'credit card fraud', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 120_000, clearance: 380, gainMin: 30_000, gainMax: 150_000, danger: 'discovery' },
+  { id: 'money-laundering', title: 'money laundering', grade: 'class-b-felony', minMonths: 36, maxMonths: 240, fine: 300_000, clearance: 300, gainMin: 100_000, gainMax: 500_000, danger: 'discovery', needsJob: true },
+  { id: 'insurance-fraud', title: 'insurance fraud', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 180_000, clearance: 340, gainMin: 60_000, gainMax: 300_000, danger: 'discovery' },
+  { id: 'wire-fraud', title: 'wire fraud', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 250_000, clearance: 320, gainMin: 80_000, gainMax: 400_000, danger: 'discovery' },
+  { id: 'bribery', title: 'bribery', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 200_000, clearance: 360, gainMin: 50_000, gainMax: 250_000, danger: 'discovery', needsJob: true },
+
+  // Violence and homicide
+  { id: 'battery', title: 'battery', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 45_000, clearance: 660, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'domestic-violence', title: 'domestic violence', grade: 'class-c-felony', minMonths: 24, maxMonths: 120, fine: 100_000, clearance: 700, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'assault-deadly-weapon', title: 'assault with a deadly weapon', grade: 'class-b-felony', minMonths: 36, maxMonths: 240, fine: 0, clearance: 680, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, mandatoryMin: 36, escalatesTo: 'attempted-murder' },
+  { id: 'attempted-murder', title: 'attempted murder', grade: 'class-a-felony', minMonths: 120, maxMonths: 360, fine: 0, clearance: 760, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, mandatoryMin: 120, escalatesTo: 'murder-second' },
+  { id: 'kidnapping', title: 'kidnapping', grade: 'class-a-felony', minMonths: 60, maxMonths: 360, fine: 0, clearance: 720, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, escalatesTo: 'felony-murder' },
+  { id: 'involuntary-manslaughter', title: 'involuntary manslaughter', grade: 'class-b-felony', minMonths: 36, maxMonths: 180, fine: 0, clearance: 780, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'voluntary-manslaughter', title: 'voluntary manslaughter', grade: 'class-a-felony', minMonths: 60, maxMonths: 360, fine: 0, clearance: 800, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'murder-second', title: 'murder in the second degree', grade: 'class-a-felony', minMonths: 180, maxMonths: 600, fine: 0, clearance: 820, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, mandatoryMin: 180 },
+  { id: 'murder-first', title: 'murder in the first degree', grade: 'capital', minMonths: 300, maxMonths: 900, fine: 0, clearance: 840, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, mandatoryMin: 300 },
+  { id: 'felony-murder', title: 'felony murder', grade: 'capital', minMonths: 300, maxMonths: 900, fine: 0, clearance: 840, gainMin: 0, gainMax: 0, danger: 'physical', violent: true, mandatoryMin: 300 },
+
+  // Weapons
+  { id: 'unlawful-firearm', title: 'unlawful possession of a firearm', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 80_000, clearance: 520, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'concealed-weapon', title: 'carrying a concealed weapon', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 40_000, clearance: 500, gainMin: 0, gainMax: 0, danger: 'police' },
+  { id: 'brandishing', title: 'brandishing a weapon', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 45_000, clearance: 620, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
+  { id: 'unlawful-discharge', title: 'unlawful discharge of a firearm', grade: 'class-e-felony', minMonths: 12, maxMonths: 48, fine: 90_000, clearance: 640, gainMin: 0, gainMax: 0, danger: 'physical', violent: true },
 ]
 
 export function offenceById(id: string): Offence | undefined {
   return OFFENCES.find((offence) => offence.id === id)
 }
 
-/** Felonies close doors misdemeanors do not. */
+/** Felonies close doors misdemeanors do not. A capital offense is one. */
 export function isFelony(grade: OffenceGrade): boolean {
-  return grade.endsWith('felony')
+  return grade.endsWith('felony') || grade === 'capital'
 }
 
 /** How much schooling a level represents. Used to test whether a person qualifies. */

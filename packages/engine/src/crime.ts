@@ -422,20 +422,64 @@ function offenceForCircumstance(
     return offenceById(rng.pick(['shoplifting', 'bad-check', 'petty-fraud', 'trespassing'])) ?? null
   }
   // Everybody else: the drink, the temper, the car.
+  //
+  // C3 §16 ASKS FOR THE WHOLE CATALOGUE, WEIGHTED LIKE A REAL DOCKET —
+  // misdemeanors common, felonies rarer, violence rarest. The weights below
+  // are that shape, not the catalogue's own proportions: 59 charges of
+  // which 37 are felonies would be a fantasy of crime if drawn evenly. The
+  // bottom eight here carry three quarters of it between them, and the
+  // homicides are single digits against a hundred and sixty.
   const id = rng.pickWeighted(
     [
+      // The ordinary town, most of the time.
       'public-intoxication',
       'disorderly-conduct',
+      'disturbing-peace',
       'dui',
       'reckless-driving',
       'simple-assault',
+      'battery',
       'vandalism',
       'trespassing',
       'shoplifting',
+      'loitering',
+      'suspended-license',
       'drug-possession',
       'resisting-arrest',
+      'concealed-weapon',
+      'hit-and-run-property',
+      // Rarer, and it starts to cost a career.
+      'obstruction',
+      'evading-police',
+      'brandishing',
+      'possession-with-intent',
+      'receiving-stolen',
+      'credit-card-fraud',
+      'unlawful-firearm',
+      'unlawful-discharge',
+      'hit-and-run-injury',
+      // Rarer again.
+      'commercial-burglary',
+      'insurance-fraud',
+      'domestic-violence',
+      'vehicular-assault',
+      'extortion',
+      // The serious end. A town of this size sees one of these in a
+      // generation, which is why the weights are what they are.
+      'assault-deadly-weapon',
+      'drug-trafficking',
+      'armed-robbery',
+      'vehicular-manslaughter',
+      'involuntary-manslaughter',
+      'kidnapping',
+      'murder-second',
     ],
-    [22, 18, 14, 12, 9, 8, 6, 5, 4, 2],
+    [
+      160, 140, 110, 105, 95, 80, 70, 70, 60, 55, 50, 45, 40, 30, 25, 22,
+      14, 12, 12, 10, 10, 8, 8, 6, 6,
+      5, 5, 5, 4, 3,
+      3, 2, 2, 2, 2, 1, 1,
+    ],
   )
   return offenceById(id) ?? null
 }

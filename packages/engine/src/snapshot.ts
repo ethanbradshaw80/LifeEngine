@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v61 — C3 STEP 1: THE CATALOGUE GROWS. Thirty-six new charges, three new
+ *      grades (class E, class A, capital), and four new offence fields
+ *      (danger, violent, escalatesTo, mandatoryMin) from the owner's C3
+ *      doc. NPCs draw from the whole catalogue, weighted like a docket
+ *      rather than like the catalogue: measured at 408 offences across
+ *      three fifty-year towns, 7% of them felonies, topped by drink and
+ *      driving. Every seed's crime differs from v60.
  * v60 — ONE RIBBON PER CONFLICT, and the Bronze Star goes back to being a
  *      combat award (owner, playing). The campaign medal names its own war
  *      instead of tallying them all onto one ribbon, and the merit tier of
@@ -395,7 +402,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 60
+export const SIMULATION_VERSION = 61
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
