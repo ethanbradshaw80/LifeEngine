@@ -15,7 +15,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
-import { ageAt, START_YEAR, toDate } from './clock.js'
+import { ageAt, toDate } from './clock.js'
 import type { World } from './types.js'
 
 /** The fertility window systems.ts rolls against (kept in step by a test). */
@@ -57,7 +57,7 @@ export function yearlyDemographics(world: World): YearDemographics[] {
   }
 
   for (const event of world.events) {
-    const year = toDate(event.tick).year
+    const year = toDate(world, event.tick).year
     switch (event.type) {
       case 'born':
         flowOf(year).births++
@@ -85,23 +85,26 @@ export function yearlyDemographics(world: World): YearDemographics[] {
   // Year-end stocks by prefix sum rather than a per-year scan of everyone
   // who ever lived — O(P + Y), not O(P × Y) (review D1-6). Year precision
   // equals tick precision here because stocks are read at each December.
-  const lastYear = toDate(world.tick).year
+  const lastYear = toDate(world, world.tick).year
   let base = 0 // alive before the record began (founders)
   const bornInYear = new Map<number, number>()
   const diedInYear = new Map<number, number>()
   for (const person of world.people.values()) {
-    const bornYear = toDate(person.birthTick).year
-    if (bornYear < START_YEAR) base++
+    const bornYear = toDate(world, person.birthTick).year
+    // Born before the record began — a founder. In ticks that is simply a
+    // negative birth tick, which needs no calendar at all (W1).
+    if (person.birthTick < 0) base++
     else bornInYear.set(bornYear, (bornInYear.get(bornYear) ?? 0) + 1)
     if (person.deathTick !== null) {
-      const diedYear = toDate(person.deathTick).year
+      const diedYear = toDate(world, person.deathTick).year
       diedInYear.set(diedYear, (diedInYear.get(diedYear) ?? 0) + 1)
     }
   }
 
   const rows: YearDemographics[] = []
   let population = base
-  for (let year = START_YEAR; year <= lastYear; year++) {
+  const firstYear = toDate(world, 0 as never).year
+  for (let year = firstYear; year <= lastYear; year++) {
     population += (bornInYear.get(year) ?? 0) - (diedInYear.get(year) ?? 0)
     const flow = flows.get(year)
     rows.push({

@@ -242,7 +242,7 @@ export function App() {
         <div>
           <h1>The Life Simulator</h1>
           <p className="date">
-            {world.town.name} · {formatDate(world.tick)}
+            {world.town.name} · {formatDate(world, world.tick)}
           </p>
         </div>
         {playerPerson && (

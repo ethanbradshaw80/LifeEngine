@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { ageAt } from '../src/clock.js'
+import { ageAt, formatDate, formatYear } from '../src/clock.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { CLASSIC_SPEC, specById } from '../src/worldspec.js'
 import type { WorldSpec } from '../src/types.js'
@@ -252,6 +252,7 @@ describe('the WorldSpec', () => {
         civic: ['the meeting hall'],
         bases: ['Camp Ridge'],
       },
+      startYear: 1985,
       homelandName: 'the Commonwealth',
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
@@ -301,6 +302,7 @@ describe('a preset that is not Classic actually runs', () => {
         civic: ['the meeting hall'],
         bases: ['Camp Ridge'],
       },
+      startYear: 1985,
       homelandName: 'the Commonwealth',
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
@@ -389,5 +391,34 @@ describe('content ids out of a save never throw (resistance 2)', () => {
     // The real ones still resolve, obviously.
     expect(specialtyFor(world, 'rifleman').title).toBe('rifleman')
     expect(occupationById('labourer').maxMonthlyPay).toBeGreaterThan(0)
+  })
+})
+
+describe('the start year is the preset’s', () => {
+  it('dates the world from the preset, not from a constant', () => {
+    const classic = createWorld(makeSeed(12345), 30)
+    expect(formatYear(classic, classic.tick)).toBe('1970')
+
+    const later = createWorld(makeSeed(12345), 30, {
+      ...CLASSIC_SPEC,
+      startYear: 1985,
+    })
+    expect(formatYear(later, later.tick)).toBe('1985')
+    advanceTicks(later, 24)
+    expect(formatYear(later, later.tick)).toBe('1987')
+    expect(formatDate(later, later.tick)).toBe('January 1987')
+  })
+
+  it('is a label on the ticks, not an input to them', () => {
+    // The whole reason this was cheap: nothing in the tick path reads the
+    // calendar year. Two worlds that differ ONLY in start year must live
+    // identical lives — same people, same events, same everything but the
+    // dates printed on them.
+    const a = createWorld(makeSeed(777), 60)
+    const b = createWorld(makeSeed(777), 60, { ...CLASSIC_SPEC, startYear: 1885 })
+    advanceTicks(a, 360)
+    advanceTicks(b, 360)
+    expect(serialize(b)).toBe(serialize(a))
+    expect(formatYear(b, b.tick)).not.toBe(formatYear(a, a.tick))
   })
 })

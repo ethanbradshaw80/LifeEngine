@@ -409,7 +409,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <div className="game-title">
           <h1>{fullName(person)}</h1>
           <p>
-            {age} {age === 1 ? 'year' : 'years'} old · {formatDate(world.tick)}
+            {age} {age === 1 ? 'year' : 'years'} old · {formatDate(world, world.tick)}
           </p>
           {/* P3 — temperament in words. The six traits have driven school,
               work, spending, study and survival since M1 without ever being
@@ -554,8 +554,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           )}
           {feedItems.map((item, index) => {
             const previous = feedItems[index - 1]
-            const year = formatYear(item.tick as never)
-            const showYear = previous === undefined || formatYear(previous.tick as never) !== year
+            const year = formatYear(world, item.tick as never)
+            const showYear = previous === undefined || formatYear(world, previous.tick as never) !== year
 
             if (item.kind === 'news') {
               return (
@@ -622,7 +622,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 {familyHomeSince(world, household) !== null && (
                   <span className="muted small">
                     {' '}· the family home since{' '}
-                    {formatYear(familyHomeSince(world, household) ?? household.formedTick)}
+                    {formatYear(world, familyHomeSince(world, household) ?? household.formedTick)}
                   </span>
                 )}
               </dd>
@@ -645,7 +645,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </span>
                     ))
                 )}
-                <span className="muted small"> · this household since {formatYear(household.formedTick)}</span>
+                <span className="muted small"> · this household since {formatYear(world, household.formedTick)}</span>
               </dd>
             </dl>
           )}
@@ -782,10 +782,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           return (
                             <li key={spell.fromTick}>
                               <span className="job-title">
-                                {formatDate(spell.fromTick)}
+                                {formatDate(world, spell.fromTick)}
                                 {spell.toTick === null
                                   ? ' — still behind'
-                                  : ` to ${formatDate(spell.toTick)}`}
+                                  : ` to ${formatDate(world, spell.toTick)}`}
                               </span>
                               <span className="muted small">
                                 {months} {months === 1 ? 'month' : 'months'} behind
@@ -1088,7 +1088,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <div className="tie-head">
                             <PersonLink world={world} id={other(tie, person.id)} onInspect={onInspect} />
                             <span className="muted small">
-                              ended {formatYear(tie.endedAtTick ?? tie.typeSinceTick)}
+                              ended {formatYear(world, tie.endedAtTick ?? tie.typeSinceTick)}
                             </span>
                           </div>
                         </li>
@@ -1114,7 +1114,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   {world.places.get(job.workplaceId) && (
                     <span className="muted small"> · at {world.places.get(job.workplaceId)?.name}</span>
                   )}
-                  <span className="muted small"> · since {formatYear(job.startedAtTick)}</span>
+                  <span className="muted small"> · since {formatYear(world, job.startedAtTick)}</span>
                   <span className="verb-row">
                     <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'ask-raise' })}>
                       💵 Ask for a raise
@@ -1173,7 +1173,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     {education.enrolledIn !== null && education.completesAtTick !== null && (
                       <p className="muted small tie-note">
                         In {LEVEL_WORDS[education.enrolledIn]} — finishes{' '}
-                        {formatDate(education.completesAtTick)}.
+                        {formatDate(world, education.completesAtTick)}.
                       </p>
                     )}
                   </dd>
@@ -1254,7 +1254,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             The years you have seen. Births, deaths, weddings and courtships
             are the whole town's, not only yours.
           </p>
-          <TownStats world={world} sinceYear={Number(formatYear(person.birthTick))} maxYears={16} />
+          <TownStats world={world} sinceYear={Number(formatYear(world, person.birthTick))} maxYears={16} />
         </div>
       )}
 
@@ -1290,7 +1290,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             ⚔️
                           </span>
                           <span className="card-text">
-                            {a.name} and {b.name} — at war since {formatYear(war.sinceTick)}
+                            {a.name} and {b.name} — at war since {formatYear(world, war.sinceTick)}
                             {war.warPhase !== null && `, ${war.warPhase}`}
                           </span>
                         </div>
@@ -1304,8 +1304,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 {allNews.map((item, index) => {
                   const previous = allNews[index - 1]
-                  const year = formatYear(item.tick)
-                  const showYear = previous === undefined || formatYear(previous.tick) !== year
+                  const year = formatYear(world, item.tick)
+                  const showYear = previous === undefined || formatYear(world, previous.tick) !== year
                   const key = `${String(item.tick)}-${item.text}`
                   const article = articleFor(world, item)
                   return (
@@ -1418,7 +1418,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         `serving · ${record.termMonthsLeft} months left on the term`
                       )
                     ) : (
-                      `discharged ${formatYear(record.dischargedAtTick)}${
+                      `discharged ${formatYear(world, record.dischargedAtTick)}${
                         record.dischargeReason ? ` — ${record.dischargeReason}` : ''
                       }`
                     )}
@@ -1439,7 +1439,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     )
                   })()}
                   <dt>Enlisted</dt>
-                  <dd>{formatYear(record.enlistedAtTick)}</dd>
+                  <dd>{formatYear(world, record.enlistedAtTick)}</dd>
                   {record.unitId !== null && (
                     <>
                       <dt>Unit</dt>
@@ -1603,7 +1603,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         {decorations.map((award) => (
                           <li key={`${award.kind}:${award.title}`}>
                             <div className="row">
-                              <span className="year">{formatYear(award.tick)}</span>
+                              <span className="year">{formatYear(world, award.tick)}</span>
                               <span className="what">
                                 {award.title}
                                 {award.count > 1 && ` ×${award.count}`}
@@ -1624,7 +1624,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     {tours.map((tour) => (
                       <li key={tour.tourNumber}>
                         <div className="row">
-                          <span className="year">{formatYear(tour.startedAtTick)}</span>
+                          <span className="year">{formatYear(world, tour.startedAtTick)}</span>
                           <span className="what">
                             {tour.kind === 'rotation'
                               ? `Rotation ${tour.tourNumber} — with ${
@@ -1638,7 +1638,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                     : (world.nations.get(tour.enemyId)?.name ?? 'the enemy')
                                 }`}
                             {tour.returnedAtTick !== null
-                              ? ` · came home ${formatYear(tour.returnedAtTick)}`
+                              ? ` · came home ${formatYear(world, tour.returnedAtTick)}`
                               : ' · still there'}
                           </span>
                         </div>
@@ -1682,7 +1682,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       return (
                         <li key={`${String(conviction.tick)}-${String(i)}`}>
                           <div className="row">
-                            <span className="year">{formatYear(conviction.tick)}</span>
+                            <span className="year">{formatYear(world, conviction.tick)}</span>
                             <span className="what">
                               {offence?.title ?? conviction.kind}
                               {offence !== undefined && (
@@ -1773,7 +1773,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         {describeAilment(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)}
                         <span className="muted small">
                           {' '}· {record.severity >= 600 ? 'serious' : 'mending'}
-                          {record.sinceTick !== null && ` · since ${formatYear(record.sinceTick)}`}
+                          {record.sinceTick !== null && ` · since ${formatYear(world, record.sinceTick)}`}
                         </span>
                       </>
                     ) : (

@@ -44,7 +44,7 @@ export function VerdictSheet({
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="The verdict">
       <div className="sheet verdict">
-        <p className="muted small">The courthouse · {formatYear(outcome.tick)}</p>
+        <p className="muted small">The courthouse · {formatYear(world, outcome.tick)}</p>
         <h2 className={guilty ? 'verdict-guilty' : 'verdict-clear'}>
           {guilty ? 'Convicted' : 'Not guilty'}
         </h2>
@@ -62,7 +62,7 @@ export function VerdictSheet({
           {outcome.releasedAtTick !== null && (
             <>
               <dt>Out in</dt>
-              <dd>{formatYear(outcome.releasedAtTick)}</dd>
+              <dd>{formatYear(world, outcome.releasedAtTick)}</dd>
             </>
           )}
 

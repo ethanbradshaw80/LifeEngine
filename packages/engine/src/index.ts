@@ -16,7 +16,7 @@
 export { SCHEMA_VERSION, SIMULATION_VERSION } from './snapshot.js'
 
 // Time
-export { ageAt, formatDate, formatYear, isBirthdayMonth, monthName, START_YEAR, toDate } from './clock.js'
+export { ageAt, formatDate, formatYear, isBirthdayMonth, monthName, toDate } from './clock.js'
 export type { SimDate } from './clock.js'
 
 // Randomness

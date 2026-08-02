@@ -79,7 +79,7 @@ function rankWordsFor(world: World, event: WorldEvent): string {
 }
 
 function describeEvent(world: World, person: Person, event: WorldEvent): string | null {
-  const year = formatYear(event.tick)
+  const year = formatYear(world, event.tick)
   const age = ageAt(person.birthTick, event.tick)
   const they = subjectPronoun(person)
 
@@ -442,7 +442,7 @@ export function explainDecision(world: World, record: CausalRecord): string {
   const alternative =
     record.rejected.length > 0 ? ` The alternative was ${record.rejected[0]}.` : ''
 
-  return `${formatYear(record.tick)}: ${who} ${record.chosen}.${because}${alternative}`
+  return `${formatYear(world, record.tick)}: ${who} ${record.chosen}.${because}${alternative}`
 }
 
 /**
@@ -694,7 +694,7 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
     entries.push({
       eventId: event.id,
       tick: event.tick,
-      year: formatYear(event.tick),
+      year: formatYear(world, event.tick),
       // The year prefix is already in the rendered line; strip it so the UI can
       // lay the date out in its own column.
       text: text.replace(/^\d+ — /, ''),
@@ -719,10 +719,10 @@ export function lifeStory(world: World, personId: EntityId): string {
   lines.push('')
 
   // Opening summary.
-  const born = `Born ${formatYear(person.birthTick)} in ${world.town.name}.`
+  const born = `Born ${formatYear(world, person.birthTick)} in ${world.town.name}.`
   const status = alive
-    ? `Aged ${age} as of ${formatYear(world.tick)}.`
-    : `Died ${formatYear(person.deathTick!)}, aged ${age}, of ${person.causeOfDeath}.`
+    ? `Aged ${age} as of ${formatYear(world, world.tick)}.`
+    : `Died ${formatYear(world, person.deathTick!)}, aged ${age}, of ${person.causeOfDeath}.`
   lines.push(`${born} ${status}`)
 
   const job = world.employment.get(personId)

@@ -87,8 +87,8 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
         <h2>{fullName(person)}</h2>
         <p className="standfirst">
           {alive
-            ? `${age} years old · born ${formatYear(person.birthTick)}`
-            : `Died ${formatYear(person.deathTick)} aged ${age} · ${person.causeOfDeath}`}
+            ? `${age} years old · born ${formatYear(world, person.birthTick)}`
+            : `Died ${formatYear(world, person.deathTick)} aged ${age} · ${person.causeOfDeath}`}
         </p>
       </header>
 
@@ -162,7 +162,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
                   {i > 0 && ', '}
                   {award.title}
                   {award.count > 1 && ` ×${award.count}`}
-                  <span className="muted small"> ({formatYear(award.tick)})</span>
+                  <span className="muted small"> ({formatYear(world, award.tick)})</span>
                 </span>
               ))}
             </dd>
@@ -189,7 +189,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
               {world.places.get(household.placeId)?.name ?? 'unknown'}
               {familyHomeSince(world, household) !== null && (
                 <span className="muted small">
-                  {' '}· the family home since {formatYear(familyHomeSince(world, household) ?? household.formedTick)}
+                  {' '}· the family home since {formatYear(world, familyHomeSince(world, household) ?? household.formedTick)}
                 </span>
               )}
               {housemates.length > 0 && (
@@ -248,8 +248,8 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
                       {/* Founding ties are stamped at tick 0 BECAUSE the
                           wedding predates the simulation; printing the
                           record's first year as the date would invent one. */}
-                      {tie.typeSinceTick <= 0 ? 'from before the record' : `since ${formatYear(tie.typeSinceTick)}`}
-                      {tie.endedAtTick !== null && ` — ended ${formatYear(tie.endedAtTick)}`}
+                      {tie.typeSinceTick <= 0 ? 'from before the record' : `since ${formatYear(world, tie.typeSinceTick)}`}
+                      {tie.endedAtTick !== null && ` — ended ${formatYear(world, tie.endedAtTick)}`}
                     </span>
                   </span>
                 ))}

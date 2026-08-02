@@ -122,7 +122,7 @@ function nameList(people: readonly Person[]): string {
  */
 export function articleFor(world: World, item: NewsItem): NewsArticle | null {
   const town = world.town.name
-  const dateline = `${town.toUpperCase()}, ${formatDate(item.tick)}`
+  const dateline = `${town.toUpperCase()}, ${formatDate(world, item.tick)}`
   const subject = item.subjectId === undefined ? undefined : world.people.get(item.subjectId)
 
   switch (item.kind) {
@@ -188,7 +188,7 @@ function deathInService(
   if (onTour && lastTour !== undefined) {
     const months = item.tick - lastTour.startedAtTick
     body.push(
-      `The death occurred ${String(months)} month${months === 1 ? '' : 's'} into a tour that began in ${formatDate(lastTour.startedAtTick)}. The cause is recorded as ${cause}.`,
+      `The death occurred ${String(months)} month${months === 1 ? '' : 's'} into a tour that began in ${formatDate(world, lastTour.startedAtTick)}. The cause is recorded as ${cause}.`,
     )
   } else {
     body.push(`The cause is recorded as ${cause}.`)
@@ -231,7 +231,7 @@ function deathInService(
   return {
     headline: `${who} dies in service at ${String(age)}`,
     dateline,
-    lede: `${who}, ${String(age)}, of ${world.town.name}, died in ${formatDate(item.tick)}${where}, according to service records.`,
+    lede: `${who}, ${String(age)}, of ${world.town.name}, died in ${formatDate(world, item.tick)}${where}, according to service records.`,
     body: body.slice(0, 4),
     quote,
     closing,
@@ -332,7 +332,7 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
       Math.floor((item.tick - (record?.enlistedAtTick ?? item.tick)) / 12),
     )
     body.push(
-      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(tour.startedAtTick)}${enemy === null ? '' : ` on the ${enemy} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
+      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(world, tour.startedAtTick)}${enemy === null ? '' : ` on the ${enemy} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
     )
   }
   const household = householdOthers(world, person)
@@ -362,7 +362,7 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
   return {
     headline: `${who} returns from tour`,
     dateline,
-    lede: `${who} of ${world.town.name} returned from deployment in ${formatDate(item.tick)}${enemy === null ? '' : `, back from the ${enemy} front`}.`,
+    lede: `${who} of ${world.town.name} returned from deployment in ${formatDate(world, item.tick)}${enemy === null ? '' : `, back from the ${enemy} front`}.`,
     body: body.slice(0, 3),
     quote,
     closing: 'The soldier returns to the home station roster and is off the rotation list pending further orders.',
@@ -406,12 +406,12 @@ function crimeReport(world: World, item: NewsItem, person: Person, dateline: str
   return {
     headline: `${fullName(person)} convicted of ${charge}`,
     dateline,
-    lede: `${fullName(person)}, ${String(age)}, of ${world.town.name}, was convicted of ${charge} at the county courthouse in ${formatDate(item.tick)}.`,
+    lede: `${fullName(person)}, ${String(age)}, of ${world.town.name}, was convicted of ${charge} at the county courthouse in ${formatDate(world, item.tick)}.`,
     body: body.slice(0, 4),
     quote: null,
     closing:
       conviction !== undefined && conviction.sentenceMonths > 0
-        ? `The sentence begins immediately and is due to end in ${formatDate((item.tick + conviction.sentenceMonths) as Tick)}.`
+        ? `The sentence begins immediately and is due to end in ${formatDate(world, (item.tick + conviction.sentenceMonths) as Tick)}.`
         : 'The fine is payable to the county.',
   }
 }
@@ -439,7 +439,7 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
   const phase = war.warPhase ?? 'attrition'
 
   const body: string[] = [
-    `Fighting began in ${formatDate(war.sinceTick)}${years >= 1 ? `, ${String(years)} year${years === 1 ? '' : 's'} ago` : ''}. Military sources describe the current phase as ${phase}.`,
+    `Fighting began in ${formatDate(world, war.sinceTick)}${years >= 1 ? `, ${String(years)} year${years === 1 ? '' : 's'} ago` : ''}. Military sources describe the current phase as ${phase}.`,
   ]
   if (dead > 0) {
     body.push(
@@ -461,8 +461,8 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
       : `${a.name} and ${b.name} remain at war`,
     dateline,
     lede: ourWar
-      ? `${sentenceCase(homelandName(world))} remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(item.tick)}, with fighting in its ${phase}.`
-      : `${a.name} and ${b.name} remain at war as of ${formatDate(item.tick)}, with fighting in its ${phase}.`,
+      ? `${sentenceCase(homelandName(world))} remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(world, item.tick)}, with fighting in its ${phase}.`
+      : `${a.name} and ${b.name} remain at war as of ${formatDate(world, item.tick)}, with fighting in its ${phase}.`,
     body: body.slice(0, 4),
     quote: null,
     closing: ourWar

@@ -189,6 +189,13 @@ export interface WorldSpec {
   readonly family: NamePool
   readonly gazetteer: Gazetteer
   /**
+   * The calendar year tick 0 falls in. A LABEL on the ticks, not an input to
+   * them — nothing in the tick path reads it. If a start year is ever
+   * player-selectable it becomes an input like the seed and belongs in the
+   * save header beside presetId; until then it is the preset's.
+   */
+  readonly startYear: number
+  /**
    * The nation the town lives in. W2's whole premise is that this becomes
    * the United States for one preset while every FOREIGN nation stays
    * fictional in all of them (MILITARY_AND_WAR_FOUNDATION §3 as amended by

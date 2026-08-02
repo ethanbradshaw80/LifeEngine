@@ -95,6 +95,7 @@ export const CLASSIC_SPEC: WorldSpec = freezeSpec({
     civic: CIVIC_NAMES,
     bases: BASE_NAMES,
   },
+  startYear: 1970,
   homelandName: HOMELAND_NAME,
   foreignNations: NATION_NAMES,
   branches: CLASSIC_BRANCHES,

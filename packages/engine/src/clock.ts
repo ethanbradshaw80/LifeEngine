@@ -1,17 +1,22 @@
 /**
  * The simulation clock. One tick is one month (Law 5).
  *
- * Tick 0 is January of START_YEAR. There is no relationship to real-world
- * time anywhere in this file — Date.now() and new Date() are banned in the
- * engine, and the whole point of a simulation clock is that it advances only
- * when the simulation says so.
+ * Tick 0 is January of the world's start year — which is the PRESET's, not
+ * a constant (W1): "American Heartland, but start in 1985" is a preset, and
+ * a fixed 1970 in this file would have made it a rewrite. There is no
+ * relationship to real-world time anywhere here — Date.now() and new Date()
+ * are banned in the engine, and the whole point of a simulation clock is
+ * that it advances only when the simulation says so.
+ *
+ * Nothing in the TICK PATH reads the calendar year: ticks are the currency
+ * of the simulation and the year is a rendering of them. That is exactly why
+ * this was cheap to extract now, and it is worth extracting BEFORE
+ * era-weighted name pools make the year an input rather than a label.
  */
 
 import type { Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
-
-/** The simulated world begins here. Arbitrary, but fixed. */
-export const START_YEAR = 1970
+import type { World } from './types.js'
 
 const MONTH_NAMES = [
   'January',
@@ -34,9 +39,9 @@ export interface SimDate {
   readonly month: number
 }
 
-export function toDate(tick: Tick): SimDate {
+export function toDate(world: World, tick: Tick): SimDate {
   return {
-    year: START_YEAR + Math.floor(tick / TICKS_PER_YEAR),
+    year: world.spec.startYear + Math.floor(tick / TICKS_PER_YEAR),
     month: (tick % TICKS_PER_YEAR) + 1,
   }
 }
@@ -48,14 +53,14 @@ export function monthName(month: number): string {
 }
 
 /** e.g. "March 1974". Deterministic — no Intl, no locale. */
-export function formatDate(tick: Tick): string {
-  const { year, month } = toDate(tick)
+export function formatDate(world: World, tick: Tick): string {
+  const { year, month } = toDate(world, tick)
   return `${monthName(month)} ${year}`
 }
 
 /** e.g. "1974". Useful where the month adds noise rather than meaning. */
-export function formatYear(tick: Tick): string {
-  return String(toDate(tick).year)
+export function formatYear(world: World, tick: Tick): string {
+  return String(toDate(world, tick).year)
 }
 
 /** Age in whole years at a given tick. Truncates, as ages do. */
