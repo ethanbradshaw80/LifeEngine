@@ -335,6 +335,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         default:
           return `${year} — Came home; the tour was done.`
       }
+    case 'committed-offence': {
+      const charge = offenceById((event.detail ?? '').split(':')[0] ?? '')?.title
+      return `${year} — Charged with ${charge ?? 'an offence'}.`
+    }
     case 'committed-theft': {
       // C2 details read "<offence-id>:<cents>"; C1's carry cents alone.
       const parts = (event.detail ?? '').split(':')

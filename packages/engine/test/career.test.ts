@@ -319,10 +319,23 @@ describe('the mistakes at base', () => {
       }
     }
     // Whether THIS seed produced a three-strikes discharge is the seed's
-    // business; when one exists it must carry the misconduct reason and
-    // three strikes inside the window behind it.
+    // business; when one exists it must carry three strikes inside the
+    // window behind it.
+    //
+    // MISCONDUCT HAS A SECOND ROAD, and this test predated it: a soldier
+    // sentenced to jail in the civil courts is separated for misconduct
+    // too (crime.ts), with no orderly-room strikes behind it at all. That
+    // is right — the county does not need the company's permission — so
+    // the assertion applies to the ones the ORDERLY ROOM discharged.
     for (const record of world.service.values()) {
       if (record.dischargeReason !== 'misconduct') continue
+      const jailed = world.events.some(
+        (e) =>
+          e.type === 'was-convicted' &&
+          e.subjectId === record.personId &&
+          (record.dischargedAtTick ?? 0) - e.tick <= 1,
+      )
+      if (jailed) continue
       const strikes = world.events.filter(
         (e) =>
           e.type === 'disciplined' &&

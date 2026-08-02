@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v54 — CRIME STOPS REQUIRING DESPERATION (owner, playing: no court
+ *      stories in the paper). The gate wanted arrears to clear it, so a
+ *      solvent town committed nothing: fifty years and a hundred and forty
+ *      people produced one to three thefts and no other offence at all.
+ *      NPCs now draw from the whole offence table, and a small baseline
+ *      pressure means ordinary carelessness reaches the courthouse. About
+ *      2.6 offences a year in a town of 140, measured.
  * v53 — A RIVAL IS NEVER IN THE HOMELAND'S BLOC (owner, playing). Bloc 0
  *      is the homeland's alliance and it was drawn at random for every
  *      nation that was not an ally, so a quarter of the rivals landed
@@ -348,7 +355,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 53
+export const SIMULATION_VERSION = 54
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

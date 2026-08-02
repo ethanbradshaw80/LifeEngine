@@ -1101,6 +1101,7 @@ export type EventType =
   | 'changed-spending'
   /** Crime & justice (C1). The thief's own timeline knows what they did. */
   | 'committed-theft'
+  | 'committed-offence'
   | 'was-robbed'
   | 'was-arrested'
   | 'was-convicted'

@@ -66,6 +66,24 @@ export function hasRecentConviction(world: World, personId: EntityId): boolean {
 // The monthly tick
 // ---------------------------------------------------------------------------
 
+/**
+ * What everybody carries.
+ *
+ * CRIME USED TO REQUIRE DESPERATION. The gate wanted 100 and only arrears
+ * could approach it, so a solvent, employed town never committed anything
+ * at all — fifty years and a hundred and forty people produced one to three
+ * thefts and no other offence of any kind, and the courthouse the project
+ * built had almost nothing to hear.
+ *
+ * That was never the claim C1 set out to make. Law 10 asks for believable
+ * over balanced, and a town where only the destitute break the law is not
+ * believable: people drive drunk, swing at each other outside a bar, and
+ * take things they could have paid for. Desperation is still the loudest
+ * road by far — arrears alone is nine times this — but it is no longer the
+ * only one.
+ */
+const BASELINE_PRESSURE = 26
+
 export function runCrime(world: World, tick: Tick): void {
   for (const person of livingSorted(world)) {
     const record = world.criminal.get(person.id)
@@ -96,12 +114,15 @@ export function runCrime(world: World, tick: Tick): void {
     // veteran is jobless (review S1).
     const behind = inArrears(world, person.householdId)
     const jobless = !world.employment.has(person.id) && !isServing(world, person.id)
-    let pressure = 0
+    let pressure = BASELINE_PRESSURE
     if (behind) pressure += 90
     if (jobless) pressure += 40
     if (behind && jobless) pressure += 30 // both at once is its own weather
     pressure += Math.floor((1000 - person.traits.diligence) / 50) // 0..20
-    if (pressure < 100) continue
+    // Resilience is what carries somebody through a bad month without doing
+    // something stupid in it.
+    pressure += Math.floor((1000 - person.traits.resilience) / 100) // 0..10
+    if (pressure < BASELINE_PRESSURE) continue
 
     const rng = openStream(world.seed, Stream.Crime, person.id, tick)
     if (!rng.chance(pressure, 12_000)) continue
@@ -126,7 +147,9 @@ export function runCrime(world: World, tick: Tick): void {
       continue
     }
 
-    attemptTheft(world, tick, person, behind, jobless, rng)
+    const offence = offenceForCircumstance(behind, jobless, rng)
+    if (offence === null) attemptTheft(world, tick, person, behind, jobless, rng)
+    else carryOutOffence(world, tick, person, offence, rng)
   }
 }
 
@@ -374,6 +397,91 @@ export function answerDesperation(world: World, tick: Tick, person: Person, take
   // moment arrived at all.
   const rng = openStream(world.seed, Stream.Crime, person.id, tick + 4141)
   attemptTheft(world, tick, person, behind, jobless, rng, true)
+}
+
+/**
+ * What somebody in these circumstances actually does, or null for the plain
+ * theft the town has always had.
+ *
+ * NOT A CRIME SPREE GENERATOR. The weights say what a small town's docket
+ * looks like: mostly drink, mostly noise, mostly stupid rather than wicked.
+ * Desperation still points at property; the rest is the ordinary trouble
+ * people make when they are bored, drunk or angry, and the felonies are
+ * rare on purpose because the courthouse should not be hearing an armed
+ * robbery every other year.
+ */
+function offenceForCircumstance(
+  behind: boolean,
+  jobless: boolean,
+  rng: ReturnType<typeof openStream>,
+): Offence | null {
+  // Desperation goes for what pays. Half the time it is the plain theft
+  // the town already modelled, which keeps its own victim selection.
+  if (behind || jobless) {
+    if (rng.chance(1, 2)) return null
+    return offenceById(rng.pick(['shoplifting', 'bad-check', 'petty-fraud', 'trespassing'])) ?? null
+  }
+  // Everybody else: the drink, the temper, the car.
+  const id = rng.pickWeighted(
+    [
+      'public-intoxication',
+      'disorderly-conduct',
+      'dui',
+      'reckless-driving',
+      'simple-assault',
+      'vandalism',
+      'trespassing',
+      'shoplifting',
+      'drug-possession',
+      'resisting-arrest',
+    ],
+    [22, 18, 14, 12, 9, 8, 6, 5, 4, 2],
+  )
+  return offenceById(id) ?? null
+}
+
+/**
+ * An offence, carried out and answered for. Shared by the NPC road and the
+ * player's own verb so both walk the same courthouse — the money moves the
+ * same way, the clearance is the same roll, and the record reads the same.
+ */
+function carryOutOffence(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offence: Offence,
+  rng: ReturnType<typeof openStream>,
+): void {
+  let taken = 0
+  if (offence.gainMax > 0 && person.householdId !== null) {
+    const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
+    taken = creditHousehold(world, tick, person.householdId, wanted)
+  }
+
+  recordEvent(world, tick, {
+    type: 'committed-offence',
+    subjectId: person.id,
+    detail: `${offence.id}:${String(taken)}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'crime',
+    significance: isFelony(offence.grade) ? 'defining' : 'notable',
+    inputs: [
+      factor('own-choice', 600),
+      ...(person.householdId !== null && inArrears(world, person.householdId)
+        ? [factor('in-arrears', 700)]
+        : []),
+    ],
+    chosen: `committed ${offence.title}`,
+    rejected: ['to leave it alone'],
+    streamId: Stream.Crime,
+  })
+
+  // Cleared, or not — the same door the player's own offence goes through.
+  if (!rng.chance(offence.clearance, 1_000)) return
+  recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
+  resolveCourt(world, tick, person, taken, rng, null, offence)
 }
 
 function attemptTheft(
@@ -629,8 +737,13 @@ export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
     } else if (event.type === 'was-convicted') {
       const person = world.people.get(event.subjectId)
       if (!person) continue
-      const sentence =
-        event.detail?.startsWith('jail:') === true ? `${event.detail.slice(5)} months` : 'fined'
+      // CUSTODY ONLY (owner, 2026-08-02). A fine is a bad afternoon; a
+      // sentence takes somebody out of the town, out of a job and out of a
+      // household, and that is what a paper this size prints. Reporting
+      // every fine turned the feed into a docket.
+      if (event.detail?.startsWith('jail:') !== true) continue
+      const months = Number(event.detail.slice(5))
+      const sentence = months === 1 ? 'a month' : `${String(months)} months`
       // The charge, from the record rather than assumed: the courthouse
       // hears more than theft now (C2).
       const conviction = [...(world.criminal.get(person.id)?.convictions ?? [])]

@@ -46,7 +46,7 @@ describe('the money', () => {
 })
 
 describe('the chain', () => {
-  it('every conviction cites an arrest, every arrest a theft, on the same person', () => {
+  it('every conviction cites an arrest, and an offence, on the same person', () => {
     const world = grownWorld(900)
     const convictions = world.events.filter((e) => e.type === 'was-convicted')
     for (const conviction of convictions) {
@@ -55,9 +55,15 @@ describe('the chain', () => {
           (e) => e.type === 'was-arrested' && e.subjectId === conviction.subjectId && e.tick === conviction.tick,
         ),
       ).toBe(true)
+      // AN OFFENCE, not specifically a theft: a town's docket is mostly
+      // drink, tempers and cars, and NPCs draw from the whole table now.
+      // The chain itself is the claim — nobody is convicted of nothing.
       expect(
         world.events.some(
-          (e) => e.type === 'committed-theft' && e.subjectId === conviction.subjectId && e.tick === conviction.tick,
+          (e) =>
+            (e.type === 'committed-theft' || e.type === 'committed-offence') &&
+            e.subjectId === conviction.subjectId &&
+            e.tick === conviction.tick,
         ),
       ).toBe(true)
       // And the map agrees with the events.

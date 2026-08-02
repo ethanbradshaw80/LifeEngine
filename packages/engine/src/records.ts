@@ -123,6 +123,7 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'completed-training': 'training',
   'act-of-valor': 'deployment',
   'committed-theft': 'crime',
+  'committed-offence': 'crime',
   'was-convicted': 'justice',
   'was-acquitted': 'justice',
   // P1: events that had records nobody could reach, and the four new
