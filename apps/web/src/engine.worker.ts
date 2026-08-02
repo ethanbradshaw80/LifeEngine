@@ -22,6 +22,7 @@ import {
   courtFriend,
   createCustomLife,
   createWorld,
+  specById,
   endCourtship,
   lookForPlace,
   propose,
@@ -80,7 +81,13 @@ export type VerbRequest =
   | { readonly verb: 'commit-offence'; readonly offenceId: string }
 
 export type WorkerRequest =
-  | { readonly type: 'new'; readonly seed: number }
+  | {
+      readonly type: 'new'
+      readonly seed: number
+      /** W1: which preset builds the world. Omitted means Classic — the only
+       *  one that ships today, and the one every older save is. */
+      readonly presetId?: string
+    }
   | { readonly type: 'advance'; readonly months: number }
   | { readonly type: 'load'; readonly save: unknown }
   | { readonly type: 'play'; readonly personId: number | null; readonly heir?: boolean }
@@ -127,7 +134,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     switch (request.type) {
       case 'new': {
         const started = performance.now()
-        world = createWorld(makeSeed(request.seed))
+        // specById is total, so an unknown preset makes a Classic world
+        // rather than a dead worker (WORLD_MODES_PLAN resistance 2).
+        world = createWorld(makeSeed(request.seed), undefined, specById(request.presetId))
         send(performance.now() - started)
         return
       }

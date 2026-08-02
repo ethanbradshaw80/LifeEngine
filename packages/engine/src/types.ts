@@ -87,6 +87,9 @@ export interface Gazetteer {
   readonly civic: readonly string[]
   /** Military installations. Allocated AFTER the population — see worldgen. */
   readonly bases: readonly string[]
+  /** The town's news station, by call sign. A town fact wearing a masthead
+   *  (W1 review) — WCJC is Haverlock's, not every town's. */
+  readonly newsStation: string
 }
 
 /**

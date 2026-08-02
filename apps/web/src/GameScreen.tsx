@@ -82,7 +82,6 @@ import {
   articleFor,
   criminalRecordOf,
   GRADE_TITLES,
-  NEWS_STATION,
   OFFENCES,
   offenceBar,
   offenceById,
@@ -1272,7 +1271,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             return (
               <>
                 <div className="station">
-                  <span className="station-call">{NEWS_STATION}</span>
+                  <span className="station-call">{world.spec.gazetteer.newsStation}</span>
                   <span className="station-line">
                     {world.town.name} — everything here happened
                   </span>
@@ -1300,7 +1299,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 <h3>The record</h3>
                 {allNews.length === 0 && (
-                  <p className="muted">Nothing yet. {NEWS_STATION} has a quiet town to report.</p>
+                  <p className="muted">Nothing yet. {world.spec.gazetteer.newsStation} has a quiet town to report.</p>
                 )}
                 {allNews.map((item, index) => {
                   const previous = allNews[index - 1]
@@ -1338,7 +1337,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </div>
                       {openArticles.has(key) && article !== null && (
                         <div className="card-why article">
-                          <p className="article-byline">{NEWS_STATION} — {article.dateline}</p>
+                          <p className="article-byline">{world.spec.gazetteer.newsStation} — {article.dateline}</p>
                           <h4 className="article-headline">{article.headline}</h4>
                           <p className="article-lede">{article.lede}</p>
                           {article.body.map((paragraph) => (
