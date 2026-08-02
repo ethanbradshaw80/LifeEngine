@@ -61,8 +61,11 @@ awards are fictional in every preset, permanently** — a real unit has living m
 and a real casualty history — as are all factions and alliances. See
 `PROJECT_CHARTER.md` §2 and R-14.
 
-**SCHOOLS ARE NAMED FOR REAL, units are not** (amended 2026-08-02, ADR-0023, owner
-override). A school is a course of instruction and naming one asserts nothing about
+**SCHOOLS, DECORATIONS AND BADGES ARE NAMED FOR REAL; units are not** (amended
+2026-08-02, ADR-0023 and ADR-0024, owner override). The price of the real names is
+EARNABILITY: no badge or ribbon exists that cannot be earned, every one grants from a
+qualifying recorded event, and the grant functions still refuse anything else. The
+campaign award stays generic — never named for a war this engine invented. A school is a course of instruction and naming one asserts nothing about
 anybody; a unit is a body of living people with a record of its own dead. Do not
 rename a school back for being real — it is there by decision.
 

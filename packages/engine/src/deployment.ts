@@ -24,7 +24,9 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { grantCampaignMedal, grantCombatAction, grantWoundRecognition } from './awards.js'
+import { grantCampaignMedal, grantCombatAction, grantWoundRecognition,
+  grantOverseas,
+} from './awards.js'
 
 /** How a contact reads, by the channel that found them. Flat, specific. */
 const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposure' | 'base-attack-exposure', readonly string[]>> = {
@@ -1141,6 +1143,12 @@ function closeTour(
     subjectId: personId,
     detail: reason ?? (medical ? 'evacuated' : deployment.kind === 'rotation' ? 'rotation complete' : 'tour complete'),
   })
+
+  // THE OVERSEAS SERVICE RIBBON (awards pack): a tour outside the homeland,
+  // whether or not anybody shot at you. That is the point of it — it says
+  // you went, not that you fought — so it hangs off the homecoming itself
+  // and covers the peacetime rotations too.
+  grantOverseas(world, tick, personId, homecoming)
 
   if (deployment.kind === 'rotation') {
     // No campaign medal — a campaign is a war. What a completed rotation

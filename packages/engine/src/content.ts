@@ -345,6 +345,16 @@ export const POINTS_PER_COMBAT_ACTION = 15
 export const POINTS_PER_VALOR = 30
 export const POINTS_PER_MERITORIOUS = 30
 export const POINTS_PER_LONG_SERVICE = 20
+// The awards pack's ribbons. All inside MAX_DECORATION_POINTS, which is what
+// stops a rack of ribbons out-weighing the work: the cap is the reason a
+// board still reads performance first.
+export const POINTS_PER_COMBAT_MERIT = 25
+export const POINTS_PER_COMMENDATION = 15
+export const POINTS_PER_ACHIEVEMENT = 10
+export const POINTS_PER_NCO_DEVELOPMENT = 10
+export const POINTS_PER_NATIONAL_DEFENSE = 5
+export const POINTS_PER_OVERSEAS = 5
+export const POINTS_PER_SERVICE_RIBBON = 3
 /** The awards bucket is CAPPED, as in the real points model — service is
  *  recognized, but a rack cannot buy a board on its own (review: without
  *  this, the points-optimal life is collecting wounds). */

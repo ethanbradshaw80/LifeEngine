@@ -23,7 +23,7 @@ import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
 import { runGeopolitics } from './geopolitics.js'
-import { runSchools } from './service.js'
+import { runSchools, runWartimeService } from './service.js'
 import { runCallsToArms } from './coalition.js'
 import { runHealth } from './health.js'
 import { runService } from './service.js'
@@ -69,6 +69,7 @@ export function advanceTick(world: World): World {
   // The schoolhouse keeps its own calendar: classes start and finish on
   // the grid, whoever is in them.
   runSchools(world, next)
+  runWartimeService(world, next)
   // The war reaches for the serving after the service system has kept its
   // own books for the month (enlistments, promotions, terms).
   runDeployments(world, next)

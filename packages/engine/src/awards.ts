@@ -31,17 +31,61 @@ import { Stream } from './rng.js'
 import type { AwardKind, AwardRecord, CausalFactor, World, WorldEvent } from './types.js'
 import { bareName } from './text.js'
 
-/** The wound decoration's name. One per lifetime; later wounds add devices.
- *  Deliberately not triumphal — a laurel is a victory crown, and a wound
- *  decoration recognizes something done TO you (reviewer, tone rule). */
-export const WOUND_RECOGNITION_TITLE = 'the Crimson Band'
-export const GOOD_CONDUCT_TITLE = 'the Faithful Service Medal'
-export const COMBAT_ACTION_TITLE = 'the Contact Star'
-export const VALOR_TITLE = 'the Star of Valor'
-// Invented names (review: the first drafts were verbatim real decorations,
-// which §3 forbids for awards by name).
-export const MERITORIOUS_TITLE = 'the Standard-Bearer Medal'
-export const LONG_SERVICE_TITLE = 'the Long Watch Medal'
+/**
+ * REAL DECORATION NAMES, by owner override (ADR-0024, 2026-08-02).
+ *
+ * This repo reverted real names TWICE before — at v13→v14 and again in
+ * M-HARM — so, plainly: A REVIEWER MAY NOT REVERT THEM A THIRD TIME. They
+ * are here by decision and the ADR is the record of it.
+ *
+ * The price of the real names is the owner's own rule: no award exists that
+ * cannot be earned. Every title below grants from a qualifying recorded
+ * event and from nothing else, and the grant functions still refuse
+ * anything that does not qualify.
+ */
+export const WOUND_RECOGNITION_TITLE = 'the Purple Heart'
+export const GOOD_CONDUCT_TITLE = 'the Good Conduct Medal'
+export const MERITORIOUS_TITLE = 'the Meritorious Service Medal'
+export const LONG_SERVICE_TITLE = 'the Armed Forces Service Medal'
+
+/**
+ * VALOR IS TIERED BY HOW BAD THE MOMENT WAS (owner's pack §4). One
+ * qualifying event — 'act-of-valor', still the only one (foundation §11) —
+ * and the title follows the threat the scene actually carried.
+ *
+ * NOTE ON "the Medal of Honor": it is a real decoration and also a
+ * long-running video-game trademark, which is a commercial conflict the
+ * other names here do not carry. Implemented as the owner directed and
+ * flagged to him; the Distinguished Service Cross is the swap if he wants
+ * one, and it is this constant.
+ */
+export const VALOR_TITLE_OVERRUN = 'the Medal of Honor'
+export const VALOR_TITLE_HEAVY = 'the Silver Star'
+export const VALOR_TITLE_LIGHT = 'the Bronze Star with Valor'
+/** The plain valor title, used until a scene carries a threat level (the
+ *  three-option combat system is a later step of the combat plan). */
+export const VALOR_TITLE = VALOR_TITLE_HEAVY
+
+/**
+ * Combat recognition takes its face from the TRADE (owner's pack §5): one
+ * `saw-combat` event, three badges. An infantryman's is not a medic's.
+ */
+export const COMBAT_INFANTRY_BADGE = 'the Combat Infantryman Badge'
+export const COMBAT_MEDICAL_BADGE = 'the Combat Medical Badge'
+export const COMBAT_ACTION_BADGE = 'the Combat Action Badge'
+export const COMBAT_ACTION_TITLE = COMBAT_ACTION_BADGE
+
+/** The new ribbons, all earned from events the engine already records. */
+export const COMBAT_MERIT_TITLE = 'the Bronze Star'
+export const COMMENDATION_TITLE = 'the Army Commendation Medal'
+export const ACHIEVEMENT_TITLE = 'the Army Achievement Medal'
+export const NATIONAL_DEFENSE_TITLE = 'the National Defense Service Medal'
+export const OVERSEAS_TITLE = 'the Overseas Service Ribbon'
+export const NCO_DEVELOPMENT_TITLE = 'the NCO Professional Development Ribbon'
+export const SERVICE_RIBBON_TITLE = 'the Army Service Ribbon'
+
+/** Commendable, but below the meritorious bar. */
+export const COMMENDATION_PERFORMANCE = 550
 
 /** Meritorious service asks a term average well above honorable. */
 export const MERITORIOUS_PERFORMANCE = 700
@@ -217,9 +261,20 @@ export function grantCombatAction(
     }
   }
 
+  // ONE EVENT, THREE FACES (owner's pack §5). An infantryman's combat
+  // recognition is not a medic's and neither is a driver's — which is true,
+  // and costs nothing: the qualifying event is the same recorded contact.
+  const trade = world.service.get(personId)?.specialtyId ?? ''
+  const title =
+    trade === 'rifleman'
+      ? COMBAT_INFANTRY_BADGE
+      : trade === 'medic'
+        ? COMBAT_MEDICAL_BADGE
+        : COMBAT_ACTION_BADGE
+
   return grant(world, tick, personId, {
     kind: 'combat-action',
-    title: COMBAT_ACTION_TITLE,
+    title,
     qualifying,
     citation: `came under fire on the ${bareName(enemyName)} front`,
     inputs: [factor('campaign-service', 800)],
@@ -237,7 +292,7 @@ export function grantCombatAction(
  * and deliberately named for the SERVICE rather than for the enemy — see
  * grantCampaignMedal.
  */
-export const EXPEDITIONARY_MEDAL = 'the Expeditionary Medal'
+export const EXPEDITIONARY_MEDAL = 'the Armed Forces Expeditionary Medal'
 
 export function grantCampaignMedal(
   world: World,
@@ -405,4 +460,182 @@ function grant(world: World, tick: Tick, personId: EntityId, spec: GrantSpec): A
     streamId: Stream.Employment,
   })
   return result
+}
+
+// ---------------------------------------------------------------------------
+// The ribbons the owner's awards pack added. EVERY ONE GRANTS FROM AN EVENT
+// THE ENGINE ALREADY RECORDS — that is the whole discipline of the pack: no
+// badge or ribbon exists that cannot be earned, and each of these refuses an
+// event that does not qualify exactly as its older siblings do.
+// ---------------------------------------------------------------------------
+
+/**
+ * A commendable term — below the meritorious bar, above merely honourable.
+ * Judged at the same door as good conduct and meritorious service, off the
+ * same qualifying event.
+ */
+export function grantCommendation(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  termAveragePerformance: number,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
+  if (qualifying.type === 'discharged' && !HONOURABLE_TERM_ENDINGS.has(qualifying.detail ?? '')) {
+    return null
+  }
+  // Strictly below meritorious: a term does not earn both.
+  if (termAveragePerformance < COMMENDATION_PERFORMANCE) return null
+  if (termAveragePerformance >= MERITORIOUS_PERFORMANCE) return null
+
+  return grant(world, tick, personId, {
+    kind: 'commendation',
+    title: COMMENDATION_TITLE,
+    qualifying,
+    citation: 'for commendable service',
+    inputs: [factor('strong-performance', termAveragePerformance)],
+  })
+}
+
+/**
+ * The merit Bronze Star: a distinguished term SERVED IN A COMBAT ZONE. The
+ * combat tour is what separates it from the Meritorious Service Medal, and
+ * it is read off the person's own deployments rather than asserted.
+ */
+export function grantCombatMerit(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  termAveragePerformance: number,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
+  if (qualifying.type === 'discharged' && !HONOURABLE_TERM_ENDINGS.has(qualifying.detail ?? '')) {
+    return null
+  }
+  if (termAveragePerformance < MERITORIOUS_PERFORMANCE) return null
+  const combatTour = (world.deployments.get(personId) ?? []).some((tour) => tour.kind !== 'rotation')
+  if (!combatTour) return null
+
+  return grant(world, tick, personId, {
+    kind: 'combat-merit',
+    title: COMBAT_MERIT_TITLE,
+    qualifying,
+    citation: 'for meritorious service in a combat zone',
+    inputs: [factor('strong-performance', termAveragePerformance), factor('campaign-service', 700)],
+  })
+}
+
+/**
+ * A single strong achievement rather than a whole term: finishing a course
+ * with the work behind it. Repeats add a device, like everything else.
+ */
+export function grantAchievement(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  performance: number,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'completed-training') return null
+  if (performance < MERITORIOUS_PERFORMANCE) return null
+
+  return grant(world, tick, personId, {
+    kind: 'achievement',
+    title: ACHIEVEMENT_TITLE,
+    qualifying,
+    citation: 'for meritorious achievement',
+    inputs: [factor('strong-performance', performance)],
+  })
+}
+
+/** Finished initial training. The first ribbon anybody gets. */
+export function grantServiceRibbon(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'completed-training') return null
+  if (qualifying.detail !== 'basic training') return null
+
+  return grant(world, tick, personId, {
+    kind: 'service-ribbon',
+    title: SERVICE_RIBBON_TITLE,
+    qualifying,
+    citation: 'on completion of initial training',
+    inputs: [factor('own-choice', 200)],
+  })
+}
+
+/** The leaders course, and only that course. */
+export function grantNcoDevelopment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  schoolBadge: string,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'completed-training') return null
+  if (schoolBadge !== 'small-unit leader') return null
+
+  return grant(world, tick, personId, {
+    kind: 'nco-development',
+    title: NCO_DEVELOPMENT_TITLE,
+    qualifying,
+    citation: 'on completion of the leaders course',
+    inputs: [factor('own-choice', 300)],
+  })
+}
+
+/**
+ * Served while the country was at war — whoever they were and wherever they
+ * stood. Once in a lifetime; the qualifying event is the enlistment or the
+ * month it became true.
+ */
+export function grantNationalDefense(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  const existing = (world.awards.get(personId) ?? []).find((a) => a.kind === 'national-defense')
+  if (existing) return existing
+
+  return grant(world, tick, personId, {
+    kind: 'national-defense',
+    title: NATIONAL_DEFENSE_TITLE,
+    qualifying,
+    citation: 'for service during a period of war',
+    inputs: [factor('under-orders', 400)],
+  })
+}
+
+/**
+ * A tour outside the homeland — including the peacetime rotations, which is
+ * the point of it: it is the ribbon that says you went, not that you fought.
+ */
+export function grantOverseas(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+): AwardRecord | null {
+  if (qualifying.subjectId !== personId) return null
+  if (qualifying.type !== 'returned-home') return null
+
+  return grant(world, tick, personId, {
+    kind: 'overseas',
+    title: OVERSEAS_TITLE,
+    qualifying,
+    citation: 'for a tour of duty overseas',
+    inputs: [factor('under-orders', 300)],
+  })
 }

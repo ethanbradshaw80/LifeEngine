@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v46 — THE AWARDS PACK (owner spec, ADR-0024). Decorations and badges
+ *      carry their REAL names; the campaign medal is generic and never
+ *      named for a war this engine invented; combat recognition takes its
+ *      face from the trade (infantryman, medic, everyone else); and seven
+ *      new ribbons grant from events the engine already records. Every
+ *      award still grants only from a qualifying event — that rule is what
+ *      makes the real names safe.
  * v45 — SCHOOL HOUSES WITH A CALENDAR (owner spec). Schools carry their
  *      REAL names (ADR-0023), a course length, a class cadence and seats.
  *      Asking no longer rolls one-in-three for an instant badge: you take a
@@ -302,7 +309,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 45
+export const SIMULATION_VERSION = 46
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

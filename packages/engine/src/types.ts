@@ -627,11 +627,33 @@ export type AwardKind =
   | 'good-conduct'
   /** An occupational rating, earned and recorded during service. */
   | 'qualification-badge'
+  /** Meritorious service in a combat zone — the merit Bronze Star. */
+  | 'combat-merit'
+  /** A commendable term, below the meritorious bar. */
+  | 'commendation'
+  /** A single strong achievement rather than a whole term. */
+  | 'achievement'
+  /** Served while the country was at war, whoever they were. */
+  | 'national-defense'
+  /** A tour of duty outside the homeland. */
+  | 'overseas'
+  /** Completed the leaders course — the NCO's development ribbon. */
+  | 'nco-development'
+  /** Finished initial training. The first ribbon anybody gets. */
+  | 'service-ribbon'
+  //
+  // NOT HERE, DELIBERATELY: 'pow' and 'air'. The owner's pack marks both
+  // HOLD — the first needs a capture system, the second an aviation unit —
+  // and his rule is that no award exists that cannot be earned. A kind
+  // nothing can grant is that rule broken one level down, so they arrive
+  // with the systems that earn them (ADR-0024 §4).
 
 export interface AwardRecord {
   readonly personId: EntityId
   readonly kind: AwardKind
-  /** Fictional decoration name — "the Crimson Laurel". */
+  /** The decoration's name. REAL since ADR-0024 — "the Purple Heart".
+   *  Records written before that keep the invented title they were written
+   *  with, because a record is what happened. */
   readonly title: string
   /** When first awarded. */
   readonly tick: Tick
@@ -988,6 +1010,7 @@ export type EventType =
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
   | 'took-a-seat'
+  | 'wartime-service'
   | 'refused-orders'
   | 'asked-exemption'
   | 'call-to-arms'

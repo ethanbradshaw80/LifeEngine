@@ -24,7 +24,18 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
-import { grantGoodConduct, grantLongService, grantMeritoriousService, grantQualificationBadge } from './awards.js'
+import {
+  grantAchievement,
+  grantCombatMerit,
+  grantCommendation,
+  grantGoodConduct,
+  grantLongService,
+  grantMeritoriousService,
+  grantNationalDefense,
+  grantNcoDevelopment,
+  grantQualificationBadge,
+  grantServiceRibbon,
+} from './awards.js'
 import { ageAt } from './clock.js'
 import {
   BOARD_CUTOFF_BASE,
@@ -36,7 +47,14 @@ import {
   PENSION_CENTS_PER_POINT,
   PENSION_THRESHOLD,
   POINTS_PER_BADGE,
+  POINTS_PER_ACHIEVEMENT,
   POINTS_PER_CAMPAIGN,
+  POINTS_PER_COMBAT_MERIT,
+  POINTS_PER_COMMENDATION,
+  POINTS_PER_NATIONAL_DEFENSE,
+  POINTS_PER_NCO_DEVELOPMENT,
+  POINTS_PER_OVERSEAS,
+  POINTS_PER_SERVICE_RIBBON,
   POINTS_PER_COMBAT_ACTION,
   POINTS_PER_GOOD_CONDUCT,
   POINTS_PER_LONG_SERVICE,
@@ -207,6 +225,13 @@ export function promotionPointsFor(world: World, personId: EntityId): PromotionP
     if (award.kind === 'valor') return sum + award.count * POINTS_PER_VALOR
     if (award.kind === 'meritorious-service') return sum + award.count * POINTS_PER_MERITORIOUS
     if (award.kind === 'long-service') return sum + award.count * POINTS_PER_LONG_SERVICE
+    if (award.kind === 'combat-merit') return sum + award.count * POINTS_PER_COMBAT_MERIT
+    if (award.kind === 'commendation') return sum + award.count * POINTS_PER_COMMENDATION
+    if (award.kind === 'achievement') return sum + award.count * POINTS_PER_ACHIEVEMENT
+    if (award.kind === 'nco-development') return sum + award.count * POINTS_PER_NCO_DEVELOPMENT
+    if (award.kind === 'national-defense') return sum + award.count * POINTS_PER_NATIONAL_DEFENSE
+    if (award.kind === 'overseas') return sum + award.count * POINTS_PER_OVERSEAS
+    if (award.kind === 'service-ribbon') return sum + award.count * POINTS_PER_SERVICE_RIBBON
     return sum
   }, 0)
   const points = {
@@ -1134,7 +1159,13 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
   }
   if (monthsIn === 2) {
-    recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: 'basic training' })
+    const basicDone = recordEvent(world, tick, {
+      type: 'completed-training',
+      subjectId: person.id,
+      detail: 'basic training',
+    })
+    // The first ribbon anybody gets, off the event that earns it.
+    grantServiceRibbon(world, tick, person.id, basicDone)
     recordEvent(world, tick, { type: 'began-training', subjectId: person.id, detail: `${specialty.title} school` })
   } else if (monthsIn === schoolDone) {
     recordEvent(world, tick, { type: 'completed-training', subjectId: person.id, detail: `${specialty.title} school` })
@@ -1460,6 +1491,11 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
   grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
+  // The two the awards pack added at this door: a commendable term
+  // below the meritorious bar, and the merit Bronze Star for a
+  // distinguished one served in a combat zone.
+  grantCommendation(world, tick, person.id, reenlisted, termAverage)
+  grantCombatMerit(world, tick, person.id, reenlisted, termAverage)
   grantLongService(world, tick, person.id, reenlisted, Math.floor((tick - record.enlistedAtTick) / 12))
 }
 
@@ -1656,6 +1692,11 @@ export function discharge(
   // is refused by the grant itself, which reads the reason off the event.
   grantGoodConduct(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
   grantMeritoriousService(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
+  // The two the awards pack added at this door: a commendable term
+  // below the meritorious bar, and the merit Bronze Star for a
+  // distinguished one served in a combat zone.
+  grantCommendation(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
+  grantCombatMerit(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
   grantLongService(world, tick, person.id, dischargedEvent, Math.floor((tick - record.enlistedAtTick) / 12))
 
   // If the service already left recognized harm on the body, the pension
@@ -1724,6 +1765,35 @@ export function educationOffersEnlistment(world: World, person: Person, tick: Ti
  * pinned on. Runs for EVERYONE with a seat, player or not — a school with a
  * calendar that only the player experiences is not a school, it is a menu.
  */
+/**
+ * The National Defense Service Medal: served while the country was at war,
+ * whoever they were and wherever they stood. Checked monthly because that is
+ * what the ribbon means — not a deployment, not a decoration for anything
+ * done, simply that you were in uniform when it happened.
+ */
+export function runWartimeService(world: World, tick: Tick): void {
+  if (activeWars(world).length === 0) return
+  const home = homeland(world)
+  if (!home) return
+  const ourWar = activeWars(world).some((war) => war.a === home.id || war.b === home.id)
+  if (!ourWar) return
+
+  const records = [...world.service.values()].sort((a, b) => a.personId - b.personId)
+  for (const record of records) {
+    if (record.dischargedAtTick !== null) continue
+    const already = (world.awards.get(record.personId) ?? []).some((a) => a.kind === 'national-defense')
+    if (already) continue
+    const person = world.people.get(record.personId)
+    if (!person || person.deathTick !== null) continue
+
+    const served = recordEvent(world, tick, {
+      type: 'wartime-service',
+      subjectId: record.personId,
+    })
+    grantNationalDefense(world, tick, record.personId, served)
+  }
+}
+
 export function runSchools(world: World, tick: Tick): void {
   const records = [...world.service.values()].sort((a, b) => a.personId - b.personId)
   for (const record of records) {
@@ -1750,7 +1820,7 @@ export function runSchools(world: World, tick: Tick): void {
 
     // Graduation: the badge is pinned on through the awards machinery, the
     // same door an NPC's is.
-    recordEvent(world, tick, {
+    const graduated = recordEvent(world, tick, {
       type: 'completed-training',
       subjectId: record.personId,
       detail: school.title,
@@ -1761,6 +1831,11 @@ export function runSchools(world: World, tick: Tick): void {
       detail: school.badge,
     })
     grantQualificationBadge(world, tick, record.personId, badgeEvent, school.badge)
+    // Two more the awards pack hangs off graduating: the leaders course
+    // carries its own ribbon, and finishing any course with the work behind
+    // you is an achievement in its own right.
+    grantNcoDevelopment(world, tick, record.personId, graduated, school.badge)
+    grantAchievement(world, tick, record.personId, graduated, record.performance)
     const current = world.service.get(record.personId) ?? record
     world.service.set(record.personId, {
       ...current,

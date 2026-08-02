@@ -596,6 +596,61 @@ still owed its fact: when the window closes on an unmet plan, "the
 children never came" is recorded (settleFamilyPlans). Known simplification
 accepted: fecundity currently follows the woman only.
 
+## ADR-0024 — Real decoration and badge names, with earnability enforced
+
+**Status:** Accepted (owner override, 2026-08-02)
+**Date:** 2026-08-02
+**Amends:** MILITARY_AND_WAR_FOUNDATION §3 for AWARD and BADGE names, the way
+ADR-0023 did for school names. Named UNITS and foreign nations are untouched.
+
+**Context.** The owner's awards pack carries an explicit override: use the
+real decoration and badge names — Purple Heart, Silver Star, Bronze Star,
+Good Conduct Medal, Combat Infantryman Badge, Ranger Tab and the rest —
+"implement the real names even though §3 as written forbids it; this
+override takes precedence."
+
+This repo has reverted real decoration names TWICE before (at v13→v14 and
+again in M-HARM), which is why this ADR exists: so the next reviewer does
+not revert them a third time by reflex.
+
+**Decision.**
+
+1. **Decorations and badges carry their real names.** The fictional titles
+   they replace — the Crimson Band, the Faithful Service Medal, the
+   Standard-Bearer Medal — are gone from new grants.
+2. **EARNABILITY IS THE PRICE, and it is the owner's own rule:** "no badge
+   or ribbon exists that can't be earned." Every award grants from a
+   qualifying recorded event and from nothing else. The grant functions
+   still REFUSE an event that does not qualify, and the negative tests that
+   prove it stay.
+3. **The campaign award stays GENERIC** — the Armed Forces Expeditionary
+   Medal, never a war-named one. This is the owner's own exception and it
+   independently fixes the bug the last military review caught: a generated
+   war against a real country was minting "the Afghanistan Campaign Medal",
+   the verbatim name of a real decoration, onto a permanent record.
+4. **HOLD ITEMS ARE NOT BUILT AND NOT SHOWN.** The Prisoner of War Medal
+   needs a capture system and the Air Medal needs an aviation unit. Their
+   kinds are not added to the type union either: a union member nothing can
+   produce is the "unearnable award" rule broken one level down.
+5. Records already written keep the titles they were written with. A
+   veteran who earned the Crimson Band in 1974 still wears it — the
+   correct-before-generation doctrine, unchanged since the Ashkelon rename.
+
+**Rationale.** A decoration's name is the name of a thing a government
+awards; using it in an expressive work is ordinary and common. What was
+always load-bearing is that the award is EARNED — that a rack is a record of
+what happened rather than a costume — and that is not weakened by the names
+being real. It is strengthened, because a real medal a player recognises
+makes the earning matter more.
+
+**Noted for the owner, not decided here:** "Medal of Honor" is also a
+long-running video-game trademark, which is a commercial conflict the other
+names on the list do not carry. It is implemented as directed; the
+Distinguished Service Cross is the obvious swap if he prefers, and it is one
+constant.
+
+---
+
 ## ADR-0023 — Real school names; units stay fictional
 
 **Status:** Accepted (owner override, 2026-08-02)
