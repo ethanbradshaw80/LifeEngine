@@ -79,11 +79,13 @@ export function generateNations(world: World): void {
   // US-like setting without naming a real state (fictional-world constraint);
   // strong, stable, and — like everyone else — not exempt from history.
   const homeId = allocate(world)
+  const homeStrength = 900 + rng.nextInt(0, 80)
   world.nations.set(homeId, {
     id: homeId,
     name: 'the Republic',
     isHomeland: true,
-    strength: 900 + rng.nextInt(0, 80),
+    strength: homeStrength,
+    baseStrength: homeStrength,
     economy: 850 + rng.nextInt(0, 120),
     stability: 800 + rng.nextInt(0, 150),
     bloc: 0,
@@ -93,11 +95,13 @@ export function generateNations(world: World): void {
   for (let i = 0; i < FOREIGN_NATION_COUNT; i++) {
     const id = allocate(world)
     const name = NATION_NAMES[i % NATION_NAMES.length] ?? `Nation ${String(i)}`
+    const strength = rng.nextBellInt(150, 900)
     world.nations.set(id, {
       id,
       name,
       isHomeland: false,
-      strength: rng.nextBellInt(150, 900),
+      strength,
+      baseStrength: strength,
       economy: rng.nextBellInt(150, 900),
       stability: rng.nextBellInt(200, 950),
       // Bloc 0 is the homeland's; some nations are non-aligned (null).
@@ -145,7 +149,37 @@ function allocate(world: World): EntityId {
  */
 const LADDER: readonly GeoState[] = ['peace', 'tension', 'sanctions', 'skirmish', 'war']
 
+/** No war reduces a country to nothing; there is always a floor. */
+const WAR_STRENGTH_FLOOR = 120
+/** Aggregate losses that cost one point of national strength. */
+const STRENGTH_PER_LOSS = 260
+/** Months of peace to rebuild one point toward the peacetime baseline. */
+const STRENGTH_RECOVERY_MONTHS = 6
+
+/**
+ * The years build back what the war took — toward the country's own
+ * peacetime weight, never past it, and only while it is fighting nobody.
+ * Rebuilding is slower than ruin, which is the honest shape of it.
+ */
+function recoverStrength(world: World, tick: Tick): void {
+  if (tick % STRENGTH_RECOVERY_MONTHS !== 0) return
+  const fighting = new Set<EntityId>()
+  for (const relation of world.geoRelations.values()) {
+    if (relation.state !== 'war') continue
+    fighting.add(relation.a)
+    fighting.add(relation.b)
+  }
+  const ids = [...world.nations.keys()].sort((x, y) => x - y)
+  for (const id of ids) {
+    const nation = world.nations.get(id)
+    if (!nation || fighting.has(id)) continue
+    if (nation.strength >= nation.baseStrength) continue
+    world.nations.set(id, { ...nation, strength: nation.strength + 1 })
+  }
+}
+
 export function runGeopolitics(world: World, tick: Tick): void {
+  recoverStrength(world, tick)
   const relations = [...world.geoRelations.values()].sort((x, y) => x.a - y.a || x.b - y.b)
 
   for (const relation of relations) {
@@ -295,6 +329,27 @@ function resolveWarMonth(
     casualtiesB: relation.casualtiesB + lossesB,
   }
   world.geoRelations.set(relationKey(relation.a, relation.b), updated)
+
+  // A war grinds the countries fighting it. Strength used to be a fixed
+  // number for all time, so a nation could bleed for twenty years and end
+  // it exactly as dangerous as it began — and the threat vector our own
+  // soldiers face reads that number, so an enemy never wore down no
+  // matter what the war cost them. It erodes with their OWN losses now,
+  // slowly, and the peace builds it back (recoverStrength, below).
+  // Counted off the RUNNING total, not the month: a month's losses divided
+  // by the cost of a point floors to zero and a war would grind nobody
+  // down at all. This asks how many whole points the cumulative toll has
+  // crossed since last month, so nothing is lost to integer truncation.
+  const crossed = (before: number, after: number): number =>
+    Math.floor(after / STRENGTH_PER_LOSS) - Math.floor(before / STRENGTH_PER_LOSS)
+  const wornA = crossed(relation.casualtiesA, updated.casualtiesA)
+  const wornB = crossed(relation.casualtiesB, updated.casualtiesB)
+  if (wornA > 0) {
+    world.nations.set(a.id, { ...a, strength: Math.max(WAR_STRENGTH_FLOOR, a.strength - wornA) })
+  }
+  if (wornB > 0) {
+    world.nations.set(b.id, { ...b, strength: Math.max(WAR_STRENGTH_FLOOR, b.strength - wornB) })
+  }
 
   // Wars end: weariness grows with duration and losses, and one-sided
   // punishment forces the issue sooner.

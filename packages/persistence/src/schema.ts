@@ -29,6 +29,10 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v20 — Nations gain `baseStrength`, the peacetime weight their strength
+ *      recovers toward after a war grinds it down. Old saves take their
+ *      current strength as the baseline — it has never moved, so that is
+ *      the truth of them.
  * v19 — M-ARMY2. Deployments gain `kind` ('combat' | 'rotation') and
  *      `hostId`; the war fields become nullable because a peacetime
  *      rotation answers no war. Every tour on an old save was a war tour —
@@ -72,7 +76,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 19
+export const SCHEMA_VERSION = 20
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

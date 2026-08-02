@@ -472,6 +472,14 @@ export interface Nation {
   readonly isHomeland: boolean
   /** 0-1000 scales. Statistics, not personalities. */
   readonly strength: number
+  /**
+   * What this nation's strength recovers TOWARD in peace — the peacetime
+   * weight of the country, set once at generation. Wars grind `strength`
+   * below it and the years build it back. Without a baseline a recovering
+   * nation would climb toward whatever ceiling the code named, and every
+   * country would slowly become the same size.
+   */
+  readonly baseStrength: number
   readonly economy: number
   readonly stability: number
   /** Alliance bloc index, or null for the non-aligned. */

@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v37 — WARS GRIND NATIONS DOWN. A country's strength was a constant for
+ *      all time, so a nation could bleed for twenty years and finish
+ *      exactly as dangerous as it started — and our own soldiers' threat
+ *      vector reads that number, so an enemy never wore down whatever the
+ *      war cost them. Strength now erodes with a nation's own cumulative
+ *      losses (counted off the running total, because a month's toll
+ *      floors to zero), never below a floor, and the years of peace
+ *      rebuild it toward `baseStrength` — the peacetime weight the
+ *      country was generated with, which never moves. Schema v20.
  * v36 — SURVIVOR BENEFITS. A pension no longer dies with the person who
  *      earned it: a widow or widower draws 55% of what their spouse was
  *      owed, for life. Derived from the widowed edge and the service
@@ -228,7 +237,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 36
+export const SIMULATION_VERSION = 37
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

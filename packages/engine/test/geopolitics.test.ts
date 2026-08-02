@@ -14,6 +14,7 @@ import {
   activeWars,
   homeland,
   newsSince,
+  relationKey,
 } from '../src/geopolitics.js'
 import { advanceTicks, createWorld, worldHash } from '../src/index.js'
 import type { World } from '../src/types.js'
@@ -24,6 +25,57 @@ function grownWorld(ticks = 2400): World {
   advanceTicks(world, ticks)
   return world
 }
+
+describe('a war grinds nations down', () => {
+  it('erodes strength while fighting, and peace builds it back', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    const nations = [...world.nations.values()]
+    // The two heaviest countries, so both sides take losses worth a point.
+    const ranked = [...nations].sort((x, y) => y.strength - x.strength || x.id - y.id)
+    const a = ranked[0]
+    const b = ranked[1]
+    if (!a || !b) throw new Error('need two nations')
+
+    // Every nation starts at its own peacetime weight.
+    for (const nation of nations) expect(nation.strength).toBe(nation.baseStrength)
+
+    const key = relationKey(a.id, b.id)
+    const relation = world.geoRelations.get(key)
+    if (!relation) throw new Error('no relation')
+    world.geoRelations.set(key, {
+      ...relation,
+      state: 'war',
+      sinceTick: world.tick,
+      warPhase: 'attrition',
+    })
+
+    const before = world.nations.get(a.id)?.strength ?? 0
+    for (let i = 0; i < 120; i++) {
+      advanceTicks(world, 1)
+      if (world.geoRelations.get(key)?.state !== 'war') break
+    }
+    const ground = world.nations.get(a.id)?.strength ?? 0
+    expect(ground).toBeLessThan(before)
+    expect(ground).toBeGreaterThanOrEqual(120) // the floor holds
+    // The peacetime baseline is a fact about the country and never moves.
+    expect(world.nations.get(a.id)?.baseStrength).toBe(a.baseStrength)
+
+    // Then the peace rebuilds it — never past the country's own weight.
+    for (const open of [...world.geoRelations.values()]) {
+      if (open.state !== 'war') continue
+      world.geoRelations.set(relationKey(open.a, open.b), {
+        ...open,
+        state: 'peace',
+        warPhase: null,
+        sinceTick: world.tick,
+      })
+    }
+    advanceTicks(world, 600)
+    const rebuilt = world.nations.get(a.id)?.strength ?? 0
+    expect(rebuilt).toBeGreaterThan(ground)
+    expect(rebuilt).toBeLessThanOrEqual(a.baseStrength)
+  })
+})
 
 describe('the world beyond the town', () => {
   it('has a dozen fictional nations and exactly one homeland', () => {
