@@ -2,8 +2,8 @@
 
 **Law 11 is an engineering requirement, not an aspiration.**
 
-Same starting state + same seed + same simulation version + same player decisions
-⇒ **byte-identical results.**
+Same starting state + same seed + **same world preset** + same simulation version +
+same player decisions ⇒ **byte-identical results.**
 
 This document is enforceable. Violations are bugs, not style preferences.
 
@@ -192,12 +192,25 @@ Never silently change behaviour without incrementing the version. That converts
 
 ## 8. Replay expectations
 
-**Guaranteed:** same seed + same version + same decisions ⇒ byte-identical state at
-every tick.
+**Guaranteed:** same seed + same preset + same version + same decisions ⇒
+byte-identical state at every tick.
 
 **Not guaranteed:** identical results across simulation versions, or across a
 migration. Both are intentional divergences and must be reported to the player, not
 hidden.
+
+**The preset is an input, like the seed** (W1, ADR-0020). A world's WorldSpec is
+chosen at creation, carried on `world.spec`, recorded in the SAVE HEADER by id, and
+never changed afterwards. Two presets with the same seed do NOT produce the same
+people, and cannot: places are allocated before people, person ids seed trait
+streams, and a preset with a different number of streets shifts every id. That is
+why a save can never be switched to another preset — not a limitation to be fixed
+later, a consequence of ids being the RNG's addresses.
+
+The preset id is deliberately absent from the engine's own snapshot, so the
+fingerprint describes the town rather than the recipe. One golden hash per preset;
+Classic's did not move when the spec was extracted, which is how the extraction was
+proved to be a pure refactor.
 
 A saved game therefore needs to store only: world seed, simulation version, the
 ordered list of player decisions, and the current tick. The full world state is

@@ -95,7 +95,22 @@ PERFORMANCE_BASELINE). Time zones: skipped — meaningless at monthly ticks.
 
 ## W-milestones
 
-- **W1 — WorldSpec extraction.** Classic preset = current content
+- **W1 — WorldSpec extraction. PART DONE 2026-08-02** (commits 298fb0e,
+  1ee4dcb). Landed: the spec itself (`packages/engine/src/worldspec.ts`,
+  shape in types.ts to keep the import graph acyclic), carried on
+  `world.spec`; name pools, gazetteer and foreign-nation names read from
+  it; `createWorld(seed, population, spec = CLASSIC_SPEC)`; save header
+  records the preset id (schema v21, migration names every older save
+  'classic'); `specById` never throws, so a save from a later build loads
+  as Classic instead of killing the worker (resistance 2); resistance 4
+  (display names as logic keys) and resistance 6 (prose hardcodes) both
+  fixed, with a test that fails if "the Republic" reappears inside an
+  engine string. **Classic's golden hash did not move** — the extraction
+  is a proved pure refactor. STILL OPEN for W1: service content and
+  START_YEAR onto the spec, and resistance 3 (ServiceBranch as a
+  compile-time union keying five tables) which is the largest remaining
+  piece and blocks real branch names in W2.
+- **W1 (original scope, for reference) — WorldSpec extraction.** Classic preset = current content
   verbatim; engine reads the spec everywhere content.ts is read today;
   resistances 2-4 and 6 fixed; save header gains preset id (schema bump;
   old saves = classic); golden per preset; determinism docs updated.

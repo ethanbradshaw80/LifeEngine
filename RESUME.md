@@ -65,9 +65,9 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `b381d3a`.
-SIMULATION_VERSION **40** · golden **4930be31** · SCHEMA_VERSION **20** ·
-**397 tests**, all green.
+**STATE:** clean tree, everything pushed, HEAD `1ee4dcb`.
+SIMULATION_VERSION **41** · golden **7ddc1784** · SCHEMA_VERSION **21** ·
+**412 tests**, all green.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -78,10 +78,20 @@ sensible option, write down why, and keep moving.
 ### THE QUEUE, in order
 
 **1. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
-W1 extract a WorldSpec, W2 the American Heartland preset, W3 place depth.
-The largest remaining piece of the original vision. NOTE: W3 is where
-"families follow a PCS" and "branch-appropriate bases" become possible —
-both are deferred waiting on real geography, and both are recorded below.
+**W1 IS PART DONE** — see the W1 record below for exactly what landed and
+what did not. What remains, in order:
+  - **W1 rest: service content and START_YEAR onto the spec**, and
+    RESISTANCE 3 — ServiceBranch is a compile-time union
+    (`type ServiceBranch = 'land-forces' | ...`) keying five tables in
+    content.ts. It has to become DATA on the spec before a preset can name
+    real branches, and it is the largest remaining piece of W1.
+  - **W2 the American Heartland preset.** The rulings are already written
+    in WORLD_MODES_PLAN.md's table; W2 turns them into content and lands
+    the TWO constitution amendments with its ADR (foundation §3 "all
+    countries fictional" → foreign only; CLAUDE.md §3 branches vs units).
+    military-scope-reviewer is MANDATORY for it.
+  - **W3 place depth.** Where "families follow a PCS" and
+    "branch-appropriate bases" finally become possible.
 
 **2. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
@@ -133,6 +143,41 @@ event field. SIMULATION_VERSION 40, golden 4930be31, schema UNCHANGED.
   - KNOWN, LEFT: describeTraits can return four adjectives on a strongly
     drawn person, which is a mouthful; the P3 audit's "Record view" item
     was already delivered by C2's Record tab.
+
+### W1 — PART DONE (the WorldSpec; commits 298fb0e, 1ee4dcb)
+Landed, all reviewed by test rather than by agent (the arc is not finished,
+so no milestone review yet — RUN architecture-reviewer BEFORE calling W1
+done):
+  - `packages/engine/src/worldspec.ts` holds the presets; the SHAPE lives
+    in types.ts because types.ts imports nothing but shared, and putting
+    it there is what stops worldspec → content → types closing a cycle.
+  - `createWorld(seed, population, spec = CLASSIC_SPEC)`; the world
+    carries `world.spec` for life. Name pools, gazetteer (town, school,
+    streets, workplaces, civic, bases) and foreign nation names all come
+    from it.
+  - Save header records the preset ID (schema v21; migration names every
+    older save 'classic'). NOT in the engine snapshot — the fingerprint
+    describes the town, not the recipe, which is why **Classic's golden
+    hash did not move**. That was W1's stated exit criterion.
+  - `specById` NEVER throws: a save from a later build with an unknown
+    preset loads as Classic (resistance 2).
+  - RESISTANCE 4 fixed (SIMULATION_VERSION 41): 'joined-unit',
+    'dropped-selection' and 'passed-over' carried DISPLAY NAMES in their
+    detail and two of them were string-matched to enforce the two-drop cap
+    and count prior non-selections. They carry the unit id and the ladder
+    index now; story.ts makes the words, falling back to the detail as
+    written so pre-W1 saves still read correctly.
+  - RESISTANCE 6 fixed: "the Republic" and "Haverlock" are gone from
+    engine and UI prose; a test fails if the literal reappears inside any
+    engine string.
+  - Found on the way: nations were named `i % pool.length`, so a preset
+    with fewer than twelve names would have produced four countries called
+    the same thing. Count is a balance constant, names are the preset's; a
+    short pool gets fewer nations, never duplicates.
+NOT done, and the next thing to do: service content and START_YEAR on the
+spec, and RESISTANCE 3 (ServiceBranch as a compile-time union keying five
+tables in content.ts — it must become data before W2 can name real
+branches).
 
 ### RULES THAT KEEP BITING (read these before writing code)
 
