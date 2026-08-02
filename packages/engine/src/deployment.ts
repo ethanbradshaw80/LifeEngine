@@ -68,7 +68,7 @@ import { openStream, Stream } from './rng.js'
 import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
-import { specialtyFor, unitFor } from './worldspec.js'
+import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 import { bareName } from './text.js'
 
 /** Planned tour length, months. */
@@ -241,6 +241,17 @@ const SPELLED = [
  * world does not have, and it read as simply wrong beside the game's own
  * "June 1981". Paperwork may be flavour; a date is a fact.
  */
+/**
+ * The pay grade behind a rank, read from the branch's own ladder.
+ *
+ * NOT `rank + 1`. The ladder doubles up — a specialist and a corporal are
+ * both E-4 — so the index and the grade part company partway up, and the
+ * sheet was printing an E-9 for a world whose ladder stops at eight.
+ */
+function payGradeOf(branch: ReturnType<typeof branchSpecFor>, rank: number): number {
+  return branch.grades[rank] ?? rank + 1
+}
+
 function stampDate(world: World, tick: Tick, monthsAhead: number, short: boolean): string {
   const { year, month } = toDate(world, (tick + monthsAhead) as Tick)
   const name = ORDER_MONTHS[month - 1] ?? 'JANUARY'
@@ -263,6 +274,7 @@ export function ordersSheetFor(
   const record = world.service.get(personId)
   if (!person || !record || record.dischargedAtTick !== null) return undefined
 
+  const branch = branchSpecFor(world, record.branch)
   const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 8900)
   const enemy = enemyId === null ? undefined : world.nations.get(enemyId)
   const base = world.places.get(record.baseId)
@@ -270,9 +282,11 @@ export function ordersSheetFor(
   const specialty = specialtyFor(world, record.specialtyId)
   const garrison = base?.name ?? 'the garrison'
 
-  // Report by the end of the month, or the next one. The lead time is the
-  // only thing here the calendar does not already decide.
-  const lead = rng.nextInt(0, 1)
+  // Report this month, or the next one. The lead time is the only thing
+  // here the calendar does not already decide — and it has to be a real
+  // draw: nextInt(0, 1) can only return zero, so the first version of this
+  // described a variety it never produced.
+  const lead = rng.nextInt(0, 2)
   const sequence = 100 + rng.nextInt(0, 899)
   const generalOrder = 10 + rng.nextInt(0, 89)
   const officerFamily = rng.pickWeighted(
@@ -305,7 +319,7 @@ export function ordersSheetFor(
     controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
     issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
-    rank: `${rankTitle(world, record.branch, record.rank)} (E-${String(record.rank + 1)})`,
+    rank: `${rankTitle(world, record.branch, record.rank)} (E-${String(payGradeOf(branch, record.rank))})`,
     specialty: specialty.title,
     unit: unit?.name ?? `${garrison} garrison`,
     assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,
@@ -643,9 +657,17 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
     // rather than deploying them behind their own back. What they can do is
     // go, ask to be excused, or refuse, and the last one ends a career.
     if (person.id === world.player.personId) {
-      // The sheet is raised, and the moment goes on the record NOW — a set
-      // of orders is a thing that happened to somebody even if they refuse
-      // it, and especially if they do.
+      // THE GUARD COMES FIRST. raisePending refuses while another question
+      // is already up, and the two systems ahead of this one in the tick
+      // raise player questions during exactly the wars that cut orders. The
+      // event used to be written before the ask, so a refused ask left a
+      // permanent "received orders" on the timeline with no sheet, no tour
+      // and no refusal behind it. Orders that cannot be delivered are not
+      // orders yet; the next month's roll cuts them again.
+      if (world.player.pending !== null) continue
+      // The moment goes on the record WITH the sheet — a set of orders is a
+      // thing that happened to somebody even if they refuse it, and
+      // especially if they do.
       recordEvent(world, tick, {
         type: 'received-orders',
         subjectId: person.id,
@@ -734,6 +756,25 @@ function startCombatTour(
  * the truth of the moment and a life story should keep it. Returns false
  * when there is no war, no training, or no standing to go.
  */
+/**
+ * Whether volunteering would actually be accepted right now.
+ *
+ * The same gates volunteerForDeployment enforces, asked BEFORE the orders
+ * sheet is cut — showing somebody paper the army will not honour is worse
+ * than not offering it.
+ */
+export function canVolunteerForDeployment(world: World, tick: Tick, personId: EntityId): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  if (!activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return false
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || person.deathTick !== null) return false
+  if (!record || record.dischargedAtTick !== null) return false
+  if (isDeployed(world, personId)) return false
+  return isPipelineTrained(world, tick, record)
+}
+
 export function volunteerForDeployment(world: World, tick: Tick, personId: EntityId): boolean {
   const home = homeland(world)
   if (!home) return false
@@ -1008,7 +1049,10 @@ function resolveCaptivityMonth(
         const died = world.events[i]
         if (!died || died.type !== 'died' || died.subjectId !== person.id) continue
         if (captor !== undefined) {
-          grantCampaignMedal(world, tick, person.id, died, captor.name, tick - deployment.startedAtTick, true)
+          grantCampaignMedal(
+            world, tick, person.id, died, captor.name, tick - deployment.startedAtTick, true,
+            tourTally(world, person.id, 'enemy'),
+          )
         }
         break
       }
@@ -1073,7 +1117,10 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         const enemyName =
           deployment.enemyId === null ? undefined : world.nations.get(deployment.enemyId)?.name
         if (enemyName !== undefined) {
-          grantCampaignMedal(world, tick, personId, died, enemyName, tick - deployment.startedAtTick, true)
+          grantCampaignMedal(
+            world, tick, personId, died, enemyName, tick - deployment.startedAtTick, true,
+            tourTally(world, personId, 'enemy'),
+          )
         }
         break
       }
@@ -1312,6 +1359,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         grantCampaignMedal(
           world, tick, personId, died, enemy.name,
           tick - deployment.startedAtTick, true,
+          tourTally(world, personId, 'enemy'),
         )
         break
       }
@@ -1532,7 +1580,7 @@ function resolveRotationMonth(
  * cannot drift apart. `of` picks which side of the tour counts — the host
  * of a rotation, or the enemy of a campaign.
  */
-function tourTally(world: World, personId: EntityId, of: 'host' | 'enemy'): string {
+export function tourTally(world: World, personId: EntityId, of: 'host' | 'enemy'): string {
   const counts = new Map<string, number>()
   for (const tour of world.deployments.get(personId) ?? []) {
     if (tour.returnedAtTick === null) continue
@@ -1596,12 +1644,22 @@ export function closeTour(
   // device to the same medal.
   const enemyName =
     deployment.enemyId === null ? undefined : world.nations.get(deployment.enemyId)?.name
-  if (enemyName !== undefined) {
-    grantCampaignMedal(
-      world, tick, personId, homecoming, enemyName,
-      tick - deployment.startedAtTick, medical,
-      tourTally(world, personId, 'enemy'),
-    )
+  const campaign =
+    enemyName === undefined
+      ? null
+      : grantCampaignMedal(
+          world, tick, personId, homecoming, enemyName,
+          tick - deployment.startedAtTick, medical,
+          tourTally(world, personId, 'enemy'),
+        )
+
+  // ONE AWARD PER DEPLOYMENT MEANS ONE, NOT ZERO. A combat tour too short
+  // for campaign credit — the war ended, the record closed — used to earn
+  // the Overseas Service Ribbon and, once the ribbon moved to the rotation
+  // branch, earned nothing at all. Going is still going: the ribbon is the
+  // floor when the campaign does not qualify.
+  if (campaign === null) {
+    grantOverseas(world, tick, personId, homecoming, tourTally(world, personId, 'enemy'))
   }
 }
 

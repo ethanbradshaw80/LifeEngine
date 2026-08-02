@@ -1024,11 +1024,22 @@ export function serviceNewsSince(
       // the same thing.
       const cause = event.detail ?? ''
       const killedInAction = cause.includes('wounds taken in action')
+      // AN ACCIDENT AND AN ILLNESS ARE THE TWO THIS HAS TO SAY OUT LOUD.
+      // The first pass matched only 'accident on deployment', so a training
+      // death on a peacetime rotation read as "died in service" while the
+      // identical accident in a theatre was named — and a prisoner who died
+      // of illness rather than hardship was anonymised the same way. Both
+      // are the point: a soldier is not only killed by an enemy.
+      const heldWhenTheyDied = world.events.some(
+        (e) => e.type === 'was-captured' && e.subjectId === event.subjectId && e.tick <= event.tick,
+      ) && !world.events.some(
+        (e) => e.type === 'repatriated' && e.subjectId === event.subjectId && e.tick <= event.tick,
+      )
       const howTheyDied = killedInAction
         ? 'was killed in action'
-        : cause.includes('accident on deployment')
-          ? 'was killed in an accident on deployment'
-          : cause.includes('captivity')
+        : cause.includes('accident')
+          ? 'was killed in an accident in uniform'
+          : cause.includes('captivity') || heldWhenTheyDied
             ? 'died a prisoner'
             : 'died in service'
       items.push({

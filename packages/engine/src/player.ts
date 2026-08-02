@@ -39,7 +39,7 @@ import {
   volunteerForSupport,
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
-import { alliedWars, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
+import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation, tourTally } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
@@ -1124,13 +1124,25 @@ function askToAcknowledgeOrders(world: World, tick: Tick, personId: EntityId): b
   if (!home) return false
   const war = activeWars(world).find((w) => w.a === home.id || w.b === home.id)
   if (!war) return false
+  // DO NOT CUT ORDERS THE ARMY WOULD REFUSE. The volunteer question can be
+  // offered inside the retrain window, where the trade school is not
+  // finished — and then the sheet appeared, the player acknowledged it, and
+  // volunteerForDeployment quietly declined. Nothing happened, and nothing
+  // said why. Ask the same door the answer will use, before showing paper.
+  if (!canVolunteerForDeployment(world, tick, personId)) return false
   const enemyId = war.a === home.id ? war.b : war.a
   const enemy = world.nations.get(enemyId)
+  // A VOLUNTEER'S RECORD SAYS SO. Same event type — a set of orders is a
+  // set of orders — but the detail carries whose idea it was, because the
+  // timeline is the only place a reader can tell them apart.
   recordEvent(world, tick, {
     type: 'received-orders',
     subjectId: personId,
     otherId: enemyId,
-    detail: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
+    detail:
+      enemy === undefined
+        ? 'the front, at their own request'
+        : `the ${bareName(enemy.name)} front, at their own request`,
   })
   return raisePending(world, {
     tick,
@@ -1172,7 +1184,10 @@ function resolveMomentCasualty(
       const died = world.events[i]
       if (!died || died.type !== 'died' || died.subjectId !== person.id) continue
       grantWoundRecognition(world, tick, person.id, died, enemyName)
-      grantCampaignMedal(world, tick, person.id, died, enemyName, monthsIn, true)
+      grantCampaignMedal(
+        world, tick, person.id, died, enemyName, monthsIn, true,
+        tourTally(world, person.id, 'enemy'),
+      )
       break
     }
     return
@@ -1808,8 +1823,17 @@ export function resolvePending(world: World, choice: string): void {
       }
 
       if (pending.occupationId === 'voluntary') {
-        // Their own hand raised it, and the record says so.
-        volunteerForDeployment(world, pending.tick, person.id)
+        // Their own hand raised it, and the record says so. If the door has
+        // closed between the sheet and the answer — the war ended, say —
+        // the refusal goes on the record rather than nowhere: the player was
+        // shown paper and is owed an account of what became of it.
+        if (!volunteerForDeployment(world, pending.tick, person.id)) {
+          recordEvent(world, pending.tick, {
+            type: 'received-orders',
+            subjectId: person.id,
+            detail: 'the orders were withdrawn before they could be answered',
+          })
+        }
         break
       }
 

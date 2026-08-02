@@ -414,4 +414,32 @@ describe('one award per deployment', () => {
     expect(ribbon?.citation).toContain(second.name)
     expect(ribbon?.citation).toContain('×2')
   })
+
+  it('a short combat tour still earns something, and a death keeps every campaign', () => {
+    const world = createWorld(makeSeed(6602), 60)
+    const personId = aSoldier(world)
+    const enemies = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)
+    const first = enemies[0]
+    const second = enemies[1]
+    const home = homeland(world)
+    if (!first || !second || !home) throw new Error('no world to serve in')
+
+    // A TOUR TOO SHORT FOR CAMPAIGN CREDIT still earned the ribbon before
+    // the one-award change moved it, and briefly earned nothing after.
+    // Going is still going.
+    world.deployments.set(personId as never, [
+      {
+        personId: personId as never, kind: 'combat', warA: home.id, warB: first.id,
+        enemyId: first.id, hostId: null, startedAtTick: world.tick,
+        endsAtTick: (world.tick + 10) as never, returnedAtTick: null,
+        tourNumber: 1, capturedAtTick: null,
+      },
+    ])
+    const short = currentDeployment(world, personId as never)
+    if (!short) throw new Error('no tour')
+    closeTour(world, world.tick, personId as never, short, false)
+    const afterShort = decorationsOf(world, personId as never)
+    expect(afterShort.some((a) => a.kind === 'campaign'), 'too short for a campaign').toBe(false)
+    expect(afterShort.some((a) => a.kind === 'overseas'), 'but they still went').toBe(true)
+  })
 })

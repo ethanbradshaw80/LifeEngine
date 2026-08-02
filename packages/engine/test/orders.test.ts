@@ -124,4 +124,29 @@ describe('orders', () => {
     if (!person) throw new Error('nobody')
     expect(ordersSheetFor(world, world.tick, person.id, 'involuntary', null)).toBeUndefined()
   })
+
+  it('prints a pay grade the world actually has', () => {
+    // `rank` is the LADDER INDEX, not the grade — the ladder doubles up, a
+    // specialist and a corporal are both E-4 — so `rank + 1` drifted one
+    // high from that point on and printed an E-9 for a world whose ladder
+    // stops at eight. The test's old fixture used rank 3, where the
+    // off-by-one happened to cancel, which is why it went unseen.
+    const world = createWorld(makeSeed(6104), 40)
+    const personId = aSoldier(world)
+    const enemy = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[0]
+    if (!enemy) throw new Error('no enemy')
+    const branch = world.spec.branches.find((b) => b.id === 'land-forces')
+    if (!branch) throw new Error('no branch')
+
+    for (let rank = 0; rank < branch.ranks.length; rank++) {
+      const record = world.service.get(personId)
+      if (!record) throw new Error('no record')
+      world.service.set(personId, { ...record, rank })
+      const sheet = ordersSheetFor(world, world.tick, personId, 'involuntary', enemy.id)
+      const grade = branch.grades[rank]
+      expect(sheet?.rank, `rank index ${String(rank)}`).toContain(`(E-${String(grade ?? 0)})`)
+      // And never a grade the pay table does not hold.
+      expect(grade).toBeLessThanOrEqual(8)
+    }
+  })
 })
