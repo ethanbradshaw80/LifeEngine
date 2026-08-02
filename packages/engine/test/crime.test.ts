@@ -75,11 +75,24 @@ describe('the chain', () => {
 
   it('crime exists and stays rare — a town, not a den', () => {
     const world = grownWorld(900)
-    const thefts = world.events.filter((e) => e.type === 'committed-theft').length
+    // BOTH KINDS. C3 gave NPCs the whole catalogue, so most of what a town
+    // does is a 'committed-offence' and the plain C1 theft is now the
+    // minority case — a seed can produce none at all.
+    const thefts = world.events.filter(
+      (e) => e.type === 'committed-theft' || e.type === 'committed-offence',
+    ).length
     expect(thefts).toBeGreaterThan(0)
-    // Seventy-five years, ~a hundred people: theft is an occasional wound,
-    // not the weather.
-    expect(thefts).toBeLessThan(120)
+    // BOUND RAISED WITH THE MEASUREMENT, not to get a green result. This
+    // counted THEFTS ONLY when C1 was theft-only; it now counts the whole
+    // docket, which C3 §16 deliberately widened after the owner found that
+    // fifty years of a hundred and forty people produced one to three
+    // crimes and almost no convictions.
+    //
+    // Measured at 211 across seventy-five years and ~a hundred people —
+    // about 2.8 offences a year, against a real small-town rate of roughly
+    // 2-3 per hundred people per year. The ceiling still catches "a den":
+    // one a week would be 3,900.
+    expect(thefts).toBeLessThan(400)
   })
 })
 
@@ -92,7 +105,10 @@ describe('determinism under crime', () => {
   it('two runs agree to the byte across a window that contains crime', () => {
     const a = grownWorld(900)
     const b = grownWorld(900)
-    expect(a.events.some((e) => e.type === 'committed-theft')).toBe(true)
+    // The window must PROVABLY contain crime — of either kind, since C3.
+    expect(
+      a.events.some((e) => e.type === 'committed-theft' || e.type === 'committed-offence'),
+    ).toBe(true)
     expect(worldHashHex(a)).toBe(worldHashHex(b))
   })
 })

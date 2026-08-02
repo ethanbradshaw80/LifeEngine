@@ -99,23 +99,37 @@ export const DEATH_OPENERS: Readonly<Record<Grit, readonly string[]>> = {
     'They are bringing {who}, {age}, home; killed in {when}',
   ],
   high: [
-    '{who}, {age}, of {town}, bled out in {when}',
-    '{who}, {age}, died hard in {when}',
+    // NONE OF THESE MAY ASSERT A MECHANISM. "Bled out" and "nobody could
+    // stop the bleeding" were printed over a man who died of smoke
+    // inhalation (owner, reading it) — the same fault the wound clauses
+    // had. The wound itself is named later in the sentence and it is the
+    // only thing entitled to say how somebody died.
+    '{who}, {age}, of {town}, died hard in {when}',
+    '{who}, {age}, did not survive {when}',
     'The war killed {who}, {age}, of {town}, in {when}',
     '{town} has another body coming home — {who}, {age}, killed in {when}',
-    'Nobody could stop the bleeding: {who}, {age}, died in {when}',
-    '{who}, {age}, was hit in {when} and did not make it off the road',
+    'Nobody could do anything for {who}, {age}, in {when}',
+    '{who}, {age}, was hit in {when} and did not come back',
   ],
 }
 
 /** How the wound is told. `{wound}` is read from the record. */
+/**
+ * How the wound is told. `{wound}` is read from the record.
+ *
+ * NOTHING HERE MAY CONTRADICT THE WOUND. The first high-grit pool asserted
+ * an opened artery and a medic's hands on a wound the article does not
+ * choose — so the paper printed "of frostbite that opened an artery"
+ * (owner, reading it). These describe how a death WENT rather than what the
+ * injury anatomically did, which is true of any of them.
+ */
 export const WOUND_CLAUSES: Readonly<Record<Grit, readonly string[]>> = {
   low: ['of {wound}', 'of {wound} taken in action', 'after taking {wound}'],
   medium: ['of {wound}', 'from {wound}', 'after {wound} that could not be treated'],
   high: [
-    'of {wound} that opened an artery',
-    'of {wound}; gone before the medic got a hand on it',
-    'of {wound} nobody could pack fast enough',
+    'of {wound}, and it was not quick',
+    'of {wound}; gone before the medic reached them',
+    'of {wound} that nobody in the field could treat',
     'of {wound}, and it took minutes',
   ],
 }

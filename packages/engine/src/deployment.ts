@@ -60,7 +60,7 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
 }
 import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
-import { describeAilment, pickInjury } from './wounds.js'
+import { describeAilment, pickFatalInjury } from './wounds.js'
 import { raisePending } from './player.js'
 import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { toDate } from './clock.js'
@@ -1448,7 +1448,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       // was. The same draw the wound system uses, written as an event, so
       // the story can read the shoulder and the artery rather than a
       // summary. It inflicts nothing: they are already dead.
-      const mortal = pickInjury(rng, context)
+      const mortal = pickFatalInjury(rng, context)
       recordEvent(world, tick, {
         type: isAccident ? 'was-injured' : 'wounded-in-action',
         subjectId: personId,

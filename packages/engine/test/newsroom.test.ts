@@ -187,13 +187,24 @@ describe('WCJC', () => {
   })
 
   it('reports a death with the facts a death report needs', () => {
-    const deaths = items.filter((i) => i.kind === 'died-in-service')
-    expect(deaths.length).toBeGreaterThan(0)
+    // THE PAPER IS NARROWER NOW: it carries the deaths the service caused —
+    // the enemy, the accident, the cell — and not a soldier who died of an
+    // illness. So a fixture world can legitimately have none, and the
+    // fixture widens rather than the claim being dropped.
+    let deaths = items.filter((i) => i.kind === 'died-in-service')
+    let source = world
+    if (deaths.length === 0) {
+      const wider = createWorld(makeSeed(999), 140)
+      advanceTicks(wider, 900)
+      source = wider
+      deaths = serviceNewsSince(wider, 0 as never).filter((i) => i.kind === 'died-in-service')
+    }
+    expect(deaths.length, 'no service death in either world').toBeGreaterThan(0)
     for (const item of deaths) {
-      const article = articleFor(world, item)
+      const article = articleFor(source, item)
       expect(article).not.toBeNull()
       if (!article) continue
-      const person = item.subjectId === undefined ? undefined : world.people.get(item.subjectId)
+      const person = item.subjectId === undefined ? undefined : source.people.get(item.subjectId)
       expect(person).toBeDefined()
       if (!person) continue
       // WHO and WHEN in the lede, WHY in the body.

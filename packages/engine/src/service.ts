@@ -1144,6 +1144,16 @@ function livingSorted(world: World): Person[] {
 }
 
 /** One month in uniform: drift, review, the term clock, the body's verdict. */
+/**
+ * Months in grade before an officer's next step, by current rank.
+ *
+ * Long, because a commission is a long road: roughly two years to first
+ * lieutenant, another two to captain, and everything above that is a board
+ * with real time behind it. The enlisted table is six-month steps, which is
+ * how a twenty-eight-year-old ended up a lieutenant colonel.
+ */
+const OFFICER_TIG_MONTHS: readonly number[] = [24, 24, 48, 60, 72, 84]
+
 function serveMonth(world: World, tick: Tick, person: Person, record: NonNullable<ReturnType<World['service']['get']>>): void {
   const rng = openStream(world.seed, Stream.Employment, person.id, tick + 4444)
 
@@ -1204,7 +1214,13 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // a blank branch has no grades, servicePayOn falls to E-1, and the ledger
   // is rewritten every month at any rank (second W1 review, must-fix).
   const branch = record.branch
-  const ladder = branchSpecFor(world, branch).ranks
+  // THE LADDER THIS PERSON IS ON. Promotion was bounded by the enlisted
+  // ladder's length for everybody, so a commissioned officer walked the
+  // officer ladder at a private's pace and the paper printed a
+  // twenty-eight-year-old lieutenant colonel (owner, reading it).
+  const commissioned = record.commissioned === true
+  const branchSpec = branchSpecFor(world, branch)
+  const ladder = commissioned ? (branchSpec.officerRanks ?? branchSpec.ranks) : branchSpec.ranks
   const monthsIn = tick - record.enlistedAtTick
   const schoolDone = 2 + specialty.schoolMonths // basic (~10 weeks) then the trade school
   const deployed = isDeployed(world, person.id)
@@ -1237,10 +1253,14 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 
   let promotedThisMonth = false
   if (rank < ladder.length - 1) {
-    const competitiveFrom = branchSpecFor(world, branch).competitiveFrom
+    // AN OFFICER'S FIRST STEPS ARE SLOW AND THE REST ARE A BOARD. Two
+    // years to first lieutenant and four to captain is the real shape, and
+    // it is why the enlisted table could not be reused: those are six
+    // months apart.
+    const competitiveFrom = commissioned ? 2 : branchSpec.competitiveFrom
     let promote = false
     if (rank + 1 < competitiveFrom) {
-      const due = branchSpecFor(world, branch).juniorTigMonths[rank] ?? 6
+      const due = commissioned ? OFFICER_TIG_MONTHS[rank] ?? 24 : branchSpec.juniorTigMonths[rank] ?? 6
       promote = timeInGrade >= due && performance >= 300
     } else if (!isPlayer) {
       // The board ranks, NPC path: PROMOTION POINTS against the trade's

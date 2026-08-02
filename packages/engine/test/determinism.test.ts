@@ -92,7 +92,7 @@ export const GOLDEN_TICKS = 120
 // the charge sheet are player-path only, so an unplayed world is byte
 // identical and DETERMINISM.md §7 puts player-path changes on the schema
 // version instead.
-export const GOLDEN_HASH_HEX = '14ab0dde'
+export const GOLDEN_HASH_HEX = '5389d67a'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -165,7 +165,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":69')
+    expect(text).toContain('"simulationVersion":70')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

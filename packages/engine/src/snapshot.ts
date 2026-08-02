@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v70 — A KILLING WOUND HAS TO BE ONE THAT KILLS, and an officer is
+ *      promoted at an officer's pace. The fatal draw used the whole injury
+ *      catalogue, so people died of blown-out hearing; and the officer
+ *      ladder was walked on the enlisted table's six-month steps, so the
+ *      paper printed a twenty-eight-year-old lieutenant colonel. Both
+ *      shift every seed with a war or a commission in it.
  * v69 — OFFICERS EXIST (owner, playing: "we have no officer roles... and
  *      we even have a college pipeline"). A separate ladder per branch,
  *      O-grades with their own pay table, and a degree at the recruiting
@@ -450,7 +456,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 69
+export const SIMULATION_VERSION = 70
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

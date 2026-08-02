@@ -146,6 +146,55 @@ const ILLNESS_PHRASES: Readonly<Record<IllnessKind, string>> = {
 }
 
 /** "shrapnel to the leg" / "a broken arm" / "pneumonia". */
+/**
+ * The injuries that can actually end a life.
+ *
+ * THE FATAL DRAW USED THE WHOLE CATALOGUE and produced deaths from blown-out
+ * hearing and frostbite (owner, reading the paper). Both are real things a
+ * war does to people and neither is a cause of death — a soldier does not
+ * die of tinnitus.
+ *
+ * Anything not on this list still HAPPENS; it simply is not what is written
+ * on a death. Where a draw lands outside it, the wound falls back to the
+ * one that is always available and always lethal enough.
+ */
+const LETHAL_KINDS: ReadonlySet<InjuryKind> = new Set<InjuryKind>([
+  'gunshot',
+  'shrapnel',
+  'blast',
+  'burns',
+  'crush',
+  'laceration',
+  'amputation',
+  'spinal-injury',
+  'internal-injury',
+  'electrocution',
+  'smoke-inhalation',
+  'near-drowning',
+])
+
+/**
+ * An injury somebody could plausibly have died of, drawn from the same
+ * table and the same stream as any other — only the eligible set differs.
+ */
+export function pickFatalInjury(rng: Rng, context: InjuryContext): { kind: InjuryKind; site: BodySite } {
+  const drawn = pickInjury(rng, context)
+  if (LETHAL_KINDS.has(drawn.kind)) return drawn
+  // A context's own table can be entirely non-lethal (a field accident is
+  // mostly sprains and hearing), so the fallback is by context rather than
+  // one universal wound: a fire kills by burns, water by drowning, and
+  // everything else by what it was carrying.
+  const fallback: InjuryKind =
+    context === 'base-attack'
+      ? 'burns'
+      : context === 'convoy'
+        ? 'blast'
+        : context === 'direct-combat'
+          ? 'gunshot'
+          : 'internal-injury'
+  return { kind: fallback, site: drawn.site }
+}
+
 export function describeAilment(
   ailment: 'injury' | 'illness',
   kind: string | null,
