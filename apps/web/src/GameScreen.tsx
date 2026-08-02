@@ -31,6 +31,7 @@ import {
   decorationsOf,
   deploymentsOf,
   describeAilment,
+  describeTraits,
   explainDecision,
   familyHomeSince,
   familyTreeOf,
@@ -338,6 +339,14 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           <p>
             {age} {age === 1 ? 'year' : 'years'} old · {formatDate(world.tick)}
           </p>
+          {/* P3 — temperament in words. The six traits have driven school,
+              work, spending, study and survival since M1 without ever being
+              shown, so every Why? that cited one landed on a stranger. */}
+          {describeTraits(person.traits) !== '' && (
+            <p className="traits" title="Your temperament — it shapes how the world answers you.">
+              {describeTraits(person.traits)}
+            </p>
+          )}
         </div>
         <div className="game-menu">
           <button type="button" onClick={onStop} title="Back to the town view">

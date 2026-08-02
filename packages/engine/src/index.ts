@@ -87,6 +87,7 @@ export type { NewsItem } from './geopolitics.js'
 
 // The newsroom (WCJC): structured articles, to the owner's brief.
 export { articleFor } from './newsroom.js'
+export { describeTraits, traitWords, withArticle } from './text.js'
 export type { NewsArticle, NewsQuote } from './newsroom.js'
 
 // Health (L4-M2)

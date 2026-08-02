@@ -4,6 +4,7 @@ import {
   criminalRecordOf,
   decorationsOf,
   describeAilment,
+  describeTraits,
   isJailed,
   explainDecision,
   healthOf,
@@ -92,6 +93,14 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
       </header>
 
       <dl className="facts">
+        {/* P3: temperament in words. Reading a friend before deciding to
+            court them is the whole point of showing it here. */}
+        {describeTraits(person.traits) !== '' && (
+          <>
+            <dt>Temperament</dt>
+            <dd>{describeTraits(person.traits)}</dd>
+          </>
+        )}
         {alive && job && (
           <>
             <dt>Work</dt>

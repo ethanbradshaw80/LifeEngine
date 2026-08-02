@@ -1596,3 +1596,12 @@ ul.welcome-points li + li {
 .demo-table td:first-child {
   text-align: left;
 }
+
+/* P3 — the temperament line under the name. Quiet: it is context for the
+   Why? texts, not a stat block. */
+.game-title .traits {
+  margin: 0.1rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-style: italic;
+}
