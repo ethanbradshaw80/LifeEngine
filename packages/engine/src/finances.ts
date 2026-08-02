@@ -29,7 +29,7 @@ import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import type { Household, Person, World } from './types.js'
-import { pensionOf, servicePayOf } from './service.js'
+import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
 /** Months of arrears before a household is pushed toward cheaper rent. */
@@ -51,6 +51,8 @@ export function householdIncome(world: World, household: Household): Money {
     // disability pension a veteran's service left them owed (L4-M5).
     total += servicePayOf(world, memberId)
     total += pensionOf(world, memberId)
+    // And what a dead spouse's service still pays the household they left.
+    total += survivorPensionOf(world, memberId)
   }
   return total as Money
 }

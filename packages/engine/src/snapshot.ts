@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v36 — SURVIVOR BENEFITS. A pension no longer dies with the person who
+ *      earned it: a widow or widower draws 55% of what their spouse was
+ *      owed, for life. Derived from the widowed edge and the service
+ *      record — no schema change — and granted on the record at the
+ *      death, never as silent income. This became urgent the moment
+ *      careers started paying: without it, every service family was
+ *      impoverished at exactly the worst moment.
  * v35 — RETIREMENT PAY. A career now ends with money. Twenty years is the
  *      door M-ARMY2's own career shape already put there; a quarter of a
  *      per-cent per month served pays half the final wage at twenty and
@@ -221,7 +228,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 35
+export const SIMULATION_VERSION = 36
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

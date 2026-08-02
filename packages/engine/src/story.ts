@@ -250,6 +250,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'granted-pension': {
       const cents = event.detail === null ? null : Number.parseInt(event.detail, 10)
       const sum = cents !== null && Number.isFinite(cents) ? formatMoney(cents as never) : 'a pension'
+      // A survivor's share names whose service earned it.
+      if (event.otherId !== null) {
+        return `${year} — ${nameOf(world, event.otherId)}'s service kept paying: ${sum} a month.`
+      }
       return `${year} — The pension board recognized what the service left: ${sum} a month.`
     }
     case 'deployed':

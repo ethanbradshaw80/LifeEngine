@@ -101,6 +101,7 @@ export {
   isServing,
   isVeteran,
   pensionOf,
+  survivorPensionOf,
   promotionPointsFor,
   rankTitle,
   recruitingDriveActive,
@@ -187,7 +188,7 @@ export { LOCAL_USER_ID, serialize, toSnapshot, worldHash, worldHashHex } from '.
 export type { SnapshotHeader, WorldSnapshot } from './snapshot.js'
 
 // Content
-export { OCCUPATIONS, occupationById } from './content.js'
+export { NEWS_STATION, OCCUPATIONS, occupationById } from './content.js'
 export { friendshipKey, relationshipKey } from './types.js'
 
 // Types

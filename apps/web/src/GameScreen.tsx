@@ -70,7 +70,7 @@ import {
   unitOptionsFor,
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
-import { placesOfKind } from '@life-engine/engine'
+import { NEWS_STATION, placesOfKind } from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
@@ -802,6 +802,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               .reverse()
             return (
               <>
+                <div className="station">
+                  <span className="station-call">{NEWS_STATION}</span>
+                  <span className="station-line">
+                    {world.town.name} — everything here happened
+                  </span>
+                </div>
                 {wars.length > 0 && (
                   <>
                     <h3>Wars now</h3>
@@ -824,7 +830,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   </>
                 )}
                 <h3>The record</h3>
-                {allNews.length === 0 && <p className="muted">Nothing yet. The world is quiet.</p>}
+                {allNews.length === 0 && (
+                  <p className="muted">Nothing yet. {NEWS_STATION} has a quiet town to report.</p>
+                )}
                 {allNews.map((item, index) => {
                   const previous = allNews[index - 1]
                   const year = formatYear(item.tick)

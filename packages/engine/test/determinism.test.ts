@@ -85,7 +85,7 @@ export const GOLDEN_TICKS = 120
 // M-ARMY2 review fixes (SIMULATION_VERSION 30): the rotation accident cross
 // survives the arithmetic, hosts at war send people home, twenty-year
 // retirement, and company punishments happen often enough to matter.
-export const GOLDEN_HASH_HEX = '7264c3f4'
+export const GOLDEN_HASH_HEX = 'f317e099'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -158,7 +158,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":35')
+    expect(text).toContain('"simulationVersion":36')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

@@ -9,8 +9,10 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { Tick } from '@life-engine/shared'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
-import { enlistmentBar, enlistPerson, pensionOf } from '../src/service.js'
+import { enlistmentBar, enlistPerson, pensionOf, survivorPensionOf } from '../src/service.js'
 import { householdIncome } from '../src/finances.js'
+import { performDeath } from '../src/systems.js'
+import { Stream } from '../src/rng.js'
 import { recordEvent } from '../src/records.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
@@ -199,6 +201,50 @@ describe('retirement pay', () => {
       expect(short?.dischargeReason).not.toBe('twenty years served')
       expect(pensionOf(world, shortTimer.id)).toBe(0)
     }
+  })
+
+  it("outlives the veteran — a widow draws the survivor's share", () => {
+    const world = createWorld(makeSeed(12345), 100)
+    // A married veteran drawing a career pension.
+    const veteran = livingPeople(world).find((p) => {
+      const spouse = [...world.relationships.values()].some(
+        (r) => r.type === 'spouse' && (r.a === p.id || r.b === p.id),
+      )
+      return spouse && !world.service.has(p.id)
+    })
+    if (!veteran) return // no married founder in this seed; other tests cover the maths
+    const spouseEdge = [...world.relationships.values()].find(
+      (r) => r.type === 'spouse' && (r.a === veteran.id || r.b === veteran.id),
+    )
+    if (!spouseEdge) return
+    const widowId = spouseEdge.a === veteran.id ? spouseEdge.b : spouseEdge.a
+
+    enlistPerson(world, world.tick, veteran, walkInSpecialty(), [])
+    const record = world.service.get(veteran.id)
+    if (!record) throw new Error('enlistment did not take')
+    world.service.set(veteran.id, {
+      ...record,
+      rank: 5,
+      enlistedAtTick: (world.tick - 300) as Tick,
+      dischargedAtTick: world.tick as Tick,
+      dischargeReason: 'twenty years served',
+    })
+    const hisPension = pensionOf(world, veteran.id)
+    expect(hisPension).toBeGreaterThan(0)
+    // Nobody draws a survivor's share while the veteran lives.
+    expect(survivorPensionOf(world, widowId)).toBe(0)
+
+    performDeath(world, world.tick, veteran, 'old age', [], Stream.Health)
+
+    // The widow now draws 55% — and it is on her timeline, not silent.
+    expect(survivorPensionOf(world, widowId)).toBe(Math.floor((hisPension * 55) / 100))
+    expect(
+      world.events.some(
+        (e) => e.type === 'granted-pension' && e.subjectId === widowId && e.otherId === veteran.id,
+      ),
+    ).toBe(true)
+    // And the dead draw nothing.
+    expect(pensionOf(world, veteran.id)).toBe(0)
   })
 
   it('is refused to a career ended at the orderly room', () => {

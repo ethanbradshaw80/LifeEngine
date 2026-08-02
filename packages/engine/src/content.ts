@@ -425,6 +425,14 @@ export const PENSION_CENTS_PER_POINT = 120
 
 export const BASE_NAMES: readonly string[] = ['Fort Calder', 'Redharbor Station']
 
+/**
+ * The town's news station (owner-named). Every item in the News tab is
+ * something the simulation actually produced — wars, crimes, recruiting
+ * seasons, a death in uniform — and this is the masthead they run under,
+ * so the feed reads as a broadcast rather than a list of facts.
+ */
+export const NEWS_STATION = 'WCJC'
+
 /** How much schooling a level represents. Used to test whether a person qualifies. */
 const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   none: 0,

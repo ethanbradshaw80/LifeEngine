@@ -948,6 +948,30 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* The town's news station masthead. */
+.station {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0 0 0.7rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--accent);
+}
+
+.station-call {
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.station-line {
+  font-size: 0.76rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* The wound diagram: where it landed, how bad, what it leaves. */
 .wound-diagram {
   display: flex;

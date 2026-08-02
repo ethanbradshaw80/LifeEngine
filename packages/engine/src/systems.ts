@@ -40,7 +40,13 @@ import { canAfford, distributeEstate, householdCosts, householdIncome, inArrears
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { hasRecentConviction, isJailed } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
-import { closeServiceOnDeath, educationOffersEnlistment, isServing, veteranUnlocks } from './service.js'
+import {
+  closeServiceOnDeath,
+  educationOffersEnlistment,
+  isServing,
+  openSurvivorPension,
+  veteranUnlocks,
+} from './service.js'
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
@@ -1371,6 +1377,10 @@ export function performDeath(
   // deployment quota's denominator and reading as a career that never
   // ended (M-ARMY2; the isDeployed dead-exclusion's sibling).
   closeServiceOnDeath(world, tick, person.id)
+  // A pension does not have to die with the person who earned it: the
+  // survivor's share opens here, while the marriage is still a marriage
+  // (relationships turns it to widowhood a few lines down).
+  openSurvivorPension(world, tick, person.id)
 
   if (person.householdId !== null) {
     const householdId = person.householdId

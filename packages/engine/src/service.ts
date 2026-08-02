@@ -476,10 +476,20 @@ export function boardStandingFor(
  * date range.
  */
 export function pensionOf(world: World, personId: EntityId): number {
-  const record = world.service.get(personId)
-  if (!record || record.dischargedAtTick === null) return 0
   const person = world.people.get(personId)
   if (!person || person.deathTick !== null) return 0
+  return pensionValueOf(world, personId)
+}
+
+/**
+ * What a service record is worth per month, WITHOUT asking whether its
+ * owner is still alive. pensionOf refuses the dead — this is what the
+ * survivor's share is computed from (a widow's benefit is a share of what
+ * he was drawing, and he is by definition not drawing it any more).
+ */
+export function pensionValueOf(world: World, personId: EntityId): number {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick === null) return 0
 
   let monthly = 0
   // What the service took: harm it left on the body.
@@ -523,6 +533,44 @@ const RETIREMENT_ENDINGS: ReadonlySet<string> = new Set([
   'retirement age',
   'high-year tenure',
 ])
+
+/** The share of a pension that outlives its holder, per cent. */
+const SURVIVOR_SHARE = 55
+
+/**
+ * What a widow or widower draws from a pension their spouse no longer
+ * can. A pension used to end at the grave and leave the person who spent
+ * a career beside it with nothing — which, now that careers pay, would
+ * quietly impoverish every service family at exactly the wrong moment.
+ *
+ * DERIVED, not stored: a marriage that ended on the day one of them died
+ * IS widowhood (relationships turns the edge to former-spouse and stamps
+ * endedAtTick), and the pension is read off the record the service keeps
+ * forever. No schema change; an old save answers correctly.
+ *
+ * Reads world.relationships directly rather than importing the
+ * relationships module — the same seam relationships uses to read service
+ * (a widow's claim must not add a module cycle between them).
+ */
+export function survivorPensionOf(world: World, personId: EntityId): number {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 0
+
+  let monthly = 0
+  for (const relationship of world.relationships.values()) {
+    if (relationship.type !== 'former-spouse' || relationship.endedAtTick === null) continue
+    if (relationship.a !== personId && relationship.b !== personId) continue
+    const spouseId = relationship.a === personId ? relationship.b : relationship.a
+    const spouse = world.people.get(spouseId)
+    // Widowed, not divorced: the marriage ended the day they died.
+    if (!spouse || spouse.deathTick === null) continue
+    if (spouse.deathTick !== relationship.endedAtTick) continue
+    const theirs = pensionValueOf(world, spouseId)
+    if (theirs <= 0) continue
+    monthly += Math.floor((theirs * SURVIVOR_SHARE) / 100)
+  }
+  return monthly
+}
 
 /** Civilian occupations a veteran's training opened. Empty for non-veterans.
  *  Unions EVERY trade served, not just the last — retraining for a final
@@ -1329,6 +1377,47 @@ export function closeServiceOnDeath(world: World, tick: Tick, personId: EntityId
     dischargeReason: 'died in service',
     termMonthsLeft: 0,
   })
+}
+
+/**
+ * A veteran has died. If they were drawing a pension and leave a spouse,
+ * the survivor's share begins — ON THE RECORD, the same rule every other
+ * pension follows (never silent income). Called for EVERY death, not only
+ * deaths in uniform: most veterans die decades after the uniform came off.
+ *
+ * Must run BEFORE relationships turns the marriage into widowhood, which
+ * is why performDeath calls it where it does — the spouse is still a
+ * spouse at this moment. The ongoing payment is derived by
+ * survivorPensionOf from the widowed edge afterwards.
+ */
+export function openSurvivorPension(world: World, tick: Tick, deceasedId: EntityId): void {
+  const value = pensionValueOf(world, deceasedId)
+  if (value <= 0) return
+  for (const relationship of world.relationships.values()) {
+    if (relationship.type !== 'spouse') continue
+    if (relationship.a !== deceasedId && relationship.b !== deceasedId) continue
+    const survivorId = relationship.a === deceasedId ? relationship.b : relationship.a
+    const survivor = world.people.get(survivorId)
+    if (!survivor || survivor.deathTick !== null) continue
+    const share = Math.floor((value * SURVIVOR_SHARE) / 100)
+    if (share <= 0) continue
+    recordEvent(world, tick, {
+      type: 'granted-pension',
+      subjectId: survivorId,
+      otherId: deceasedId,
+      detail: String(share),
+    })
+    recordDecision(world, tick, {
+      subjectId: survivorId,
+      decision: 'pension',
+      significance: 'notable',
+      inputs: [factor('service-tradition', 600, deceasedId)],
+      chosen: "the survivor's share of a service pension began",
+      rejected: [],
+      streamId: Stream.Employment,
+    })
+    return
+  }
 }
 
 /** Raise performance (capped at 1000) — schools and courses pay this. */
