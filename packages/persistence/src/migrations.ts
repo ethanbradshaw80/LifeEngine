@@ -555,7 +555,39 @@ const V17_TO_V18: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18]
+/**
+ * M-ARMY2 peacetime rotations. Every tour on an old save answered a war —
+ * that is all the deployment system could do — so each one is marked
+ * 'combat' with no host. Nothing is invented: the war fields they already
+ * carry stay exactly as they were.
+ */
+const V18_TO_V19: Migration = {
+  from: 18,
+  to: 19,
+  describe: 'mark existing tours as combat deployments (rotations are new)',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const deployments = (Array.isArray(world['deployments']) ? world['deployments'] : []).map(
+      (entry) => {
+        const person = requireObject(entry, 'save.world.deployments[]')
+        const tours = (Array.isArray(person['tours']) ? person['tours'] : []).map((tour) => ({
+          ...requireObject(tour, 'save.world.deployments[].tours[]'),
+          kind: 'combat',
+          hostId: null,
+        }))
+        return { ...person, tours }
+      },
+    )
+    const nextWorld: Record<string, unknown> = { ...world, deployments }
+    return {
+      header: { ...header, schemaVersion: 19, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

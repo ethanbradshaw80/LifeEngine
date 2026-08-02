@@ -14,7 +14,6 @@ import {
   recruitingDriveActive,
   serviceNewsSince,
 } from '../src/service.js'
-import { setPlayer } from '../src/player.js'
 import { performDeath, livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
 import { SPECIALTIES } from '../src/content.js'
@@ -88,27 +87,24 @@ describe('service tradition', () => {
 })
 
 describe('service news', () => {
-  it('carries both legs and never the player', () => {
+  it('carries the drives and the deaths, and never a career (owner direction)', () => {
     const world = createWorld(makeSeed(12345))
     advanceTicks(world, 60 * 12)
 
     const news = serviceNewsSince(world, 0 as Tick)
-    expect(news.some((n) => n.text.includes('enlisted in'))).toBe(true)
-    expect(news.some((n) => n.text.includes('came home from'))).toBe(true)
     expect(news.some((n) => n.text.includes('recruiters set up'))).toBe(true)
-
-    // Play someone who enlisted; their line leaves the town's news — their
-    // own timeline carries it.
-    const enlistedEvent = world.events.find(
-      (e) => e.type === 'enlisted' && world.people.get(e.subjectId)?.deathTick === null,
-    )
-    if (!enlistedEvent) return // no living enlistee at 60y — seed luck; other asserts covered it
-    const person = world.people.get(enlistedEvent.subjectId)
-    if (!person) return
-    setPlayer(world, person.id)
-    const withPlayer = serviceNewsSince(world, 0 as Tick)
-    const name = `${person.givenName} ${person.familyName}`
-    expect(withPlayer.some((n) => n.text.startsWith(`${name} enlisted`))).toBe(false)
+    // OWNER: enlistments and homecomings are not town news. They happen —
+    // and they belong on the person's own timeline, not in everyone's feed,
+    // where a wall of them buried the things that matter.
+    expect(world.events.some((e) => e.type === 'enlisted')).toBe(true)
+    expect(news.some((n) => n.text.includes('enlisted in'))).toBe(false)
+    expect(news.some((n) => n.text.includes('came home from'))).toBe(false)
+    // A death in uniform is heavy enough that the town hears it.
+    for (const item of news) {
+      expect(
+        item.text.includes('recruiters set up') || item.text.includes('died in service'),
+      ).toBe(true)
+    }
   })
 })
 

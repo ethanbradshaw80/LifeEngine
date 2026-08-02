@@ -590,29 +590,14 @@ export function serviceNewsSince(
       continue
     }
     if (event.subjectId === world.player.personId) continue
-    if (event.type === 'enlisted') {
-      const person = world.people.get(event.subjectId)
-      const record = world.service.get(event.subjectId)
-      if (!person || !record) continue
-      items.push({
-        tick: event.tick,
-        text: `${person.givenName} ${person.familyName} enlisted in ${BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service'}`,
-        nearby: true,
-      })
-    } else if (event.type === 'discharged') {
-      const person = world.people.get(event.subjectId)
-      const record = world.service.get(event.subjectId)
-      if (!person || !record || record.dischargedAtTick === null) continue
-      // The quiet majority of military life: the term ends and someone
-      // comes home. A death in uniform is its own line, not a discharge.
-      if (record.dischargeReason === 'died in service') continue
-      const years = Math.max(1, Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR))
-      items.push({
-        tick: event.tick,
-        text: `${person.givenName} ${person.familyName} came home from ${BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service'} after ${String(years)} year${years === 1 ? '' : 's'}`,
-        nearby: true,
-      })
-    } else if (event.type === 'died') {
+    // OWNER DIRECTION: every enlistment and every homecoming is NOT news.
+    // At a town of four hundred those are a few a year, and the News tab
+    // reads from the beginning of the world — the wall of cards buried the
+    // things that actually matter, and a card about a man who enlisted
+    // forty years ago reads as a claim about him today. They remain on the
+    // person's own timeline, which is where a career belongs. The town
+    // still hears the rare, heavy fact: a death in uniform.
+    if (event.type === 'died') {
       const record = world.service.get(event.subjectId)
       if (!record || record.dischargedAtTick !== event.tick) continue
       if (record.dischargeReason !== 'died in service') continue

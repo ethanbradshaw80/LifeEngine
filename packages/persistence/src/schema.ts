@@ -29,6 +29,11 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v19 — M-ARMY2. Deployments gain `kind` ('combat' | 'rotation') and
+ *      `hostId`; the war fields become nullable because a peacetime
+ *      rotation answers no war. Every tour on an old save was a war tour —
+ *      that is all the system could make — so each migrates to 'combat'
+ *      with a null host, keeping its war fields untouched.
  * v18 — P2. `household.spendStance` (null for every old save AND every NPC
  *      household — the character-driven spending formula is the null
  *      behaviour; only a played household ever sets a stance), and service
@@ -67,7 +72,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 18
+export const SCHEMA_VERSION = 19
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

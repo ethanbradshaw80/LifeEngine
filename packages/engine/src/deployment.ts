@@ -57,12 +57,12 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
   ],
 }
 import { specialtyById, specialUnitById } from './content.js'
-import { activeWars, homeland } from './geopolitics.js'
+import { activeWars, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import { isServing } from './service.js'
+import { boostServicePerformance, isServing } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
 
@@ -70,6 +70,33 @@ import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
 const TOUR_MONTHS = 10
 /** Share of the serving force deployed at the height of a war, per mille. */
 const DEPLOYED_SHARE_CAP = 600
+
+// --- M-ARMY2 peacetime rotations (owner direction) -------------------------
+/** A rotation is shorter than a war tour: six months with an ally. */
+const ROTATION_MONTHS = 6
+/** Share of the serving force posted abroad in peacetime, per mille. */
+const ROTATION_SHARE_CAP = 220
+/** Monthly chance per 10k that a given soldier's name comes up. */
+const ROTATION_CALL_RATE = 110
+/**
+ * Peacetime tempo: the number the accident channel is scaled by, standing
+ * where a war's threat vector stands. It is deliberately far below any
+ * wartime intensity — and it is the ONLY channel a rotation has. Peace has
+ * no enemy, so there is no combat, convoy or base-attack weight to cross
+ * (the permanent rule: danger is computed from the geopolitical state,
+ * and the state here is peace).
+ */
+const ROTATION_TEMPO = 34
+/** What a rotation month actually looks like when it looks like anything. */
+const ROTATION_FLAVORS: readonly string[] = [
+  'A joint exercise with the host battalion',
+  'Weeks on a range that belonged to someone else',
+  'A live-fire problem run against an allied company',
+  'Winter warfare training in unfamiliar country',
+  'A port call, and the work either side of it',
+  'Standing a watch a long way from home',
+  'An airfield rotation; the same duty under a different sky',
+]
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -136,7 +163,134 @@ export function runDeployments(world: World, tick: Tick): void {
   const homelandWars = activeWars(world).filter((war) => war.a === home.id || war.b === home.id)
 
   resolveTours(world, tick, homelandWars)
+  // War calls first and calls louder. In peacetime the army still goes
+  // places: the alliance is kept warm by people, not paper (M-ARMY2).
   if (homelandWars.length > 0) issueOrders(world, tick, home, homelandWars)
+  else issueRotations(world, tick, home)
+}
+
+/**
+ * Allies who could host a rotation: the same bloc, at peace with the
+ * Republic, and not fighting anyone themselves — a peacetime posting into
+ * somebody else's shooting war is not a peacetime posting. Sorted by id.
+ */
+function rotationHosts(world: World, home: Nation): Nation[] {
+  if (home.bloc === null) return []
+  const hosts: Nation[] = []
+  for (const nation of world.nations.values()) {
+    if (nation.id === home.id || nation.bloc !== home.bloc) continue
+    if (isAtWar(world, nation.id)) continue
+    const relation = relationBetween(world, home.id, nation.id)
+    if (relation !== undefined && relation.state !== 'peace') continue
+    hosts.push(nation)
+  }
+  hosts.sort((a, b) => a.id - b.id)
+  return hosts
+}
+
+/** Whether a peacetime posting is available at all — the Service tab's
+ *  volunteer button reads this to answer honestly. */
+export function rotationAvailable(world: World): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  if (activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return false
+  return rotationHosts(world, home).length > 0
+}
+
+/** The shared rotation opener: orders and volunteers use one door. */
+function startRotation(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  host: Nation,
+  inputs: readonly ReturnType<typeof factor>[],
+  chosen: string,
+  rejected: readonly string[],
+): void {
+  const history = world.deployments.get(personId) ?? []
+  const rotation: Deployment = {
+    personId,
+    kind: 'rotation',
+    warA: null,
+    warB: null,
+    enemyId: null,
+    hostId: host.id,
+    startedAtTick: tick,
+    endsAtTick: (tick + ROTATION_MONTHS) as Tick,
+    returnedAtTick: null,
+    tourNumber: history.length + 1,
+  }
+  world.deployments.set(personId, [...history, rotation])
+
+  recordEvent(world, tick, {
+    type: 'deployed',
+    subjectId: personId,
+    otherId: host.id,
+    detail: `a rotation to ${host.name}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'deployment',
+    significance: 'notable',
+    inputs: [...inputs],
+    chosen,
+    rejected: [...rejected],
+    streamId: Stream.CombatResolution,
+  })
+}
+
+/**
+ * Peacetime postings go out. Like orders, not a question — the army sends
+ * who it sends — but a smaller share of the force and a shorter time away.
+ */
+function issueRotations(world: World, tick: Tick, home: Nation): void {
+  const hosts = rotationHosts(world, home)
+  if (hosts.length === 0) return
+  const serving = countServing(world)
+  if (serving === 0) return
+  if (countDeployed(world) * 1000 >= serving * ROTATION_SHARE_CAP) return
+
+  for (const person of deployablePeople(world)) {
+    const rng = openStream(world.seed, Stream.CombatResolution, person.id, tick + 611)
+    if (!rng.chanceInTenThousand(ROTATION_CALL_RATE)) continue
+    const host = rng.pick(hosts)
+    startRotation(
+      world, tick, person.id, host,
+      [factor('under-orders', 1000)],
+      `posted to ${host.name} on rotation`,
+      [],
+    )
+  }
+}
+
+/**
+ * A hand raised for a peacetime rotation. The Service tab's volunteer verb
+ * answers this in the years between wars, so the button is not a dead end
+ * for a whole career.
+ */
+export function volunteerForRotation(world: World, tick: Tick, personId: EntityId): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  if (activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return false
+  const hosts = rotationHosts(world, home)
+  if (hosts.length === 0) return false
+
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || person.deathTick !== null) return false
+  if (!record || record.dischargedAtTick !== null) return false
+  if (isDeployed(world, personId)) return false
+  if (!isPipelineTrained(tick, record)) return false
+
+  const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 612)
+  const host = rng.pick(hosts)
+  startRotation(
+    world, tick, personId, host,
+    [factor('own-choice', 1000)],
+    `volunteered for the rotation to ${host.name}`,
+    ['to stay at the home station'],
+  )
+  return true
 }
 
 /** Who is serving and not deployed, in id order. */
@@ -215,9 +369,11 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
     const history = world.deployments.get(person.id) ?? []
     const deployment: Deployment = {
       personId: person.id,
+      kind: 'combat',
       warA: war.a,
       warB: war.b,
       enemyId,
+      hostId: null,
       startedAtTick: tick,
       endsAtTick: (tick + TOUR_MONTHS) as Tick,
       returnedAtTick: null,
@@ -272,9 +428,11 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
   const history = world.deployments.get(personId) ?? []
   const deployment: Deployment = {
     personId,
+    kind: 'combat',
     warA: war.a,
     warB: war.b,
     enemyId,
+    hostId: null,
     startedAtTick: tick,
     endsAtTick: (tick + TOUR_MONTHS) as Tick,
     returnedAtTick: null,
@@ -335,12 +493,20 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       for (let i = world.events.length - 1; i >= 0; i--) {
         const died = world.events[i]
         if (!died || died.type !== 'died' || died.subjectId !== personId) continue
-        const enemyName = world.nations.get(deployment.enemyId)?.name
+        const enemyName =
+          deployment.enemyId === null ? undefined : world.nations.get(deployment.enemyId)?.name
         if (enemyName !== undefined) {
           grantCampaignMedal(world, tick, personId, died, enemyName, tick - deployment.startedAtTick, true)
         }
         break
       }
+      continue
+    }
+
+    // A peacetime posting runs on its own rules: no enemy, no campaign, and
+    // the way home is the calendar or a recall (M-ARMY2).
+    if (deployment.kind === 'rotation') {
+      resolveRotationMonth(world, tick, person, deployment, wars.length > 0)
       continue
     }
 
@@ -354,7 +520,11 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       continue
     }
 
-    const enemy = world.nations.get(deployment.enemyId)
+    // A combat tour always has one; the null-check is the type system asking
+    // the question the rotation branch above already answered.
+    const enemyId = deployment.enemyId
+    if (enemyId === null) continue
+    const enemy = world.nations.get(enemyId)
     if (!enemy) continue
 
     const threat = threatVectorFor(war, enemy)
@@ -417,7 +587,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       const sawCombat = recordEvent(world, tick, {
         type: 'saw-combat',
         subjectId: personId,
-        otherId: deployment.enemyId,
+        otherId: enemyId,
         detail: rng.pick(flavors),
       })
       grantCombatAction(world, tick, personId, sawCombat, enemy.name)
@@ -435,7 +605,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           tick,
           kind: 'combat-moment',
           personId,
-          otherId: deployment.enemyId,
+          otherId: enemyId,
           occupationId: null,
           workplaceId: null,
           monthlyPay: null,
@@ -503,7 +673,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     const woundEvent = recordEvent(world, tick, {
       type: isAccident ? 'was-injured' : 'wounded-in-action',
       subjectId: personId,
-      otherId: deployment.enemyId,
+      otherId: enemyId,
       detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
     })
     // The decoration follows the wound at the same tick, referencing it.
@@ -527,12 +697,102 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
   }
 }
 
+/**
+ * A month of a peacetime posting. What can happen here is what can happen
+ * to soldiers in peace: they train hard, in unfamiliar country, with real
+ * vehicles and live ammunition, and sometimes it goes wrong. There is no
+ * enemy — so there is no combat channel at all, and no campaign medal at
+ * the end. What the months earn is the work itself, and the record of
+ * having gone (M-ARMY2, owner: "can still get hurt over there").
+ */
+function resolveRotationMonth(
+  world: World,
+  tick: Tick,
+  person: Person,
+  deployment: Deployment,
+  homelandAtWar: boolean,
+): void {
+  const personId = person.id
+  const record = world.service.get(personId)
+
+  // The Republic went to war while they were out. The posting ends; the
+  // orders system finds them at home next month like everyone else.
+  if (homelandAtWar) {
+    closeTour(world, tick, personId, deployment, false, 'recalled')
+    return
+  }
+  if (tick >= deployment.endsAtTick || !record || record.dischargedAtTick !== null) {
+    closeTour(world, tick, personId, deployment)
+    return
+  }
+
+  const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 6100)
+  const exposure = specialtyById(record.specialtyId).exposure
+  const host = deployment.hostId === null ? undefined : world.nations.get(deployment.hostId)
+
+  // Strange water, close quarters, a barracks full of people from two
+  // armies. Lower than a theatre's rate, and service-connected all the same.
+  if (rng.chance(3, 1_000)) {
+    const severity = rng.nextBellInt(200, 650)
+    const sick = inflictFieldIllness(world, tick, personId, severity, rng)
+    if (sick !== null) {
+      recordEvent(world, tick, {
+        type: 'fell-ill',
+        subjectId: personId,
+        detail: `${severity >= 600 ? 'serious' : 'minor'}:${sick.description}`,
+      })
+    }
+  }
+
+  // The texture of the posting — what a rotation actually IS, in the feed.
+  if (rng.chance(1, 5)) {
+    recordEvent(world, tick, {
+      type: 'field-exercise',
+      subjectId: personId,
+      ...(host !== undefined ? { otherId: host.id } : {}),
+      detail: rng.pick(ROTATION_FLAVORS),
+    })
+  }
+
+  // The one channel peace has. Crossed with what the trade does all day,
+  // exactly as a theatre's channels are.
+  const accidentPerMille = Math.max(1, Math.floor((ROTATION_TEMPO * exposure.accident) / 10_000))
+  if (!rng.chance(accidentPerMille, 1_000)) return
+
+  const severity = rng.nextBellInt(250, 1000)
+  const chain = [
+    factor('battlefield-accident', Math.max(1, Math.floor((ROTATION_TEMPO * exposure.accident) / 1_000))),
+    factor('under-orders', 400),
+    factor('battlefield-chaos', severity),
+  ]
+
+  // Rarely, and only at the far tail — but it is real, and it is the same
+  // death every other death uses.
+  if (severity >= 950 && rng.chance(1, 5)) {
+    performDeath(world, tick, person, 'an accident on rotation', chain, Stream.CombatResolution)
+    closeTour(world, tick, personId, currentDeployment(world, personId) ?? deployment, true)
+    return
+  }
+
+  const wound = inflictWound(world, tick, personId, severity, 'field-accident', rng)
+  recordEvent(world, tick, {
+    type: 'was-injured',
+    subjectId: personId,
+    detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+  })
+  // Hurt badly enough and the posting is over — home, the same as a theatre.
+  // No wound recognition: that decoration is for enemy action, and there is
+  // no enemy here (the grant would refuse it anyway; not asking is honest).
+  if (severity >= 600) closeTour(world, tick, personId, deployment, true)
+}
+
 function closeTour(
   world: World,
   tick: Tick,
   personId: EntityId,
   deployment: Deployment,
   medical = false,
+  reason?: string,
 ): void {
   const history = world.deployments.get(personId) ?? []
   world.deployments.set(
@@ -542,22 +802,32 @@ function closeTour(
     ),
   )
   const person = world.people.get(personId)
-  if (person && person.deathTick === null) {
-    const homecoming = recordEvent(world, tick, {
-      type: 'returned-home',
-      subjectId: personId,
-      detail: medical ? 'evacuated' : 'tour complete',
-    })
-    // Campaign credit is judged when the tour closes: three months in
-    // theatre qualifies, and a tour ended by evacuation qualifies at any
-    // length (the casualty waiver). A second tour in the same war adds a
-    // device to the same medal.
-    const enemyName = world.nations.get(deployment.enemyId)?.name
-    if (enemyName !== undefined) {
-      grantCampaignMedal(
-        world, tick, personId, homecoming, enemyName,
-        tick - deployment.startedAtTick, medical,
-      )
-    }
+  if (!person || person.deathTick !== null) return
+
+  const homecoming = recordEvent(world, tick, {
+    type: 'returned-home',
+    subjectId: personId,
+    detail: reason ?? (medical ? 'evacuated' : deployment.kind === 'rotation' ? 'rotation complete' : 'tour complete'),
+  })
+
+  if (deployment.kind === 'rotation') {
+    // No campaign medal — a campaign is a war. What a completed rotation
+    // earns is what the work earns: a better standing at the next board.
+    // A recall or an evacuation is not a completed rotation.
+    if (reason === undefined && !medical) boostServicePerformance(world, personId, 25)
+    return
+  }
+
+  // Campaign credit is judged when the tour closes: three months in
+  // theatre qualifies, and a tour ended by evacuation qualifies at any
+  // length (the casualty waiver). A second tour in the same war adds a
+  // device to the same medal.
+  const enemyName =
+    deployment.enemyId === null ? undefined : world.nations.get(deployment.enemyId)?.name
+  if (enemyName !== undefined) {
+    grantCampaignMedal(
+      world, tick, personId, homecoming, enemyName,
+      tick - deployment.startedAtTick, medical,
+    )
   }
 }

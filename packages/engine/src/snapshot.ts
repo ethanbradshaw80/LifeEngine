@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v29 — M-ARMY2. Peacetime rotations (owner direction): between wars the
+ *      army still goes places. Six-month postings with allies of the same
+ *      bloc, issued as ORDERS (a smaller share of the force than a war
+ *      takes) or volunteered for; no enemy, so no combat channel and no
+ *      campaign medal — the one hazard is the accident channel of a hard
+ *      training tempo, crossed with the trade, and it can wound or rarely
+ *      kill. A completed rotation earns standing at the next board. War
+ *      recalls everyone home. Also: enlistments and homecomings left the
+ *      town news (owner: the wall of cards buried everything else).
  * v28 — M-ARMY2. Career shape and misconduct (owner direction): up-or-out
  *      applies below E-5 only ("a ton of people retire at SGT, SSG"); a
  *      career is thirty years; the office takes volunteers to thirty-
@@ -152,7 +161,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 28
+export const SIMULATION_VERSION = 29
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

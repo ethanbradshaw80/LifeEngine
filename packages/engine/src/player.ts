@@ -27,7 +27,13 @@ import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import { withArticle } from './text.js'
 import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
-import { currentDeployment, evacuateHome, volunteerForDeployment } from './deployment.js'
+import {
+  currentDeployment,
+  evacuateHome,
+  rotationAvailable,
+  volunteerForDeployment,
+  volunteerForRotation,
+} from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
@@ -505,11 +511,20 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
   if (volunteerForDeployment(world, world.tick, person.id)) {
     return { deployed: true, reason: '' }
   }
+  // Between wars the list is still open — for the rotation (M-ARMY2). The
+  // same button, the honest answer for the years the Republic is at peace.
+  if (volunteerForRotation(world, world.tick, person.id)) {
+    return { deployed: true, reason: '' }
+  }
   const home = homeland(world)
   const atWar = home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
   return {
     deployed: false,
-    reason: atWar ? 'Not yet — finish the pipeline, or come home first.' : 'The Republic is not at war.',
+    reason: atWar
+      ? 'Not yet — finish the pipeline, or come home first.'
+      : rotationAvailable(world)
+        ? 'Not yet — finish the pipeline, or come home first.'
+        : 'No war, and no ally taking people this season.',
   }
 }
 

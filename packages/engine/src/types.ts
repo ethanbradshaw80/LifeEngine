@@ -391,11 +391,20 @@ export interface AwardRecord {
 
 export interface Deployment {
   readonly personId: EntityId
-  /** The war, by its geoRelation pair. */
-  readonly warA: EntityId
-  readonly warB: EntityId
-  /** The enemy nation the theatre faces. */
-  readonly enemyId: EntityId
+  /**
+   * M-ARMY2. What kind of time away this is. A 'combat' tour answers a war;
+   * a 'rotation' is a peacetime posting with an ally. The distinction is
+   * load-bearing: peace has no enemy, so a rotation carries no combat
+   * channel and earns no campaign medal — those belong to a campaign.
+   */
+  readonly kind: 'combat' | 'rotation'
+  /** The war, by its geoRelation pair. Null on a rotation — there is none. */
+  readonly warA: EntityId | null
+  readonly warB: EntityId | null
+  /** The enemy nation the theatre faces. Null on a rotation. */
+  readonly enemyId: EntityId | null
+  /** The allied nation hosting a rotation. Null on a combat tour. */
+  readonly hostId: EntityId | null
   readonly startedAtTick: Tick
   /** Planned end. Null once returned (closed deployments keep their history). */
   readonly endsAtTick: Tick

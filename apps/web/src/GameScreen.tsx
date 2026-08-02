@@ -1034,8 +1034,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         <div className="row">
                           <span className="year">{formatYear(tour.startedAtTick)}</span>
                           <span className="what">
-                            Tour {tour.tourNumber} — against{' '}
-                            {world.nations.get(tour.enemyId)?.name ?? 'the enemy'}
+                            {tour.kind === 'rotation'
+                              ? `Rotation ${tour.tourNumber} — with ${
+                                  tour.hostId === null
+                                    ? 'an ally'
+                                    : (world.nations.get(tour.hostId)?.name ?? 'an ally')
+                                }`
+                              : `Tour ${tour.tourNumber} — against ${
+                                  tour.enemyId === null
+                                    ? 'the enemy'
+                                    : (world.nations.get(tour.enemyId)?.name ?? 'the enemy')
+                                }`}
                             {tour.returnedAtTick !== null
                               ? ` · came home ${formatYear(tour.returnedAtTick)}`
                               : ' · still there'}

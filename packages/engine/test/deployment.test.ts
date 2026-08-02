@@ -64,20 +64,23 @@ function worldAtWar(seedValue = 12345, cohort = 12): { world: World; war: GeoRel
 }
 
 describe('orders', () => {
-  it('nobody deploys in peacetime', () => {
+  it('nobody goes to a WAR in peacetime (rotations are another matter)', () => {
     const world = createWorld(makeSeed(12345), 100)
     advanceTicks(world, 240)
     for (const [personId] of world.deployments) {
-      // Any deployment must belong to a period when the homeland was at war.
       expect(deploymentsOf(world, personId).length).toBeGreaterThan(0)
     }
-    // Peace for the homeland in this window ⇒ no deployments at all, OR the
-    // homeland genuinely fought. Check against events, the honest ledger.
+    // M-ARMY2: peacetime postings with allies exist now, so the ledger to
+    // check is COMBAT tours specifically — those still require a war the
+    // homeland actually fought.
     const home = homeland(world)
     const homelandWarBegan = world.events.some(
       (e) => e.type === 'war-began' && (e.subjectId === home?.id || e.otherId === home?.id),
     )
-    if (!homelandWarBegan) expect(world.deployments.size).toBe(0)
+    const combatTours = [...world.deployments.values()]
+      .flat()
+      .filter((tour) => tour.kind === 'combat')
+    if (!homelandWarBegan) expect(combatTours.length).toBe(0)
   })
 
   it('a homeland war sends serving people, and only serving people', () => {
