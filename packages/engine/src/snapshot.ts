@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v53 — A RIVAL IS NEVER IN THE HOMELAND'S BLOC (owner, playing). Bloc 0
+ *      is the homeland's alliance and it was drawn at random for every
+ *      nation that was not an ally, so a quarter of the rivals landed
+ *      inside it — and the rotation host filter reads the bloc, which is
+ *      how a peacetime posting to North Korea became possible. Alliances
+ *      differ from v52 wherever a rival drew bloc 0, and so does every war
+ *      that alliance shaped.
  * v52 — ONE AWARD PER DEPLOYMENT (owner). A tour used to close with the
  *      Overseas Service Ribbon and the Expeditionary Medal both, for the
  *      same trip and described almost the same way. A peacetime posting
@@ -341,7 +348,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 52
+export const SIMULATION_VERSION = 53
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

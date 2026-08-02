@@ -26,6 +26,7 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
 import type { Rng } from './rng.js'
 import type { GeoRelation, GeoState, Nation, World } from './types.js'
+import type { Alignment } from './realnations.js'
 
 // --- Tunables ---------------------------------------------------------------
 
@@ -39,6 +40,30 @@ import type { GeoRelation, GeoState, Nation, World } from './types.js'
 const MAX_FOREIGN_NATIONS = 32
 /** Alliance blocs. Membership dampens war within a bloc, feeds rivalry across. */
 const BLOC_COUNT = 3
+
+/**
+ * Which alliance bloc a nation stands in.
+ *
+ * Bloc 0 is the homeland's. An ally stands in it (ADR-0022 §3 — the call to
+ * arms needs standing alliances). A RIVAL NEVER DOES: the rotation host
+ * filter reads the bloc, so a rival inside bloc 0 is a peacetime posting to
+ * a country the homeland is not friendly with, which is what the owner
+ * found himself doing in North Korea. A neutral may be non-aligned or in
+ * somebody else's bloc, but the homeland's alliance is not a coin flip.
+ */
+function blocFor(
+  alignment: Alignment | null | undefined,
+  nonAligned: boolean,
+  drawn: number,
+): number | null {
+  if (alignment === 'ally') return 0
+  if (nonAligned) return null
+  if (drawn !== 0) return drawn
+  // The draw landed on the homeland's bloc. An ally would have kept it; a
+  // rival cannot have it, and a neutral has not earned it either.
+  return alignment === undefined || alignment === null ? drawn : 1
+}
+
 
 // --- War length and difficulty (owner spec, 2026-08-02) --------------------
 
@@ -139,7 +164,14 @@ export function generateNations(world: World): void {
       // does — "a nation can only be called to arms by an ally" — so the
       // owner's spec supersedes and the ADR says so out loud. The draw
       // still happens for everyone, so the stream is unchanged.
-      bloc: entry?.alignment === 'ally' ? 0 : rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
+      // A RIVAL IS NEVER IN THE HOMELAND'S BLOC (owner, playing: "we can go
+      // on peacetime rotation to countries we are not friendly with — I am
+      // deployed to North Korea"). Bloc 0 was drawn at random for everyone
+      // who was not an ally, so a quarter of the rivals landed inside the
+      // homeland's own alliance and became valid hosts for a peacetime
+      // posting. The draw still happens for every nation so the stream is
+      // unchanged; what changes is where a rival is allowed to land.
+      bloc: blocFor(entry?.alignment, rng.chance(1, 4), rng.nextInt(0, BLOC_COUNT)),
       combatRating: ratingFor(entry?.combatRating ?? null, strength),
       warMonths: 0,
       exhaustedUntilTick: null,

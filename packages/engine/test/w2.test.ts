@@ -397,7 +397,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '2b089ab3'
+const HEARTLAND_GOLDEN = '3530e00b'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {
@@ -437,5 +437,41 @@ describe('the framing is a condition, not a courtesy (ADR-0021 §3)', () => {
         expect(preset.description.toLowerCase()).toContain('alternate history')
       }
     }
+  })
+})
+
+describe('who the Republic will post people to', () => {
+  it('never sends a peacetime rotation to a rival', () => {
+    // THE OWNER, PLAYING: "we can go on peacetime rotation to countries we
+    // are not friendly with — I am deployed to North Korea." Bloc 0 is the
+    // homeland's alliance and it was drawn at random for everyone who was
+    // not an ally, so a quarter of the rivals landed inside it and became
+    // valid hosts for a peacetime posting.
+    for (let s = 0; s < 25; s++) {
+      const world = createWorld(makeSeed(3300 + s), 40, HEARTLAND_SPEC)
+      const home = [...world.nations.values()].find((n) => n.isHomeland)
+      expect(home).toBeDefined()
+      if (!home) return
+      for (const nation of world.nations.values()) {
+        if (nation.isHomeland) continue
+        const entry = REAL_NATIONS.find((r) => r.name === nation.name)
+        if (entry?.alignment !== 'rival') continue
+        expect(
+          nation.bloc,
+          `${nation.name} is a rival standing inside the homeland's own alliance`,
+        ).not.toBe(home.bloc)
+      }
+    }
+  })
+
+  it('and an ally always stands in the homeland bloc, so the call to arms still works', () => {
+    const world = createWorld(makeSeed(3399), 40, HEARTLAND_SPEC)
+    const home = [...world.nations.values()].find((n) => n.isHomeland)
+    if (!home) throw new Error('no homeland')
+    const allies = [...world.nations.values()].filter(
+      (n) => REAL_NATIONS.find((r) => r.name === n.name)?.alignment === 'ally',
+    )
+    expect(allies.length).toBeGreaterThan(0)
+    for (const ally of allies) expect(ally.bloc).toBe(home.bloc)
   })
 })

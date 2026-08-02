@@ -101,7 +101,32 @@ describe('WCJC', () => {
       )
       expect(named, `no such person: ${article.quote.source}`).toBe(true)
     }
-    expect(quoted).toBeGreaterThan(0)
+    // A QUOTE IS NOT GUARANTEED BY THE FIXTURE, and this assertion used to
+    // pretend it was. What the world produces in ninety years depends on the
+    // wars it happened to have, so the bloc fix (v53) changed which seeds
+    // yield a quotable story at all. The claim worth defending is the one
+    // above — every quote names a real person — so the fixture widens until
+    // it finds quotes, rather than the assertion being dropped.
+    if (quoted === 0) {
+      const wider = createWorld(makeSeed(4242))
+      advanceTicks(wider, 90 * 12)
+      for (const item of [
+        ...newsSince(wider, 0 as never),
+        ...serviceNewsSince(wider, 0 as never),
+        ...crimeNewsSince(wider, 0 as never),
+      ]) {
+        const article = articleFor(wider, item)
+        if (!article || article.quote === null) continue
+        quoted++
+        expect(
+          [...wider.people.values()].some((p) =>
+            article.quote?.source.includes(`${p.givenName} ${p.familyName}`),
+          ),
+          `no such person: ${article.quote.source}`,
+        ).toBe(true)
+      }
+    }
+    expect(quoted, 'some story in ninety years is worth quoting somebody about').toBeGreaterThan(0)
   })
 
   it('does not ship broken prose', () => {
