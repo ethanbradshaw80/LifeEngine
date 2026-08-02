@@ -100,7 +100,9 @@ describe('the names are real', () => {
     expect(WOUND_RECOGNITION_TITLE).toBe('the Purple Heart')
     expect(GOOD_CONDUCT_TITLE).toBe('the Good Conduct Medal')
     expect(MERITORIOUS_TITLE).toBe('the Meritorious Service Medal')
-    expect(VALOR_TITLE_OVERRUN).toBe('the Medal of Honor')
+    // The owner swapped this one deliberately: the Medal of Honor is also a
+    // video-game trademark, and the DSC is the real award just below it.
+    expect(VALOR_TITLE_OVERRUN).toBe('the Distinguished Service Cross')
     expect(VALOR_TITLE_HEAVY).toBe('the Silver Star')
     expect(VALOR_TITLE_LIGHT).toContain('Bronze Star')
     expect(COMBAT_INFANTRY_BADGE).toBe('the Combat Infantryman Badge')

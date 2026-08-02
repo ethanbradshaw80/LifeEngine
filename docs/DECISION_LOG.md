@@ -643,11 +643,11 @@ what happened rather than a costume — and that is not weakened by the names
 being real. It is strengthened, because a real medal a player recognises
 makes the earning matter more.
 
-**Noted for the owner, not decided here:** "Medal of Honor" is also a
-long-running video-game trademark, which is a commercial conflict the other
-names on the list do not carry. It is implemented as directed; the
-Distinguished Service Cross is the obvious swap if he prefers, and it is one
-constant.
+**Amended the same day:** the top valor tier is **the Distinguished Service
+Cross**, not the Medal of Honor. Both are real; the Medal of Honor is also a
+long-running video-game trademark, which is a commercial conflict none of the
+other names carry. The owner was shown the point and chose the swap. The DSC
+is the real award immediately below it, so the tier keeps its meaning.
 
 ---
 

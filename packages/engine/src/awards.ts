@@ -53,13 +53,13 @@ export const LONG_SERVICE_TITLE = 'the Armed Forces Service Medal'
  * qualifying event — 'act-of-valor', still the only one (foundation §11) —
  * and the title follows the threat the scene actually carried.
  *
- * NOTE ON "the Medal of Honor": it is a real decoration and also a
- * long-running video-game trademark, which is a commercial conflict the
- * other names here do not carry. Implemented as the owner directed and
- * flagged to him; the Distinguished Service Cross is the swap if he wants
- * one, and it is this constant.
+ * THE TOP TIER IS THE DISTINGUISHED SERVICE CROSS, not the Medal of Honor
+ * (owner, 2026-08-02). Both are real decorations; the Medal of Honor is
+ * also a long-running video-game trademark, which is a commercial conflict
+ * none of the other names here carry. The DSC is the real award immediately
+ * below it, so the tier keeps its meaning and loses the conflict.
  */
-export const VALOR_TITLE_OVERRUN = 'the Medal of Honor'
+export const VALOR_TITLE_OVERRUN = 'the Distinguished Service Cross'
 export const VALOR_TITLE_HEAVY = 'the Silver Star'
 export const VALOR_TITLE_LIGHT = 'the Bronze Star with Valor'
 /** The plain valor title, used until a scene carries a threat level (the
