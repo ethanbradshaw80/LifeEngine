@@ -65,9 +65,9 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `de3164a`.
-SIMULATION_VERSION **45** · Classic golden **b94ae13c** · Heartland golden
-**b428a500** · SCHEMA_VERSION **23** · **501 tests**, all green.
+**STATE:** clean tree, everything pushed, HEAD `6641e94`.
+SIMULATION_VERSION **47** · Classic golden **798939fc** · Heartland golden
+**c2e846c5** · SCHEMA_VERSION **23** · **527 tests**, all green.
 P3, W1 and W2 all COMPLETE and reviewed — six reviews, eighteen must-fixes,
 every one fixed.
 
@@ -83,21 +83,33 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. THE MILITARY & COMBAT MASTER PLAN** (`docs/MILITARY_COMBAT_PLAN.md`,
-owner spec 2026-08-02). His build order, and step 1 is DONE:
-  1. ~~Service sub-tabs + School Houses with a class calendar~~ (de3164a).
-  2. **DROP A PACKET as its own flow** — the tab exists and lists the units;
-     what is missing is the packet → selection-course → pass/fail shape the
-     spec describes, with the two-packet cap it already has.
-  3. **THE THREE-OPTION COMBAT SCENE.** The big one. `combat-moment` gains
-     `sceneId`, `threat` (light/heavy/overrun) and `unitId`; options become
-     push/hold/cover; the outcome is the (choice × threat) cell of the
-     matrix in the plan; the scene text TELLS the player the threat so it is
-     a read rather than a coin flip. Then the Tier 1 scenes.
-     WATCH: every cell keeps the fatal tail, and field aid must chain AFTER
-     commit() — that trap has shipped broken twice.
-  4. **Shared unit cutscenes** (packet drop, selection day, reporting in).
-  5. **Per-unit mission scenes**, one unit at a time.
+**1. FINISH THE COMBAT PLAN — ONE STEP LEFT**
+(`docs/MILITARY_COMBAT_PLAN.md`). Four of five are done:
+  1. ~~Service sub-tabs + School Houses with a class calendar~~ (de3164a)
+  2. ~~Drop a Packet: an entry unit per branch, real chains~~ (555d6f0)
+  3. ~~The three-option combat scene: threat levels, the matrix, the tell,
+     tiered valor~~ (27ce03f)
+  4. **SHARED UNIT CUTSCENES — THE ONE THAT IS LEFT.** The packet drop,
+     selection day, reporting in, tier-up, losing one, the old hand. These
+     are NOT combat scenes: they need their own pending kind (commitment
+     and aftermath, not casualty) and selection day resolves against the
+     unit's `selectionDenominator` through the ACCIDENT channel rather than
+     an enemy. Everything else about them is the scenes.ts shape.
+  5. ~~Per-unit mission scenes~~ (6641e94) — eleven of them, and the
+     machinery takes more as pure content whenever you want them.
+
+  ALSO STILL OPEN from the awards pack, both deliberately:
+  - **The HOLD items.** The Prisoner of War Medal needs a capture branch in
+    the deployment resolver (a bad overrun ends in `was-captured`, then
+    `repatriated` or `died-in-captivity`); the Air Medal and aircrew badges
+    need an aviation specialty and the Nighthawk Squadron. Their award
+    KINDS are deliberately not in the union until then — a kind nothing can
+    grant is the "no unearnable award" rule broken one level down.
+  - **The ribbon rack UI.** `ribbon_rack.html` in the owner's pack is the
+    reference. The Record sub-tab currently lists decorations as a
+    timeline; the rack is the visual version of the same data.
+  - **Senior Parachutist**: holds the badge + 36 months in an airborne
+    unit, granted from the monthly service tick.
 
 **2. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
 priors — and the two military items deferred since M-ARMY2 ("families
@@ -106,6 +118,30 @@ follow a PCS", "branch-appropriate bases") which need real geography.
 **3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
 record-fade gates, the victim's side as player experience.
+
+### THE AWARDS PACK & THE COMBAT PLAN — what landed (8f76883 … 6641e94)
+  - **REAL DECORATIONS** (ADR-0024): the Purple Heart, the Good Conduct
+    Medal, the Silver Star, the Medal of Honor, the Combat Infantryman
+    Badge. Reverted twice before in this repo — the ADR and a test both say
+    a reviewer may not do it a third time.
+  - **EARNABILITY IS THE PRICE, and it is enforced**: every award grants
+    from a qualifying recorded event, a test walks every kind in the union
+    and fails if nothing grants it, and the negative tests still prove each
+    one refuses what does not qualify.
+  - **The campaign medal is generic** — the Armed Forces Expeditionary
+    Medal. That was the owner's own exception and it independently fixed a
+    bug the military review had caught.
+  - **Seven new ribbons**, all off events the engine already recorded, plus
+    combat recognition that takes its face from the trade.
+  - **FOURTEEN SCHOOLS with a calendar** and **six units, one entry unit per
+    branch**, so both tabs are real for everybody.
+  - **THE COMBAT SCENE**: threat level rolled from the channel's own weight,
+    told to the player, answered push/hold/cover, resolved on the owner's
+    matrix. Every cell keeps the fatal tail — that is the invariant, and a
+    test walks all nine.
+  - FLAGGED, NOT DECIDED: "Medal of Honor" is also a video-game trademark,
+    the only name on the list with a commercial conflict. Implemented as
+    directed; the Distinguished Service Cross is a one-constant swap.
 
 ### THE WAR SPEC — COMPLETE (owner spec, 2026-08-02, in three commits)
 7beaa4b · 15a4a29 · cfafbff, plus ADR-0022.
