@@ -23,6 +23,16 @@ export function withArticle(word: string): string {
   return `${article(word)} ${word}`
 }
 
+/**
+ * Capitalise a name that carries its own article — "the Republic" mid
+ * sentence, "The Republic" at the start of one. W1: homeland names come from
+ * the world now, not from a literal typed into the sentence, so the sentence
+ * has to do this itself.
+ */
+export function sentenceCase(text: string): string {
+  return text.length === 0 ? text : text.charAt(0).toUpperCase() + text.slice(1)
+}
+
 // ---------------------------------------------------------------------------
 // Temperament in words (P3)
 //

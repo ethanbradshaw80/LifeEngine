@@ -24,7 +24,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
-import { withArticle } from './text.js'
+import { sentenceCase, withArticle } from './text.js'
 import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
@@ -441,7 +441,7 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
 
   if (selected) {
     assignServiceUnit(world, person.id, unit.id)
-    recordEvent(world, world.tick, { type: 'joined-unit', subjectId: person.id, detail: unit.name })
+    recordEvent(world, world.tick, { type: 'joined-unit', subjectId: person.id, detail: unit.id })
     recordDecision(world, world.tick, {
       subjectId: person.id,
       decision: 'selection',
@@ -454,7 +454,7 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
     return { joined: true, reason: '' }
   }
 
-  recordEvent(world, world.tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.name })
+  recordEvent(world, world.tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.id })
   recordDecision(world, world.tick, {
     subjectId: person.id,
     decision: 'selection',
@@ -908,6 +908,15 @@ export function moveBar(
   return null
 }
 
+/**
+ * The homeland, named. W1 (resistance 6): every one of these sentences used
+ * to have "the Republic" typed into it, which is a preset's content sitting
+ * inside engine prose. The nation object has carried the name since L4-M1.
+ */
+function homelandName(world: World): string {
+  return homeland(world)?.name ?? 'the homeland'
+}
+
 export function lookForPlace(world: World, placeId: EntityId): { moved: boolean; reason: string } {
   const guard = verbPerson(world)
   if ('reason' in guard) return { moved: false, reason: guard.reason }
@@ -965,7 +974,7 @@ export function requestDischarge(world: World): { discharged: boolean; reason: s
     const months = record.termMonthsLeft
     return {
       discharged: false,
-      reason: `The term runs another ${String(months)} month${months === 1 ? '' : 's'}. The Republic holds you to it; the question comes with the term's end.`,
+      reason: `The term runs another ${String(months)} month${months === 1 ? '' : 's'}. ${sentenceCase(homelandName(world))} holds you to it; the question comes with the term's end.`,
     }
   }
   return {
@@ -1303,7 +1312,10 @@ export function resolvePending(world: World, choice: string): void {
             recordEvent(world, pending.tick, {
               type: 'passed-over',
               subjectId: person.id,
-              detail: standing.targetTitle,
+              // W1 resistance 4: the LADDER INDEX, not the title. A rank's
+              // words belong to a preset's branch table; the index is what
+              // the world actually holds, and story.ts renders it back.
+              detail: String(standing.targetRank),
             })
             recordDecision(world, pending.tick, {
               subjectId: person.id,
@@ -1859,7 +1871,7 @@ export function describePending(world: World, pending: PendingDecision): string 
       return `${what}. How do you carry it?`
     }
     case 'enlist':
-      return 'A recruiter for the Republic has your name. Enlist?'
+      return `A recruiter for ${homelandName(world)} has your name. Enlist?`
     case 'specialty':
       return 'Which uniform? Your schooling opens these doors.'
     case 'promotion-board': {
@@ -2198,9 +2210,9 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const wars = activeWars(world)
       const home = homeland(world)
       if (home && wars.some((w) => w.a === home.id || w.b === home.id)) {
-        lines.push('The Republic is at war. Service now will not be quiet.')
+        lines.push(`${sentenceCase(homelandName(world))} is at war. Service now will not be quiet.`)
       } else if (wars.length > 0) {
-        lines.push(`There is war abroad — ${String(wars.length)} conflict${wars.length === 1 ? '' : 's'} in the news. The Republic is not in them today.`)
+        lines.push(`There is war abroad — ${String(wars.length)} conflict${wars.length === 1 ? '' : 's'} in the news. ${sentenceCase(homelandName(world))} is not in them today.`)
       }
       break
     }
@@ -2434,7 +2446,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         }.`)
       }
       lines.push('Staying makes it a real tour: ten months, the same danger as any front, and the same way home.')
-      lines.push('The Republic is not in this war. Going home costs you nothing and no one will hold it against you.')
+      lines.push(`${sentenceCase(homelandName(world))} is not in this war. Going home costs you nothing and no one will hold it against you.`)
       const household = person.householdId === null ? undefined : world.households.get(person.householdId)
       if (household) {
         const children = household.memberIds.filter((id) =>

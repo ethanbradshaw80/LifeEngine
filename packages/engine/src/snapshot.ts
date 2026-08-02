@@ -28,6 +28,16 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v41 — W1 (resistances 4 and 5). Three events carried DISPLAY NAMES in
+ *      their detail — 'joined-unit' and 'dropped-selection' the unit's
+ *      name, 'passed-over' the rank's title — and two of them were then
+ *      string-matched to enforce the two-drop cap and to count prior
+ *      non-selections. A name belongs to a preset's content; matching on
+ *      one means renaming a unit silently reopens a closed file. They
+ *      carry the unit ID and the ladder INDEX now, and story.ts makes the
+ *      words at render time. Saves written before this keep their names:
+ *      the renderer falls back to the detail as written, so old stories
+ *      read exactly as they did.
  * v40 — P3. The arrears crossing event now names the HOUSEHOLD it happened
  *      to (previously only the person who headed it that month), so the
  *      Money tab can pair fell-behind with back-in-the-black for the right
@@ -262,7 +272,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 40
+export const SIMULATION_VERSION = 41
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

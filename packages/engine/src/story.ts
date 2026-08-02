@@ -19,8 +19,9 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { BRANCH_NAMES, occupationById, offenceById, specialtyById } from './content.js'
+import { BRANCH_NAMES, occupationById, offenceById, specialtyById, specialUnitById } from './content.js'
 import { rankTitle } from './service.js'
+import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
@@ -52,6 +53,30 @@ function objectPronoun(person: Person): string {
 
 
 /** One readable line per event. */
+
+/**
+ * W1 resistance 4/5: these events carry IDS now, not display names — a name
+ * is a preset's content and must not be minted into a permanent record. The
+ * words are made here, at render time.
+ *
+ * Both helpers fall back to the detail AS WRITTEN when it is not an id they
+ * know, because saves made before W1 hold the name itself. Old stories keep
+ * naming the unit and the rank they always named; nothing is migrated and
+ * nothing is lost.
+ */
+function unitWordsFor(detail: string | null): string {
+  if (detail === null) return 'a special unit'
+  return specialUnitById(detail)?.name ?? detail
+}
+
+function rankWordsFor(world: World, event: WorldEvent): string {
+  if (event.detail === null) return 'promotion'
+  const rank = Number.parseInt(event.detail, 10)
+  if (!Number.isInteger(rank) || String(rank) !== event.detail) return event.detail
+  const record = world.service.get(event.subjectId)
+  return record ? rankTitle(record.branch, rank) : 'promotion'
+}
+
 function describeEvent(world: World, person: Person, event: WorldEvent): string | null {
   const year = formatYear(event.tick)
   const age = ageAt(person.birthTick, event.tick)
@@ -238,11 +263,11 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'awarded':
       return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
     case 'passed-over':
-      return `${year} — Went before the ${event.detail ?? 'promotion'} board; not selected.`
+      return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
     case 'joined-unit':
-      return `${year} — Selected for ${event.detail ?? 'a special unit'}.`
+      return `${year} — Selected for ${unitWordsFor(event.detail)}.`
     case 'dropped-selection':
-      return `${year} — Went to ${event.detail ?? 'a special unit'} selection; came back without it.`
+      return `${year} — Went to ${unitWordsFor(event.detail)} selection; came back without it.`
     case 'fitness-tested':
       return `${year} — Scored ${event.detail ?? 'the standard'} on the fitness test.`
     case 'turned-down':
@@ -267,7 +292,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         case 'evacuated':
           return `${year} — Evacuated home.`
         case 'recalled':
-          return `${year} — Recalled home; the Republic had gone to war.`
+          return `${year} — Recalled home; ${homeland(world)?.name ?? 'the homeland'} had gone to war.`
         case 'host at war':
           return `${year} — Brought home early; the host country had gone to war.`
         case 'rotation complete':

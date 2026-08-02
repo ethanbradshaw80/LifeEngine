@@ -33,8 +33,15 @@ import type { ServiceBranch } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
+import { sentenceCase } from './text.js'
 import { lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
+
+/** The homeland, named from the world rather than typed into the sentence
+ *  (W1 resistance 6). */
+function homelandName(world: World): string {
+  return homeland(world)?.name ?? 'the homeland'
+}
 
 export interface NewsQuote {
   readonly text: string
@@ -191,8 +198,8 @@ function deathInService(
   const atWar = home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
   body.push(
     atWar
-      ? `The Republic is at war. Records show ${String(countServing(world))} residents of ${world.town.name} currently serving.`
-      : `The Republic is not at war. Records show ${String(countServing(world))} residents of ${world.town.name} currently serving.`,
+      ? `${sentenceCase(homelandName(world))} is at war. Records show ${String(countServing(world))} residents of ${world.town.name} currently serving.`
+      : `${sentenceCase(homelandName(world))} is not at war. Records show ${String(countServing(world))} residents of ${world.town.name} currently serving.`,
   )
 
   // QUOTE: the squad leader, who is a real person leading a real squad.
@@ -443,24 +450,24 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
     const ours = war.a === home.id ? war.casualtiesA : war.casualtiesB
     const deployed = countDeployed(world)
     body.push(
-      `Republic losses stand at ${grouped(ours)}. ${String(deployed)} personnel from ${world.town.name} and its home stations are currently deployed.`,
+      `${sentenceCase(homelandName(world))} reports losses of ${grouped(ours)}. ${String(deployed)} personnel from ${world.town.name} and its home stations are currently deployed.`,
     )
   }
 
   const other = ourWar ? (war.a === home?.id ? b : a) : null
   return {
     headline: ourWar
-      ? `Republic at war with ${other?.name ?? 'foreign power'}, ${phase} continues`
+      ? `${sentenceCase(homelandName(world))} at war with ${other?.name ?? 'foreign power'}, ${phase} continues`
       : `${a.name} and ${b.name} remain at war`,
     dateline,
     lede: ourWar
-      ? `The Republic remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(item.tick)}, with fighting in its ${phase}.`
+      ? `${sentenceCase(homelandName(world))} remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(item.tick)}, with fighting in its ${phase}.`
       : `${a.name} and ${b.name} remain at war as of ${formatDate(item.tick)}, with fighting in its ${phase}.`,
     body: body.slice(0, 4),
     quote: null,
     closing: ourWar
       ? 'Orders continue to be issued to home stations. Families of serving personnel are notified directly.'
-      : 'The Republic is not a belligerent.',
+      : `${sentenceCase(homelandName(world))} is not a belligerent.`,
   }
 }
 

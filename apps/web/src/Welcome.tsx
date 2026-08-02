@@ -11,9 +11,12 @@
 interface Props {
   readonly onLiveALife: () => void
   readonly onWatch: () => void
+  /** The town's own name (W1): the explainer must not know a preset's
+   *  content. Falls back only when there is no world to ask yet. */
+  readonly townName?: string
 }
 
-export function Welcome({ onLiveALife, onWatch }: Props) {
+export function Welcome({ onLiveALife, onWatch, townName }: Props) {
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Welcome">
       <div className="sheet">
@@ -21,7 +24,7 @@ export function Welcome({ onLiveALife, onWatch }: Props) {
 
         <ul className="welcome-points">
           <li>
-            <strong>Everyone in Haverlock lives their own life.</strong> They grow
+            <strong>Everyone in {townName ?? 'this town'} lives their own life.</strong> They grow
             up, work, marry, argue, save money, fall behind, grow old and die —
             whether you are watching or not.
           </li>

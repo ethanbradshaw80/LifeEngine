@@ -403,7 +403,7 @@ export function unitOptionsFor(
   return SPECIAL_UNITS.map((unit) => {
     let reason = ''
     const drops = world.events.filter(
-      (e) => e.type === 'dropped-selection' && e.subjectId === personId && e.detail === unit.name,
+      (e) => e.type === 'dropped-selection' && e.subjectId === personId && e.detail === unit.id,
     ).length
     if (record.unitId === unit.id) {
       reason = 'Already wearing the tab.'
@@ -459,6 +459,8 @@ export function boardStandingFor(
   personId: EntityId,
 ): {
   readonly targetTitle: string
+  /** The ladder INDEX the title renders from — what records key on (W1). */
+  readonly targetRank: number
   readonly timeInGrade: number
   readonly tigNeeded: number
   /** The trade's points cutoff for the next rank. */
@@ -475,12 +477,13 @@ export function boardStandingFor(
   const targetTitle = rankTitle(record.branch, gates.targetRank)
   return {
     targetTitle,
+    targetRank: gates.targetRank,
     timeInGrade: world.tick - record.rankSinceTick,
     tigNeeded: gates.tigNeeded,
     cutoff: gates.cutoff,
     points: promotionPointsFor(world, personId),
     priorPassOvers: world.events.filter(
-      (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === targetTitle,
+      (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === String(gates.targetRank),
     ).length,
   }
 }
@@ -1110,9 +1113,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // is not special (charter §2), and a unit a descendant finds must
       // have had more than one member, ever (foundation §13).
       const badges = badgesOf(world, person.id)
-      const dropsFor = (unitName: string): number =>
+      const dropsFor = (unitId: string): number =>
         world.events.filter(
-          (e) => e.type === 'dropped-selection' && e.subjectId === person.id && e.detail === unitName,
+          (e) => e.type === 'dropped-selection' && e.subjectId === person.id && e.detail === unitId,
         ).length
       const unit = SPECIAL_UNITS.find(
         (u) =>
@@ -1122,15 +1125,15 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           rank >= u.minRank &&
           performance >= u.minPerformance &&
           u.requiredBadges.every((b) => badges.includes(b)) &&
-          dropsFor(u.name) < 2,
+          dropsFor(u.id) < 2,
       )
       if (unit) {
         const margin = Math.max(10, Math.min(400, performance - unit.minPerformance + 60))
         if (rng.chance(margin, unit.selectionDenominator)) {
           unitId = unit.id
-          recordEvent(world, tick, { type: 'joined-unit', subjectId: person.id, detail: unit.name })
+          recordEvent(world, tick, { type: 'joined-unit', subjectId: person.id, detail: unit.id })
         } else {
-          recordEvent(world, tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.name })
+          recordEvent(world, tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.id })
         }
       }
     }
