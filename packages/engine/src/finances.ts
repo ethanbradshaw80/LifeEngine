@@ -95,6 +95,33 @@ export function chargeHousehold(world: World, tick: Tick, householdId: EntityId,
 }
 
 /**
+ * Put money into a household from OUTSIDE the town's own ledgers — a till
+ * emptied, a forged cheque, tax not paid. Returns the cents credited so a
+ * caller can record what was actually gained.
+ *
+ * Finances stays the single writer of savings (DOMAIN_MAP §2). C2 first
+ * tried to do this by negating chargeHousehold, which moved nothing (that
+ * function guards `cents <= 0`) and returned `-undefined` — NaN into an
+ * event detail and into a serialized field. Crediting needs its own door.
+ */
+export function creditHousehold(
+  world: World,
+  tick: Tick,
+  householdId: EntityId,
+  cents: number,
+): number {
+  const household = world.households.get(householdId)
+  if (!household || !Number.isFinite(cents) || cents <= 0) return 0
+  const amount = Math.floor(cents)
+  world.households.set(household.id, {
+    ...household,
+    savings: (household.savings + amount) as Money,
+  })
+  noteArrearsCrossing(world, tick, household.id, household.savings)
+  return amount
+}
+
+/**
  * The fell-behind / back-in-the-black crossing is an invariant of the FIELD,
  * not of runFinances: any writer that moves savings across zero owes the
  * event, or the story shows a fall with no recovery (or the reverse). Every

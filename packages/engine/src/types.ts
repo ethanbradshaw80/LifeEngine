@@ -598,6 +598,10 @@ export type PendingKind =
   | 'unit-tryout'
   /** LOG-ONLY: took the fitness test from the Service tab. */
   | 'fitness-test'
+  /** LOG-ONLY (C2): the player went and did something from the Record
+   *  tab. A crime is a player INPUT and belongs in the replay log like
+   *  every other one; the choice carries the offence id. */
+  | 'offence'
   /** A contact that became the player's own moment: the squad pinned, and
    *  a choice that is genuinely theirs (M-HARM). */
   | 'combat-moment'

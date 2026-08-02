@@ -689,9 +689,66 @@ STILL OPEN, with reasons:
   - HYT ON TIS: effectively answered by M-ARMY2's career shape — the
     20/30-year ceilings ARE a time-in-service rule; high-year tenure stays
     time-in-grade, which is what it models.
-NEXT ARC after this: P3 (the surfaces — relationships tab, finances tab,
-record view, traits in words, D1 stats in-game) then W1-W3 world presets,
-or C2 (player crime) — see PLAYER_EXPERIENCE_AUDIT.
+NEXT ARC: P3 (the surfaces — relationships tab, finances tab, traits in
+words, D1 stats in-game) then W1-W3 world presets. C2 IS DONE — see below.
+
+### C2 — COMPLETE (the player and the law; reviewed, all findings fixed)
+Commits 1864c1b (arc) · 9cf8245 (verdict sheet) · the review fixes.
+SIMULATION_VERSION stays 39 and the golden did NOT move: every C2 path is
+player-only, so an unplayed world is byte identical (DETERMINISM §7 puts
+player-path changes on the schema version).
+DESPERATION MOMENT: runCrime's player guard is gone — the modelled theft
+pressure and its roll raise a 'desperation' pending (take-it/go-without),
+and BOTH roads record. THE PLEA: an arrest raises 'plea' (plead-guilty /
+stand-trial); resolveCourt is shared with the NPC path. CHARGE SHEET: 22
+offences graded US-style (three misdemeanor classes, lettered felonies,
+each inside its grade's ceiling) with clearance rates and gain ranges;
+commitOffence is the Record-tab verb and offenceBar gates in words.
+VERDICT SHEET: the case as its own popup, read by courtOutcomeOf off the
+one month the court sat. Also fixed a real pre-existing bug: applyForJob
+never checked jail, so a jailed player could be hired from a cell.
+THE REVIEW FOUND THREE MUST-FIX, ALL REAL:
+  1. THE PLEA COULD NEVER BE RAISED. answerDesperation ran inside
+     resolvePending BEFORE commit() freed the slot, so raisePending always
+     refused: the player was sentenced off-screen — the one thing C2
+     exists to stop — and the VerdictSheet never appeared. THE SAME TRAP
+     the combat moment hit with field aid, already documented in
+     player.ts, hit again three milestones later. If a moment can raise a
+     follow-up question, resolve it AFTER commit.
+  2. `taken = -chargeHousehold(...)` moved NO money (it guards cents <= 0)
+     and returned -undefined, so eight offences paid nothing and NaN
+     reached an event detail and a serialized pending field. finances.ts
+     gained creditHousehold; finance stays the single writer of savings.
+  3. commitOffence had no log entry, no pending guard and no rate limit,
+     and its stream is keyed on the month — pressing "Do it" repeatedly
+     drained every household in town while never re-rolling clearance.
+     Now logged ('offence' PendingKind), guarded, once a month.
+SHOULD-FIXES LANDED: a guilty plea now buys something on the desperation
+path (it was strictly dominated while the stakes promised leniency, and
+the stakes text now says what the offence actually allows); priors no
+longer floor to zero on short-span offences (they were a DISCOUNT at the
+low end); a conviction can never cost nothing; the honest road's record is
+'major' so it keeps its rejected alternative, and went-without reaches the
+Why?; a player's robbery names its victim so it reaches the paper.
+KNOWN, LEFT: pending.occupationId/monthlyPay carry the offence id and the
+take (a dedicated field is a schema bump — deferred, commented); salts
+4141/5252/6363 sit 1111 ticks apart and would only collide for a
+110-year-old repeat offender (space >1500 if this code is touched).
+
+### THE NEWSROOM — COMPLETE (WCJC; reviewed)
+newsroom.ts writes structured articles to the owner's brief: headline,
+dateline, lede, 2-4 body paragraphs, a quote from a REAL simulated person,
+and a closing. Templates for died-in-service / came-home / crime / war;
+recruiting drives get a headline and no article (owner: a notice, not a
+story). Quotes vary by a pure hash of (person, month) and assert only what
+the simulation holds. NO GENERATIVE AI — the brief was written for a model
+and is executed by code, because CLAUDE.md §7 is absolute and the same
+seed must produce the same paper forever. describeOutcome gives the Why?
+its "what came of it" line (an award names the act that earned it; a
+school names the rating; a conviction reads its sentence). Review found
+one must-fix: a ternary with the same word in both branches. A prose guard
+test now fails the build on doubled articles, bare numbers where ordinals
+belong, gaps, and "undefined" in copy.
 
 7. UNIT ROSTERS — DONE (commit ac9127f). Derived (person, base) → squad,
    so no schema moved and squadmates stay squadmates until a transfer;

@@ -20,9 +20,14 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { GRADE_TITLES, isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
 import type { Offence } from './content.js'
-import { raisePending } from './player.js'
+import { logVerb, raisePending } from './player.js'
 import { isDeployed } from './deployment.js'
-import { chargeHousehold, inArrears, transferBetweenHouseholds } from './finances.js'
+import {
+  chargeHousehold,
+  creditHousehold,
+  inArrears,
+  transferBetweenHouseholds,
+} from './finances.js'
 import type { NewsItem } from './geopolitics.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
@@ -230,12 +235,27 @@ export function commitOffence(
   const offence = offenceById(offenceId)
   if (!offence) return { done: false, reason: 'No such charge in the code.' }
 
+  // A CRIME IS A PLAYER INPUT, and every other verb in the game treats one
+  // the same way: refuse while a question waits, one a month, and log
+  // before the roll so seed + log still replays the life exactly. Without
+  // these the tab was a button you could hold down — the stream is keyed
+  // on the month, so a miss missed identically every time while the money
+  // moved on every press (review must-fix 3).
+  if (world.player.pending !== null) {
+    return { done: false, reason: 'A decision is already waiting.' }
+  }
+  if (world.player.log.some((entry) => entry.kind === 'offence' && entry.tick === tick)) {
+    return { done: false, reason: 'Once in a month. The town is small and it notices.' }
+  }
+  logVerb(world, 'offence', offenceId)
+
   const rng = openStream(world.seed, Stream.Crime, person.id, tick + 5252)
 
   // What it puts in a pocket. Where a household is robbed the money MOVES
   // — finances owns the transfer, and a victim who loses nothing is a
   // crime that did not happen.
   let taken = 0
+  let victim: Person | undefined
   if (offence.gainMax > 0) {
     const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
     if (offence.takesFromHousehold && person.householdId !== null) {
@@ -249,20 +269,30 @@ export function commitOffence(
         .map((id) => world.people.get(id))
         .filter((p): p is Person => p !== undefined && p.deathTick === null)
         .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+      victim = members[0]
       for (const member of members) {
-        if (ageAt(member.birthTick, tick) < 18) continue
+        // Adults carry the memory; but a house of only children still
+        // lost the money, so its eldest carries it rather than the
+        // savings dropping with no recorded cause (review S7).
+        if (member.id !== victim?.id && ageAt(member.birthTick, tick) < 18) continue
         recordEvent(world, tick, { type: 'was-robbed', subjectId: member.id, detail: String(taken) })
       }
     } else if (person.householdId !== null) {
-      // Money from outside the town's households — a shop, a stranger, the
-      // revenue. It still lands in a real ledger.
-      taken = -chargeHousehold(world, tick, person.householdId, -wanted)
+      // Money from outside the town's households — a till, a forged
+      // cheque, tax not paid. It still lands in a real ledger, through
+      // finances' own crediting door.
+      taken = creditHousehold(world, tick, person.householdId, wanted)
     }
   }
 
   recordEvent(world, tick, {
     type: 'committed-theft',
     subjectId: person.id,
+    // otherId is the victim, and crimeNewsSince keys the town's headline
+    // off it — without it a player's burglary robbed a real household,
+    // wrote was-robbed on its adults, and never reached the paper, while
+    // every NPC's did (review S7).
+    ...(victim !== undefined ? { otherId: victim.id } : {}),
     detail: `${offence.id}:${String(taken)}`,
   })
   recordDecision(world, tick, {
@@ -323,7 +353,11 @@ export function answerDesperation(world: World, tick: Tick, person: Person, take
     recordDecision(world, tick, {
       subjectId: person.id,
       decision: 'crime',
-      significance: 'notable',
+      // 'major', like the take-it road: records.ts discards `rejected`
+      // below major, and the honest choice was losing the alternative it
+      // turned down while the crime kept its own (review S6). Both roads
+      // are meant to be equally real.
+      significance: 'major',
       inputs: [
         factor('own-choice', 1000),
         ...(behind ? [factor('in-arrears', 700)] : []),
@@ -474,8 +508,16 @@ export function resolveCourt(
   if (offence === null) {
     // The desperation theft C1 modelled, with C1's own numbers — measured
     // and tuned, and not worth perturbing to share a table.
-    const jailTime = priors > 0 || taken > 25_000
-    sentenceMonths = jailTime ? rng.nextIntInclusive(JAIL_MIN_MONTHS, JAIL_MAX_MONTHS) : 0
+    //
+    // A GUILTY PLEA HAS TO BUY SOMETHING HERE TOO (review S4): it used to
+    // be ignored on this path, which made it a certain conviction for
+    // nothing while the stakes screen promised a lighter hand. It halves
+    // the term, and a first offence that would have meant months can end
+    // in a fine instead.
+    const pleaded = plea === 'plead-guilty'
+    const jailTime = (priors > 0 || taken > 25_000) && !(pleaded && priors === 0)
+    const full = jailTime ? rng.nextIntInclusive(JAIL_MIN_MONTHS, JAIL_MAX_MONTHS) : 0
+    sentenceMonths = pleaded ? Math.max(1, Math.floor(full / 2)) * (jailTime ? 1 : 0) : full
     fine = jailTime ? 0 : taken * FINE_MULTIPLIER
   } else {
     // The catalogue's own grade. The range is the statute; where in it the
@@ -486,13 +528,26 @@ export function resolveCourt(
       plea === 'plead-guilty'
         ? rng.nextIntInclusive(0, Math.floor(span / 2))
         : rng.nextIntInclusive(0, span)
-    const priorWeight = Math.min(span, priors * Math.floor(span / 4))
+    // Priors push the sentence up. `span/4` floored to nothing on every
+    // short-range offence — a class C misdemeanor's whole span is one
+    // month — so a repeat offender served the same as a first-timer on
+    // exactly the offences most people repeat (review S5). Round up.
+    const priorWeight = Math.min(span, priors * Math.max(1, Math.ceil(span / 4)))
     const months = offence.minMonths + Math.min(span, roll + priorWeight)
     // A fine instead of custody, where the offence allows one at all and
     // the file is clean enough to earn it. Felonies here carry no fine.
-    const finable = offence.fine > 0 && priors === 0 && months <= 6
+    // The months bound is the offence's OWN low end, not a flat six: at a
+    // flat six every felony fine was dead data (their minimum is twelve),
+    // and a defendant with priors could roll a zero-month sentence and
+    // walk out owing nothing at all — priors acting as a discount.
+    const finable =
+      offence.fine > 0 && priors === 0 && months <= Math.max(6, offence.minMonths)
     sentenceMonths = finable ? 0 : months
     fine = finable ? offence.fine : 0
+    // A conviction always costs something. Without this a defendant whose
+    // roll landed on zero months and whose file barred a fine walked out
+    // owing nothing, and the record showed "fined $0.00" (review S5).
+    if (sentenceMonths === 0 && fine === 0) fine = Math.max(offence.fine, 5_000)
   }
 
   const existing = world.criminal.get(person.id)

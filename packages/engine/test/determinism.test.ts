@@ -82,9 +82,16 @@ export const GOLDEN_TICKS = 120
 // SIMULATION_VERSION 26 — the reference world is now the 400-person
 // founding town (owner direction). Older tests pin population 100 and
 // still guard the small-town histories byte for byte.
-// M-ARMY2 review fixes (SIMULATION_VERSION 30): the rotation accident cross
-// survives the arithmetic, hosts at war send people home, twenty-year
-// retirement, and company punishments happen often enough to matter.
+// The hash moves whenever the unplayed world's bytes move, which includes
+// the version field itself; the changelog in snapshot.ts is the full story
+// and this comment records only the last reason. LATEST: SIMULATION_VERSION
+// 39 — census names (300/500/1000, weighted by real frequency), which
+// changed who everybody is called and nothing else.
+//
+// NOT bumped for C2's review fixes: the desperation moment, the plea and
+// the charge sheet are player-path only, so an unplayed world is byte
+// identical and DETERMINISM.md §7 puts player-path changes on the schema
+// version instead.
 export const GOLDEN_HASH_HEX = 'e8656367'
 
 function runReference() {

@@ -153,6 +153,8 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   // neither records a 'training' decision at its tick, so they keep
   // answering null; only the retrain's feed line finds its record.
   'began-training': 'training',
+  // C2: the honest road had a record nobody could reach (review S6).
+  'went-without': 'crime',
 }
 
 /**

@@ -561,7 +561,9 @@ function verbPerson(world: World): { person: Person } | { reason: string } {
   return { person }
 }
 
-function logVerb(world: World, kind: PendingKind, choice: string): void {
+/** Append a player input to the replay log. Exported for crime.ts, whose
+ *  Record-tab verb is a player input like any other (C2 review). */
+export function logVerb(world: World, kind: PendingKind, choice: string): void {
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
     tick: world.tick,
@@ -1363,7 +1365,12 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'desperation': {
-      answerDesperation(world, pending.tick, person, choice === 'take-it')
+      // Deliberately NOT resolved here. Taking it can lead to an arrest,
+      // and the arrest owes the player a plea — but raisePending refuses
+      // while this very pending still holds the slot, so the court would
+      // sentence them off-screen, which is the one thing C2 exists to
+      // stop. Resolved after commit(), below. (The same trap the combat
+      // moment hit with field aid; the same cure.)
       break
     }
 
@@ -1489,6 +1496,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'school-request':
     case 'unit-tryout':
     case 'fitness-test':
+    case 'offence':
     case 'court-friend':
     case 'proposal':
     case 'courtship-end':
@@ -1537,6 +1545,12 @@ export function resolvePending(world: World, choice: string): void {
   }
 
   commit(world, pending, choice)
+
+  // The desperation answer runs with the slot free, so an arrest can ask
+  // for a plea instead of the courthouse ruling over the player's head.
+  if (pending.kind === 'desperation') {
+    answerDesperation(world, pending.tick, person, choice === 'take-it')
+  }
 
   // A wound taken during the combat moment is still a wound somebody has
   // to work on — and only now is the pending slot free to ask (review S7).
@@ -1880,6 +1894,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Put in for selection.' // log-only
     case 'fitness-test':
       return 'Took the fitness test.' // log-only
+    case 'offence':
+      return 'Went and did it.' // log-only
     case 'court-friend':
       return 'Asked to court.' // log-only
     case 'proposal':
@@ -2339,7 +2355,16 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       } else {
         lines.push('The file is clean, which is worth something here.')
       }
-      lines.push('Pleading guilty is a certain conviction and a lighter hand — a fine where a trial might have meant months.')
+      // What the plea actually buys, per offence, rather than a promise
+      // the sentencing code does not keep (review S4).
+      const canBeFined = offence === undefined || offence.fine > 0
+      lines.push(
+        priors === 0 && canBeFined
+          ? 'Pleading guilty is a certain conviction and a lighter hand — with a clean file it can end in a fine where a trial might have meant months.'
+          : priors === 0
+            ? 'Pleading guilty is a certain conviction and a shorter term. This charge carries no fine; it is months either way.'
+            : 'Pleading guilty is a certain conviction and a shorter term. The file rules out a fine.',
+      )
       lines.push('Standing trial can end in acquittal and can end worse. The court has heard the case either way.')
       break
     }

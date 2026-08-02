@@ -206,6 +206,111 @@ describe('the desperation moment', () => {
   })
 })
 
+describe('the review must-fixes', () => {
+  it('asks for a plea after a desperation theft, instead of sentencing off-screen', () => {
+    // The plea used to be raised from inside resolvePending, before the
+    // slot was cleared, so it was ALWAYS refused: the player took the
+    // money, got caught, and was sentenced with no say. The whole point of
+    // C2. Now the answer runs after commit and the courthouse asks.
+    let asked = 0
+    let sentencedSilently = 0
+    for (let seedValue = 1; seedValue <= 80 && asked === 0; seedValue++) {
+      const { world, id } = playedAdult(seedValue)
+      const person = world.people.get(id)
+      if (!person || person.householdId === null) continue
+      const household = world.households.get(person.householdId)
+      if (household) world.households.set(household.id, { ...household, savings: -60_000 as never })
+      world.employment.delete(id)
+
+      let found = false
+      for (let i = 0; i < 400 && !found; i++) {
+        advanceTicks(world, 1)
+        const pending = world.player.pending
+        if (pending?.kind === 'desperation') found = true
+        else if (pending !== null) resolvePending(world, pending.options[0] ?? 'accept')
+        if (world.people.get(id)?.deathTick !== null) break
+      }
+      if (!found) continue
+
+      resolvePending(world, 'take-it')
+      const arrested = world.events.some((e) => e.type === 'was-arrested' && e.subjectId === id)
+      if (!arrested) continue
+      if (world.player.pending?.kind === 'plea') asked++
+      else if (world.criminal.get(id)?.convictions.length ?? 0) sentencedSilently++
+    }
+    expect(asked, 'the courthouse never asked for a plea').toBeGreaterThan(0)
+    expect(sentencedSilently).toBe(0)
+  })
+
+  it('actually pays the money for offences that take from outside the town', () => {
+    // `-chargeHousehold(...)` moved nothing (it guards cents <= 0) and
+    // returned -undefined, putting NaN in an event detail and a
+    // serialized field. Eight offences paid the player nothing at all.
+    let checked = 0
+    for (let seedValue = 1; seedValue <= 40 && checked < 3; seedValue++) {
+      const { world, id } = playedAdult(seedValue)
+      const person = world.people.get(id)
+      if (!person || person.householdId === null) continue
+      const before = world.households.get(person.householdId)?.savings ?? 0
+      const result = commitOffence(world, world.tick, person, 'shoplifting')
+      if (!result.done) continue
+      checked++
+      const after = world.households.get(person.householdId)?.savings ?? 0
+      expect(after).toBeGreaterThan(before)
+      // And nothing NaN reached the record.
+      const theft = world.events.find((e) => e.type === 'committed-theft' && e.subjectId === id)
+      expect(theft?.detail ?? '').not.toContain('NaN')
+      const cents = Number.parseInt((theft?.detail ?? '').split(':')[1] ?? '', 10)
+      expect(Number.isFinite(cents)).toBe(true)
+      expect(cents).toBeGreaterThan(0)
+    }
+    expect(checked).toBeGreaterThan(0)
+  })
+
+  it('is a logged, once-a-month player input like every other verb', () => {
+    const { world, id } = playedAdult()
+    const person = world.people.get(id)
+    if (!person) throw new Error('no player')
+
+    const first = commitOffence(world, world.tick, person, 'vandalism')
+    expect(first.done).toBe(true)
+    // It is in the replay log — a crime is a player input.
+    expect(world.player.log.some((e) => e.kind === 'offence' && e.choice === 'vandalism')).toBe(true)
+
+    // A second in the same month is refused: the stream is keyed on the
+    // month, so pressing again re-rolled nothing while the money moved.
+    const second = commitOffence(world, world.tick, person, 'vandalism')
+    expect(second.done).toBe(false)
+    expect(second.reason).toContain('month')
+
+    // And nothing happens while a question is waiting.
+    world.player.pending = {
+      id: 900, tick: world.tick as Tick, kind: 'retirement', personId: id, otherId: null,
+      occupationId: null, workplaceId: null, monthlyPay: null, placeId: null,
+      options: ['retire', 'keep-working'],
+    }
+    const third = commitOffence(world, (world.tick + 1) as Tick, person, 'vandalism')
+    expect(third.done).toBe(false)
+    expect(third.reason).toContain('already waiting')
+  })
+
+  it('never records a conviction that costs nothing', () => {
+    for (let seedValue = 1; seedValue <= 50; seedValue++) {
+      const { world, id } = playedAdult(seedValue)
+      const person = world.people.get(id)
+      if (!person) continue
+      commitOffence(world, world.tick, person, 'disorderly-conduct')
+      if (world.player.pending?.kind === 'plea') resolvePending(world, 'stand-trial')
+      for (const conviction of world.criminal.get(id)?.convictions ?? []) {
+        expect(
+          conviction.sentenceMonths > 0 || conviction.fine > 0,
+          'a conviction with no sentence and no fine',
+        ).toBe(true)
+      }
+    }
+  })
+})
+
 describe('jail is absence, for the player too', () => {
   it('bars the charge sheet from a cell', () => {
     const { world, id } = playedAdult()
