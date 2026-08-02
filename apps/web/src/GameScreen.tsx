@@ -71,6 +71,7 @@ import {
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
 import {
+  articleFor,
   criminalRecordOf,
   GRADE_TITLES,
   NEWS_STATION,
@@ -220,6 +221,9 @@ function PersonLink({
 
 export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onAct, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
+  // Which news articles are open. Keyed by tick+headline: news items have no
+  // id of their own because they are derived from events, not stored.
+  const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
@@ -444,7 +448,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     {icon ?? '•'}
                   </span>
                   <span className="card-text">{entry.text}</span>
-                  {entry.decision !== null && (
+                  {(entry.decision !== null || entry.outcome !== null) && (
                     <button
                       type="button"
                       className="why"
@@ -455,8 +459,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </button>
                   )}
                 </div>
-                {entry.decision !== null && openWhy.has(entry.eventId) && (
-                  <p className="card-why">{explainDecision(world, entry.decision)}</p>
+                {openWhy.has(entry.eventId) && (
+                  <div className="card-why">
+                    {/* What came of it leads — that is what the question
+                        usually means (owner). The causes follow. */}
+                    {entry.outcome !== null && <p className="why-outcome">{entry.outcome}</p>}
+                    {entry.decision !== null && (
+                      <p className="why-cause">{explainDecision(world, entry.decision)}</p>
+                    )}
+                  </div>
                 )}
               </div>
             )
@@ -846,8 +857,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   const previous = allNews[index - 1]
                   const year = formatYear(item.tick)
                   const showYear = previous === undefined || formatYear(previous.tick) !== year
+                  const key = `${String(item.tick)}-${item.text}`
+                  const article = articleFor(world, item)
                   return (
-                    <div key={`${item.tick}-${item.text}`}>
+                    <div key={key}>
                       {showYear && <div className="news-year">{year}</div>}
                       <div className={item.nearby ? 'card news nearby' : 'card news'}>
                         <span className="card-icon" aria-hidden="true">
@@ -856,7 +869,32 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         <span className="card-text">
                           {item.text.charAt(0).toUpperCase() + item.text.slice(1)}.
                         </span>
+                        {article.length > 0 && (
+                          <button
+                            type="button"
+                            className="why"
+                            aria-expanded={openArticles.has(key)}
+                            onClick={() =>
+                              setOpenArticles((open) => {
+                                const next = new Set(open)
+                                if (next.has(key)) next.delete(key)
+                                else next.add(key)
+                                return next
+                              })
+                            }
+                          >
+                            Article
+                          </button>
+                        )}
                       </div>
+                      {openArticles.has(key) && article.length > 0 && (
+                        <div className="card-why article">
+                          <p className="article-byline">{NEWS_STATION} · {year}</p>
+                          {article.map((paragraph) => (
+                            <p key={paragraph}>{paragraph}</p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )
                 })}

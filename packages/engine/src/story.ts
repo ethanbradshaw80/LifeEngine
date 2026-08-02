@@ -17,9 +17,9 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { formatMoney } from '@life-engine/shared'
+import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { occupationById, offenceById, specialtyById } from './content.js'
+import { BRANCH_NAMES, occupationById, offenceById, specialtyById } from './content.js'
 import { rankTitle } from './service.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
@@ -420,6 +420,196 @@ export function explainDecision(world: World, record: CausalRecord): string {
 }
 
 /**
+ * WHAT CAME OF IT (owner direction: the Why "doesn't actually answer why...
+ * it needs to describe the outcome of that event").
+ *
+ * A causal record answers what pushed a person into a decision. That is
+ * genuinely half the question, and on its own it reads as a tautology —
+ * "he went to the school because he chose to go to the school". This
+ * answers the other half: what the event actually PRODUCED, read from the
+ * state it produced. An award names the act that earned it; a school names
+ * the rating it left behind; a sentence names the months.
+ *
+ * Returns null where an event produced nothing beyond itself — and null is
+ * the honest answer there, not an invented consequence.
+ */
+export function describeOutcome(world: World, event: WorldEvent): string | null {
+  const person = world.people.get(event.subjectId)
+  if (!person) return null
+  const they = subjectPronoun(person).toLowerCase()
+  const at = (tick: Tick): number => ageAt(person.birthTick, tick)
+
+  /** Awards granted to this person in the same month. */
+  const awardsAt = (tick: Tick) =>
+    (world.awards.get(event.subjectId) ?? []).filter((award) =>
+      award.qualifyingEventIds.some((id) => {
+        const qualifying = world.events.find((e) => e.id === id)
+        return qualifying !== undefined && qualifying.tick === tick
+      }),
+    )
+
+  switch (event.type) {
+    case 'completed-training': {
+      // The owner's own example: a school should say what it left behind.
+      const earned = awardsAt(event.tick).filter((a) => a.kind === 'qualification-badge')
+      const badge = earned[0]
+      const record = world.service.get(event.subjectId)
+      if (badge) {
+        return `Finished the course and came away with ${withArticle(badge.title)} — a rating that counts toward every promotion board from here on.`
+      }
+      if (record) {
+        return `Finished the course. The trade got sharper for it, and the file says so at the next board.`
+      }
+      return null
+    }
+
+    case 'earned-qualification': {
+      return `The rating is on the record for good: ${event.detail ?? 'a qualification'}, worth points at every board ${they} goes before.`
+    }
+
+    case 'awarded': {
+      // OWNER: an award should describe the act that earned it.
+      const award = (world.awards.get(event.subjectId) ?? []).find((a) => a.title === event.detail)
+      if (!award) return null
+      const qualifyingId = award.qualifyingEventIds[award.qualifyingEventIds.length - 1]
+      const qualifying =
+        qualifyingId === undefined ? undefined : world.events.find((e) => e.id === qualifyingId)
+      const act =
+        qualifying === undefined
+          ? null
+          : qualifying.type === 'act-of-valor'
+            ? `for ${qualifying.detail ?? 'going forward under fire'}`
+            : qualifying.type === 'wounded-in-action'
+              ? `for wounds taken in action — ${(qualifying.detail ?? '').split(':')[1] ?? 'hit in the field'}`
+              : qualifying.type === 'died'
+                ? 'awarded posthumously'
+                : qualifying.type === 'returned-home'
+                  ? 'for the tour just ended'
+                  : qualifying.type === 'saw-combat'
+                    ? `for ${qualifying.detail ?? 'contact with the enemy'}`
+                    : qualifying.type === 'reenlisted' || qualifying.type === 'discharged'
+                      ? 'for the term served'
+                      : null
+      const cite = award.citation.length > 0 ? ` The citation reads: ${award.citation}.` : ''
+      return act === null
+        ? `${award.title}${cite}`
+        : `${award.title}, ${act}.${cite}`
+    }
+
+    case 'promoted': {
+      const record = world.service.get(event.subjectId)
+      if (!record) return null
+      return `${event.detail ?? 'The next grade'} from this month — the pay goes with it, and the clock on the next board starts again at zero.`
+    }
+
+    case 'disciplined': {
+      const marks = world.events.filter(
+        (e) =>
+          e.type === 'disciplined' &&
+          e.subjectId === event.subjectId &&
+          e.tick <= event.tick &&
+          event.tick - e.tick < 60,
+      ).length
+      return marks >= 3
+        ? 'The third mark inside five years. The career ended at the orderly room.'
+        : `Mark ${String(marks)} on the file. A third inside five years ends the career.`
+    }
+
+    case 'was-convicted': {
+      const conviction = [...(world.criminal.get(event.subjectId)?.convictions ?? [])]
+        .reverse()
+        .find((c) => c.tick === event.tick)
+      if (!conviction) return null
+      const offence = offenceById(conviction.kind)
+      const sentence =
+        conviction.sentenceMonths > 0
+          ? `${String(conviction.sentenceMonths)} months`
+          : `a fine of ${formatMoney(conviction.fine as never)}`
+      return `Convicted of ${offence?.title ?? conviction.kind} and given ${sentence}. It stays on the record for good and closes doors for ten years.`
+    }
+
+    case 'was-acquitted':
+      return 'The charge did not stick. Nothing goes on the record — the arrest happened, and that was all it was.'
+
+    case 'hired': {
+      const job = world.employment.get(event.subjectId)
+      if (!job) return null
+      const where = world.places.get(job.workplaceId)?.name
+      return `Taken on at ${formatMoney(job.monthlyPay)} a month${where === undefined ? '' : ` at ${where}`}.`
+    }
+
+    case 'got-raise': {
+      const cents = event.detail === null ? null : Number.parseInt(event.detail, 10)
+      return cents === null || !Number.isFinite(cents)
+        ? null
+        : `The pay went to ${formatMoney(cents as never)} a month — the year's work, priced.`
+    }
+
+    case 'wounded-in-action':
+    case 'was-injured': {
+      const record = world.health.get(event.subjectId)
+      const mark = record?.marks[record.marks.length - 1]
+      const body = (event.detail ?? '').split(':')[1]
+      return mark === undefined
+        ? body === undefined
+          ? null
+          : `${body[0]?.toUpperCase() ?? ''}${body.slice(1)}. ${they === 'she' ? 'She' : 'He'} came through it.`
+        : `${body === undefined ? 'Hurt badly' : `${body[0]?.toUpperCase() ?? ''}${body.slice(1)}`} — and it left something: ${mark}.`
+    }
+
+    case 'deployed': {
+      const tours = world.deployments.get(event.subjectId) ?? []
+      const tour = tours.find((t) => t.startedAtTick === event.tick)
+      if (!tour) return null
+      return tour.kind === 'rotation'
+        ? `A six-month posting abroad, ${they === 'she' ? 'her' : 'his'} ${ordinal(tour.tourNumber)} time away.`
+        : `A ten-month tour, ${they === 'she' ? 'her' : 'his'} ${ordinal(tour.tourNumber)}.`
+    }
+
+    case 'returned-home': {
+      const tours = world.deployments.get(event.subjectId) ?? []
+      const tour = tours.find((t) => t.returnedAtTick === event.tick)
+      if (!tour) return null
+      const months = event.tick - tour.startedAtTick
+      const medals = awardsAt(event.tick)
+      const earned =
+        medals.length > 0 ? ` It brought ${joinClauses(medals.map((m) => m.title))}.` : ''
+      return `${String(months)} month${months === 1 ? '' : 's'} away, and home at ${String(at(event.tick))}.${earned}`
+    }
+
+    case 'enlisted': {
+      const record = world.service.get(event.subjectId)
+      if (!record) return null
+      return `Signed on at ${String(at(event.tick))} as ${withArticle(specialtyById(record.specialtyId).title)}, ${BRANCH_NAMES[record.branch as never] ?? 'the service'}.`
+    }
+
+    case 'discharged': {
+      const record = world.service.get(event.subjectId)
+      if (!record || record.dischargedAtTick === null) return null
+      const years = Math.max(1, Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR))
+      return `${String(years)} year${years === 1 ? '' : 's'} in uniform, finishing as ${rankTitle(record.branch, record.rank)}.`
+    }
+
+    case 'granted-pension': {
+      const cents = event.detail === null ? null : Number.parseInt(event.detail, 10)
+      return cents === null || !Number.isFinite(cents)
+        ? null
+        : `${formatMoney(cents as never)} a month, for life.`
+    }
+
+    default:
+      return null
+  }
+}
+
+function ordinal(n: number): string {
+  if (n === 1) return 'first'
+  if (n === 2) return 'second'
+  if (n === 3) return 'third'
+  return `${String(n)}th`
+}
+
+/**
  * Answer "why did this happen?" for a person's most recent decision of a type.
  * Returns an honest admission when nothing was recorded — see §6.
  */
@@ -452,6 +642,12 @@ export interface TimelineEntry {
   readonly text: string
   /** The decision behind it, or null if this was not a choice. */
   readonly decision: CausalRecord | null
+  /**
+   * What came of it, or null where the event produced nothing beyond
+   * itself. Shown FIRST in the Why?, because "what happened next" is what
+   * the question usually means (owner direction).
+   */
+  readonly outcome: string | null
 }
 
 /**
@@ -477,6 +673,7 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
       // lay the date out in its own column.
       text: text.replace(/^\d+ — /, ''),
       decision: event.subjectId === personId ? decisionForEvent(world, event) : null,
+      outcome: event.subjectId === personId ? describeOutcome(world, event) : null,
     })
   }
   return entries

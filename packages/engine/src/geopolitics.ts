@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Geopolitics: the world beyond the town. L4-M1.
  *
  * A dozen fictional nations plus the homeland, each a bundle of STATISTICS —
@@ -22,6 +22,8 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
+import { TICKS_PER_YEAR } from '@life-engine/shared'
+import { formatYear } from './clock.js'
 import { NATION_NAMES } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
@@ -435,6 +437,158 @@ function transition(
 // ---------------------------------------------------------------------------
 // News
 // ---------------------------------------------------------------------------
+
+/**
+ * The story behind a headline (owner direction: "a little summary of the
+ * event... in a little 'article' button you can click on").
+ *
+ * Written from the state the headline came out of — the war's own phase and
+ * casualties, the nation's strength, the town's own record. A wire report
+ * is short and factual because that is what a wire report is, and because
+ * everything in it has to be true of the simulation.
+ */
+/** Thousands separators, deterministically. `toLocaleString` is banned in
+ *  the engine — it reads the host's locale, so the same world would render
+ *  differently on two machines (DETERMINISM.md §5; the purity test caught
+ *  exactly this). */
+function grouped(n: number): string {
+  const digits = String(Math.abs(Math.trunc(n)))
+  let out = ''
+  for (let i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 === 0) out += ','
+    out += digits[i]
+  }
+  return n < 0 ? `-${out}` : out
+}
+
+export function articleFor(world: World, item: NewsItem): string[] {
+  const home = homeland(world)
+  const paragraphs: string[] = []
+
+  // A war item: the pair, the phase, what it has cost, and where we stand.
+  const war = activeWars(world).find(
+    (w) =>
+      item.text.includes(world.nations.get(w.a)?.name ?? ' ') &&
+      item.text.includes(world.nations.get(w.b)?.name ?? ' '),
+  )
+  if (war !== undefined) {
+    const a = world.nations.get(war.a)
+    const b = world.nations.get(war.b)
+    if (a && b) {
+      const months = world.tick - war.sinceTick
+      const years = Math.floor(months / TICKS_PER_YEAR)
+      const dead = war.casualtiesA + war.casualtiesB
+      const phase = war.warPhase ?? 'attrition'
+      const ourWar = home !== undefined && (war.a === home.id || war.b === home.id)
+      const other = war.a === home?.id ? b : a
+
+      paragraphs.push(
+        ourWar
+          ? `The Republic and ${other.name} remain at war, ${
+              years >= 1
+                ? `${String(years)} year${years === 1 ? '' : 's'} after the fighting began in ${formatYear(war.sinceTick)}`
+                : `${String(months)} month${months === 1 ? '' : 's'} after the declaration`
+            }.`
+          : `${a.name} and ${b.name} remain at war, ${
+              years >= 1
+                ? `${String(years)} year${years === 1 ? '' : 's'} on from ${formatYear(war.sinceTick)}`
+                : 'declared this year'
+            }.`,
+      )
+      paragraphs.push(
+        phase === 'opening'
+          ? 'The war is in its opening weeks and the front has not settled anywhere yet.'
+          : phase === 'offensive'
+            ? 'Both armies are moving. The ministries are calling it an offensive, which means the line is being pushed and paid for at the same time.'
+            : phase === 'stalemate'
+              ? 'Neither side has moved the line in months. What is being spent now is being spent to hold it exactly where it is.'
+              : 'The fighting has settled into attrition: no ground changing hands worth the name, and the cost going on regardless.',
+      )
+      if (dead > 0) {
+        paragraphs.push(
+          `Casualties across both sides are put at ${grouped(dead)}, a figure assembled from two ministries with every reason to shade it.`,
+        )
+      }
+      if (ourWar && home !== undefined) {
+        const ours = war.a === home.id ? war.casualtiesA : war.casualtiesB
+        paragraphs.push(
+          `${grouped(ours)} of those are the Republic's own, and the home stations are cutting orders against a force that is already committed.`,
+        )
+        paragraphs.push(
+          `For ${world.town.name} that means longer rotation lists, and it means the families of anyone serving read this page differently than the rest of us do.`,
+        )
+      } else if (home !== undefined) {
+        const allyIn =
+          (world.nations.get(war.a)?.bloc ?? null) === home.bloc ||
+          (world.nations.get(war.b)?.bloc ?? null) === home.bloc
+        paragraphs.push(
+          allyIn
+            ? 'The Republic is not a belligerent, but one of its own bloc is, and that distinction has historically had a shelf life.'
+            : 'The Republic is not a belligerent and holds no obligation that would make it one.',
+        )
+      }
+      return paragraphs
+    }
+  }
+
+  // A recruiting season.
+  if (item.text.includes('recruiters set up')) {
+    const atWar =
+      home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
+    return [
+      `The recruiting party has taken the room off the square in ${world.town.name} and will hold it through the season.`,
+      atWar
+        ? 'They are here because the Republic is at war and a committed force has to be replaced, which the office does not say and nobody needs telling.'
+        : 'They come through every few years whether anything is happening or not, which is how a standing army stays standing.',
+      'The ones who walk in are, in the main, the ones out of work and the ones whose fathers went. It is a pattern the office has never had to be taught.',
+      'A term runs four years, and what a person signs at eighteen tends to decide the twenty that follow it.',
+    ]
+  }
+
+  // Somebody's service, ended the hardest way. The most serious thing this
+  // page prints, and the length reflects that.
+  if (item.text.includes('died in service')) {
+    const name = item.text.replace(' died in service', '')
+    const atWar =
+      home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
+    return [
+      `${name}, of ${world.town.name}, has died while serving.`,
+      atWar
+        ? 'The Republic is at war, and the notice reached the family by the route those notices take.'
+        : 'The Republic is not at war, which is worth stating plainly: most of what the service costs is not paid in battle.',
+      'The service record closes with the date and stays open to anyone who asks for it, trade and postings and years.',
+      'Where a pension was owed it follows the family. Where none was owed, nothing does.',
+      `In a town this size that is not an abstraction, and the people who knew ${name} will not read it as one.`,
+    ]
+  }
+
+  if (item.text.includes('came home from the war')) {
+    const name = item.text.replace(' came home from the war', '')
+    return [
+      `${name} is back in ${world.town.name} after a tour and off the rotation list for now.`,
+      'A tour runs ten months, and the ones who come home come home to a household that has been running without them the whole time.',
+      'What the months cost sits on the service record and the medical one, where it stays whether it shows or not.',
+    ]
+  }
+
+  // The courthouse.
+  if (
+    item.text.includes('convicted') ||
+    item.text.includes('arrested') ||
+    item.text.includes('stolen')
+  ) {
+    return [
+      `The courthouse in ${world.town.name} sat on the matter this month and has entered its answer on the record.`,
+      'Property offences here are, as they generally are anywhere, the work of people whose ledgers ran out before their months did.',
+      'A conviction follows a person ten years through every hiring office in town, and the recruiting station besides.',
+      'It is the ten years rather than the sentence that usually decides what happens to the rest of the life.',
+    ]
+  }
+
+  // Anything else on the wire: the record already says it, and the station
+  // does not pad a story it has nothing to add to.
+  return paragraphs
+}
 
 export interface NewsItem {
   readonly tick: Tick

@@ -77,6 +77,7 @@ export type { CustomLifeSpec } from './player.js'
 // Geopolitics (L4-M1)
 export {
   activeWars,
+  articleFor,
   generateNations,
   homeland,
   isAtWar,
@@ -191,7 +192,15 @@ export { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
 export { childrenOf, decisionForEvent, decisionsFor, eventsFor } from './records.js'
 
 // Narrative
-export { explainDecision, explainWhy, fullName, lifeStory, personSummary, timelineFor } from './story.js'
+export {
+  describeOutcome,
+  explainDecision,
+  explainWhy,
+  fullName,
+  lifeStory,
+  personSummary,
+  timelineFor,
+} from './story.js'
 export type { TimelineEntry } from './story.js'
 
 // Persistence surface (serialization only — save/load is Milestone 4)

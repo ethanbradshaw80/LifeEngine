@@ -948,6 +948,34 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* A news article, opened from its headline. */
+.card-why.article p {
+  margin: 0 0 0.4rem;
+}
+
+.card-why.article p:last-child {
+  margin-bottom: 0;
+}
+
+.article-byline {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Why?: what came of it, then what caused it. */
+.why-outcome {
+  margin: 0 0 0.3rem;
+  color: var(--fg);
+}
+
+.why-cause {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
 /* The verdict, as its own moment. */
 .sheet.verdict h2 {
   margin: 0.1rem 0 0.6rem;
