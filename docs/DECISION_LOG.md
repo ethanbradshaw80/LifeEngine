@@ -762,6 +762,22 @@ fighting the same enemy for a stated reason.
 ## ADR-0021 — Real foreign nations, and generated wars with them, in a real-world preset
 
 **Status:** Accepted (owner direction, 2026-08-02)
+**Amended:** 2026-08-02 — real country names in award citations, confirmed.
+
+**Amendment (owner, 2026-08-02).** The place tally added with
+one-award-per-deployment puts real country names into a permanent award
+citation, and does it more visibly than the single-campaign line it
+replaced: "service in the campaigns against Afghanistan x2, Iran". This was
+raised to the owner as a judgement call rather than a defect, and **he
+confirmed it stays.**
+
+It is consistent with the rulings already in force and does not widen them:
+the DECORATION is fictional (the campaign award is deliberately the generic
+Armed Forces Expeditionary Medal precisely so a generated war can never mint
+a real named campaign medal); the country appears only as a statement about
+a war THIS WORLD generated; and no real unit, person or real conflict is
+named. A reviewer meeting this again should treat it as settled rather than
+reopening it.
 **Date:** 2026-08-02
 **Supersedes:** ADR-0020 §2's "foreign nations FICTIONAL permanently", for
 presets that opt in. Everything else in ADR-0020 stands, including named
