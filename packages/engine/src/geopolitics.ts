@@ -81,7 +81,7 @@ export function generateNations(world: World): void {
   const homeStrength = 900 + rng.nextInt(0, 80)
   world.nations.set(homeId, {
     id: homeId,
-    name: 'the Republic',
+    name: world.spec.homelandName,
     isHomeland: true,
     strength: homeStrength,
     baseStrength: homeStrength,

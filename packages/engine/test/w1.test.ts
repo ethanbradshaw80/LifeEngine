@@ -20,8 +20,8 @@ import type { WorldSpec } from '../src/types.js'
 import { serialize } from '../src/snapshot.js'
 import { setPlayer } from '../src/player.js'
 import { boardStandingFor, rankTitle, unitOptionsFor } from '../src/service.js'
-import { branchSpecFor } from '../src/worldspec.js'
-import { specialUnitById } from '../src/content.js'
+import { branchSpecFor, schoolFor, specialtyFor, unitFor } from '../src/worldspec.js'
+import { occupationById, specialUnitById } from '../src/content.js'
 import { homeland } from '../src/geopolitics.js'
 import { recordEvent } from '../src/records.js'
 import { timelineFor } from '../src/story.js'
@@ -180,9 +180,10 @@ describe('the homeland is named by the world, not by the sentence', () => {
   })
 
   it('leaves no "the Republic" typed into engine prose', async () => {
-    // The literal belongs to Classic's nation table and nowhere else. A
-    // preset with a different homeland must not find the old one in a
-    // sentence (W1 resistance 6).
+    // The literal belongs to Classic's CONTENT and nowhere else — it moved
+    // from geopolitics.ts to content.ts's HOMELAND_NAME when the homeland
+    // became the preset's. A preset with a different homeland must not find
+    // the old one waiting in a sentence (W1 resistance 6).
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
     const url = await import('node:url')
@@ -191,7 +192,7 @@ describe('the homeland is named by the world, not by the sentence', () => {
     const files = await fs.readdir(srcDir)
     const offenders: string[] = []
     for (const file of files) {
-      if (!file.endsWith('.ts') || file === 'geopolitics.ts') continue
+      if (!file.endsWith('.ts') || file === 'content.ts') continue
       const text = await fs.readFile(path.join(srcDir, file), 'utf8')
       for (const [i, line] of text.split('\n').entries()) {
         // Comments may still discuss the Republic; strings may not.
@@ -251,6 +252,7 @@ describe('the WorldSpec', () => {
         civic: ['the meeting hall'],
         bases: ['Camp Ridge'],
       },
+      homelandName: 'the Commonwealth',
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
       specialties: CLASSIC_SPEC.specialties,
@@ -271,10 +273,14 @@ describe('the WorldSpec', () => {
       expect(['Auberon', 'Isolde']).toContain(person.givenName)
     }
 
-    // Foreign nations come from the spec; the homeland is generated.
+    // Foreign nations AND the homeland come from the spec — W2's premise is
+    // that one preset's homeland is the United States while every foreign
+    // nation stays fictional in all of them.
     const foreign = [...world.nations.values()].filter((n) => !n.isHomeland).map((n) => n.name)
     expect(foreign).toEqual(['Aldaria', 'Brennisk', 'Cothery'])
-    expect([...world.nations.values()].filter((n) => n.isHomeland).length).toBe(1)
+    const homelands = [...world.nations.values()].filter((n) => n.isHomeland)
+    expect(homelands.length).toBe(1)
+    expect(homelands[0]?.name).toBe('the Commonwealth')
   })
 })
 
@@ -295,6 +301,7 @@ describe('a preset that is not Classic actually runs', () => {
         civic: ['the meeting hall'],
         bases: ['Camp Ridge'],
       },
+      homelandName: 'the Commonwealth',
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
       specialties: CLASSIC_SPEC.specialties,
@@ -349,5 +356,38 @@ describe('a branch this build cannot resolve', () => {
     // And the rank reads as an index, not as somebody else's stripes.
     expect(rankTitle(world, 'space-command', 4)).toBe('#4')
     expect(rankTitle(world, 'land-forces', 4)).toBe('CPL')
+  })
+})
+
+describe('content ids out of a save never throw (resistance 2)', () => {
+  it('resolves a trade, a course, a unit and a job it has never heard of', () => {
+    const world = createWorld(makeSeed(12345), 40)
+
+    // A specialty from a preset this build does not ship. It keeps its id as
+    // its title so the record still reads, and it does NOTHING — no school,
+    // no unlocks, and no exposure, because inventing danger a preset never
+    // described is worse than saying nothing.
+    const trade = specialtyFor(world, 'orbital-rigger')
+    expect(trade.title).toBe('orbital-rigger')
+    expect(trade.schoolMonths).toBe(0)
+    expect(trade.civilianUnlocks).toEqual([])
+    expect(trade.exposure).toEqual({ directCombat: 0, convoy: 0, baseAttack: 0, accident: 0 })
+    // Not borrowed from a real trade.
+    expect(trade.id).not.toBe(world.spec.specialties[0]?.id)
+
+    // Courses and units answer null: "no such course" and "no unit" are
+    // states every caller already handles.
+    expect(schoolFor(world, 'orbital-drop-course')).toBeNull()
+    expect(unitFor(world, 'the-void-watch')).toBeNull()
+
+    // And an occupation id from a later build reads as itself rather than
+    // killing the worker mid-tick.
+    const job = occupationById('drone-wrangler')
+    expect(job.title).toBe('drone-wrangler')
+    expect(job.maxMonthlyPay).toBe(0)
+
+    // The real ones still resolve, obviously.
+    expect(specialtyFor(world, 'rifleman').title).toBe('rifleman')
+    expect(occupationById('labourer').maxMonthlyPay).toBeGreaterThan(0)
   })
 })

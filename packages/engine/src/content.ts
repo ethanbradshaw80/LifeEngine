@@ -74,6 +74,13 @@ export const MACHINES_BY_OCCUPATION: Readonly<Record<string, readonly string[]>>
 // All invented (foundation §3). 'Ashkelon' was here until L4-M5's review
 // caught it — a real city and a real conflict site, about to be minted onto
 // campaign medals. Names on the permanent record must never be real places.
+/**
+ * The homeland's name, Classic's. It carries its own article because the
+ * sentences that render it do not know whether the preset's homeland is
+ * "the Republic" or "Ruritania" (W1).
+ */
+export const HOMELAND_NAME = 'the Republic'
+
 export const NATION_NAMES: readonly string[] = [
   'Varenia', 'Costmara', 'Belgrave', 'Tyrene', 'Osmark', 'Halvia',
   'Rondesia', 'Quillar', 'Verros', 'Nortavia', 'Sundermark', 'Veskarn',
@@ -527,10 +534,28 @@ export function meetsRequirement(has: EducationLevel, needs: EducationLevel): bo
   return educationRank(has) >= educationRank(needs)
 }
 
+/**
+ * An occupation by id. TOTAL — it does not throw (W1 resistance 2).
+ *
+ * Occupation ids live in saved employment records and in 'hired' /
+ * 'turned-down' event details, so this is called with strings that came out
+ * of a file. Throwing on an unrecognized one kills the worker mid-tick and
+ * takes the whole world with it; an unknown trade reads as its own id,
+ * pays nothing and requires nothing, which is honest about what the build
+ * knows. Occupations are shared content in every preset (WORLD_MODES_PLAN
+ * rules job titles real everywhere), so this only ever fires for a save
+ * written by a later build.
+ */
 export function occupationById(id: string): Occupation {
-  const found = OCCUPATIONS.find((o) => o.id === id)
-  if (!found) throw new Error(`Unknown occupation: ${id}`)
-  return found
+  return (
+    OCCUPATIONS.find((o) => o.id === id) ?? {
+      id,
+      title: id,
+      requires: 'none',
+      minMonthlyPay: 0 as Money,
+      maxMonthlyPay: 0 as Money,
+    }
+  )
 }
 
 /**
