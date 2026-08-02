@@ -26,6 +26,17 @@ architecture below. Implementation is the W-arc, after the P/D arcs.
 | The player's town | REALISTIC-FICTIONAL in a real county | A real small town implies real residents and businesses. Real metros acceptable later. |
 | Streets/neighbourhoods | REALISTIC-FICTIONAL | Real addresses imply real occupants. |
 | Homeland nation | REAL (United States) | CLAUDE.md §3 already says "realistic simulated United States"; the fictional Republic was the deviation. Requires the two amendments below. Frame explicitly as alternate history (1970 start + generated wars). |
+**Owner reference data, 2026-08-02.** The owner supplied a list of 21 real
+foreign countries (with US-perspective ally/hostile labels) and a large list of
+real military bases. THE BASES ARE IN USE — see W2 above. THE COUNTRIES ARE NOT,
+and cannot be without changing the ruling below and ADR-0020 §2, because this
+engine GENERATES wars: it escalates relations to war, kills people in them, and
+writes the enemy's name onto campaign medals, headlines and death records that
+are never rewritten. Naming Russia or China there would fabricate a war that
+did not happen and make real casualties a mechanic. This is flagged for the
+owner as his decision, with the options written up in the handoff; nothing has
+been changed on the strength of the data alone.
+
 | Foreign nations & wars | FICTIONAL, permanently | R-14 + MILITARY_AND_WAR_FOUNDATION §3: generated wars with real countries put fabricated history on permanent records; real wars make real casualties a mechanic. The foundation's compromise stands: real domestic, fictional theatres. |
 | Service branches | REAL names, NO insignia | Nominative use of "US Army/Navy/Air Force" in an expressive work; DoD licenses emblems — never ship them. Rank ladders are already real by owner direction. |
 | Bases/installations | REAL names | Facts about government property; foundation §3 already sanctions. Care: era-correct names (2023 renamings); never attach invented scandal to a named real base. |
@@ -128,7 +139,41 @@ PERFORMANCE_BASELINE). Time zones: skipped — meaningless at monthly ticks.
   old saves = classic); golden per preset; determinism docs updated.
   Zero behavior change for Classic (same golden hash is the exit
   criterion).
-- **W2 — American Heartland preset.** The rulings above become content:
+- **W2 — American Heartland preset. COMPLETE 2026-08-02** (commits 1d0d968,
+  5f82a16). Ashcroft — a town that does not exist — in Vermillion County,
+  Indiana, which does. Homeland: the United States. The Army, the Navy and
+  the Air Force by name, on the ladders the engine already had (they were
+  modelled on the real enlisted structure from the start, so no mechanic
+  changed). Seven real installations from the owner's own reference list,
+  filtered by ERA and by BRANCH. Invented town, streets, businesses, school
+  and call sign. Foreign nations, wars, named units and decorations
+  fictional, identical to Classic's. The three constitution amendments
+  landed with it (CLAUDE.md §3, PROJECT_CHARTER.md §2,
+  MILITARY_AND_WAR_FOUNDATION §3). Reviewed by military-scope-reviewer;
+  three must-fixes, all fixed:
+    1. Base assignment had no branch filter, so sailors were posted to army
+       forts — harmless while the names were invented, a false claim about
+       a real place once they were not. `BaseSpec` now names the services
+       posted at each installation.
+    2. The charter amendment was missing, so the charter contradicted the
+       shipped preset.
+    3. Nothing told the player this is alternate history, which this plan
+       makes a CONDITION of the homeland-real ruling. Presets carry a
+       description now, shown under the picker.
+  PINNED: Heartland has its own golden fingerprint (41ec53de), per this
+  document's own one-golden-per-preset rule.
+  KNOWN AND ACCEPTED: the engine does not model base closures or renamings,
+  so a century-long run posts people to installations whose real-world
+  status changed after 1970 (Fort Bragg, Fort Campbell, Fort Riley, Naval
+  Station Norfolk, Naval Base San Diego, Wright-Patterson and Nellis were
+  all chosen for being long-lived and correctly named at both ends of the
+  run, but the sim asserts nothing about their status). The preset also
+  does not model distance: installations are "home stations" of a town in
+  Indiana. ERA-WEIGHTED NAME POOLS ARE NOT DONE — the preset reuses the
+  1990-census pools, because inventing 1940s frequency weights would be
+  inventing a fact. That needs real data, not engineering.
+
+- **W2 (original scope, for reference) — American Heartland preset.** The rulings above become content:
   real state/county frame, fictional town, US homeland + real branches
   and bases, era name pools, configurable START_YEAR; the two
   constitution amendments land with this milestone's ADR; military-scope-

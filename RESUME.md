@@ -65,11 +65,14 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `6ee7ad8`.
-SIMULATION_VERSION **41** · golden **7ddc1784** · SCHEMA_VERSION **21** ·
-**446 tests**, all green. P3 COMPLETE and reviewed. W1 COMPLETE and reviewed
-three times (architecture ×2 + persistence); seven must-fixes found across
-them, all fixed.
+**STATE:** clean tree, everything pushed, HEAD `5f82a16`.
+SIMULATION_VERSION **41** · Classic golden **7ddc1784** · Heartland golden
+**41ec53de** · SCHEMA_VERSION **21** · **472 tests**, all green.
+P3, W1 and W2 all COMPLETE and reviewed — four reviews, ten must-fixes, all
+fixed.
+
+**THERE IS ONE DECISION WAITING FOR YOU — see "THE REAL COUNTRIES QUESTION"
+below. Nothing was changed on the strength of it.**
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -79,30 +82,11 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. W2 — THE AMERICAN HEARTLAND PRESET** (`docs/WORLD_MODES_PLAN.md`,
-ADR-0020). W1 is done: the seam exists and is proved, so W2 is now mostly
-CONTENT plus two constitution amendments.
-  - The rulings are already written in WORLD_MODES_PLAN.md's table — real
-    US state/county frame, REALISTIC-FICTIONAL town and streets, homeland =
-    the United States, REAL branch names with NO insignia, real
-    installation names, era-weighted name pools, its own START_YEAR.
-    FOREIGN NATIONS AND NAMED UNITS STAY FICTIONAL, permanently.
-  - THE TWO AMENDMENTS LAND WITH ITS ADR, not before:
-    MILITARY_AND_WAR_FOUNDATION §3 "all countries fictional" → foreign
-    only; CLAUDE.md §3 "military units are fictional" → distinguishes
-    BRANCHES (real, name-only, per preset) from UNITS (always fictional).
-  - **military-scope-reviewer is MANDATORY** for it.
-  - Watch for: era-weighted names make the calendar year an INPUT rather
-    than a label, which is the moment startYear may need to move from the
-    spec to the save header (see the W1 record below).
-  - The UI has no preset PICKER yet. The worker's 'new world' message takes
-    a presetId; nothing sends one.
-
-**2. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
+**1. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
 priors — and the two military items deferred since M-ARMY2 ("families
 follow a PCS", "branch-appropriate bases") which need real geography.
 
-**3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
+**2. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
 record-fade gates, the victim's side as player experience.
 
@@ -185,6 +169,67 @@ pure refactor, which was the stated exit criterion.
     treat it as BINARY and skip it — every grep-based audit in this repo
     had a hole the size of the newsroom. purity.test.ts now fails on a NUL
     in any engine source.
+
+### THE REAL COUNTRIES QUESTION — your call, nothing done yet
+You sent a list of 21 real countries with ally/hostile labels, and a list of
+real military bases.
+
+**The bases are in.** Seven of them, filtered twice: by ERA (every name is
+one the post carried in 1970 and carries again today — the 2023 renamings
+were reverted in 2025; every "Joint Base" name is a 2004-2010 anachronism
+for a world that starts in 1970, so they are out, as is Vandenberg Space
+Force Base) and by BRANCH, which the review made a must-fix: the engine was
+posting sailors to army forts, which is harmless with invented names and a
+false claim about a real place without them.
+
+**The countries are not, and I did not add them, because doing so would
+reverse a decision you already made and would break something specific.**
+This engine does not merely list foreign countries — it GENERATES WARS with
+them. It escalates relations, sends people to those wars, kills them there,
+and writes the enemy's name onto campaign medals, newspaper headlines and
+death records that are permanent and never rewritten. Put Russia or China in
+that slot and the game manufactures a war that did not happen, with real
+casualties as a mechanic, on records a descendant reads a century later.
+That is R-14, it is MILITARY_AND_WAR_FOUNDATION §3, and it is ADR-0020 §2 in
+your own words: "foreign nations and named military units FICTIONAL
+permanently". It survived the homeland becoming real precisely because the
+argument was always about the WARS, not the map.
+
+**Your options, as I see them:**
+1. **Leave it.** Real US, real bases, invented enemies. This is what ships
+   now and it is the only option that needs no new work.
+2. **Real countries as a BACKDROP, never as belligerents** — they exist,
+   they trade, they are named in the news, but wars are only ever generated
+   against invented states. Medium work, and the seam is delicate: one
+   escalation path reaching a real name puts it on a medal.
+3. **Real countries, real wars.** I would need you to say so explicitly.
+   It means the game asserting invented history about real nations, and I
+   would want the alternate-history framing made much louder than one line
+   under a picker.
+My recommendation is 1, or 2 if you want the map to feel real. Say the word
+and I will do either.
+
+### W2 — COMPLETE (the American Heartland; military-scope-reviewed)
+Commits 1d0d968 · 5f82a16. Ashcroft, a town that does not exist, in
+Vermillion County, Indiana, which does. The United States as homeland. The
+Army, the Navy and the Air Force by name — no insignia, ever — on the
+ladders the engine already had. Seven real installations, branch-tagged.
+Invented town, streets, businesses, school, call sign. Foreign nations,
+wars, named units and decorations fictional, identical to Classic's.
+  - THE THREE CONSTITUTION AMENDMENTS LANDED (CLAUDE.md §3,
+    PROJECT_CHARTER.md §2, MILITARY_AND_WAR_FOUNDATION §3): a BRANCH may
+    carry its real name where the homeland is real; a named UNIT is
+    fictional in every preset, permanently.
+  - Heartland has its own golden (41ec53de). A preset is a STRING in a
+    save, and nothing else binds that string to the content behind it.
+  - The review's three must-fixes: branch-blind base postings, the missing
+    charter amendment, and no alternate-history framing anywhere — which
+    the plan makes a CONDITION of a real homeland, not a nicety.
+  - NOT DONE, and not faked: era-weighted name pools. The preset reuses the
+    1990-census pools. Inventing 1940s frequency weights would be inventing
+    a fact; that needs real data, not engineering.
+  - The engine models no base closures or renamings, and no distance: the
+    installations are "home stations" of a town in Indiana.
 
 ### RULES THAT KEEP BITING (read these before writing code)
 
