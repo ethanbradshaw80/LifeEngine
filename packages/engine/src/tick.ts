@@ -23,6 +23,7 @@ import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
 import { runGeopolitics } from './geopolitics.js'
+import { runCallsToArms } from './coalition.js'
 import { runHealth } from './health.js'
 import { runService } from './service.js'
 import { runDeployments } from './deployment.js'
@@ -48,6 +49,13 @@ export function advanceTick(world: World): World {
   // through. Nothing in the town reads geopolitics yet (that starts at
   // L4-M3), so this ordering is about the future, not the present.
   runGeopolitics(world, next)
+  // AFTER the wars have advanced, never before: the distress that decides
+  // whether a country calls for help is this month's, not last month's
+  // (ADR-0022). Sequenced HERE rather than at the end of runGeopolitics
+  // because geopolitics importing coalition would close a cycle — the tick
+  // loop is the orchestrator, which is what the import ratchet was telling
+  // us when it failed.
+  runCallsToArms(world, next)
 
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v44 — COALITIONS (owner spec, ADR-0022). A belligerent that is losing
+ *      calls on its allies, and the ones that answer declare against the
+ *      same enemy — so a coalition is built out of ordinary pairwise
+ *      wars. Alignment now sets standing alliance membership, which the
+ *      call needs and ADR-0022 §3 discloses. Wars spread now, so any world
+ *      with a long enough war differs from v43.
  * v43 — WAR LENGTH AND DIFFICULTY (owner spec). A war's length is ROLLED
  *      at the outbreak — 2 to 15 years, quick when the sides are
  *      mismatched and a grind when they are even — and that length is a
@@ -290,7 +296,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 43
+export const SIMULATION_VERSION = 44
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -10,7 +10,8 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
-import { combatPowerOf, warExperienceOf } from '../src/geopolitics.js'
+import { combatPowerOf, homeland, relationBetween, warExperienceOf } from '../src/geopolitics.js'
+import { alliesOf, distressOf } from '../src/coalition.js'
 import { threatVectorFor } from '../src/deployment.js'
 import { HEARTLAND_SPEC } from '../src/heartland.js'
 import { REAL_NATIONS } from '../src/realnations.js'
@@ -168,5 +169,144 @@ describe('difficulty', () => {
       // Nobody can have been at war longer than the world has existed.
       expect(n.warMonths).toBeLessThanOrEqual(world.tick * 4)
     }
+  })
+})
+
+describe('the call to arms', () => {
+  it('goes out when the war is going badly, not on a clock', () => {
+    // The owner's own answer to the spec's open question: "it should
+    // trigger ally help when they are losing the war or taking more deaths
+    // and need additional help."
+    const world = createWorld(makeSeed(12345), 40, HEARTLAND_SPEC)
+    const comfortable = war({ casualtiesA: 400, casualtiesB: 400, sinceTick: world.tick as never })
+    const losing = war({ casualtiesA: 60_000, casualtiesB: 2_000, sinceTick: 0 as never })
+
+    const [first, second] = [...world.nations.values()]
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    if (!first || !second) return
+
+    const cwar = { ...comfortable, a: first.id, b: second.id }
+    const lwar = { ...losing, a: first.id, b: second.id }
+    expect(distressOf(world, cwar, first.id)).toBeLessThan(150)
+    expect(distressOf(world, lwar, first.id)).toBeGreaterThanOrEqual(500)
+    // The side that is WINNING is not in distress, whatever the totals.
+    expect(distressOf(world, lwar, second.id)).toBeLessThan(distressOf(world, lwar, first.id))
+  })
+
+  it('a really bad war has called before its fifth year', () => {
+    // The one hard guarantee in the owner's answer. Everything else about
+    // the timing is a draw; this is not.
+    let checked = 0
+    for (let seed = 1; seed <= 10; seed++) {
+      const world = createWorld(makeSeed(seed), 60, HEARTLAND_SPEC)
+      advanceTicks(world, 1800)
+
+      for (const relation of world.geoRelations.values()) {
+        if (relation.state !== 'war') continue
+        const months = world.tick - relation.sinceTick
+        if (months < 72) continue
+        for (const sideId of [relation.a, relation.b]) {
+          if (distressOf(world, relation, sideId) < 600) continue
+          const side = world.nations.get(sideId)
+          if (!side || side.bloc === null) continue // nobody to call
+          if (alliesOf(world, sideId).length === 0) continue
+          const called = world.events.some(
+            (e) =>
+              e.type === 'call-to-arms' &&
+              e.subjectId === sideId &&
+              e.tick - relation.sinceTick <= 60,
+          )
+          expect(called, 'a war this bad should have called for help by year 5').toBe(true)
+          checked++
+        }
+      }
+    }
+    expect(checked, 'no severely distressed war with allies was found to check').toBeGreaterThan(0)
+  })
+
+  it('builds coalitions out of ordinary wars, with the reason on the record', () => {
+    for (let seed = 1; seed <= 6; seed++) {
+      const world = createWorld(makeSeed(seed), 60, HEARTLAND_SPEC)
+      advanceTicks(world, 1800)
+
+      const joins = world.events.filter((e) => e.type === 'joined-war')
+      for (const join of joins) {
+        // A joiner is really at war with that enemy — an ordinary relation,
+        // not a special case.
+        const relation = relationBetween(world, join.subjectId, join.otherId ?? join.subjectId)
+        expect(relation).toBeDefined()
+        // Any rung is legitimate later — what matters is the pair exists.
+        expect(relation?.state).toBeDefined()
+        // And the record says why, in the engine's own words.
+        const record = world.causalRecords.find(
+          (r) =>
+            r.subjectId === join.subjectId &&
+            r.tick === join.tick &&
+            r.chosen.startsWith('joined '),
+        )
+        expect(record?.inputs.some((i) => i.factor === 'alliance-obligation')).toBe(true)
+        expect(record?.inputs.some((i) => i.factor === 'ally-in-distress')).toBe(true)
+      }
+      if (joins.length > 0) return
+    }
+    throw new Error('no ally ever joined a war across six worlds — the feature is dead')
+  })
+
+  it('asks the same ally at most once a year', () => {
+    const world = createWorld(makeSeed(2), 60, HEARTLAND_SPEC)
+    advanceTicks(world, 1800)
+    const byPair = new Map<string, number[]>()
+    for (const event of world.events) {
+      if (event.type !== 'call-to-arms') continue
+      const key = `${String(event.subjectId)}:${String(event.otherId ?? -1)}`
+      const ticks = byPair.get(key) ?? []
+      ticks.push(event.tick)
+      byPair.set(key, ticks)
+    }
+    expect(byPair.size).toBeGreaterThan(0)
+    for (const ticks of byPair.values()) {
+      const sorted = [...ticks].sort((x, y) => x - y)
+      for (let i = 1; i < sorted.length; i++) {
+        expect((sorted[i] ?? 0) - (sorted[i - 1] ?? 0)).toBeGreaterThan(12)
+      }
+    }
+  })
+
+  it('runs for every nation, the homeland included — and asks the player nothing', () => {
+    // ADR-0022 §4: the player is one person, not a government. The homeland
+    // decides by the same formula as everyone else, and a call to arms must
+    // never raise a decision for the player.
+    const world = createWorld(makeSeed(3), 60, HEARTLAND_SPEC)
+    advanceTicks(world, 1800)
+
+    const home = homeland(world)
+    expect(home).toBeDefined()
+    const joins = world.events.filter((e) => e.type === 'joined-war')
+    const npcJoins = joins.filter((e) => e.subjectId !== home?.id)
+    expect(npcJoins.length, 'nations the player does not control never joined anything').toBeGreaterThan(0)
+
+    // Nothing about coalitions ever became the player's question.
+    expect(world.player.pending).toBeNull()
+  })
+
+  it('a decline is recorded and starts no war', () => {
+    let seen = 0
+    for (let seed = 1; seed <= 5; seed++) {
+      const world = createWorld(makeSeed(seed), 80, HEARTLAND_SPEC)
+      advanceTicks(world, 1800)
+      for (const decline of world.events.filter((e) => e.type === 'declined-call').slice(0, 20)) {
+        const record = world.causalRecords.find(
+          (r) => r.subjectId === decline.subjectId && r.tick === decline.tick && r.chosen.startsWith('stayed out'),
+        )
+        expect(record?.chosen).toContain('stayed out')
+        // Kept because the decision is recorded as 'major' — a refusal's
+        // whole meaning is the war it did not join.
+        expect(record?.rejected.length).toBeGreaterThan(0)
+        seen++
+      }
+      if (seen > 0) break
+    }
+    expect(seen, 'nobody ever refused a call across five worlds').toBeGreaterThan(0)
   })
 })

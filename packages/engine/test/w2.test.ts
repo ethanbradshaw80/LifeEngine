@@ -216,11 +216,15 @@ describe('the rulings, enforced rather than remembered', () => {
       expect(relation?.state).not.toBe('war')
     }
 
-    // AND NOTHING STRUCTURAL. The first draft also put every ally in the
-    // homeland's bloc — and blocs are never re-drawn, so that locked seven
-    // countries into one alliance, and their twenty-one pairs into
-    // permanent peace, for the life of the world. An alignment sets the
-    // first rung; it does not build an alliance (military review).
+    // AND AN ALLY STANDS IN THE HOMELAND'S BLOC — a standing alliance.
+    //
+    // This went back and forth and the history is worth keeping. A military
+    // review removed it: ADR-0021 §4 called an alignment a starting
+    // position, blocs are never re-drawn, so a permanent alliance was more
+    // than the label claimed. Then the owner's coalition spec arrived, and
+    // the call to arms needs a persistent answer to "who are my allies" —
+    // so ADR-0022 §3 puts it back and says so out loud. Disclosure was
+    // what the review actually wanted.
     const allyBlocs = new Set(
       [...world.nations.values()]
         .filter(
@@ -230,7 +234,8 @@ describe('the rulings, enforced rather than remembered', () => {
         )
         .map((n) => n.bloc),
     )
-    expect(allyBlocs.size, 'every ally landed in the same bloc — alignment leaked').toBeGreaterThan(1)
+    expect(allyBlocs, 'allies stand with the homeland (ADR-0022 §3)').toEqual(new Set([0]))
+    expect(homeland(world)?.bloc).toBe(0)
   })
 
   it('says nothing about how two OTHER countries get along', () => {
@@ -380,7 +385,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '884c4fa7'
+const HEARTLAND_GOLDEN = '0fb34b52'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

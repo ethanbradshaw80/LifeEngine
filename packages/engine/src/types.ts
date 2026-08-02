@@ -966,6 +966,9 @@ export type EventType =
   | 'moved-house'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
+  | 'call-to-arms'
+  | 'joined-war'
+  | 'declined-call'
   | 'fell-behind'
   /** Savings recovered above zero after arrears. */
   | 'back-in-the-black'
@@ -1145,6 +1148,8 @@ export type FactorId =
   | 'regional-flashpoint'
   | 'internal-instability'
   | 'war-weariness'
+  | 'alliance-obligation'
+  | 'ally-in-distress'
   | 'heavy-casualties'
   | 'old-grudge'
   | 'long-peace'

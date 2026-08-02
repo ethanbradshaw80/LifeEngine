@@ -374,6 +374,8 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'regional-flashpoint': 'that border was the era’s flashpoint',
   'internal-instability': 'of unrest at home',
   'war-weariness': 'both sides were worn out',
+  'alliance-obligation': 'an ally called and the alliance held',
+  'ally-in-distress': 'the ally was losing and asked for help',
   'heavy-casualties': 'of the cost in lives',
   'old-grudge': 'of an old grudge',
   'long-peace': 'the quiet had held a long time',

@@ -131,14 +131,15 @@ export function generateNations(world: World): void {
       stability: rng.nextBellInt(200, 950),
       // Bloc 0 is the homeland's; some nations are non-aligned (null).
       //
-      // ALIGNMENT DOES NOT TOUCH THIS. The first draft put every 'ally' in
-      // the homeland's bloc, and blocs are never re-drawn — so seven
-      // countries were locked into one alliance, and their twenty-one
-      // pairs into permanent peace, for the whole life of the world. That
-      // is not a starting position, it is permanent structure, and it is
-      // more than ADR-0021 §4 says an alignment may do. The review caught
-      // it; the alignment now decides one thing only, in startingState.
-      bloc: rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
+      // AN 'ally' STANDS IN THE HOMELAND'S BLOC — a standing alliance, and
+      // yes, permanent (ADR-0022 §3). This went back and forth: a review
+      // removed it because ADR-0021 §4 called an alignment a mere starting
+      // position and a permanent alliance is more than that, and it was
+      // right to, because nothing then needed alliances. The call to arms
+      // does — "a nation can only be called to arms by an ally" — so the
+      // owner's spec supersedes and the ADR says so out loud. The draw
+      // still happens for everyone, so the stream is unchanged.
+      bloc: entry?.alignment === 'ally' ? 0 : rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
       combatRating: ratingFor(entry?.combatRating ?? null, strength),
       warMonths: 0,
       exhaustedUntilTick: null,
@@ -592,7 +593,6 @@ export interface NewsItem {
     | 'war'
     | 'diplomacy'
     | 'died-in-service'
-    | 'came-home'
     | 'recruiting-drive'
     | 'crime'
 }
@@ -611,12 +611,25 @@ export function newsSince(world: World, sinceTick: Tick): NewsItem[] {
       event.type !== 'war-began' &&
       event.type !== 'ceasefire' &&
       event.type !== 'peace-restored' &&
-      event.type !== 'tensions-shifted'
+      event.type !== 'tensions-shifted' &&
+      event.type !== 'call-to-arms' &&
+      event.type !== 'joined-war' &&
+      event.type !== 'declined-call'
     ) {
       continue
     }
     const nearby = home !== undefined && (event.subjectId === home.id || event.otherId === home.id)
     if (event.type === 'tensions-shifted' && !nearby) continue // foreign squabbles are not news here
+    // Coalition traffic is heavy — allies ask each other constantly in a
+    // busy century. It is news in THIS town only when this country is one
+    // of the two, which is also the only time it can end with somebody's
+    // son being sent (ADR-0022).
+    if (
+      (event.type === 'call-to-arms' || event.type === 'declined-call' || event.type === 'joined-war') &&
+      !nearby
+    ) {
+      continue
+    }
     items.push({ tick: event.tick, text: event.detail ?? 'events abroad', nearby })
   }
   return items

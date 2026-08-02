@@ -596,6 +596,76 @@ still owed its fact: when the window closes on an unmet plan, "the
 children never came" is recorded (settleFamilyPlans). Known simplification
 accepted: fecundity currently follows the woman only.
 
+## ADR-0022 — Coalitions: the call to arms, and who decides a nation's war
+
+**Status:** Accepted (owner spec + four answered decisions, 2026-08-02)
+**Date:** 2026-08-02
+**Amends:** ADR-0021 §4 (an alignment now sets standing alliance membership
+as well as the starting rung — see §3 below).
+
+**Context.** The owner's war/deployment/difficulty spec adds a "call to
+arms": an ally at war asks its allies to join, coalitions form, and once a
+nation has joined, deployment can arrive as an ORDER rather than an
+invitation. He answered the spec's four open questions directly: refusing
+orders is allowed and costs you; a nation that joins is in until the war
+ends; volunteering stays open even when your nation declined; and the call
+fires when the war is going badly rather than on a fixed timer.
+
+**Decision.**
+
+1. **The call to arms is driven by distress, not by a clock.** The owner's
+   words: "completely random but it should be before year 5 if the war is
+   really that bad — it should trigger ally help when they are losing the
+   war or taking more deaths and need additional help." So a belligerent's
+   distress is measured from what the war is actually doing to it — the
+   casualty deficit against its enemy, the strength ground off its
+   peacetime baseline, and how long it has gone on — and the call is a
+   monthly draw whose odds rise with distress, with a guarantee that a
+   genuinely bad war has called before year five.
+2. **Every nation runs the same logic**, including the homeland. Wars grow
+   into coalitions on their own.
+3. **An alignment sets standing alliance membership.** ADR-0021 §4 said an
+   alignment touched only the first rung, and a review had just removed
+   alliance membership for being more than that. The call to arms REQUIRES
+   a persistent notion of who your allies are — "a nation can only be
+   called to arms by an ally" — so the owner's spec supersedes: 'ally'
+   means an alliance that stands. It is disclosed here rather than
+   discovered, which is what the review actually objected to.
+4. **THE PLAYER DOES NOT DECIDE WHETHER THEIR NATION JOINS A WAR.** The
+   spec says "your nation's response (player choice)"; this is the one
+   place it is not followed, and the reason is Law 2 and the charter's
+   opening premise: the player is one person in the world, not its
+   government, and no head-of-state seat exists anywhere in this design.
+   The homeland decides by the same formula as everyone else and the player
+   reads it in the news. What the player DOES get is the decision the
+   charter says is theirs: whether they personally go — volunteer while
+   their country stays out, or refuse the order when it does not. That is
+   ADR-0022's substitute for the missing seat, and it is a better fit for
+   this game than a cabinet vote.
+5. **Refusing an order is allowed and costs.** Court-martial, the sentence,
+   the discharge and the record that follows into civilian hiring — all
+   machinery that already exists.
+6. **A nation that joins is in until the war ends.** No separate peace.
+7. **Volunteering is unaffected by any of it**, including after a decline.
+
+**Rationale.** Coalitions are the thing the geopolitics model has always
+been missing: wars were pairwise forever, so a world war was impossible and
+an alliance meant nothing. Building them out of PAIRWISE wars — each joiner
+declares against the same enemy — means no change to the war model itself,
+and the coalition is visible as what it actually is: several countries
+fighting the same enemy for a stated reason.
+
+**Consequences.**
+- More wars per century in a world with real alliances, and the homeland
+  will be pulled into wars it did not start. That is the point.
+- A player can be ordered somewhere they did not choose, and refusing ends
+  a career. That is also the point, and it is the first time this game has
+  offered a choice whose good outcome is not obvious.
+- The spec's `JOIN_THRESHOLD` and `MULTI_WAR_PENALTY` were left "(tune)".
+  They are tuned by measurement and the numbers are recorded in the code.
+
+---
+
 ## ADR-0021 — Real foreign nations, and generated wars with them, in a real-world preset
 
 **Status:** Accepted (owner direction, 2026-08-02)
