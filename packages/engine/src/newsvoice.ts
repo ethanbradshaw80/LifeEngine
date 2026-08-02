@@ -37,17 +37,21 @@ export const HOUSE_GRIT: Grit = 'high'
  * report that will not say what a wound did is the sanitising the owner
  * asked to stop.
  *
- * OBITUARIES STAY WARMER, and that is a deliberate difference rather than
- * squeamishness. A death IN SERVICE is a war story and runs at the war's
- * register; an obituary is the page a family reads about somebody who died
- * at home, and the same graphic register there is not grit, it is cruelty
- * to no purpose. The override lifted restraint; it did not ask for that.
+ * OBITUARIES RUN HOT TOO, by owner direction (2026-08-02). I had them a
+ * register cooler, on the reasoning that an obituary is the page a family
+ * reads about somebody who died at home and that the graphic register
+ * there is cruelty rather than grit. He read that and said make them hot,
+ * which is his call: the paper is meant to be blunt about death wherever
+ * it happens, not only where a war caused it.
+ *
+ * Local stays low and nobody has asked otherwise — a mill hiring notice
+ * does not need blood in it.
  */
 export const SECTION_GRIT: Readonly<Record<string, Grit>> = {
   war: 'high',
   courts: 'high',
   'died-in-service': 'high',
-  obituaries: 'medium',
+  obituaries: 'high',
   local: 'low',
 }
 

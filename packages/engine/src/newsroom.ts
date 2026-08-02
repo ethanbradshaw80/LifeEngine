@@ -218,12 +218,25 @@ function deathInService(
   // OWNER'S SPEC §1 and §2: the specific wound, the specific circumstance,
   // and an opener chosen from a wide seeded pool so two deaths in one town
   // do not read as the same sentence with the names swapped.
+  // WHAT ACTUALLY KILLED THEM decides how this is written. The pools are
+  // written for a war death, and a person in uniform can die of anything
+  // anybody else dies of — the paper does not carry those any more, but an
+  // article asked for one directly must not put "hit and did not make it
+  // off the road" over a body that says sudden illness.
+  const killedByTheWar =
+    cause.includes('wounds taken in action') ||
+    cause.includes('accident') ||
+    cause.includes('captivity')
   const wound = woundWords(world, person.id, item.tick)
   const how = contactWords(world, person.id, item.tick)
   const grit = gritFor('died-in-service')
-  const opener = pickPhrase(DEATH_OPENERS[grit], world.seed, person.id * 31, item.tick)
+  const opener = killedByTheWar
+    ? pickPhrase(DEATH_OPENERS[grit], world.seed, person.id * 31, item.tick)
+    : '{who}, {age}, of {town}, died in {when}'
   const woundClause =
-    wound === null ? null : pickPhrase(WOUND_CLAUSES[grit], world.seed, person.id * 37, item.tick)
+    wound === null || !killedByTheWar
+      ? null
+      : pickPhrase(WOUND_CLAUSES[grit], world.seed, person.id * 37, item.tick)
   const where = onTour && away !== null
     ? lastTour.kind === 'rotation'
       ? ` while posted to ${away}`
@@ -295,7 +308,9 @@ function deathInService(
       // their own in the body, because the flavours the engine records are
       // a mix of clauses and noun phrases and splicing them into a headline
       // cannot be made to read right for both.
-      `${who} killed${where === '' ? ' in service' : where}`,
+      killedByTheWar
+        ? `${who} killed${where === '' ? ' in service' : where}`
+        : `${who} dies at ${String(age)}`,
     dateline,
     // ORDER MATTERS: opener, then WHERE, then the wound. The high-grit
     // wound clauses carry their own tail ("gone before the medic got a hand

@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { sentenceInWords } from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
 import { CountyRecords } from './CountyRecords.js'
 import { BadgeMark } from './BadgeMark.js'
@@ -82,6 +83,7 @@ import {
   specialtyFor,
   unitFor,
   unitOptionsFor,
+  isOnProbation,
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, World } from '@life-engine/engine'
 import {
@@ -634,6 +636,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 <>
                   <span className="stat-value bad">in jail</span>
                   <span className="stat-sub">serving time</span>
+                </>
+              )
+            }
+            // The glance strip is where somebody checks what their life is
+            // right now, so probation belongs here as well as on the Crime
+            // page — it is a state that restricts them, not a footnote.
+            if (isOnProbation(world, person.id)) {
+              const job = world.employment.get(person.id)
+              const occupation = job === undefined ? null : occupationById(job.occupationId)
+              return (
+                <>
+                  <span className="stat-value">{occupation?.title ?? 'no work'}</span>
+                  <span className="stat-sub bad">on probation</span>
                 </>
               )
             }
@@ -2014,6 +2029,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const jailedUntil = record?.jailedUntilTick ?? null
             const inside = jailedUntil !== null && world.tick < jailedUntil
             const monthsLeft = inside ? jailedUntil - world.tick : 0
+            const probationUntil = record?.probationUntilTick ?? null
+            const onProbation = probationUntil !== null && world.tick < probationUntil
+            const probationLeft = onProbation ? probationUntil - world.tick : 0
+            const hanging = record?.suspendedMonths ?? 0
             const adult = ageAt(person.birthTick, world.tick) >= 18
             return (
               <>
@@ -2023,6 +2042,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     <span className="card-text">
                       Serving a sentence — {monthsLeft} month{monthsLeft === 1 ? '' : 's'} left.
                       The world keeps going without you.
+                    </span>
+                  </p>
+                )}
+                {/* ON PROBATION, AND NOWHERE TO SEE IT (owner, playing:
+                    "there is no way of telling you are on probation after
+                    you get out of jail"). Probation is the rung of the
+                    ladder that leaves somebody in their own life, so it
+                    was invisible — while quietly restricting enlistment
+                    and putting a suspended term over their head that a new
+                    offence would impose. A state that changes what happens
+                    to you has to be legible. */}
+                {!inside && onProbation && (
+                  <p className="card news nearby">
+                    <span className="card-icon" aria-hidden="true">📋</span>
+                    <span className="card-text">
+                      On probation — {probationLeft} month{probationLeft === 1 ? '' : 's'} left.
+                      {hanging > 0 && ` ${sentenceInWords(hanging)} is hanging over you: another offence
+                        while this runs imposes it on top of whatever the new charge costs.`}
+                      {' '}The recruiting office will not take you until it is over.
                     </span>
                   </p>
                 )}

@@ -168,9 +168,13 @@ export const HEARTLAND_SPEC: WorldSpec = {
       { name: 'Wright-Patterson Air Force Base', branches: ['air-guard'] },
       { name: 'Nellis Air Force Base', branches: ['air-guard'] },
     ],
-    // A call sign in the American format for the region. Invented: a real
-    // station is a real business with real employees.
-    newsStation: 'WVCA',
+    // A call sign in the American format. Invented: a real station is a
+    // real business with real employees.
+    //
+    // WCJC in both presets by owner direction (2026-08-02) — the Heartland
+    // preset had its own call sign, which meant the paper the player reads
+    // changed identity depending on which world they started.
+    newsStation: 'WCJC',
   },
 
   homelandName: 'the United States',

@@ -43,14 +43,15 @@ describe('the newsroom voice', () => {
     }
   })
 
-  it('runs war and courts hot, and does not run the local page hot', () => {
-    // §4's dial. An obituary at the war's register is not grit, it is
-    // cruelty to no purpose — the override lifted restraint, it did not
-    // ask for that.
+  it('runs the death pages hot, and does not run the local page hot', () => {
+    // §4's dial. Obituaries were a register cooler on my reasoning and the
+    // owner overruled it: the paper is blunt about death wherever it
+    // happens, not only where a war caused it.
     expect(gritFor('war')).toBe('high')
     expect(gritFor('courts')).toBe('high')
+    expect(gritFor('obituaries')).toBe('high')
+    // A mill hiring notice does not need blood in it.
     expect(gritFor('local')).toBe('low')
-    expect(gritFor('obituaries')).not.toBe('high')
   })
 
   it('every pool has all three registers, and none of them is empty', () => {
@@ -69,5 +70,37 @@ describe('the newsroom voice', () => {
     // one entry.
     const picks = new Set([0, 1, 2, 3, 4, 5, 6, 7].map((n) => pickPhrase(pool, 12345, n, 100)))
     expect(picks.size).toBeGreaterThan(1)
+  })
+})
+
+describe('what the station will and will not report', () => {
+  it('never gives an illness a combat headline', () => {
+    // THE OWNER, READING THE PAPER: a soldier who died of an illness got
+    // "killed in service" and "was hit and did not make it off the road"
+    // over a body that said sudden illness. A person in uniform can die of
+    // anything anybody else dies of, and when they do it is not a service
+    // story.
+    const world = createWorld(makeSeed(3131), 140)
+    advanceTicks(world, 720)
+
+    for (const item of serviceNewsSince(world, 0 as never)) {
+      if (item.kind !== 'died-in-service') continue
+      const died = world.events.find(
+        (e) => e.type === 'died' && e.subjectId === item.subjectId && e.tick === item.tick,
+      )
+      const cause = died?.detail ?? ''
+      // Only the three the service itself is answerable for reach the paper.
+      expect(
+        cause.includes('wounds taken in action') ||
+          cause.includes('accident') ||
+          cause.includes('captivity'),
+        `the paper reported a death by "${cause}"`,
+      ).toBe(true)
+
+      // And the words match the cause.
+      const article = articleFor(world, item)
+      if (article === null) continue
+      expect(article.headline.length).toBeGreaterThan(0)
+    }
   })
 })

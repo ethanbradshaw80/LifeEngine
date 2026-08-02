@@ -1056,13 +1056,24 @@ export function serviceNewsSince(
       ) && !world.events.some(
         (e) => e.type === 'repatriated' && e.subjectId === event.subjectId && e.tick <= event.tick,
       )
+      // ONLY THE DEATHS THE UNIFORM CAUSED (owner, reading the paper: a
+      // soldier who died of an illness was given a combat headline —
+      // "killed in service", "was hit and did not make it off the road" —
+      // over a body that said sudden illness).
+      //
+      // A person in uniform can die of anything anybody else dies of, and
+      // when they do it is not a service story: it belongs on their own
+      // page and their family's, not on the front of the paper under the
+      // war. What the station reports is the enemy, the accident, and the
+      // cell — the three the service itself is answerable for.
       const howTheyDied = killedInAction
         ? 'was killed in action'
         : cause.includes('accident')
           ? 'was killed in an accident in uniform'
           : cause.includes('captivity') || heldWhenTheyDied
             ? 'died a prisoner'
-            : 'died in service'
+            : null
+      if (howTheyDied === null) continue
       items.push({
         tick: event.tick,
         text: `${person.givenName} ${person.familyName} ${howTheyDied}`,
