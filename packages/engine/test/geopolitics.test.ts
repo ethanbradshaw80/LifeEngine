@@ -86,7 +86,7 @@ describe('the world beyond the town', () => {
     expect(homelands.length).toBe(1)
     expect(homelands[0]?.name).toBe('the Republic')
 
-    const allowed = new Set<string>([...NATION_NAMES, 'the Republic'])
+    const allowed = new Set<string>([...NATION_NAMES.map((n) => n.name), 'the Republic'])
     for (const nation of world.nations.values()) {
       expect(allowed.has(nation.name), `${nation.name} is not on the fictional list`).toBe(true)
     }

@@ -24,12 +24,18 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
-import type { GeoRelation, GeoState, Nation, World } from './types.js'
+import type { Alignment, GeoRelation, GeoState, Nation, World } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
 
-/** Foreign nations generated at world creation, plus the homeland. */
-const FOREIGN_NATION_COUNT = 12
+/**
+ * Safety ceiling on the nation count, not a target: the preset's list IS the
+ * map (ADR-0021 let a preset ship twenty-one). Relations are pairwise, so
+ * the monthly cost is O(n²) — 12 nations is 78 pairs, 21 is 231, and this
+ * cap keeps a careless preset from making the tick loop quadratic in
+ * something nobody measured.
+ */
+const MAX_FOREIGN_NATIONS = 32
 /** Alliance blocs. Membership dampens war within a bloc, feeds rivalry across. */
 const BLOC_COUNT = 3
 
@@ -91,15 +97,13 @@ export function generateNations(world: World): void {
     exhaustedUntilTick: null,
   })
 
-  // W1: the COUNT is a balance constant, the NAMES are the preset's. A
-  // preset that ships fewer names gets fewer nations rather than two
-  // countries called the same thing — names reach campaign medals and
-  // headlines, and a name on a permanent record must identify one nation.
-  // Classic ships exactly FOREIGN_NATION_COUNT, so nothing moves for it.
-  const foreignCount = Math.min(FOREIGN_NATION_COUNT, world.spec.foreignNations.length)
+  // The preset's list IS the map: one nation per entry, in order, no
+  // repeats. A name on a permanent record must identify one country.
+  const foreignCount = Math.min(MAX_FOREIGN_NATIONS, world.spec.foreignNations.length)
   for (let i = 0; i < foreignCount; i++) {
     const id = allocate(world)
-    const name = world.spec.foreignNations[i] ?? `Nation ${String(i)}`
+    const entry = world.spec.foreignNations[i]
+    const name = entry?.name ?? `Nation ${String(i)}`
     const strength = rng.nextBellInt(150, 900)
     world.nations.set(id, {
       id,
@@ -110,7 +114,15 @@ export function generateNations(world: World): void {
       economy: rng.nextBellInt(150, 900),
       stability: rng.nextBellInt(200, 950),
       // Bloc 0 is the homeland's; some nations are non-aligned (null).
-      bloc: rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
+      //
+      // The draw happens either way — an ALLY is simply put in the
+      // homeland's bloc afterwards, so the RNG stream advances identically
+      // whether a preset has opinions or not, and Classic cannot move.
+      // Only 'ally' is honoured: the alignments are from the HOMELAND's
+      // point of view (ADR-0021 §4), so they say nothing about whether two
+      // other countries stand together, and the simulation still decides
+      // that.
+      bloc: blocFor(entry?.alignment ?? null, rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT)),
       exhaustedUntilTick: null,
     })
   }
@@ -123,11 +135,13 @@ export function generateNations(world: World): void {
       const b = nations[j]
       if (!a || !b) continue
       const sameBloc = a.bloc !== null && a.bloc === b.bloc
+      // Drawn for every pair, always, so the stream does not depend on the
+      // preset's opinions.
       const grudge = !sameBloc && rng.chance(1, 7)
       world.geoRelations.set(relationKey(a.id, b.id), {
         a: a.id,
         b: b.id,
-        state: grudge ? 'tension' : 'peace',
+        state: startingState(world, a, b, grudge),
         sinceTick: world.tick,
         warPhase: null,
         casualtiesA: 0,
@@ -135,6 +149,33 @@ export function generateNations(world: World): void {
       })
     }
   }
+}
+
+
+/** An ally stands with the homeland; everyone else takes the world's draw. */
+function blocFor(alignment: Alignment | null, drawn: number | null): number | null {
+  return alignment === 'ally' ? 0 : drawn
+}
+
+/**
+ * Where a pair starts on the ladder.
+ *
+ * A preset's alignments describe how a country stands TO THE HOMELAND and
+ * nothing else (ADR-0021 §4), so they decide the homeland's own pairs and
+ * leave every other pair to the model — the label "rival" says how
+ * Washington sees Moscow, not how Paris sees Beijing. And it decides only
+ * the FIRST RUNG: the ladder starts moving on tick one, and a rival can be
+ * at peace within a decade or a war can start with an ally.
+ */
+function startingState(world: World, a: Nation, b: Nation, grudge: boolean): GeoState {
+  const drawn: GeoState = grudge ? 'tension' : 'peace'
+  if (!a.isHomeland && !b.isHomeland) return drawn
+  const other = a.isHomeland ? b : a
+  const alignment =
+    world.spec.foreignNations.find((nation) => nation.name === other.name)?.alignment ?? null
+  if (alignment === 'ally') return 'peace'
+  if (alignment === 'rival') return 'tension'
+  return drawn
 }
 
 function allocate(world: World): EntityId {

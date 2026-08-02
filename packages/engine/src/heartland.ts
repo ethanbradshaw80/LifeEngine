@@ -12,15 +12,18 @@
  *   licensed. The two installations, which are facts about government
  *   property, named as they were in this preset's own era.
  *
- *   FICTIONAL, permanently, in this preset as in every other. Every FOREIGN
- *   nation and every war: generated wars against real countries would put
- *   fabricated history onto permanent records, and real casualties would
- *   become a mechanic (R-14, MILITARY_AND_WAR_FOUNDATION §3 as amended).
- *   Every named unit, for the same reason at human scale: a real one has
- *   living members, and this simulation kills, wounds and disgraces the
- *   people in it. Every decoration. The town itself, its streets and its
- *   workplaces — a real small town implies real residents and real
- *   businesses, and this world bankrupts, injures and convicts them.
+ *   REAL, since ADR-0021 (owner direction). The foreign countries, with the
+ *   alignments his own reference list gave them as their STARTING position.
+ *
+ *   FICTIONAL, permanently, in this preset as in every other. EVERY WAR:
+ *   the engine generates conflicts from modelled pressure, and no real war,
+ *   operation, battle or campaign name exists in this codebase or may be
+ *   added — real countries are a setting, a real war is nobody's to invent
+ *   around. Every named unit: a real one has living members, and this
+ *   simulation kills, wounds and disgraces the people in it. Every
+ *   decoration. The town itself, its streets and its workplaces — a real
+ *   small town implies real residents and real businesses, and this world
+ *   bankrupts, injures and convicts them.
  *
  * NOT DONE, and deliberately not faked: the plan asks for ERA-WEIGHTED name
  * pools. This preset reuses the 1990-census-derived pools that Classic
@@ -33,7 +36,6 @@
 
 import {
   CLASSIC_BRANCHES,
-  NATION_NAMES,
   SERVICE_SCHOOLS,
   SPECIAL_UNITS,
   SPECIALTIES,
@@ -46,6 +48,7 @@ import {
   MALE_GIVEN_NAMES,
   MALE_GIVEN_WEIGHTS,
 } from './names.js'
+import { REAL_NATIONS } from './realnations.js'
 import type { ServiceBranchSpec, WorldSpec } from './types.js'
 
 /**
@@ -87,9 +90,10 @@ export const HEARTLAND_SPEC: WorldSpec = {
   name: 'American Heartland',
   description:
     'A town that does not exist, in Vermillion County, Indiana, which does. ' +
-    'ALTERNATE HISTORY: the United States is real here, but every foreign country, ' +
-    'every war and every enemy in this world is invented, and no event in it happened. ' +
-    'It starts in 1970 and goes its own way from there.',
+    'ALTERNATE HISTORY — read this bit: the countries are real, and EVERY WAR IN ' +
+    'THIS WORLD IS INVENTED. Nothing that happens here happened. The simulation ' +
+    'starts in 1970 and makes its own history from there, so a war with a real ' +
+    'country is this game making something up, not an account of anything.',
   startYear: 1970,
 
   // Real ordinary names, no real individuals — the same model as Classic,
@@ -97,6 +101,9 @@ export const HEARTLAND_SPEC: WorldSpec = {
   maleGiven: { names: MALE_GIVEN_NAMES, weights: MALE_GIVEN_WEIGHTS },
   femaleGiven: { names: FEMALE_GIVEN_NAMES, weights: FEMALE_GIVEN_WEIGHTS },
   family: { names: FAMILY_NAMES, weights: FAMILY_NAME_WEIGHTS },
+
+  inGameNotice:
+    'The countries are real. Every war here is invented — this world has made its own history since 1970.',
 
   gazetteer: {
     // A fictional town in a real county. The plan's ruling: a real small
@@ -167,10 +174,26 @@ export const HEARTLAND_SPEC: WorldSpec = {
   },
 
   homelandName: 'the United States',
-  // FICTIONAL, permanently, in every preset. Not a shortcut — a generated
-  // war against a real country would write fabricated history onto
-  // permanent records, and real casualties would become a mechanic.
-  foreignNations: NATION_NAMES,
+  /**
+   * REAL COUNTRIES (owner direction, 2026-08-02; ADR-0021), with their
+   * starting alignment from his own reference list.
+   *
+   * THE WARS ARE STILL INVENTED, and that is the whole of the line this
+   * preset stands on. The engine generates every conflict from modelled
+   * pressure — no real war, operation, battle or campaign name exists
+   * anywhere in this codebase, and none may be added. When this world says
+   * the United States is at war with Russia, it is reporting something the
+   * simulation decided, in a world that has already diverged from ours, and
+   * the preset says so in its own description and on the news screen.
+   *
+   * The alignments set the FIRST RUNG and nothing else: they decide where
+   * each pair starts relative to the homeland on tick zero, the ladder
+   * starts moving in month one, and an ally can end up at war.
+   */
+  foreignNations: REAL_NATIONS.map((nation) => ({
+    name: nation.name,
+    alignment: nation.alignment,
+  })),
 
   branches: HEARTLAND_BRANCHES,
   // Shared with Classic: trades, courses and units are structure, not world

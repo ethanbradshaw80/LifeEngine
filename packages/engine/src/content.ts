@@ -9,7 +9,7 @@
 
 import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
-import type { BaseSpec, ServiceBranchSpec } from './types.js'
+import type { BaseSpec, NationSpec, ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
 import type {
   ExposureProfile,
@@ -84,9 +84,21 @@ export const MACHINES_BY_OCCUPATION: Readonly<Record<string, readonly string[]>>
  */
 export const HOMELAND_NAME = 'the Republic'
 
-export const NATION_NAMES: readonly string[] = [
-  'Varenia', 'Costmara', 'Belgrave', 'Tyrene', 'Osmark', 'Halvia',
-  'Rondesia', 'Quillar', 'Verros', 'Nortavia', 'Sundermark', 'Veskarn',
+export const NATION_NAMES: readonly NationSpec[] = [
+  // No alignment: Classic has no opinion about its own invented countries,
+  // so the simulation decides where every pair starts, as it always has.
+  { name: 'Varenia', alignment: null },
+  { name: 'Costmara', alignment: null },
+  { name: 'Belgrave', alignment: null },
+  { name: 'Tyrene', alignment: null },
+  { name: 'Osmark', alignment: null },
+  { name: 'Halvia', alignment: null },
+  { name: 'Rondesia', alignment: null },
+  { name: 'Quillar', alignment: null },
+  { name: 'Verros', alignment: null },
+  { name: 'Nortavia', alignment: null },
+  { name: 'Sundermark', alignment: null },
+  { name: 'Veskarn', alignment: null },
 ]
 
 export const SCHOOL_NAME = 'Fairview Consolidated School'

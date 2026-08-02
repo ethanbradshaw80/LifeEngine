@@ -596,6 +596,66 @@ still owed its fact: when the window closes on an unmet plan, "the
 children never came" is recorded (settleFamilyPlans). Known simplification
 accepted: fecundity currently follows the woman only.
 
+## ADR-0021 — Real foreign nations, and generated wars with them, in a real-world preset
+
+**Status:** Accepted (owner direction, 2026-08-02)
+**Date:** 2026-08-02
+**Supersedes:** ADR-0020 §2's "foreign nations FICTIONAL permanently", for
+presets that opt in. Everything else in ADR-0020 stands, including named
+units, which remain fictional in every preset.
+
+**Context.** The owner supplied a list of 21 real countries with
+US-perspective ally/neutral/hostile labels and asked for them in the game. He
+was shown, in writing and before deciding, exactly what this engine does with
+a foreign nation — it escalates relations to war, deploys people into that
+war, kills them there, and writes the enemy's name onto campaign medals,
+newspaper headlines and death records that are permanent and never rewritten
+— and was offered three options: leave it fictional, real countries as a
+non-belligerent backdrop, or real countries with real wars. He chose the
+third explicitly.
+
+**Decision.**
+
+1. A preset MAY name real foreign nations, and the war model runs against
+   them unchanged. `american-heartland` does. `classic` does not and never
+   will — it stays a wholly invented world, which is the point of keeping it.
+2. NAMED MILITARY UNITS REMAIN FICTIONAL IN EVERY PRESET. A real unit has
+   living members and a real casualty history; nothing here changes that,
+   and the owner did not ask for it.
+3. A preset naming real nations MUST carry unmissable alternate-history
+   framing — at the point the world is chosen AND inside the running game,
+   not one line in a settings menu. This is the condition, not a courtesy.
+4. Starting relations may be seeded from real-world alignment as a STARTING
+   POSITION. They are a gameplay premise, not a claim: the simulation moves
+   them from tick one, and where they end up is the simulation's, not
+   anybody's assessment of the world.
+5. R-14's mitigation is amended: "all geopolitics fictional" becomes "all
+   geopolitics GENERATED — never a scripted or historical conflict".
+   Generation is what keeps a war the simulation's own; the names on the map
+   were never what made a casualty meaningful.
+
+**Rationale.** Games have depicted real nations in invented conflicts for as
+long as there have been games; the charter's own premise is a realistic
+simulated United States. The hazard R-14 names is real but is about
+PRESENTATION and TRACEABILITY — a death must be caused, explicable and not a
+slot machine — and none of that changes with the enemy's name. The line that
+does not move is the one between a generated conflict and a real one: this
+engine must never model, script or reproduce an actual war, and no real
+conflict, operation or battle name may enter its content.
+
+**Consequences, stated plainly.**
+- The game will produce sentences like "the United States is at war with
+  Russia" for wars that did not happen. That is the decision, and the
+  framing requirement in §3 exists because of it.
+- Campaign medals name their enemy, so an invented decoration will carry a
+  real country's name. Flagged for the owner: real campaign medals are
+  usually named for a theatre rather than a nation, and switching to theatre
+  names would read better; deferred, not forgotten.
+- Classic remains the wholly fictional world for anyone who wants one, and
+  its golden fingerprint is untouched by this.
+
+---
+
 ## ADR-0020 — World configuration system; Real World Mode alongside Classic
 
 **Status:** Accepted (owner direction, 2026-08-01)

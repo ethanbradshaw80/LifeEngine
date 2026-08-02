@@ -1632,3 +1632,16 @@ ul.welcome-points li + li {
   margin: 0.2rem 0 0;
   max-width: 46rem;
 }
+
+/* ADR-0021 §3 — the standing notice a real-nation preset owes the player,
+   sitting where the wars are read. Quiet but not hidden: it must survive a
+   glance at a headline, which is the moment it exists for. */
+.masthead-notice {
+  margin: 0.35rem 0 0.6rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}

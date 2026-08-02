@@ -15,7 +15,8 @@ import { GOLDEN_SEED } from './determinism.test.js'
 import { formatYear } from '../src/clock.js'
 import { CLASSIC_SPEC, PRESETS, branchSpecFor, specById } from '../src/worldspec.js'
 import { HEARTLAND_COUNTY, HEARTLAND_SPEC, HEARTLAND_STATE } from '../src/heartland.js'
-import { homeland } from '../src/geopolitics.js'
+import { homeland, relationBetween } from '../src/geopolitics.js'
+import { REAL_NATIONS } from '../src/realnations.js'
 import { livingPeople } from '../src/systems.js'
 
 describe('the preset is a world that runs', () => {
@@ -168,22 +169,122 @@ describe('the rulings, enforced rather than remembered', () => {
     expect(CLASSIC_SPEC.description.length).toBeGreaterThan(20)
   })
 
-  it('keeps every foreign nation fictional, exactly as Classic does', () => {
-    // The line that does not move in any preset: a generated war against a
-    // real country writes fabricated history onto permanent records, and
-    // makes real casualties a mechanic (R-14).
-    expect(HEARTLAND_SPEC.foreignNations).toEqual(CLASSIC_SPEC.foreignNations)
+  it('names real countries, and Classic still names none', () => {
+    // ADR-0021, owner direction. This reverses the old ruling for THIS
+    // preset only. What did not move: Classic is still a wholly invented
+    // world, which is the point of keeping it.
+    const heartland = HEARTLAND_SPEC.foreignNations.map((n) => n.name)
+    expect(heartland).toContain('Russia')
+    expect(heartland).toContain('Canada')
+    expect(heartland.length).toBe(REAL_NATIONS.length)
+
+    const classic = CLASSIC_SPEC.foreignNations.map((n) => n.name)
+    expect(classic).toContain('Varenia')
+    for (const name of heartland) {
+      expect(classic, `Classic must not have picked up ${name}`).not.toContain(name)
+    }
 
     const world = createWorld(makeSeed(12345), 60, HEARTLAND_SPEC)
     const foreign = [...world.nations.values()].filter((n) => !n.isHomeland).map((n) => n.name)
-    const fictional = new Set(CLASSIC_SPEC.foreignNations)
-    for (const name of foreign) {
-      expect(fictional.has(name), `${name} is not one of the invented nations`).toBe(true)
-    }
-    // Exactly one homeland, and it is the real one.
+    expect(foreign.sort()).toEqual([...heartland].sort())
     const homelands = [...world.nations.values()].filter((n) => n.isHomeland)
     expect(homelands.length).toBe(1)
     expect(homelands[0]?.name).toBe('the United States')
+  })
+
+  it('starts allies at peace and rivals in tension — and nothing further', () => {
+    // ADR-0021 §4: an alignment is a STARTING POSITION, not a judgement. It
+    // decides the homeland's own pairs on tick zero, and that is the whole
+    // of its authority — the ladder starts moving in month one.
+    const world = createWorld(makeSeed(12345), 60, HEARTLAND_SPEC)
+    const home = homeland(world)
+    expect(home).toBeDefined()
+    if (!home) return
+
+    for (const nation of world.nations.values()) {
+      if (nation.isHomeland) continue
+      const alignment = HEARTLAND_SPEC.foreignNations.find((n) => n.name === nation.name)?.alignment
+      const relation = relationBetween(world, home.id, nation.id)
+      expect(relation).toBeDefined()
+      if (alignment === 'ally') {
+        expect(relation?.state, `${nation.name} should start at peace`).toBe('peace')
+        // An ally stands in the homeland's bloc; nobody else is placed.
+        expect(nation.bloc).toBe(0)
+      } else if (alignment === 'rival') {
+        expect(relation?.state, `${nation.name} should start in tension`).toBe('tension')
+      }
+      // Nobody starts at war. A war has to be generated, by the model, in
+      // this world's own time.
+      expect(relation?.state).not.toBe('war')
+    }
+  })
+
+  it('says nothing about how two OTHER countries get along', () => {
+    // The labels are from the homeland's point of view — they say how
+    // Washington sees Moscow, not how Paris sees Beijing. Every pair that
+    // does not include the homeland is the simulation's business, so
+    // rival-to-rival pairs must not all start alike.
+    const world = createWorld(makeSeed(12345), 60, HEARTLAND_SPEC)
+    const home = homeland(world)
+    const rivals = [...world.nations.values()].filter(
+      (n) =>
+        !n.isHomeland &&
+        HEARTLAND_SPEC.foreignNations.find((f) => f.name === n.name)?.alignment === 'rival',
+    )
+    expect(rivals.length).toBeGreaterThan(3)
+
+    const states = new Set<string>()
+    for (let i = 0; i < rivals.length; i++) {
+      for (let j = i + 1; j < rivals.length; j++) {
+        const a = rivals[i]
+        const b = rivals[j]
+        if (!a || !b || a.id === home?.id || b.id === home?.id) continue
+        const relation = relationBetween(world, a.id, b.id)
+        if (relation) states.add(relation.state)
+      }
+    }
+    // If the alignment had leaked past the homeland, every one of these
+    // would read the same.
+    expect(states.size).toBeGreaterThan(1)
+  })
+
+  it('carries no real war, operation or battle name anywhere in the engine', async () => {
+    // THE LINE THAT DOES NOT MOVE (ADR-0021, foundation §3). Real countries
+    // are a setting; a real war is nobody's to invent around. This scans
+    // the engine's own source, because a conflict name would arrive as
+    // content — a headline template, a campaign medal, a citation.
+    const fs = await import('node:fs/promises')
+    const path = await import('node:path')
+    const url = await import('node:url')
+    const here = path.dirname(url.fileURLToPath(import.meta.url))
+    const srcDir = path.join(here, '..', 'src')
+
+    const realConflicts = [
+      'Vietnam',
+      'Korean War',
+      'World War',
+      'Gulf War',
+      'Desert Storm',
+      'Iraq War',
+      'Operation ',
+      'Normandy',
+      'Pearl Harbor',
+      'Afghanistan War',
+      'Cold War',
+      '9/11',
+    ]
+    const offenders: string[] = []
+    for (const file of await fs.readdir(srcDir)) {
+      if (!file.endsWith('.ts')) continue
+      const text = await fs.readFile(path.join(srcDir, file), 'utf8')
+      for (const [i, line] of text.split('\n').entries()) {
+        const code = line.replace(/^\s*(\*|\/\/).*/, '')
+        for (const conflict of realConflicts) {
+          if (code.includes(conflict)) offenders.push(`${file}:${String(i + 1)} — ${conflict}`)
+        }
+      }
+    }
+    expect(offenders).toEqual([])
   })
 
   it('keeps every named unit and decoration fictional', () => {
@@ -246,7 +347,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '41ec53de'
+const HEARTLAND_GOLDEN = 'd8ade688'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {
@@ -261,5 +362,30 @@ describe('the preset is pinned', () => {
     advanceTicks(classic, 240)
     advanceTicks(heartland, 240)
     expect(worldHashHex(heartland)).not.toBe(worldHashHex(classic))
+  })
+})
+
+describe('the framing is a condition, not a courtesy (ADR-0021 §3)', () => {
+  it('carries a standing notice into the running game, and Classic does not', () => {
+    // A player who reads "the United States is at war with Russia" on the
+    // news screen has to be able to see, in the same glance, that the
+    // simulation made it up. A settings menu they saw once does not count.
+    expect(HEARTLAND_SPEC.inGameNotice).not.toBeNull()
+    expect((HEARTLAND_SPEC.inGameNotice ?? '').toLowerCase()).toContain('invented')
+    // Classic invents everything and needs no disclaimer for it.
+    expect(CLASSIC_SPEC.inGameNotice).toBeNull()
+  })
+
+  it('makes any preset naming real countries carry one', () => {
+    // The rule, not the instance: if a preset ever ships with real nations
+    // and no notice, this fails.
+    const realNames = new Set(REAL_NATIONS.map((n) => n.name))
+    for (const preset of PRESETS) {
+      const namesReal = preset.foreignNations.some((n) => realNames.has(n.name))
+      if (namesReal) {
+        expect(preset.inGameNotice, `${preset.name} names real countries with no notice`).not.toBeNull()
+        expect(preset.description.toLowerCase()).toContain('alternate history')
+      }
+    }
   })
 })

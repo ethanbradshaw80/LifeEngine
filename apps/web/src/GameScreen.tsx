@@ -1273,9 +1273,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 <div className="station">
                   <span className="station-call">{world.spec.gazetteer.newsStation}</span>
                   <span className="station-line">
-                    {world.town.name} — everything here happened
+                    {/* "in this world" earns its keep next to a
+                        real-nations preset's notice: without it the
+                        masthead's "everything here happened" reads as a
+                        contradiction of "every war here is invented". */}
+                    {world.town.name} — everything here happened in this world
                   </span>
                 </div>
+                {/* ADR-0021 §3. A preset that names real countries says so
+                    where the wars are actually read, not only in a menu the
+                    player saw once before starting. */}
+                {world.spec.inGameNotice !== null && (
+                  <p className="masthead-notice">{world.spec.inGameNotice}</p>
+                )}
                 {wars.length > 0 && (
                   <>
                     <h3>Wars now</h3>

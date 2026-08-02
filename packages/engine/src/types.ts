@@ -190,6 +190,21 @@ export interface SpecialUnit {
   readonly exposureMultiplier: number
 }
 
+/**
+ * Where a nation starts relative to the homeland (ADR-0021). A STARTING
+ * POSITION, not a judgement: it sets the first rung of the ladder on tick
+ * zero and nothing after. Null means the preset has no opinion and the
+ * simulation decides, which is what Classic does for every nation it
+ * invents.
+ */
+export type Alignment = 'ally' | 'neutral' | 'rival'
+
+/** A foreign nation as a preset supplies it. */
+export interface NationSpec {
+  readonly name: string
+  readonly alignment: Alignment | null
+}
+
 /** An installation, and which services post people there. */
 export interface BaseSpec {
   readonly name: string
@@ -212,6 +227,15 @@ export interface WorldSpec {
    * world of invented enemies otherwise invites exactly one reading.
    */
   readonly description: string
+  /**
+   * A standing notice shown INSIDE the running game, or null when a preset
+   * needs none. ADR-0021 §3 makes this a condition of naming real nations,
+   * not a courtesy: a player who reads "the United States is at war with
+   * Russia" on the news screen has to be able to see, in the same glance,
+   * that the simulation made it up. Classic invents everything and needs no
+   * disclaimer for it.
+   */
+  readonly inGameNotice: string | null
   readonly maleGiven: NamePool
   readonly femaleGiven: NamePool
   readonly family: NamePool
@@ -232,11 +256,16 @@ export interface WorldSpec {
    */
   readonly homelandName: string
   /**
-   * Foreign nations, in allocation order. The homeland is not in this list.
-   * FICTIONAL IN EVERY PRESET, permanently: generated wars with real
-   * countries would put fabricated history on permanent records.
+   * Foreign nations, in allocation ORDER — which is load-bearing, because
+   * ids follow allocation and ids seed draws. Append only; never reorder.
+   * The homeland is not in this list.
+   *
+   * A preset may name real countries (ADR-0021). What it may NEVER do is
+   * name a real war: every conflict here is generated from modelled
+   * pressure, and no real war, operation or battle name may enter this
+   * engine's content. Classic invents its whole map.
    */
-  readonly foreignNations: readonly string[]
+  readonly foreignNations: readonly NationSpec[]
   /** The services. A record naming a branch this preset does not have
    *  resolves to a BLANK, never to another service's ladder — substituting
    *  one re-reads every rank index and rewrites a career. */

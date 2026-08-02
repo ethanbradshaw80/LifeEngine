@@ -171,7 +171,10 @@ family, health, opportunity — and let outcomes follow from those.
 Character death in service must be meaningful, not a slot machine. Real conflicts and
 real units carry both factual and ethical hazards.
 
-*Mitigation.* All geopolitics fictional and generated (`PROJECT_CHARTER.md` §5).
+*Mitigation.* All geopolitics **generated** — never scripted, never modelled on a
+real conflict, never carrying a real war's name (amended 2026-08-02, ADR-0021; the
+rule was "fictional and generated" until a preset was allowed real countries). Real
+COUNTRIES are a preset's choice; a real WAR is nobody's.
 Casualties require traceable causal records — never an unexplained hidden roll.
 Service portrayed as neither purely glorious nor purely harmful. See
 `MILITARY_AND_WAR_FOUNDATION.md`.

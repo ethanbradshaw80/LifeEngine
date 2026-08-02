@@ -51,14 +51,20 @@ If danger is ever implemented as a lookup table keyed on country, the design has
 The scope of "fictional" narrowed from *all* countries to *foreign* ones; nothing
 else in this section changed, and nothing about foreign theatres has moved.**
 
-All countries **other than the homeland**, and all factions, alliances, conflicts,
-named military units and awards, are **fictional and generated**, in every preset,
-permanently. See `PROJECT_CHARTER.md` §2 and R-14.
+**All conflicts are GENERATED. No conflict is ever real** — not modelled on one, not
+named after one, not scripted. That is the line, and it does not move for any preset.
 
-(The first draft of this amendment wrote "all FOREIGN countries, factions, alliances
-and conflicts", which let FOREIGN distribute across the whole list and quietly left a
-DOMESTIC faction or conflict uncovered. Nothing exploited the gap; the wording above
-is what ADR-0020 §3 actually authorized.)
+Which COUNTRIES are real is the preset's (ADR-0021). Classic invents every nation
+including the homeland. American Heartland uses the real United States and real
+foreign countries, and generates every war between them. **Named military units and
+awards are fictional in every preset, permanently** — a real unit has living members
+and a real casualty history — as are all factions and alliances. See
+`PROJECT_CHARTER.md` §2 and R-14.
+
+A preset that names real nations owes the player unmissable alternate-history framing
+(ADR-0021 §3). The reason R-14 survives this at all is that its hazard was never the
+names: a death in service must be caused, traceable and explicable, and it is exactly
+as caused, traceable and explicable whoever is on the other side.
 
 The HOMELAND is defined by the world's preset (ADR-0020): fictional in Classic ("the
 Republic"), the United States in American Heartland. Service BRANCHES follow the
