@@ -288,6 +288,7 @@ describe('the world remembers which preset made it (W1)', () => {
     expect(loaded.world.spec.id).toBe('classic')
     expect(loaded.world.presetId).toBe('classic')
     expect(loaded.header.presetId).toBe('classic')
+    expect(loaded.presetUnknown).toBe(false)
   })
 
   it('loads a pre-preset save as Classic — which is what it is', () => {
@@ -309,6 +310,10 @@ describe('the world remembers which preset made it (W1)', () => {
     const loaded = fromSaveFile(fromTheFuture, SIMULATION_VERSION)
     expect(loaded.world.spec.id).toBe('classic')
     expect(loaded.world.people.size).toBe(world.people.size)
+    // And it SAYS so. Substituting a preset changes future newborn names,
+    // service ladders and foreign nations; DETERMINISM.md §7 requires an
+    // intentional divergence be reported, not discovered.
+    expect(loaded.presetUnknown).toBe(true)
   })
 
   it('does not rewrite an unknown preset as Classic when the world is saved again', () => {

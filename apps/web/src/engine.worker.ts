@@ -353,6 +353,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         if (result.migrationsApplied.length > 0) {
           notes.push(`Save updated from an older format (${result.migrationsApplied.join('; ')}).`)
         }
+        if (result.presetUnknown) {
+          notes.push(
+            `This world was made with a setting this version does not have (${result.header.presetId}), so it is running on the Classic one. Names, services and foreign nations from here on will be Classic's.`,
+          )
+        }
         if (result.simulationVersionChanged) {
           notes.push(
             'This save was made by a different version of the simulation, so events from here on may differ from the original run.',

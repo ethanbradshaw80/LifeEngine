@@ -44,7 +44,30 @@ import {
 } from './names.js'
 import type { WorldSpec } from './types.js'
 
-export const CLASSIC_SPEC: WorldSpec = {
+/**
+ * DETERMINISM.md §5 bans module-level MUTABLE state, and `readonly` is a
+ * compile-time promise only. A preset is shared by reference with every
+ * world in the process, so one stray write would corrupt all of them —
+ * freeze makes the promise real at runtime.
+ */
+function freezeSpec(spec: WorldSpec): WorldSpec {
+  Object.freeze(spec.maleGiven.names)
+  Object.freeze(spec.maleGiven.weights)
+  Object.freeze(spec.femaleGiven.names)
+  Object.freeze(spec.femaleGiven.weights)
+  Object.freeze(spec.family.names)
+  Object.freeze(spec.family.weights)
+  Object.freeze(spec.maleGiven)
+  Object.freeze(spec.femaleGiven)
+  Object.freeze(spec.family)
+  Object.freeze(spec.gazetteer)
+  Object.freeze(spec.foreignNations)
+  for (const branch of spec.branches) Object.freeze(branch)
+  Object.freeze(spec.branches)
+  return Object.freeze(spec)
+}
+
+export const CLASSIC_SPEC: WorldSpec = freezeSpec({
   id: 'classic',
   name: 'Classic',
   maleGiven: { names: MALE_GIVEN_NAMES, weights: MALE_GIVEN_WEIGHTS },
@@ -60,7 +83,7 @@ export const CLASSIC_SPEC: WorldSpec = {
   },
   foreignNations: NATION_NAMES,
   branches: CLASSIC_BRANCHES,
-}
+})
 
 /**
  * Every preset this build ships. A build carries every preset it has EVER

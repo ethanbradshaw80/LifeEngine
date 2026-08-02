@@ -69,7 +69,7 @@ import { placesOfKind } from './worldgen.js'
 import {
   meetsRequirement,
   SERVICE_TERM_MONTHS,
-  servicePay,
+  servicePayOn,
   SPECIALTIES,
   specialtyById,
 } from './content.js'
@@ -2205,7 +2205,12 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       break
     }
     case 'enlist': {
-      lines.push(`A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(servicePay('land-forces', 0))} a month, and rises with rank.`)
+      // This world's first branch, not Classic's — the stakes screen must
+      // not quote a pay table the player's preset does not use.
+      const firstBranch = world.spec.branches[0]
+      lines.push(
+        `A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(firstBranch ? servicePayOn(firstBranch, 0) : (0 as Money))} a month, and rises with rank.`,
+      )
       lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
       const wars = activeWars(world)
       const home = homeland(world)

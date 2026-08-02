@@ -19,7 +19,7 @@ import { CLASSIC_SPEC, specById } from '../src/worldspec.js'
 import type { WorldSpec } from '../src/types.js'
 import { serialize } from '../src/snapshot.js'
 import { setPlayer } from '../src/player.js'
-import { boardStandingFor, unitOptionsFor } from '../src/service.js'
+import { boardStandingFor, branchSpecFor, rankTitle, unitOptionsFor } from '../src/service.js'
 import { specialUnitById } from '../src/content.js'
 import { homeland } from '../src/geopolitics.js'
 import { recordEvent } from '../src/records.js'
@@ -271,5 +271,76 @@ describe('the WorldSpec', () => {
     const foreign = [...world.nations.values()].filter((n) => !n.isHomeland).map((n) => n.name)
     expect(foreign).toEqual(['Aldaria', 'Brennisk', 'Cothery'])
     expect([...world.nations.values()].filter((n) => n.isHomeland).length).toBe(1)
+  })
+})
+
+describe('a preset that is not Classic actually runs', () => {
+  /** A spec whose pools are deliberately NOTHING like Classic's lengths. */
+  function tinySpec(): WorldSpec {
+    return {
+      id: 'classic',
+      name: 'Test',
+      maleGiven: { names: ['Auberon', 'Corvin'], weights: [3, 1] },
+      femaleGiven: { names: ['Isolde', 'Maud', 'Perpetua'], weights: [5, 2, 1] },
+      family: { names: ['Vasquez-Nakamura', 'Oyelaran'], weights: [1, 1] },
+      gazetteer: {
+        townName: 'Little Compton',
+        schoolName: 'the schoolhouse',
+        neighbourhoods: ['Anvil Row', 'The Green', 'Saltmarsh'],
+        workplaces: ['the cannery', 'the ropewalk'],
+        civic: ['the meeting hall'],
+        bases: ['Camp Ridge'],
+      },
+      foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
+      branches: CLASSIC_SPEC.branches,
+    }
+  }
+
+  it('runs a century of births without ever leaving its own name pools', () => {
+    // The architecture review's must-fix, as a test. The first draft drew a
+    // newborn's NAME from the spec and its WEIGHTS from the module
+    // constants, which is fine for Classic and a RangeError on the first
+    // birth under any pool of a different length — a crash inside the tick,
+    // inside the worker. The custom-spec test that existed never advanced a
+    // single tick, so nobody was ever born to catch it. (RESUME rule 2: a
+    // test that never advances the tick loop tests nothing.)
+    const spec = tinySpec()
+    const world = createWorld(makeSeed(4242), 120, spec)
+    advanceTicks(world, 900)
+
+    const born = world.events.filter((e) => e.type === 'born').length
+    expect(born).toBeGreaterThan(0)
+
+    const allowed = new Set([...spec.maleGiven.names, ...spec.femaleGiven.names])
+    const families = new Set(spec.family.names)
+    for (const person of world.people.values()) {
+      expect(allowed.has(person.givenName), `${person.givenName} is not in the preset's pools`).toBe(true)
+      expect(families.has(person.familyName)).toBe(true)
+    }
+  })
+})
+
+describe('a branch this build cannot resolve', () => {
+  it('is a blank, never another service\u2019s ladder', () => {
+    // Substituting branches[0] would re-read every RANK INDEX against the
+    // wrong ladder: grades[rank] falls off the end, the ?? 9 fallback makes
+    // an E-9, and a twenty-year career ceiling becomes thirty. A different
+    // life, not a mislabel (architecture review).
+    const world = createWorld(makeSeed(12345), 40)
+    const unknown = branchSpecFor(world, 'space-command')
+
+    expect(unknown.id).toBe('space-command')
+    expect(unknown.name).toBe('space-command')
+    expect(unknown.ranks).toEqual([])
+    expect(unknown.grades).toEqual([])
+    // Nothing borrowed from the real services.
+    const land = branchSpecFor(world, 'land-forces')
+    expect(unknown.ranks).not.toEqual(land.ranks)
+    expect(unknown.grades).not.toEqual(land.grades)
+    // The board and the ladder both freeze rather than inventing a career.
+    expect(unknown.competitiveFrom).toBeGreaterThan(1000)
+    // And the rank reads as an index, not as somebody else's stripes.
+    expect(rankTitle(world, 'space-command', 4)).toBe('#4')
+    expect(rankTitle(world, 'land-forces', 4)).toBe('CPL')
   })
 })

@@ -212,6 +212,25 @@ fingerprint describes the town rather than the recipe. One golden hash per prese
 Classic's did not move when the spec was extracted, which is how the extraction was
 proved to be a pure refactor.
 
+**A shipped preset's content is frozen, and additive-only.** The preset is
+identified in the save by a STRING; nothing binds that string to the content behind
+it. Two builds shipping `'classic'` with different name lists satisfy every recorded
+input — same seed, same preset id, same simulation version — and produce different
+worlds, with no warning, because the load path has nothing to compare. So:
+
+- Editing a shipped preset's content is a `SIMULATION_VERSION`-class change, exactly
+  like editing a rule. Adding a preset is not.
+- **Rank ladders are append-only and never reordered.** `ServiceRecord.rank` and the
+  `'passed-over'` event detail are INDEXES into them; reordering a ladder re-ranks
+  every soldier in every existing save of that preset.
+- **Gazetteer ORDER is load-bearing**, not only its length: places are allocated in
+  gazetteer order, and person ids follow places, and person ids seed trait streams.
+  Moving one street down the list reshuffles the whole town.
+- A world whose preset this build cannot resolve loads on Classic content and SAYS
+  SO (`LoadResult.presetUnknown` → a note on the load screen). Silent substitution
+  would be the §7 violation.
+- Every preset gets its own golden fingerprint in the determinism suite as it ships.
+
 A saved game therefore needs to store only: world seed, simulation version, the
 ordered list of player decisions, and the current tick. The full world state is
 recoverable by replay — a useful property for corruption recovery and for shrinking

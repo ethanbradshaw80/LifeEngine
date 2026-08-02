@@ -107,9 +107,33 @@ PERFORMANCE_BASELINE). Time zones: skipped — meaningless at monthly ticks.
   fixed, with a test that fails if "the Republic" reappears inside an
   engine string. **Classic's golden hash did not move** — the extraction
   is a proved pure refactor. STILL OPEN for W1: service content and
-  START_YEAR onto the spec, and resistance 3 (ServiceBranch as a
-  compile-time union keying five tables) which is the largest remaining
-  piece and blocks real branch names in W2.
+  START_YEAR onto the spec. RESISTANCE 3 IS DONE (86d7bdf): branches are
+  data now. What is left, in the order it blocks W2, per the W1
+  architecture review:
+    1. **SPECIALTIES** (`content.ts`) — the keystone, and not because trade
+       names are US-specific. Every branch id that ever reaches a service
+       record comes from `specialty.branch`, so until this table is
+       preset-owned, `spec.branches` is decorative: a preset physically
+       cannot use its own branch ids.
+    2. **Homeland identity** (`geopolitics.ts` — `'the Republic'`, plus the
+       nation count and bloc count). W2's whole premise is homeland = the
+       United States. Was missing from this plan's own open list.
+    3. **START_YEAR** (`clock.ts`). Mechanically trivial today — nothing in
+       the tick path reads the calendar year — but it is a DESIGN decision:
+       if the start year is ever player-selectable it is an input like the
+       seed and belongs in the save header beside presetId, not only on the
+       spec. Extract it before era-weighted name pools make the year a
+       determinism input rather than a display offset.
+    4. **`NEWS_STATION`** ('WCJC') — a town fact wearing a masthead;
+       gazetteer-shaped.
+    5. **Resistance 2 is only half closed**: `specialtyById` and
+       `occupationById` still THROW on ids that live in saves.
+    6. **The worker has no preset seam**: `{type:'new', seed}` calls
+       `createWorld(makeSeed(seed))`, so W2 cannot be started from the UI
+       until the message carries a preset id.
+  NOT blockers, and ruled shared-fictional in every preset: SERVICE_SCHOOLS,
+  SPECIAL_UNITS (this plan already rules named units fictional forever),
+  decoration titles, OCCUPATIONS, OFFENCES, month names.
 - **W1 (original scope, for reference) — WorldSpec extraction.** Classic preset = current content
   verbatim; engine reads the spec everywhere content.ts is read today;
   resistances 2-4 and 6 fixed; save header gains preset id (schema bump;

@@ -79,6 +79,14 @@ export interface LoadResult {
    * than left to discover it (docs/DETERMINISM.md §7).
    */
   readonly simulationVersionChanged: boolean
+  /**
+   * True when the save names a preset this build does not have. The world
+   * loads on Classic content — better than refusing — but its future
+   * newborn names, service ladders and foreign nations are then a DIFFERENT
+   * preset's, which is exactly the intentional divergence DETERMINISM.md §7
+   * says must be told rather than discovered.
+   */
+  readonly presetUnknown: boolean
 }
 
 /**
@@ -134,6 +142,7 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
     },
     migrationsApplied: applied,
     simulationVersionChanged: simulationVersion !== currentSimulationVersion,
+    presetUnknown: presetId !== world.spec.id,
   }
 }
 

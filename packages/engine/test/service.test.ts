@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { BRANCH_RANKS, servicePay, specialtyById } from '../src/content.js'
+import { BRANCH_RANKS, CLASSIC_BRANCHES, servicePayOn, specialtyById } from '../src/content.js'
 import type { ServiceBranch } from '../src/content.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, resolvePending, setPlayer } from '../src/player.js'
@@ -137,11 +137,14 @@ describe('the peacetime career', () => {
   })
 
   it('pay tracks the pay grade, and SPC and CPL earn the same E-4 pay', () => {
-    expect(servicePay('land-forces', 3)).toBe(servicePay('land-forces', 4))
+    const land = CLASSIC_BRANCHES.find((b) => b.id === 'land-forces')
+    const navy = CLASSIC_BRANCHES.find((b) => b.id === 'naval-service')
+    if (!land || !navy) throw new Error('classic must ship these branches')
+    expect(servicePayOn(land, 3)).toBe(servicePayOn(land, 4))
     // Sergeant out-earns specialist; the table rises with grade.
-    expect(servicePay('land-forces', 5)).toBeGreaterThan(servicePay('land-forces', 4))
+    expect(servicePayOn(land, 5)).toBeGreaterThan(servicePayOn(land, 4))
     // All branches pay the same at the bottom: pay is rank, not trade.
-    expect(servicePay('naval-service', 0)).toBe(servicePay('land-forces', 0))
+    expect(servicePayOn(navy, 0)).toBe(servicePayOn(land, 0))
   })
 
   it('the serving hold no civilian job, and their pay reaches home', () => {

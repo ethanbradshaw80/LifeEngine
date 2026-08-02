@@ -13,8 +13,6 @@ import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, isBirthdayMonth } from './clock.js'
 import {
   educationRank,
-  FEMALE_GIVEN_WEIGHTS,
-  MALE_GIVEN_WEIGHTS,
   meetsRequirement,
   OCCUPATIONS,
   occupationById,
@@ -1239,12 +1237,17 @@ export function deliverChild(
 
   world.people.set(childId, {
     id: childId,
+    // Names AND weights from the same pool. The first draft took the names
+    // from the spec and the weights from the module constants, which is
+    // fine for Classic and a RangeError on the first birth under any pool
+    // of a different length — a crash inside the tick, inside the worker
+    // (W1 architecture review).
     givenName:
       overrides?.givenName ??
-      rng.pickWeighted(
-        childSex === 'female' ? world.spec.femaleGiven.names : world.spec.maleGiven.names,
-        childSex === 'female' ? FEMALE_GIVEN_WEIGHTS : MALE_GIVEN_WEIGHTS,
-      ),
+      (() => {
+        const pool = childSex === 'female' ? world.spec.femaleGiven : world.spec.maleGiven
+        return rng.pickWeighted(pool.names, pool.weights)
+      })(),
     familyName: overrides?.familyName ?? partner?.familyName ?? mother.familyName,
     sex: childSex,
     birthTick: tick,

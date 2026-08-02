@@ -299,10 +299,22 @@ export function specialtyById(id: string): ServiceSpecialty {
  * the grade to the table. All E-1s earn the same whatever their trade — pay
  * tracks rank, exactly as in life. Never a lookup of danger.
  */
-export function servicePay(branch: ServiceBranch, rank: number): Money {
-  const grades = BRANCH_GRADES[branch]
-  const grade = grades[Math.max(0, Math.min(grades.length - 1, rank))] ?? 1
+export function payForGrade(grade: number): Money {
   return (PAY_BY_GRADE[grade - 1] ?? PAY_BY_GRADE[0] ?? 0) as Money
+}
+
+/**
+ * Monthly pay for a rank on a BRANCH SPEC's ladder. Takes the spec rather
+ * than a branch id: the grades are the preset's, the pay table is the
+ * engine's tuning, and the caller has already resolved the branch through
+ * branchSpecFor. The first W1 draft kept reading BRANCH_GRADES here, which
+ * meant a branch id outside Classic's union crashed the moment anyone was
+ * paid — while rendering perfectly (architecture review).
+ */
+export function servicePayOn(branch: ServiceBranchSpec, rank: number): Money {
+  const grades = branch.grades
+  const grade = grades[Math.max(0, Math.min(grades.length - 1, rank))] ?? 1
+  return payForGrade(grade)
 }
 
 /** Standard enlistment term, months. */

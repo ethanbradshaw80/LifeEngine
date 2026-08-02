@@ -45,7 +45,7 @@ import {
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_SCHOOLS,
   SERVICE_TERM_MONTHS,
-  servicePay,
+  servicePayOn,
   SPECIAL_UNITS,
   SPECIALTIES,
   specialtyById,
@@ -53,7 +53,7 @@ import {
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
-import type { ServiceBranch, ServiceSpecialty } from './content.js'
+import type { ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js'
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
@@ -150,9 +150,21 @@ export function servicePayOf(world: World, personId: EntityId): number {
 export function branchSpecFor(world: World, branchId: string): ServiceBranchSpec {
   const found = world.spec.branches.find((b) => b.id === branchId)
   if (found) return found
-  const first = world.spec.branches[0]
-  if (!first) throw new Error('a world spec must ship at least one service branch')
-  return first
+  // NOT another service's ladder. The review caught what substitution does:
+  // a rank is an INDEX, so serving branches[0] re-reads every rank against
+  // the wrong ladder — grades[rank] falls off the end, `?? 9` makes an E-9,
+  // and a twenty-year career ceiling silently becomes thirty. That is a
+  // different life, not a mislabel. An honest blank instead: the id is its
+  // own name, no grade is invented, and both the promotion ladder and the
+  // board freeze, so the career stops rather than being re-dated.
+  return {
+    id: branchId,
+    name: branchId,
+    ranks: [],
+    grades: [],
+    competitiveFrom: Number.MAX_SAFE_INTEGER,
+    juniorTigMonths: [],
+  }
 }
 
 /** What a branch is called: "the Land Forces". */
@@ -163,6 +175,9 @@ export function branchName(world: World, branchId: string): string {
 /** The branch's own title for a ladder index — 'PFC', 'PO2', 'SSgt'. */
 export function rankTitle(world: World, branch: string, rank: number): string {
   const ladder = branchSpecFor(world, branch).ranks
+  // An unresolvable branch has no ladder: say the index rather than inventing
+  // a rank from someone else's.
+  if (ladder.length === 0) return `#${String(rank)}`
   return ladder[Math.max(0, Math.min(ladder.length - 1, rank))] ?? ladder[0] ?? 'PVT'
 }
 
@@ -700,7 +715,7 @@ export function enlistPerson(
     specialtyChangedAtTick: null,
     enlistedAtTick: tick,
     baseId: base.id,
-    monthlyPay: servicePay(specialty.branch, 0),
+    monthlyPay: servicePayOn(branchSpecFor(world, specialty.branch), 0),
     performance: Math.floor((person.traits.diligence + 500) / 2),
     termMonthsLeft: SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
@@ -728,7 +743,10 @@ export function enlistPerson(
     subjectId: person.id,
     decision: 'enlistment',
     significance: 'defining',
-    inputs: [...extraInputs, factor('steady-pay', Math.floor(servicePay(specialty.branch, 0) / 1000))],
+    inputs: [
+      ...extraInputs,
+      factor('steady-pay', Math.floor(servicePayOn(branchSpecFor(world, specialty.branch), 0) / 1000)),
+    ],
     chosen: `enlisted in ${branchName(world, specialty.branch)} as a ${specialty.title}`,
     rejected: ['civilian life'],
     streamId: Stream.Employment,
@@ -1290,7 +1308,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     fitnessScore,
     fitnessTestedAtTick,
     performance,
-    monthlyPay: servicePay(branch, rank),
+    monthlyPay: servicePayOn(branchSpecFor(world, branch), rank),
     termMonthsLeft,
     // The term's running ledger: good conduct is judged on the average of
     // every served month, not the last month's noise.
@@ -1331,7 +1349,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       otherId: null,
       occupationId: null,
       workplaceId: null,
-      monthlyPay: servicePay(branch, rank),
+      monthlyPay: servicePayOn(branchSpecFor(world, branch), rank),
       placeId: null,
       options: ['stay', 'leave'],
     })
@@ -1511,7 +1529,7 @@ export function applyBoardPromotion(world: World, tick: Tick, personId: EntityId
     ...record,
     rank: newRank,
     rankSinceTick: tick,
-    monthlyPay: servicePay(record.branch as ServiceBranch, newRank),
+    monthlyPay: servicePayOn(branchSpecFor(world, record.branch), newRank),
   })
   return newRank
 }
