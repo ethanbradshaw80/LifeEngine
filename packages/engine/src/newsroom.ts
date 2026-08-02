@@ -30,11 +30,13 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
 import { describeAilment } from './wounds.js'
 import {
+  CASUALTY_CLAUSES,
   CRIME_OPENERS,
   DEATH_OPENERS,
   DEATH_QUOTES,
-  HOUSE_GRIT,
+  gritFor,
   pickPhrase,
+  WAR_OPENERS,
   WOUND_CLAUSES,
 } from './newsvoice.js'
 import { GRADE_TITLES, isFelony, offenceById } from './content.js'
@@ -218,7 +220,7 @@ function deathInService(
   // do not read as the same sentence with the names swapped.
   const wound = woundWords(world, person.id, item.tick)
   const how = contactWords(world, person.id, item.tick)
-  const grit = HOUSE_GRIT
+  const grit = gritFor('died-in-service')
   const opener = pickPhrase(DEATH_OPENERS[grit], world.seed, person.id * 31, item.tick)
   const woundClause =
     wound === null ? null : pickPhrase(WOUND_CLAUSES[grit], world.seed, person.id * 37, item.tick)
@@ -341,7 +343,7 @@ function deathQuote(
         // shaken squadmate is allowed to sound like one. The graphic pool
         // is folded in beside the restrained lines rather than replacing
         // them, so the same seed still produces variety across a war.
-        ...DEATH_QUOTES[HOUSE_GRIT],
+        ...DEATH_QUOTES[gritFor('died-in-service')],
         `${person.givenName} was in ${unitName} with us. That is who we lost.`,
         `We served together in ${unitName}. You do not replace somebody like that on a roster.`,
         `${person.givenName} pulled the same duty the rest of us pulled, every day, without a word about it.`,
@@ -444,7 +446,7 @@ function crimeReport(world: World, item: NewsItem, person: Person, dateline: str
     )
   }
 
-  const grit = HOUSE_GRIT
+  const grit = gritFor('courts')
   const opener = pickPhrase(CRIME_OPENERS[grit], world.seed, person.id * 53, item.tick)
 
   return {
@@ -491,13 +493,14 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
   const dead = war.casualtiesA + war.casualtiesB
   const phase = war.warPhase ?? 'attrition'
 
+  const grit = gritFor('war')
+  const opener = pickPhrase(WAR_OPENERS[grit], world.seed, war.a * 71 + war.b, item.tick)
   const body: string[] = [
     `Fighting began in ${formatDate(world, war.sinceTick)}${years >= 1 ? `, ${String(years)} year${years === 1 ? '' : 's'} ago` : ''}. Military sources describe the current phase as ${phase}.`,
   ]
   if (dead > 0) {
-    body.push(
-      `Combined casualties are reported at ${grouped(dead)}. The figures are issued by the two governments and cannot be independently confirmed.`,
-    )
+    const toll = pickPhrase(CASUALTY_CLAUSES[grit], world.seed, war.a * 73 + war.b, item.tick)
+    body.push(`${sentenceCase(toll.replace('{n}', String(dead)))}.`)
   }
   if (ourWar && home !== undefined) {
     const ours = war.a === home.id ? war.casualtiesA : war.casualtiesB
@@ -513,9 +516,14 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
       ? `${sentenceCase(homelandName(world))} at war with ${other?.name ?? 'foreign power'}, ${phase} continues`
       : `${sentenceCase(a.name)} and ${b.name} remain at war`,
     dateline,
-    lede: ourWar
-      ? `${sentenceCase(homelandName(world))} remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(world, item.tick)}, with fighting in its ${phase}.`
-      : `${a.name} and ${b.name} remain at war as of ${formatDate(world, item.tick)}, with fighting in its ${phase}.`,
+    // The pools carry the register; the facts stay exactly where they were.
+    lede: `${opener
+      .replace('{a}', ourWar ? sentenceCase(homelandName(world)) : a.name)
+      .replace('{b}', ourWar ? (other?.name ?? 'a foreign power') : b.name)
+      // The phase is the body's first sentence already; repeating it here
+      // made every lede end in the same tacked-on clause, which is the
+      // sameness these pools exist to kill.
+      .replace('{when}', formatDate(world, item.tick))}.`,
     body: body.slice(0, 4),
     quote: null,
     closing: ourWar

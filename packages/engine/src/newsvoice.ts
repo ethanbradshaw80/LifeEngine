@@ -27,8 +27,33 @@ import { hash32 } from './rng.js'
 /** How hard the paper is allowed to hit. */
 export type Grit = 'low' | 'medium' | 'high'
 
-/** The station's default. War and crime read hot; obituaries soften it. */
+/** The station's default, where a section does not say otherwise. */
 export const HOUSE_GRIT: Grit = 'high'
+
+/**
+ * §4's dial, per section rather than one switch for the paper.
+ *
+ * WAR AND CRIME RUN HOT: that is where the override is aimed, and a war
+ * report that will not say what a wound did is the sanitising the owner
+ * asked to stop.
+ *
+ * OBITUARIES STAY WARMER, and that is a deliberate difference rather than
+ * squeamishness. A death IN SERVICE is a war story and runs at the war's
+ * register; an obituary is the page a family reads about somebody who died
+ * at home, and the same graphic register there is not grit, it is cruelty
+ * to no purpose. The override lifted restraint; it did not ask for that.
+ */
+export const SECTION_GRIT: Readonly<Record<string, Grit>> = {
+  war: 'high',
+  courts: 'high',
+  'died-in-service': 'high',
+  obituaries: 'medium',
+  local: 'low',
+}
+
+export function gritFor(section: string): Grit {
+  return SECTION_GRIT[section] ?? HOUSE_GRIT
+}
 
 /**
  * A deterministic pick from a pool. The same seed, subject and tick always
@@ -169,4 +194,39 @@ export const KICKERS: Readonly<Record<string, string>> = {
   crime: 'Courthouse',
   war: 'War & Nation',
   local: 'Local',
+}
+
+// ---------------------------------------------------------------------------
+// The war
+// ---------------------------------------------------------------------------
+
+/** How a war report opens. `{a}`/`{b}` are the belligerents. */
+export const WAR_OPENERS: Readonly<Record<Grit, readonly string[]>> = {
+  low: [
+    '{a} and {b} remain at war as of {when}',
+    'The war between {a} and {b} continued through {when}',
+    'Fighting between {a} and {b} went on into {when}',
+  ],
+  medium: [
+    '{a} and {b} were still at it in {when}',
+    'The war with {b} ground into {when}',
+    'Another month of it: {a} and {b}, {when}',
+  ],
+  high: [
+    '{a} and {b} spent {when} killing each other',
+    'The war with {b} is still eating people in {when}',
+    'Nothing moved in {when} except the casualty lists',
+    '{when}, and the war with {b} has not finished with anybody yet',
+  ],
+}
+
+/** What the dead are called, by register. */
+export const CASUALTY_CLAUSES: Readonly<Record<Grit, readonly string[]>> = {
+  low: ['{n} are recorded dead on both sides'],
+  medium: ['{n} dead between them so far', 'the count stands at {n} dead'],
+  high: [
+    '{n} bodies between them and no ground to show for it',
+    '{n} dead, and the line is where it was',
+    '{n} killed so far, most of them somebody\u2019s twenty-year-old',
+  ],
 }
