@@ -23,6 +23,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
+import { eventsFor } from './eventindex.js'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import {
   grantAchievement,
@@ -506,8 +507,8 @@ export function unitOptionsFor(
   const badges = badgesOf(world, personId)
   return world.spec.units.map((unit) => {
     let reason = ''
-    const drops = world.events.filter(
-      (e) => e.type === 'dropped-selection' && e.subjectId === personId && e.detail === unit.id,
+    const drops = eventsFor(world, personId).filter(
+      (e) => e.type === 'dropped-selection' && e.detail === unit.id,
     ).length
     if (record.unitId === unit.id) {
       reason = 'Already wearing the tab.'
@@ -1296,10 +1297,11 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // is not special (charter §2), and a unit a descendant finds must
       // have had more than one member, ever (foundation §13).
       const badges = badgesOf(world, person.id)
+      // Per-person, not per-ledger: this ran for every serving soldier every
+      // month and walked all 34,000 events to count two.
+      const own = eventsFor(world, person.id)
       const dropsFor = (unitId: string): number =>
-        world.events.filter(
-          (e) => e.type === 'dropped-selection' && e.subjectId === person.id && e.detail === unitId,
-        ).length
+        own.filter((e) => e.type === 'dropped-selection' && e.detail === unitId).length
       const unit = world.spec.units.find(
         (u) =>
           u.branches.includes(branch) &&
@@ -1333,11 +1335,8 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // path for the ranks up-or-out no longer touches. Not in a theatre
   // (deployment owns those months), not during basic.
   if (!deployed && monthsIn > 2 && rng.chance(misconductChance(person, performance), 1_000)) {
-    const priorStrikes = world.events.filter(
-      (e) =>
-        e.type === 'disciplined' &&
-        e.subjectId === person.id &&
-        tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
+    const priorStrikes = eventsFor(world, person.id).filter(
+      (e) => e.type === 'disciplined' && tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
     ).length
     const severe = rng.chance(1, 6)
     const willBust = severe && rank > 0 && priorStrikes + 1 < MISCONDUCT_STRIKES
