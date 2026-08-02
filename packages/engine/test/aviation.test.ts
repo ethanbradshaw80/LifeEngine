@@ -9,10 +9,12 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
 import { AIR_MEDAL, decorationsOf, grantAirMedal } from '../src/awards.js'
 import { recordEvent } from '../src/records.js'
 import { OCCUPATIONS, SPECIAL_UNITS, SPECIALTIES, SERVICE_SCHOOLS } from '../src/content.js'
+import { ageAt } from '../src/clock.js'
+import { homeland, relationKey } from '../src/geopolitics.js'
 import { timelineFor } from '../src/story.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -125,5 +127,72 @@ describe('aviation', () => {
       detail: 'crewed the aircraft',
     })
     expect(timelineFor(world, personId).some((entry) => entry.text.includes('Flew a mission'))).toBe(true)
+  })
+
+  it('a night in a shelter is not a sortie', () => {
+    // THE DEFECT THIS CATCHES: the mission block sat inside "not an
+    // accident", which is three channels wide, so a mortar attack on the
+    // airfield recorded a flight and paid an Air Medal with a citation
+    // naming one. Run a war with aircrew in it and assert that every
+    // recorded mission belongs to a month of direct combat.
+    const world = createWorld(makeSeed(8200), 60)
+    const ourNation = homeland(world)
+    const enemy = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[0]
+    if (!ourNation || !enemy) throw new Error('no war to have')
+    const key = relationKey(ourNation.id, enemy.id)
+    const relation = world.geoRelations.get(key)
+    if (!relation) throw new Error('no relation')
+    world.geoRelations.set(key, { ...relation, state: 'war', sinceTick: world.tick, warPhase: 'attrition' })
+
+    let enlisted = 0
+    for (const person of livingPeople(world)) {
+      if (enlisted >= 10) break
+      const age = ageAt(person.birthTick, world.tick)
+      if (age < 20 || age > 30) continue
+      world.service.set(person.id, {
+        personId: person.id,
+        branch: 'air-guard',
+        specialtyId: enlisted % 2 === 0 ? 'aviator' : 'aircrew',
+        rank: 2,
+        rankSinceTick: world.tick,
+        qualifications: [],
+        enlistedAtTick: world.tick,
+        baseId: person.id,
+        monthlyPay: 120_000 as never,
+        performance: 600,
+        termMonthsLeft: 240,
+        dischargedAtTick: null,
+        dischargeReason: null,
+        termPerformanceSum: 3_600,
+        unitId: null,
+        unitSinceTick: null,
+        schoolId: null,
+        schoolStartsAtTick: null,
+        fitnessScore: 200,
+        fitnessTestedAtTick: null,
+        priorSpecialtyIds: [],
+        specialtyChangedAtTick: null,
+      })
+      world.employment.delete(person.id)
+      enlisted += 1
+    }
+    advanceTicks(world, 240)
+
+    const missions = world.events.filter((e) => e.type === 'aerial-mission')
+    expect(missions.length, 'a long air war produces some flying').toBeGreaterThan(0)
+    for (const mission of missions) {
+      // A mission and its contact are recorded in the same month, and the
+      // contact's own words say which channel found them.
+      const contact = world.events.find(
+        (e) => e.type === 'saw-combat' && e.subjectId === mission.subjectId && e.tick === mission.tick,
+      )
+      expect(contact, 'every mission sits on a real contact').toBeDefined()
+    }
+
+    // And nobody who is not aircrew ever flew one.
+    for (const mission of missions) {
+      const trade = world.service.get(mission.subjectId)?.specialtyId
+      expect(trade === 'aviator' || trade === 'aircrew', `${String(trade)} flew a mission`).toBe(true)
+    }
   })
 })

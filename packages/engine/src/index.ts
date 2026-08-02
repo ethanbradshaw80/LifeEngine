@@ -182,6 +182,7 @@ export {
   currentDeployment,
   deploymentsOf,
   isDeployed,
+  ordersSheetFor,
   isCaptive,
   capturedSince,
   rotationAvailable,
@@ -296,3 +297,4 @@ export type {
   World,
   WorldEvent,
 } from './types.js'
+export type { OrdersSheet, OrdersVariant } from './deployment.js'

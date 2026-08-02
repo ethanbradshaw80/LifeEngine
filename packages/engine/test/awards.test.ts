@@ -131,7 +131,7 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
     expect(decorationsOf(world, soldierId).length).toBe(0)
   })
 
-  it('combat action refuses everything but recorded contact, and dedupes per war', () => {
+  it('combat action refuses everything but recorded contact, and is worn once', () => {
     const { world, soldierId } = worldWithASoldier()
     // A wound is not a contact star; an accident is neither.
     const wound = recordEvent(world, world.tick, {
@@ -155,11 +155,14 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
     })
     expect(grantCombatAction(world, world.tick, soldierId, contact2, 'Rondesia')?.count).toBe(1)
 
-    // A different war adds the device.
+    // AND A DIFFERENT WAR ADDS NOTHING (owner, 2026-08-02). This is a badge:
+    // a man who has been in ground combat has been in ground combat, and a
+    // second war does not make him more so. It used to add a device, which
+    // put a repeat count on something that has no repeats.
     const contact3 = recordEvent(world, world.tick, {
       type: 'saw-combat', subjectId: soldierId, otherId: enemyB, detail: 'A firefight at the checkpoint before dawn',
     })
-    expect(grantCombatAction(world, world.tick, soldierId, contact3, 'Halvia')?.count).toBe(2)
+    expect(grantCombatAction(world, world.tick, soldierId, contact3, 'Halvia')?.count).toBe(1)
   })
 
   it('a qualification badge refuses a mismatched rating', () => {

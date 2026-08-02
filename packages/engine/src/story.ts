@@ -285,6 +285,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — ${unitMomentWordsFor(event.detail)}.`
     case 'aerial-mission':
       return `${year} — Flew a mission under fire.`
+    case 'received-orders':
+      return `${year} — Received orders${event.detail === null ? '' : ` for ${event.detail}`}.`
     case 'was-captured':
       return `${year} — Taken prisoner by ${event.detail ?? 'a hostile force'}.`
     case 'repatriated': {

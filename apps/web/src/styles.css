@@ -1793,3 +1793,155 @@ ul.welcome-points li + li {
 @media (max-width: 480px) {
   .rack li { width: 62px; height: 19px; }
 }
+
+/* ---------------------------------------------------------------------------
+   DEPLOYMENT ORDERS.
+
+   Paper, on purpose: monospace, a rule under the letterhead, a stamp across
+   the corner. The crest is an invented device — the charter lets a branch be
+   named and never lets its seal be drawn.
+--------------------------------------------------------------------------- */
+
+.orders {
+  width: 100%;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.orders-sheet {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px 20px;
+  color: #1b1a16;
+  background: #f4efe2;
+  border-radius: 3px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  font-family: 'Courier New', ui-monospace, monospace;
+}
+
+.orders-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(0, 0, 0, 0.015) 28px);
+}
+
+.orders-crest {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.orders-crest svg { width: 46px; height: 46px; }
+
+.orders-cmd {
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #6b6455;
+}
+
+hr.orders-rule { border: none; border-top: 2px solid #26221a; margin: 12px 0 6px; }
+hr.orders-thin { border: none; border-top: 1px solid #cdc6b3; margin: 12px 0; }
+
+.orders-titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.orders-title { font-weight: 700; font-size: 15px; letter-spacing: 2px; }
+.orders-no { font-size: 10.5px; color: #6b6455; }
+
+.orders-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 10.5px;
+  color: #6b6455;
+  margin-bottom: 6px;
+}
+
+table.orders-data { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0 4px; }
+table.orders-data td { border: 1px solid #cdc6b3; padding: 5px 8px; vertical-align: top; }
+table.orders-data .lbl {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #6b6455;
+}
+table.orders-data .val { font-weight: 700; font-size: 12.5px; }
+
+ol.orders-body { font-size: 12.5px; line-height: 1.55; padding-left: 20px; margin: 12px 0; }
+ol.orders-body li { margin-bottom: 7px; }
+ol.orders-body .em { font-weight: 700; }
+ol.orders-body .nlt { color: #a4241f; font-weight: 700; }
+
+.orders-stamp {
+  /* Bottom-right, not top-right: in the mock the stamp sat across the order
+     number and hid it. A stamp is supposed to be over the paper, not over
+     the one field somebody needs to read back. */
+  position: absolute;
+  bottom: 74px;
+  right: 16px;
+  padding: 5px 10px;
+  color: #a4241f;
+  border: 3px solid #a4241f;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 2px;
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(-12deg);
+  opacity: 0.82;
+}
+
+.orders-stamp small { display: block; font-size: 8.5px; letter-spacing: 1px; }
+
+.orders-sig { margin-top: 14px; font-size: 12px; }
+.orders-sig .by { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: #6b6455; }
+.orders-sig .name { font-weight: 700; margin-top: 12px; }
+.orders-sig .role { font-size: 10.5px; color: #6b6455; }
+
+.orders-foot {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+  color: #6b6455;
+}
+
+.orders-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+
+.orders-actions button {
+  flex: 1 1 180px;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e7ecf3;
+  background: #1f2733;
+  border: 1px solid #34404f;
+  border-radius: 8px;
+}
+
+.orders-actions button.primary { background: #2f6f4f; border-color: #37855f; }
+.orders-actions button.ghost { background: transparent; color: #9aa6b6; }
+
+@media (max-width: 480px) {
+  .orders-sheet { padding: 20px 16px 16px; }
+  .orders-stamp { bottom: 66px; right: 8px; font-size: 11px; padding: 4px 7px; }
+  .orders-titlebar { flex-direction: column; gap: 2px; }
+}

@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v51 — The review pass on aviation: the Air Medal is minted only for the
+ *      channel that means they went up (a base attack is a night in a
+ *      shelter, not a sortie); the senior parachutist is earnable by NPCs,
+ *      not the player alone; an NPC moving to a tier-2 unit starts a new
+ *      clock; and Airborne School admits the air guard, which is what makes
+ *      the freefall road to that badge exist at all.
  * v50 — SENIOR PARACHUTIST, and the record that makes it possible: a
  *      service record now knows when its soldier joined their unit, and
  *      three years on a jump status earns the badge from the monthly pass.
@@ -329,7 +335,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 50
+export const SIMULATION_VERSION = 51
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

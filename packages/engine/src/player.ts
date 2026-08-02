@@ -24,7 +24,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
-import { sentenceCase, withArticle } from './text.js'
+import { bareName, sentenceCase, withArticle } from './text.js'
 import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
@@ -39,7 +39,7 @@ import {
   volunteerForSupport,
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
-import { alliedWars, deployUnderOrders, isCaptive } from './deployment.js'
+import { alliedWars, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
@@ -1114,6 +1114,37 @@ function applyConvalescenceChoice(world: World, tick: PendingDecision['tick'], p
  * discount on the war (review: the player's death rate must not fall just
  * because a question was asked).
  */
+/**
+ * Cut a volunteer's orders and put them in front of the player. Returns
+ * false when there is no war to volunteer for, in which case nothing was
+ * promised and nothing is owed.
+ */
+function askToAcknowledgeOrders(world: World, tick: Tick, personId: EntityId): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  const war = activeWars(world).find((w) => w.a === home.id || w.b === home.id)
+  if (!war) return false
+  const enemyId = war.a === home.id ? war.b : war.a
+  const enemy = world.nations.get(enemyId)
+  recordEvent(world, tick, {
+    type: 'received-orders',
+    subjectId: personId,
+    otherId: enemyId,
+    detail: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
+  })
+  return raisePending(world, {
+    tick,
+    kind: 'deployment-order',
+    personId,
+    otherId: enemyId,
+    occupationId: 'voluntary',
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: ['go'],
+  })
+}
+
 function resolveMomentCasualty(
   world: World,
   tick: PendingDecision['tick'],
@@ -1482,9 +1513,9 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'volunteer-deploy': {
-      if (choice === 'accept') {
-        volunteerForDeployment(world, pending.tick, person.id)
-      }
+      // NOT resolved here: accepting raises the orders sheet, and a pending
+      // cannot be raised while this one still holds the slot. Handled after
+      // commit(), below.
       break
     }
 
@@ -1750,6 +1781,27 @@ export function resolvePending(world: World, choice: string): void {
       const record = world.service.get(person.id)
       if (enemyId === null || !record) break
 
+      // A PEACETIME POSTING IS NOT A WAR, and its sheet only has the one
+      // button: there is no enemy to be excused from and nothing to refuse.
+      if (pending.occupationId === 'rotation') {
+        const host = world.nations.get(enemyId)
+        if (host) {
+          startRotation(
+            world, pending.tick, person.id, host,
+            [factor('under-orders', 1000)],
+            `posted to ${host.name} on rotation`,
+            [],
+          )
+        }
+        break
+      }
+
+      if (pending.occupationId === 'voluntary') {
+        // Their own hand raised it, and the record says so.
+        volunteerForDeployment(world, pending.tick, person.id)
+        break
+      }
+
       if (choice === 'go') {
         deployUnderOrders(world, person.id, enemyId, [factor('own-choice', 400)])
         break
@@ -1810,6 +1862,13 @@ export function resolvePending(world: World, choice: string): void {
     if (hurt && hurt.ailment !== null && person.deathTick === null) {
       offerFieldAid(world, pending.tick, person.id, hurt.severity)
     }
+  }
+
+  // A VOLUNTEER GETS ORDERS TOO. Putting a hand up is not the same as
+  // being on a plane: the sheet still has to be cut, and it says
+  // VOLUNTARY on it. Raised after commit so the slot is free.
+  if (pending.kind === 'volunteer-deploy' && choice === 'accept') {
+    askToAcknowledgeOrders(world, pending.tick, person.id)
   }
 
   // Dropping a packet is a commitment, and a commitment has to arrive

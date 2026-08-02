@@ -1175,6 +1175,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // the deployment system owns those months.
   let baseId = record.baseId
   let unitId = record.unitId
+  let joinedUnitThisMonth = false
   const qualifications = [...record.qualifications]
   // P2: a retrain's school completes on its own clock — without this the
   // feed said "reported to school" forever (military review S2).
@@ -1281,6 +1282,10 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         const margin = Math.max(10, Math.min(400, performance - unit.minPerformance + 60))
         if (rng.chance(margin, unit.selectionDenominator)) {
           unitId = unit.id
+          // A NEW UNIT IS A NEW CLOCK. Without this a Pathfinder who made
+          // the Vanguard Group carried the Pathfinders' join date into it,
+          // and was the old hand of a team he joined this month.
+          joinedUnitThisMonth = true
           recordEvent(world, tick, { type: 'joined-unit', subjectId: person.id, detail: unit.id })
         } else {
           recordEvent(world, tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.id })
@@ -1327,6 +1332,35 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // the same stroke.
       rank -= 1
       rankSinceTick = tick
+    }
+  }
+
+    // --- SENIOR PARACHUTIST (awards pack §7). -----------------------------
+  // Not a course — a clock, and NOT the player's alone: NPCs walk the
+  // same roads (charter §2), and a badge only the player can hold is a
+  // board advantage nobody beside them can answer. Three years carrying a parachutist rating on
+  // a jump status is what the badge recognises, so it is granted by the
+  // monthly pass rather than by a schoolhouse. (Master Parachutist is the
+  // Jumpmaster Course's badge and stays a school's to give.)
+  if (unitId !== null && record.unitSinceTick !== null) {
+    const unit = unitFor(world, unitId)
+    const onJumpStatus =
+      unit !== null &&
+      unit !== undefined &&
+      unit.requiredBadges.some((badge) => badge === 'parachutist' || badge === 'military freefall')
+    const held = badgesOf(world, person.id)
+    if (
+      onJumpStatus &&
+      held.includes('parachutist') &&
+      !held.includes('senior parachutist') &&
+      tick - record.unitSinceTick >= 36
+    ) {
+      const earned = recordEvent(world, tick, {
+        type: 'earned-qualification',
+        subjectId: person.id,
+        detail: 'senior parachutist',
+      })
+      grantQualificationBadge(world, tick, person.id, earned, 'senior parachutist')
     }
   }
 
@@ -1388,33 +1422,6 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         options: ['attend', 'pass'],
       })
     }
-    // --- SENIOR PARACHUTIST (awards pack §7). ---------------------------
-    // Not a course — a clock. Three years carrying a parachutist rating on
-    // a jump status is what the badge recognises, so it is granted by the
-    // monthly pass rather than by a schoolhouse. (Master Parachutist is the
-    // Jumpmaster Course's badge and stays a school's to give.)
-    if (unitId !== null && record.unitSinceTick !== null) {
-      const unit = unitFor(world, unitId)
-      const onJumpStatus =
-        unit !== null &&
-        unit !== undefined &&
-        unit.requiredBadges.some((badge) => badge === 'parachutist' || badge === 'military freefall')
-      const held = badgesOf(world, person.id)
-      if (
-        onJumpStatus &&
-        held.includes('parachutist') &&
-        !held.includes('senior parachutist') &&
-        tick - record.unitSinceTick >= 36
-      ) {
-        const earned = recordEvent(world, tick, {
-          type: 'earned-qualification',
-          subjectId: person.id,
-          detail: 'senior parachutist',
-        })
-        grantQualificationBadge(world, tick, person.id, earned, 'senior parachutist')
-      }
-    }
-
     // --- UNIT MOMENTS (owner's combat plan §4a). ------------------------
     // Commitment and aftermath, not contact. Each plays ONCE, and the log
     // is what remembers: a cutscene the player has already been through is
@@ -1459,7 +1466,16 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           raiseMoment('packet-drop', open.id)
         }
       } else {
-        const monthsInUnit = record.unitSinceTick === null ? tick - joinedAt : tick - record.unitSinceTick
+        // THE LOG WINS where it has an answer: it records the month the
+        // player actually went to selection. The record's date is the
+        // fallback, and on a migrated save it was only learned at load —
+        // trusting it first told a ten-year Pathfinder it was his first day.
+        const monthsInUnit =
+          joinedAt >= 0
+            ? tick - joinedAt
+            : record.unitSinceTick === null
+              ? -1
+              : tick - record.unitSinceTick
         if (!played('reporting-in') && monthsInUnit >= 0 && monthsInUnit <= 3) {
           // First day in the team room — and it has to actually BE the first
           // day. Ungated, this told a six-year veteran (and every migrated
@@ -1510,7 +1526,11 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // soldier joined the unit. It learns the date HERE, at the first month it
   // is seen — the clock starts where the knowledge starts, rather than at a
   // date nobody recorded.
-  const unitSinceTick = unitId === null ? null : (record.unitSinceTick ?? tick)
+  // WHEN THEY JOINED. A new unit stamps today; a record migrated from
+  // before this field existed learns today as the first date anybody knows;
+  // otherwise the date it already carries is the truth and stays.
+  const unitSinceTick =
+    unitId === null ? null : joinedUnitThisMonth ? tick : (record.unitSinceTick ?? tick)
 
   const termMonthsLeft = record.termMonthsLeft - 1
 

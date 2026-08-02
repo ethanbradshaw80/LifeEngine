@@ -24,8 +24,9 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { decodeScene, sceneById, unitMomentById } from '@life-engine/engine'
+import { decodeScene, ordersSheetFor, sceneById, unitMomentById } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
+import { OrdersSheetView } from './OrdersSheet.js'
 import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -311,6 +312,45 @@ interface PromptProps {
 export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
   // The stakes come from the engine — the same facts the records will cite.
   const stakes = describeStakes(world, pending)
+
+  // ORDERS ARE PAPER. A tour is the largest thing that happens to a serving
+  // person and it used to arrive as one sentence in the same box every
+  // other decision uses. This one gets the sheet: the engine writes every
+  // field, the component only sets it.
+  if (pending.kind === 'deployment-order') {
+    const variant =
+      pending.occupationId === 'voluntary'
+        ? 'voluntary'
+        : pending.occupationId === 'rotation'
+          ? 'rotation'
+          : 'involuntary'
+    const sheet = ordersSheetFor(world, pending.tick, pending.personId, variant, pending.otherId)
+    if (sheet) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Orders">
+          <OrdersSheetView sheet={sheet}>
+            <div className="orders-actions">
+              {pending.options.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  className={option === 'go' ? 'primary' : option === 'refuse' ? 'ghost' : ''}
+                  onClick={() => onChoose(option)}
+                >
+                  {option === 'go'
+                    ? 'Acknowledge — Report for Duty'
+                    : option === 'request-exemption'
+                      ? 'Request Exemption'
+                      : 'Refuse the Orders'}
+                </button>
+              ))}
+            </div>
+          </OrdersSheetView>
+        </div>
+      )
+    }
+  }
+
   return (
     <div className="overlay" role="dialog" aria-modal="true" aria-label="A decision">
       <div className="sheet">

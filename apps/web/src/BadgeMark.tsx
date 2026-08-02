@@ -2,7 +2,10 @@
  * BADGE MARKS — one drawing per badge, no two alike.
  *
  * The rule these obey is the charter's: a real branch may be NAMED and its
- * insignia never reproduced. So none of these is a copy of a real badge.
+ * insignia never reproduced. So none of these is a copy of a real badge —
+ * including the SENIORITY marks, which is a line worth stating because the
+ * obvious way to draw "senior" is a star above the device, and that is how
+ * the real senior badges are built. These use a bar and an arc instead.
  * Each is an invented mark built from the plain object the badge is about —
  * a canopy, a crosshair, an anchor, a torch — which is what makes them
  * legible at a glance and different from each other.
@@ -69,7 +72,8 @@ const MARKS: Record<string, JSX.Element> = {
       <Wings fill={STEEL} />
       <path d="M50 10 Q60 10 62 18 L38 18 Q40 10 50 10 Z" fill={BONE} {...OUTLINE} />
       <path d="M40 18 L48 26 M60 18 L52 26" stroke="#2b2b2b" strokeWidth="1.2" fill="none" />
-      <path d="M50 1 L52 6 L57 6 L53 9 L55 14 L50 11 L45 14 L47 9 L43 6 L48 6 Z" fill={GOLD} {...OUTLINE} />
+      <rect x="34" y="31" width="32" height="3.4" rx="1.7" fill={GOLD} {...OUTLINE} />
+      <circle cx="50" cy="32.7" r="3" fill={GOLD} {...OUTLINE} />
     </g>
   ),
   jumpmaster: (
@@ -110,7 +114,7 @@ const MARKS: Record<string, JSX.Element> = {
       <Wings fill={SKY} />
       <path d="M50 10 L59 13 L59 22 Q59 28 50 31 Q41 28 41 22 L41 13 Z" fill={BONE} {...OUTLINE} />
       <path d="M50 15 L53 22 L50 27 L47 22 Z" fill="#2b2b2b" />
-      <path d="M50 0 L52 5 L57 5 L53 8 L55 13 L50 10 L45 13 L47 8 L43 5 L48 5 Z" fill={GOLD} {...OUTLINE} />
+      <path d="M30 34 Q50 40 70 34" fill="none" stroke={GOLD} strokeWidth="3" strokeLinecap="round" />
     </g>
   ),
   'aircrew wings': (
@@ -222,6 +226,35 @@ const MARKS: Record<string, JSX.Element> = {
       {/* Chevrons. The mark of the man who is responsible for the others. */}
       <path d="M22 34 L50 18 L78 34 L78 40 L50 24 L22 40 Z" />
       <path d="M22 22 L50 6 L78 22 L78 28 L50 12 L22 28 Z" />
+    </g>
+  ),
+  // --- Combat badges. Earned by being shot at, once, ever. -----------------
+  'the Combat Infantryman Badge': (
+    <g>
+      {/* A rifle on a wreath — the oldest shape there is for this. */}
+      <path d="M18 30 Q50 44 82 30" fill="none" stroke={MOSS} strokeWidth="4" strokeLinecap="round" />
+      <rect x="20" y="18" width="60" height="4" rx="2" fill={STEEL} {...OUTLINE} />
+      <path d="M30 22 L36 22 L34 27 L32 27 Z" fill={STEEL} {...OUTLINE} />
+      <path d="M66 16 L78 16 L78 20 L66 20 Z" fill={STEEL} {...OUTLINE} />
+      <rect x="24" y="14" width="6" height="4" rx="1" fill={STEEL} {...OUTLINE} />
+    </g>
+  ),
+  'the Combat Action Badge': (
+    <g>
+      {/* A bayonet and a grenade, crossed — the trades that are not rifles. */}
+      <path d="M20 34 L62 10" stroke={STEEL} strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M62 10 L70 6 L66 16 Z" fill={STEEL} {...OUTLINE} />
+      <circle cx="34" cy="16" r="8" fill={MOSS} {...OUTLINE} />
+      <rect x="31" y="5" width="6" height="5" rx="1.5" fill={STEEL} {...OUTLINE} />
+      <path d="M18 34 Q50 44 82 34" fill="none" stroke={MOSS} strokeWidth="3" strokeLinecap="round" />
+    </g>
+  ),
+  'the Combat Medical Badge': (
+    <g>
+      {/* A cross on a stretcher rail. */}
+      <path d="M18 32 Q50 42 82 32" fill="none" stroke={MOSS} strokeWidth="4" strokeLinecap="round" />
+      <path d="M46 6 L54 6 L54 14 L62 14 L62 21 L54 21 L54 29 L46 29 L46 21 L38 21 L38 14 L46 14 Z" fill={BONE} {...OUTLINE} />
+      <path d="M50 10 L50 25 M43 17.5 L57 17.5" stroke={RED} strokeWidth="2" />
     </g>
   ),
   // --- The tabs. Words, because a tab is a word. ---------------------------

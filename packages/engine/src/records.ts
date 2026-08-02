@@ -169,12 +169,19 @@ export function decisionForEvent(world: World, event: WorldEvent): CausalRecord 
   const decision = EVENT_EXPLAINED_BY[event.type]
   if (decision === undefined) return null
 
+  let first: CausalRecord | null = null
   for (const record of world.causalRecords) {
-    if (record.tick === event.tick && record.subjectId === event.subjectId && record.decision === decision) {
-      return record
-    }
+    if (record.tick !== event.tick || record.subjectId !== event.subjectId) continue
+    if (record.decision !== decision) continue
+    // ONE TICK CAN HOLD TWO OF THE SAME KIND. Two medals are judged at the
+    // same door on the month a tour ends, and matching on subject and tick
+    // alone handed the second one the first one's citation — the player
+    // read "Awarded the Expeditionary Medal" above the Overseas Ribbon's
+    // words. The event's own detail is what tells them apart.
+    if (event.detail !== null && record.chosen.includes(event.detail)) return record
+    if (first === null) first = record
   }
-  return null
+  return first
 }
 
 /** People whose parents include this person, in id order. */

@@ -62,9 +62,10 @@ import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from '.
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
 import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
+import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import { boostServicePerformance, isServing, squadmatesOf } from './service.js'
+import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
@@ -174,6 +175,147 @@ export function threatVectorFor(war: GeoRelation, enemy: Nation, home?: Nation):
 // ---------------------------------------------------------------------------
 // The monthly tick
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// THE ORDERS SHEET (owner's deployment-orders spec).
+//
+// Orders used to be a sentence. A tour is the largest thing that happens to
+// a serving person, and it began with the world moving on — so this is the
+// paper: who you are, where you are going, what it is called, when you have
+// to be there, and who signed it.
+//
+// Everything on it is READ FROM THE RECORD except the paperwork's own
+// details — the order number, the control number, the adjutant's name, the
+// day of the month — which come off a seeded stream keyed to the tick, so a
+// replay produces the identical sheet. The simulation's clock is monthly; a
+// day of the month is the document's, not the world's, and it is drawn
+// rather than invented per render.
+// ---------------------------------------------------------------------------
+
+export type OrdersVariant = 'involuntary' | 'voluntary' | 'rotation'
+
+export interface OrdersSheet {
+  readonly variant: OrdersVariant
+  /** "INVOLUNTARY — GENERAL MOBILIZATION" and the like. */
+  readonly variantLine: string
+  readonly title: string
+  readonly command: string
+  readonly ordersNo: string
+  readonly controlNo: string
+  /** "14 MARCH 2066" — the document's own date. */
+  readonly issued: string
+  readonly name: string
+  readonly rank: string
+  readonly specialty: string
+  readonly unit: string
+  readonly assignedTo: string
+  readonly enemy: string
+  readonly frontName: string
+  readonly tourMonths: number
+  readonly tourText: string
+  readonly reportBy: string
+  readonly reportByShort: string
+  readonly authority: string
+  readonly signedBy: string
+  readonly signedRole: string
+  /** False on a volunteer's copy: nobody ordered them, so nobody threatens. */
+  readonly carriesAwolWarning: boolean
+}
+
+const ORDER_MONTHS = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+]
+
+const SPELLED = [
+  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight',
+  'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen',
+  'sixteen', 'seventeen', 'eighteen',
+]
+
+function stampDate(world: World, tick: Tick, day: number, short: boolean): string {
+  // The paperwork runs on 30-day months so a lead time can roll into the
+  // next one without the document claiming a date the calendar lacks.
+  const rolled = (tick + Math.floor((day - 1) / 30)) as Tick
+  const dayOfMonth = ((day - 1) % 30) + 1
+  const { year, month } = toDate(world, rolled)
+  const name = ORDER_MONTHS[month - 1] ?? 'JANUARY'
+  return `${String(dayOfMonth).padStart(2, '0')} ${short ? name.slice(0, 3) : name} ${String(year)}`
+}
+
+/**
+ * The sheet for a person's orders, as of this tick. Returns undefined when
+ * there is nothing to write orders about — no record, or no war to send
+ * them to on a combat variant.
+ */
+export function ordersSheetFor(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  variant: OrdersVariant,
+  enemyId: EntityId | null,
+): OrdersSheet | undefined {
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || !record || record.dischargedAtTick !== null) return undefined
+
+  const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 8900)
+  const enemy = enemyId === null ? undefined : world.nations.get(enemyId)
+  const base = world.places.get(record.baseId)
+  const unit = record.unitId === null ? undefined : unitFor(world, record.unitId)
+  const specialty = specialtyFor(world, record.specialtyId)
+  const garrison = base?.name ?? 'the garrison'
+
+  const issuedDay = 1 + rng.nextInt(0, 19)
+  const lead = 14 + rng.nextInt(0, 14)
+  const sequence = 100 + rng.nextInt(0, 899)
+  const generalOrder = 10 + rng.nextInt(0, 89)
+  const officerFamily = rng.pickWeighted(
+    [...world.spec.family.names],
+    [...world.spec.family.weights],
+  )
+  const officerInitial = rng.pick([
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T', 'W',
+  ])
+  const { year } = toDate(world, tick)
+
+  const tourMonths = variant === 'rotation' ? ROTATION_MONTHS : TOUR_MONTHS
+  const spelledTour = SPELLED[tourMonths] ?? String(tourMonths)
+  const frontName =
+    variant === 'rotation'
+      ? `${enemy?.name ?? 'an allied country'}`
+      : `the ${bareName(enemy?.name ?? 'the enemy')} front`
+
+  return {
+    variant,
+    variantLine:
+      variant === 'voluntary'
+        ? "VOLUNTARY — AT MEMBER'S REQUEST"
+        : variant === 'rotation'
+          ? 'PEACETIME ROTATION — ALLIED POSTING'
+          : 'INVOLUNTARY — GENERAL MOBILIZATION',
+    title: variant === 'rotation' ? 'ROTATION ORDERS' : 'DEPLOYMENT ORDERS',
+    command: `${branchName(world, record.branch)} Command · ${garrison}`,
+    ordersNo: `${variant === 'rotation' ? 'R' : 'D'}-${String(year)}-${String(sequence).padStart(4, '0')}`,
+    controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
+    issued: stampDate(world, tick, issuedDay, false),
+    name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
+    rank: `${rankTitle(world, record.branch, record.rank)} (E-${String(record.rank + 1)})`,
+    specialty: specialty.title,
+    unit: unit?.name ?? `${garrison} garrison`,
+    assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,
+    enemy: enemy?.name ?? 'the enemy',
+    frontName,
+    tourMonths,
+    tourText: `${spelledTour} (${String(tourMonths)}) months`,
+    reportBy: stampDate(world, tick, issuedDay + lead, false),
+    reportByShort: stampDate(world, tick, issuedDay + lead, true),
+    authority: `General Order ${String(generalOrder)}, ${garrison} Command`,
+    signedBy: `${officerInitial}. ${officerFamily.toUpperCase()}`,
+    signedRole: `Adjutant · ${garrison} Command`,
+    carriesAwolWarning: variant === 'involuntary',
+  }
+}
 
 export function runDeployments(world: World, tick: Tick): void {
   const home = homeland(world)
@@ -289,7 +431,7 @@ export function volunteerForSupport(world: World, tick: Tick, personId: EntityId
 }
 
 /** The shared rotation opener: orders and volunteers use one door. */
-function startRotation(
+export function startRotation(
   world: World,
   tick: Tick,
   personId: EntityId,
@@ -346,6 +488,32 @@ function issueRotations(world: World, tick: Tick, home: Nation): void {
     const rng = openStream(world.seed, Stream.CombatResolution, person.id, tick + 611)
     if (!rng.chanceInTenThousand(ROTATION_CALL_RATE)) continue
     const host = rng.pick(hosts)
+    // THE PLAYER READS THEIR OWN ORDERS. A peacetime posting is half a year
+    // of somebody's life; it should not begin with the world moving on.
+    // The RATE is unchanged and is already what the owner asked for:
+    // ROTATION_CALL_RATE puts a given person at roughly one posting every
+    // five to seven years.
+    if (person.id === world.player.personId) {
+      if (world.player.pending !== null) continue
+      recordEvent(world, tick, {
+        type: 'received-orders',
+        subjectId: person.id,
+        otherId: host.id,
+        detail: `a rotation to ${host.name}`,
+      })
+      raisePending(world, {
+        tick,
+        kind: 'deployment-order',
+        personId: person.id,
+        otherId: host.id,
+        occupationId: 'rotation',
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['go'],
+      })
+      continue
+    }
     startRotation(
       world, tick, person.id, host,
       [factor('under-orders', 1000)],
@@ -470,12 +638,21 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
     // rather than deploying them behind their own back. What they can do is
     // go, ask to be excused, or refuse, and the last one ends a career.
     if (person.id === world.player.personId) {
+      // The sheet is raised, and the moment goes on the record NOW — a set
+      // of orders is a thing that happened to somebody even if they refuse
+      // it, and especially if they do.
+      recordEvent(world, tick, {
+        type: 'received-orders',
+        subjectId: person.id,
+        otherId: enemyId,
+        detail: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
+      })
       raisePending(world, {
         tick,
         kind: 'deployment-order',
         personId: person.id,
         otherId: enemyId,
-        occupationId: null,
+        occupationId: 'involuntary',
         workplaceId: null,
         monthlyPay: null,
         placeId: null,
@@ -1011,7 +1188,13 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       // mission flown into it — so the same month that gives a rifleman a
       // firefight gives them a sortie, and the Air Medal follows the
       // sortie. Repeatable on purpose: the clusters are the usual case.
-      if (record.specialtyId === 'aviator' || record.specialtyId === 'aircrew') {
+      // ONLY THE CHANNEL THAT MEANS THEY WENT UP. A base attack is a night
+      // in a shelter and a convoy is a road; neither is a sortie, and both
+      // were minting the Air Medal with a citation that named a flight.
+      if (
+        channel === 'direct-combat-exposure' &&
+        (record.specialtyId === 'aviator' || record.specialtyId === 'aircrew')
+      ) {
         const mission = recordEvent(world, tick, {
           type: 'aerial-mission',
           subjectId: personId,

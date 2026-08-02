@@ -260,15 +260,12 @@ export function grantCombatAction(
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'saw-combat') return null
 
+  // ONCE, EVER (owner, 2026-08-02). This is a BADGE, not a ribbon: a man who
+  // has been in ground combat has been in ground combat, and a second war
+  // does not make him more so. It used to grant again for each new war,
+  // which put a repeat count on something that has no repeats.
   const existing = (world.awards.get(personId) ?? []).find((a) => a.kind === 'combat-action')
-  if (existing) {
-    for (const eventId of existing.qualifyingEventIds) {
-      const priorContact = world.events.find((e) => e.id === eventId)
-      if (priorContact !== undefined && priorContact.otherId === qualifying.otherId) {
-        return existing // same war: the star is already worn
-      }
-    }
-  }
+  if (existing) return existing
 
   // ONE EVENT, THREE FACES (owner's pack §5). An infantryman's combat
   // recognition is not a medic's and neither is a driver's — which is true,
@@ -694,7 +691,10 @@ export function grantAirMedal(
     kind: 'air',
     title: AIR_MEDAL,
     qualifying,
-    inputs: [factor('enemy-action-wound', 600)],
+    // NOT 'enemy-action-wound': the story layer renders that as "the wound
+    // came from enemy action", and nobody is wounded here. What earned it
+    // is what they flew into.
+    inputs: [factor('enemy-capability', 700)],
     citation: `for a mission flown under fire on the ${bareName(enemyName)} front`,
   })
 }

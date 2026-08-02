@@ -1078,6 +1078,7 @@ export type EventType =
   /** Selected for a special unit (M-SPECOPS). */
   | 'joined-unit'
   | 'unit-moment'
+  | 'received-orders'
   | 'was-captured'
   | 'repatriated'
   | 'died-in-captivity'

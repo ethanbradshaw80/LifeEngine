@@ -405,7 +405,7 @@ export const MAX_FITNESS_POINTS = 300
  */
 export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
   {
-    id: 'jump-school', title: 'Airborne School', branches: ['land-forces'], specialtyIds: [],
+    id: 'jump-school', title: 'Airborne School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
     minRank: 1, minPerformance: 450, badge: 'parachutist', performanceBoost: 40,
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 4,
   },

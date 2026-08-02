@@ -123,6 +123,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'joined-unit': '🪂',
   'unit-moment': '🎖️',
   'aerial-mission': '🚁',
+  'received-orders': '📜',
   'was-captured': '⛓️',
   'repatriated': '🕊️',
   'died-in-captivity': '🕯️',
@@ -409,7 +410,10 @@ const RACK_ORDER: readonly string[] = [
 
 function RibbonRack({ world, personId }: { readonly world: World; readonly personId: EntityId }) {
   const decorations = [...decorationsOf(world, personId)]
-    .filter((award) => award.kind !== 'qualification-badge')
+    // A COMBAT BADGE IS A BADGE. The Combat Infantryman Badge is not a
+    // ribbon and does not belong on a rack of them — it was sitting there
+    // because its AwardKind reads like one.
+    .filter((award) => award.kind !== 'qualification-badge' && award.kind !== 'combat-action')
     .sort((a, b) => {
       const rank = (kind: string) => {
         const at = RACK_ORDER.indexOf(kind)
@@ -1826,7 +1830,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
-                  const badges = badgesOf(world, person.id)
+                  // Combat badges are badges, wherever their kind sits.
+                  const badges = [
+                    ...decorationsOf(world, person.id)
+                      .filter((award) => award.kind === 'combat-action')
+                      .map((award) => award.title),
+                    ...badgesOf(world, person.id),
+                  ]
                   if (decorations.length === 0) {
                     return <p className="muted small">Nothing on the rack yet.</p>
                   }
@@ -1849,7 +1859,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       )}
                       <h3>Decorations</h3>
                       <ol className="timeline">
-                        {decorations.filter((award) => award.kind !== 'qualification-badge').map((award) => (
+                        {decorations
+                          .filter(
+                            (award) =>
+                              award.kind !== 'qualification-badge' && award.kind !== 'combat-action',
+                          )
+                          .map((award) => (
                           <li key={`${award.kind}:${award.title}`}>
                             <div className="row">
                               <span className="year">{formatYear(world, award.tick)}</span>
