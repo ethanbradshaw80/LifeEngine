@@ -26,7 +26,14 @@ export type { StreamId } from './rng.js'
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
 export { advanceTick, advanceTicks } from './tick.js'
-export { birthBar, enrolmentBar, livingPeople } from './systems.js'
+export {
+  birthBar,
+  DISMISSAL_PERFORMANCE,
+  enrolmentBar,
+  livingPeople,
+  RAISE_MIN_PERFORMANCE,
+  WARNING_PERFORMANCE,
+} from './systems.js'
 export {
   compatibility,
   courtshipBar,

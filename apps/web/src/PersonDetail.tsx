@@ -245,7 +245,10 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
                     <NameLink world={world} id={other(tie, personId)} onSelect={onSelect} />
                     <span className="muted small">
                       {' '}
-                      since {formatYear(tie.typeSinceTick)}
+                      {/* Founding ties are stamped at tick 0 BECAUSE the
+                          wedding predates the simulation; printing the
+                          record's first year as the date would invent one. */}
+                      {tie.typeSinceTick <= 0 ? 'from before the record' : `since ${formatYear(tie.typeSinceTick)}`}
                       {tie.endedAtTick !== null && ` — ended ${formatYear(tie.endedAtTick)}`}
                     </span>
                   </span>

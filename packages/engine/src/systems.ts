@@ -59,6 +59,15 @@ const SECONDARY_YEARS = 6
 export const TRADE_YEARS = 2
 // Exported for the education stakes text (P1) — prose must not drift.
 export const COLLEGE_YEARS = 4
+/**
+ * The three lines a working life is judged against (0-1000 performance).
+ * Exported because the Jobs tab tells the player where they stand, and a
+ * number the UI hardcodes is a number that drifts away from the model.
+ */
+export const RAISE_MIN_PERFORMANCE = 350
+export const WARNING_PERFORMANCE = 240
+export const DISMISSAL_PERFORMANCE = 200
+
 const WORKING_AGE = 18
 const RETIREMENT_AGE = 66
 const LEAVE_HOME_AGE = 19
@@ -515,7 +524,7 @@ function annualReview(world: World, tick: Tick, person: Person): void {
 
   const occupation = occupationById(job.occupationId)
   const headroom = occupation.maxMonthlyPay - job.monthlyPay
-  if (headroom <= 0 || job.performance < 350) return
+  if (headroom <= 0 || job.performance < RAISE_MIN_PERFORMANCE) return
 
   // Top performance closes ~15% of the remaining gap a year; adequate ~5%.
   const raise = Math.floor((headroom * job.performance) / 6500)
@@ -563,7 +572,7 @@ function considerBetterJob(
   // NPC would be; the moment is the knowing, not a shield.
   if (
     person.id === world.player.personId &&
-    job.performance < 240 &&
+    job.performance < WARNING_PERFORMANCE &&
     !world.player.log.some(
       (entry) => entry.kind === 'foremans-warning' && entry.tick >= job.startedAtTick,
     )
@@ -590,7 +599,7 @@ function considerBetterJob(
   }
 
   // Poor performers can lose the job.
-  if (job.performance < 200 && rng.chanceInTenThousand(400)) {
+  if (job.performance < DISMISSAL_PERFORMANCE && rng.chanceInTenThousand(400)) {
     world.employment.delete(person.id)
     recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'let go' })
     recordDecision(world, tick, {

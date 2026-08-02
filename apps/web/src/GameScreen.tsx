@@ -26,7 +26,10 @@ import {
   childrenIdsOf,
   compatibility,
   courtshipBar,
+  DISMISSAL_PERFORMANCE,
   proposalBar,
+  RAISE_MIN_PERFORMANCE,
+  WARNING_PERFORMANCE,
   enrolmentBar,
   decorationsOf,
   deploymentsOf,
@@ -183,6 +186,16 @@ const SCHOOLING_WORDS: Record<EducationLevel, string> = {
   college: 'college',
 }
 
+// The same levels said as a PERSON'S schooling rather than a job's
+// requirement — "secondary school", not "secondary schooling" (P3).
+const LEVEL_WORDS: Record<EducationLevel, string> = {
+  none: 'no schooling',
+  primary: 'primary school',
+  secondary: 'secondary school',
+  trade: 'trade school',
+  college: 'college',
+}
+
 const HEALTH_EVENTS: ReadonlySet<EventType> = new Set([
   'was-injured',
   'fell-ill',
@@ -254,6 +267,36 @@ function spanWords(months: number): string {
 function tieSpan(from: number, tick: number): string | null {
   if (from <= 0) return null
   return spanWords(tick - from)
+}
+
+/**
+ * P3 — where you stand at work, in words.
+ *
+ * performance is a 0-1000 the engine has always kept and never shown, and it
+ * decides three real things: the annual raise (nothing below
+ * RAISE_MIN_PERFORMANCE), the foreman's warning (WARNING_PERFORMANCE) and
+ * dismissal (DISMISSAL_PERFORMANCE). The thresholds are imported from the
+ * engine rather than retyped, so this can never describe a model that has
+ * moved on.
+ */
+function standingWords(performance: number): string {
+  if (performance >= 800) return 'held up as an example'
+  if (performance >= 650) return 'well thought of'
+  if (performance >= 450) return 'solid'
+  if (performance >= RAISE_MIN_PERFORMANCE) return 'getting by'
+  // Between the raise line and the warning line: safe, but going nowhere.
+  if (performance >= WARNING_PERFORMANCE) return 'coasting'
+  if (performance >= DISMISSAL_PERFORMANCE) return 'slipping'
+  return 'a bad month from being let go'
+}
+
+/** Schooling, judged the way a school report would put it. */
+function attainmentWords(attainment: number): string {
+  if (attainment >= 800) return 'top of the class'
+  if (attainment >= 650) return 'a good student'
+  if (attainment >= 450) return 'a fair student'
+  if (attainment >= 300) return 'scraped through'
+  return 'school was not for you'
 }
 
 /** A tie's strength as a bar. Decorative twin of the words beside it. */
@@ -1070,12 +1113,57 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     )}
                   </span>
                 </dd>
+                {/* P3 — the standing the raise, the warning and the sack are
+                    all judged on. The thresholds come from the engine. */}
+                <dt>Standing</dt>
+                <dd>
+                  <span className="tie-gauge">
+                    <StrengthMeter strength={job.performance} />
+                    <span className="muted small">{standingWords(job.performance)}</span>
+                  </span>
+                  <p className="muted small tie-note">
+                    {job.performance < DISMISSAL_PERFORMANCE
+                      ? 'Below this line the job may not keep itself.'
+                      : job.performance < WARNING_PERFORMANCE
+                        ? 'Keep sliding and the job will not keep itself.'
+                        : job.performance < RAISE_MIN_PERFORMANCE
+                          ? 'Good enough to keep, not good enough for a raise at the year’s turn.'
+                          : 'Good enough that the year’s turn should bring something.'}
+                  </p>
+                </dd>
               </dl>
             </>
           )}
           {isServing(world, person.id) && (
             <p className="muted">You are serving — see the Service tab.</p>
           )}
+          {(() => {
+            // P3 — what schooling actually happened. attainment has shaped
+            // every hire since M1 and was never on screen.
+            const education = world.education.get(person.id)
+            if (!education) return null
+            const finished = education.level !== 'none'
+            return (
+              <>
+                <h3>Schooling</h3>
+                <dl className="facts">
+                  <dt>{finished ? LEVEL_WORDS[education.level] : 'no schooling yet'}</dt>
+                  <dd>
+                    <span className="tie-gauge">
+                      <StrengthMeter strength={education.attainment} />
+                      <span className="muted small">{attainmentWords(education.attainment)}</span>
+                    </span>
+                    {education.enrolledIn !== null && education.completesAtTick !== null && (
+                      <p className="muted small tie-note">
+                        In {LEVEL_WORDS[education.enrolledIn]} — finishes{' '}
+                        {formatDate(education.completesAtTick)}.
+                      </p>
+                    )}
+                  </dd>
+                </dl>
+              </>
+            )
+          })()}
           {(() => {
             // P2: the engine's own gate (enrolmentBar), so the block can
             // never appear when the verb would refuse.
