@@ -65,9 +65,10 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `7c9e6bd`.
+**STATE:** clean tree, everything pushed, HEAD `a2a064f`.
 SIMULATION_VERSION **41** · golden **7ddc1784** · SCHEMA_VERSION **21** ·
-**413 tests**, all green.
+**415 tests**, all green. P3 shipped and reviewed; W1 shipped most of the
+way and reviewed twice (architecture + persistence), every finding fixed.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -195,8 +196,30 @@ done):
     fires 600ms after any change. The world now carries `presetId` (what it
     SAYS it is) beside `spec` (what this build can serve), and a test
     round-trips an unknown preset twice.
-NOT done: service CONTENT (specialties, schools, units, decoration titles)
-and START_YEAR on the spec. Then architecture-reviewer, then W1 is done.
+  - architecture-reviewer found THREE must-fix (commit a2a064f), all real,
+    and the worst would have crashed a birth: deliverChild drew the NAME
+    from the spec and the WEIGHTS from the module constants, so any preset
+    whose pool is a different length threw a RangeError on the first child
+    — inside the tick, inside the worker. The custom-spec test never
+    advanced a tick, so nobody was ever born to catch it. Also: servicePay
+    still read the compile-time tables (rendered fine, died the next
+    payday), and branchSpecFor's branches[0] fallback substituted a whole
+    LADDER, which re-reads every rank index and turns a 20-year career
+    ceiling into 30. An unknown branch is an honest BLANK now.
+NOT done, and the reviewer corrected my list — see WORLD_MODES_PLAN.md's
+W1 bullet for the full ordering. The short version:
+  1. **SPECIALTIES onto the spec** is the keystone: every branch id that
+     reaches a service record comes from `specialty.branch`, so
+     `spec.branches` is decorative until this moves.
+  2. **Homeland identity** ('the Republic' in geopolitics.ts) — W2's whole
+     premise, and it was missing from the plan's own open list.
+  3. **START_YEAR** — trivial mechanically (nothing in the tick path reads
+     the calendar year) but a DESIGN decision: if it is ever
+     player-selectable it belongs in the save header beside presetId, not
+     only on the spec. Do it before era-weighted names make the year a
+     determinism input.
+  4. NEWS_STATION, the two throwing lookups (specialtyById/occupationById),
+     and a preset seam in the worker's 'new world' message.
 
 ### RULES THAT KEEP BITING (read these before writing code)
 
