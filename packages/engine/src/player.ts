@@ -38,8 +38,8 @@ import {
   volunteerForRotation,
   volunteerForSupport,
 } from './deployment.js'
-import { activeWars, homeland } from './geopolitics.js'
-import { alliedWars } from './deployment.js'
+import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
+import { alliedWars, deployUnderOrders } from './deployment.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
@@ -63,6 +63,7 @@ import {
   unitOptionsFor,
   veteranUnlocks,
   branchName,
+  discharge,
 } from './service.js'
 import { MAX_FITNESS_POINTS } from './content.js'
 import { placesOfKind } from './worldgen.js'
@@ -1568,6 +1569,55 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'deployment-order': {
+      // ADR-0022 §5, from the owner's answer: refusing is allowed and it
+      // costs. Everything below reuses machinery that already exists —
+      // the tour, the misconduct discharge, the cell, the record gate — so
+      // a refusal lands the player exactly where an NPC's misconduct lands
+      // them, which is the whole point of it being a real choice.
+      const enemyId = pending.otherId
+      const record = world.service.get(person.id)
+      if (enemyId === null || !record) break
+
+      if (choice === 'go') {
+        deployUnderOrders(world, person.id, enemyId, [factor('own-choice', 400)])
+        break
+      }
+
+      if (choice === 'request-exemption') {
+        // Rarely granted (the spec's `exemptionChance`), and the asking is
+        // on the record either way. Denied means you go anyway — no second
+        // question, because a chained pending is the trap this project has
+        // now shipped broken twice (see the note at the top of this file).
+        const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 91)
+        const granted = rng.chanceInTenThousand(1200)
+        recordEvent(world, pending.tick, {
+          type: 'asked-exemption',
+          subjectId: person.id,
+          otherId: enemyId,
+          detail: granted ? 'granted' : 'denied',
+        })
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'deployment',
+          significance: 'notable',
+          inputs: [factor('own-choice', 1000), factor('under-orders', 600)],
+          chosen: granted ? 'asked to be excused, and was' : 'asked to be excused, and was not',
+          rejected: [],
+          streamId: Stream.CombatResolution,
+        })
+        if (!granted) {
+          deployUnderOrders(world, person.id, enemyId, [factor('reluctant', 700)])
+        }
+        break
+      }
+
+      if (choice === 'refuse') {
+        refuseOrders(world, pending.tick, person, record, enemyId)
+      }
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -1959,6 +2009,12 @@ export function describePending(world: World, pending: PendingDecision): string 
       const title = record ? rankTitle(world, record.branch, record.rank) : 'soldier'
       return `Your term is up, ${title}. Sign for another four years?`
     }
+    case 'deployment-order': {
+      const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
+      const record = world.service.get(pending.personId)
+      const title = record ? rankTitle(world, record.branch, record.rank) : 'soldier'
+      return `Orders, ${title}: you are going to ${enemy?.name ?? 'the front'}. What do you do?`
+    }
     default: {
       const never: never = pending.kind
       return String(never)
@@ -1988,6 +2044,24 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
   }
 
   switch (pending.kind) {
+    case 'deployment-order': {
+      const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
+      const home = homeland(world)
+      if (enemy !== undefined && home !== undefined) {
+        const gap = combatPowerOf(enemy) - combatPowerOf(home)
+        lines.push(
+          gap > 2
+            ? `${sentenceCase(enemy.name)} outmatches us. This will be a hard tour.`
+            : gap < -2
+              ? `${sentenceCase(enemy.name)} is outmatched, which is not the same as safe.`
+              : `${sentenceCase(enemy.name)} is a fair match for us.`,
+        )
+      }
+      lines.push('Going is what the uniform is for; a tour runs ten months.')
+      lines.push('Asking to be excused is allowed. It is rarely granted, and the asking is remembered.')
+      lines.push('Refusing is a court-martial: time in a cell, a discharge for misconduct, and a record that follows you home.')
+      break
+    }
     case 'education': {
       // The modelled facts, not slogans: what each road actually pays in
       // THIS world's occupation table (P1).
@@ -2488,4 +2562,71 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       break
   }
   return lines
+}
+
+/**
+ * Refusing orders. The court-martial the owner asked for, built entirely
+ * out of consequences this game already models: a sentence served in a
+ * cell, a discharge for misconduct, and a conviction that the hiring gate
+ * and the enlistment gate both read for years afterwards.
+ *
+ * It is deliberately not survivable-as-if-nothing-happened. The player was
+ * told all three costs before answering (describeStakes), which is what
+ * makes it a decision rather than a trap.
+ */
+function refuseOrders(
+  world: World,
+  tick: Tick,
+  person: Person,
+  record: NonNullable<ReturnType<World['service']['get']>>,
+  enemyId: EntityId,
+): void {
+  const enemy = world.nations.get(enemyId)
+  const sentenceMonths = 9
+
+  recordEvent(world, tick, {
+    type: 'refused-orders',
+    subjectId: person.id,
+    otherId: enemyId,
+    detail: enemy?.name ?? 'the front',
+  })
+
+  // The court. Same shape as any other conviction, so the record tab, the
+  // hiring drag and the enlistment bar all read it without knowing what it
+  // was for.
+  const existing = world.criminal.get(person.id)
+  world.criminal.set(person.id, {
+    personId: person.id,
+    convictions: [
+      ...(existing?.convictions ?? []),
+      { kind: 'refusing-orders', tick, sentenceMonths, fine: 0 },
+    ],
+    jailedUntilTick: (tick + sentenceMonths) as Tick,
+  })
+  recordEvent(world, tick, {
+    type: 'was-convicted',
+    subjectId: person.id,
+    detail: `jail:${String(sentenceMonths)}`,
+  })
+
+  // And out of the service, for the reason it actually was.
+  discharge(
+    world,
+    tick,
+    person,
+    record,
+    'misconduct',
+    [factor('own-choice', 1000), factor('under-orders', 1000)],
+    Stream.CombatResolution,
+  )
+
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'deployment',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('under-orders', 1000)],
+    chosen: `refused orders to ${enemy?.name ?? 'the front'}`,
+    rejected: ['to go where they were sent'],
+    streamId: Stream.CombatResolution,
+  })
 }

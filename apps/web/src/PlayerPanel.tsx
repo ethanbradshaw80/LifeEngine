@@ -228,6 +228,13 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   convalesce: { rest: 'Rest and heal', 'push-on': 'Push on' },
   enlist: { accept: 'Enlist', decline: 'Not for me' },
   reenlist: { stay: 'Sign again', leave: 'Come home' },
+  // ADR-0022 §5. The three answers to an order, in the order of what
+  // they cost: nothing, a little, and a career.
+  'deployment-order': {
+    go: '🛫 Go',
+    'request-exemption': '📝 Ask to be excused',
+    refuse: '🚫 Refuse the order',
+  },
   'promotion-board': { 'put-in': 'Put your name in', pass: 'Let it go by' },
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },

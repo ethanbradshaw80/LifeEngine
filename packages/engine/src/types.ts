@@ -866,6 +866,7 @@ export type PendingKind =
   /** A contact that became the player's own moment: the squad pinned, and
    *  a choice that is genuinely theirs (M-HARM). */
   | 'combat-moment'
+  | 'deployment-order'
   /** P2. The foreman has noticed the work slipping — the modelled dismissal
    *  threshold gets a warning moment before the axe. Player-only; NPCs are
    *  simply let go, as they always were. */
@@ -966,6 +967,8 @@ export type EventType =
   | 'moved-house'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
+  | 'refused-orders'
+  | 'asked-exemption'
   | 'call-to-arms'
   | 'joined-war'
   | 'declined-call'
@@ -1149,6 +1152,7 @@ export type FactorId =
   | 'internal-instability'
   | 'war-weariness'
   | 'alliance-obligation'
+  | 'reluctant'
   | 'ally-in-distress'
   | 'heavy-casualties'
   | 'old-grudge'

@@ -456,6 +456,27 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
 
     const enemyId = war.a === home.id ? war.b : war.a
     const enemy = world.nations.get(enemyId)
+
+    // THE PLAYER IS TOLD, AND THEN ASKED WHETHER THEY OBEY (ADR-0022 §5,
+    // owner direction). Orders are not a choice about whether the army
+    // wants you — that part is already decided, and the clock halts here
+    // rather than deploying them behind their own back. What they can do is
+    // go, ask to be excused, or refuse, and the last one ends a career.
+    if (person.id === world.player.personId) {
+      raisePending(world, {
+        tick,
+        kind: 'deployment-order',
+        personId: person.id,
+        otherId: enemyId,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['go', 'request-exemption', 'refuse'],
+      })
+      continue
+    }
+
     startCombatTour(
       world, tick, person.id, war, enemyId,
       [
@@ -1141,4 +1162,47 @@ function closeTour(
       tick - deployment.startedAtTick, medical,
     )
   }
+}
+
+
+// ---------------------------------------------------------------------------
+// Answering orders (ADR-0022 §5)
+// ---------------------------------------------------------------------------
+
+/**
+ * The player goes. Same door the ordered NPC walks through, so a played
+ * tour is the same tour — the record says 'under-orders' either way, and
+ * 'reluctantly' only when they tried to get out of it first.
+ */
+export function deployUnderOrders(
+  world: World,
+  personId: EntityId,
+  enemyId: EntityId,
+  extraInputs: readonly ReturnType<typeof factor>[] = [],
+): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  const war = activeWars(world).find(
+    (candidate) =>
+      (candidate.a === home.id && candidate.b === enemyId) ||
+      (candidate.b === home.id && candidate.a === enemyId),
+  )
+  if (!war) return false
+  const enemy = world.nations.get(enemyId)
+
+  startCombatTour(
+    world,
+    world.tick,
+    personId,
+    war,
+    enemyId,
+    [
+      factor('under-orders', 1000),
+      factor('war-demanded-troops', Math.min(1000, enemy?.strength ?? 300)),
+      ...extraInputs,
+    ],
+    `deployed to ${enemy ? `the ${bareName(enemy.name)} front` : 'the front'}`,
+    [],
+  )
+  return true
 }
