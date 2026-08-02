@@ -601,7 +601,26 @@ export interface Conviction {
   readonly sentenceMonths: number
   /** The fine, cents; 0 when the sentence was time. */
   readonly fine: number
+  /**
+   * C3 §5, Decision 2. SEALED, NEVER DELETED. An expungement stops every
+   * gate reading this conviction — hiring, enlistment, the public record —
+   * and changes nothing about the fact that it happened. A descendant
+   * reading the life still finds it; an employer does not.
+   *
+   * The alternative, erasing it, would let a record rewrite history, and
+   * the whole engine rests on history being the thing that does not move.
+   */
+  readonly sealed?: boolean
 }
+
+/**
+ * C3 §5. How hard a conviction still bars a door.
+ *
+ * 'hard' is the wall the flat gate used to be. 'soft' is a door that got
+ * heavier, not one that shut. 'none' is a thing that happened once and no
+ * longer decides anything.
+ */
+export type GateStrength = 'hard' | 'soft' | 'none'
 
 export interface CriminalRecord {
   readonly personId: EntityId

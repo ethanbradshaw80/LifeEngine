@@ -33,7 +33,7 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import { discharge as dischargeService, isServing } from './service.js'
 import { fullName } from './story.js'
-import type { CriminalRecord, Person, World } from './types.js'
+import type { CriminalRecord, Person, World, Conviction, GateStrength } from './types.js'
 
 /** Sentences and gates. RECORD_GATE_YEARS lives in content.ts so
  *  service.ts, which cannot import this module, reads the same number. */
@@ -56,10 +56,60 @@ export function isJailed(world: World, personId: EntityId): boolean {
 }
 
 /** A conviction recent enough that doors still close on it. */
-export function hasRecentConviction(world: World, personId: EntityId): boolean {
+/**
+ * C3 §5. How hard ONE conviction still gates, given how long ago it was
+ * and what it was for.
+ *
+ * The windows widen with the grade, because that is the honest difference
+ * between a night in the cells and an armed robbery — and the two ends of
+ * the catalogue stay where they belong:
+ *
+ *  - a sealed conviction gates NOTHING, at any age (Decision 2)
+ *  - a violent felony, or anything capital, stays hard for life: there is
+ *    no year at which "he killed somebody" stops being relevant to whether
+ *    the army takes him
+ *  - everything else walks down the ladder and eventually stops mattering
+ */
+export function gateStrengthOf(conviction: Conviction, tick: Tick): GateStrength {
+  if (conviction.sealed === true) return 'none'
+  const offence = offenceById(conviction.kind)
+  const years = Math.floor((tick - conviction.tick) / 12)
+
+  // The permanent end. Violence and killing do not fade.
+  if (offence !== undefined && (offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade)))) {
+    return 'hard'
+  }
+
+  const felony = offence !== undefined && isFelony(offence.grade)
+  const hardYears = felony ? 10 : 3
+  const softYears = felony ? 25 : 8
+  if (years < hardYears) return 'hard'
+  if (years < softYears) return 'soft'
+  return 'none'
+}
+
+/**
+ * The hardest gate anybody's record still carries. This is what a door
+ * asks: not "how many convictions" but "how much is still held against
+ * them".
+ */
+export function recordGateOf(world: World, personId: EntityId, tick: Tick): GateStrength {
   const record = world.criminal.get(personId)
-  if (!record) return false
-  return record.convictions.some((c) => world.tick - c.tick < RECORD_GATE_YEARS * 12)
+  if (!record) return 'none'
+  let worst: GateStrength = 'none'
+  for (const conviction of record.convictions) {
+    const strength = gateStrengthOf(conviction, tick)
+    if (strength === 'hard') return 'hard'
+    if (strength === 'soft') worst = 'soft'
+  }
+  return worst
+}
+
+export function hasRecentConviction(world: World, personId: EntityId): boolean {
+  // KEPT, AND NARROWED TO WHAT IT MEANT. Callers that ask this are asking
+  // "is a door barred", and that is now the hard grade specifically — a
+  // soft gate is a penalty those callers apply themselves (C3 §5).
+  return recordGateOf(world, personId, world.tick) === 'hard'
 }
 
 // ---------------------------------------------------------------------------

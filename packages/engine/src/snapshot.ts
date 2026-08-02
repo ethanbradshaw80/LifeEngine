@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v62 — THE TOWN GOES TO AN ALLY'S WAR (owner, playing). Support tours
+ *      were reachable only from the player's own verb, so the played
+ *      character was the only person in any world who ever fought beside
+ *      an ally. NPCs volunteer now, at a third of the peacetime rotation
+ *      rate and under their own small share cap — measured at 7, 38 and 23
+ *      tours across three 150-year towns, against zero.
  * v61 — C3 STEP 1: THE CATALOGUE GROWS. Thirty-six new charges, three new
  *      grades (class E, class A, capital), and four new offence fields
  *      (danger, violent, escalatesTo, mandatoryMin) from the owner's C3
@@ -402,7 +408,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 61
+export const SIMULATION_VERSION = 62
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

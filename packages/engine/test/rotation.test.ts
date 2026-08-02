@@ -61,11 +61,20 @@ describe('peacetime rotations', () => {
         .filter((t) => t.kind === 'rotation')
         .map((t) => ({ from: t.startedAtTick, to: t.returnedAtTick ?? world.tick }))
       if (windows.length === 0) continue
+      // A COMBAT TOUR'S MONTHS ARE NOT A ROTATION'S, even where the two
+      // windows touch. An open rotation's window runs to the present, and
+      // since NPCs volunteer for allies' wars a person can be on a combat
+      // tour inside it — so the claim is "no combat DURING the rotation
+      // itself", which means excluding the months a combat tour covers.
+      const combatWindows = tours
+        .filter((t) => t.kind === 'combat')
+        .map((t) => ({ from: t.startedAtTick, to: t.returnedAtTick ?? world.tick }))
       const combatEvents = world.events.filter(
         (e) =>
           e.subjectId === personId &&
           (e.type === 'saw-combat' || e.type === 'wounded-in-action') &&
-          windows.some((w) => e.tick >= w.from && e.tick <= w.to),
+          windows.some((w) => e.tick >= w.from && e.tick <= w.to) &&
+          !combatWindows.some((w) => e.tick >= w.from && e.tick <= w.to),
       )
       expect(combatEvents.length).toBe(0)
     }

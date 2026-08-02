@@ -172,3 +172,30 @@ describe('a war stays a war, not a world war', () => {
     }
   })
 })
+
+describe('the town, not just the player', () => {
+  it('sends people to an ally war', () => {
+    // THE OWNER, PLAYING: "NPCs don't volunteer to go to allies' wars."
+    // volunteerForSupport was reachable only from the player's own verb, so
+    // in every world ever generated the played character was the ONLY
+    // person who ever fought alongside an ally. The town sent nobody and
+    // the paper reported nobody.
+    let totalSupport = 0
+    for (const seedValue of [12345, 999, 4242]) {
+      const world = createWorld(makeSeed(seedValue), 140, HEARTLAND_SPEC)
+      advanceTicks(world, 1_800)
+      const home = [...world.nations.values()].find((n) => n.isHomeland)
+      if (!home) throw new Error('no homeland')
+      for (const tours of world.deployments.values()) {
+        for (const tour of tours) {
+          // A support tour is a combat tour against somebody we are not at
+          // war with — an ally's war, fought beside them.
+          if (tour.kind !== 'combat') continue
+          if (tour.warA === home.id || tour.warB === home.id) continue
+          totalSupport += 1
+        }
+      }
+    }
+    expect(totalSupport, 'nobody in three towns ever helped an ally').toBeGreaterThan(0)
+  })
+})

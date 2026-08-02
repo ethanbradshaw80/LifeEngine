@@ -83,6 +83,18 @@ const ROTATION_MONTHS = 6
 const ROTATION_SHARE_CAP = 220
 /** Monthly chance per 10k that a given soldier's name comes up. */
 const ROTATION_CALL_RATE = 110
+
+/**
+ * Per ten thousand per month: who volunteers for an ally's war.
+ *
+ * A third of the peacetime rotation rate. A rotation is duty somebody is
+ * posted to; this is a person choosing to go and fight in a war their
+ * country is not in, which is rarer and ought to be.
+ */
+const SUPPORT_VOLUNTEER_RATE = 35
+
+/** Per 1000 of the serving who may be away on an ally's war at once. */
+const SUPPORT_SHARE_CAP = 80
 /**
  * Peacetime tempo: the number the accident channel is scaled by, standing
  * where a war's threat vector stands. It is deliberately far below any
@@ -360,7 +372,16 @@ export function runDeployments(world: World, tick: Tick): void {
   // War calls first and calls louder. In peacetime the army still goes
   // places: the alliance is kept warm by people, not paper (M-ARMY2).
   if (homelandWars.length > 0) issueOrders(world, tick, home, homelandWars)
-  else issueRotations(world, tick, home)
+  else {
+    // AND SOMEBODY GOES TO THE ALLY'S WAR (owner, playing: "NPCs don't
+    // volunteer to go to allies' wars"). volunteerForSupport was reachable
+    // only from the player's own verb, so in every world ever generated the
+    // played character was the ONLY person who ever fought alongside an
+    // ally. The town sent nobody, the paper reported nobody, and a war next
+    // door was somebody else's entirely.
+    issueSupportVolunteers(world, tick)
+    issueRotations(world, tick, home)
+  }
 }
 
 /**
@@ -510,6 +531,52 @@ export function startRotation(
  * Peacetime postings go out. Like orders, not a question — the army sends
  * who it sends — but a smaller share of the force and a shorter time away.
  */
+/**
+ * Who puts their hand up for an ally's war.
+ *
+ * VOLUNTEERING, NOT ORDERS, and the rate says so: this is a fraction of
+ * what a call-up takes, because nobody is being made to go. It runs only in
+ * the months the Republic is not fighting for itself — the same prior claim
+ * volunteerForSupport respects, since a soldier does not go to somebody
+ * else's front while their own country is at war.
+ */
+/** How many are away on an ally's war right now. */
+function supportToursOpen(world: World): number {
+  let open = 0
+  for (const [personId, tours] of world.deployments) {
+    const current = tours.find((t) => t.returnedAtTick === null)
+    if (current === undefined || current.kind !== 'combat') continue
+    // An ally's war is a combat tour whose war is not one of ours.
+    const home = homeland(world)
+    if (!home) continue
+    if (current.warA === home.id || current.warB === home.id) continue
+    if (world.people.get(personId)?.deathTick !== null) continue
+    open += 1
+  }
+  return open
+}
+
+function issueSupportVolunteers(world: World, tick: Tick): void {
+  const wars = alliedWars(world)
+  if (wars.length === 0) return
+  const serving = countServing(world)
+  if (serving === 0) return
+  // ITS OWN SMALL ALLOWANCE, not the rotation cap. Sharing that cap was why
+  // the first version of this still sent nobody: peacetime rotations keep
+  // it saturated, so an ally's war never found a slot. This is a separate,
+  // much smaller share — an army helping a neighbour does not empty the
+  // barracks, but it does send somebody.
+  const onSupport = supportToursOpen(world)
+  if (onSupport * 1000 >= serving * SUPPORT_SHARE_CAP) return
+
+  for (const person of deployablePeople(world)) {
+    if (person.id === world.player.personId) continue // the player has a verb
+    const rng = openStream(world.seed, Stream.CombatResolution, person.id, tick + 612)
+    if (!rng.chanceInTenThousand(SUPPORT_VOLUNTEER_RATE)) continue
+    volunteerForSupport(world, tick, person.id)
+  }
+}
+
 function issueRotations(world: World, tick: Tick, home: Nation): void {
   const hosts = rotationHosts(world, home)
   if (hosts.length === 0) return
