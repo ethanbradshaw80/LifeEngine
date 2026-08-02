@@ -14,13 +14,17 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
 import {
   advanceTicks,
+  arrearsHistoryOf,
   canAfford,
   createWorld,
   discretionaryFor,
   occupationById,
   householdCosts,
   householdIncome,
+  householdLedger,
   inArrears,
+  LIVING_COST_ADULT,
+  LIVING_COST_CHILD,
   livingPeople,
   monthlyNetOf,
   rentFor,
@@ -301,5 +305,99 @@ describe('the town stays solvent', () => {
     const richest = Math.max(...active.map((h) => h.savings))
     expect(richest).toBeLessThan(1_000_000_00) // $1m after 60 small-town years is the new ceiling
     expect(richest).toBeGreaterThan(0)
+  })
+})
+
+describe('the itemized ledger (P3)', () => {
+  it('sums, to the cent, to the same month the tick loop spends', () => {
+    // Sixty years so the town has wages, service pay, pensions, survivors,
+    // jailed members and arrears all present somewhere in it.
+    const world = build(12345, 720)
+    const active = [...world.households.values()].filter(
+      (h) => h.dissolvedTick === null && h.memberIds.length > 0,
+    )
+    expect(active.length).toBeGreaterThan(5)
+
+    for (const household of active) {
+      const ledger = householdLedger(world, household)
+
+      const parts = [
+        ...ledger.wages,
+        ...ledger.servicePay,
+        ...ledger.pensions,
+        ...ledger.survivorPay,
+      ].reduce((sum, entry) => sum + entry.amount, 0)
+      expect(parts).toBe(householdIncome(world, household))
+      expect(ledger.income).toBe(householdIncome(world, household))
+
+      expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
+      expect(ledger.costs).toBe(householdCosts(world, household))
+      expect(ledger.livingCosts).toBe(
+        ledger.adults * LIVING_COST_ADULT + ledger.children * LIVING_COST_CHILD,
+      )
+
+      expect(ledger.lifestyle).toBe(discretionaryFor(world, household))
+      expect(ledger.net).toBe(monthlyNetOf(world, household))
+      expect(ledger.net).toBe(ledger.income - ledger.costs - ledger.lifestyle)
+      expect(ledger.savings).toBe(household.savings)
+      expect(ledger.inArrears).toBe(household.savings < 0)
+    }
+  })
+
+  it('never shows a zero line — an itemized month lists only what moved', () => {
+    const world = build(12345, 360)
+    for (const household of world.households.values()) {
+      const ledger = householdLedger(world, household)
+      for (const entry of [
+        ...ledger.wages,
+        ...ledger.servicePay,
+        ...ledger.pensions,
+        ...ledger.survivorPay,
+      ]) {
+        expect(entry.amount).toBeGreaterThan(0)
+        expect(household.memberIds).toContain(entry.personId)
+      }
+    }
+  })
+
+  it('a jailed member is fed by the county, and the ledger says which', () => {
+    const world = build(12345, 720)
+    const jailedHouseholds = [...world.households.values()].filter((h) =>
+      h.memberIds.some((id) => {
+        const criminal = world.criminal.get(id)
+        return criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick
+      }),
+    )
+    // If nobody is inside this month the claim is untestable here, but the
+    // sum test above still covers the arithmetic. Assert only when present.
+    for (const household of jailedHouseholds) {
+      const ledger = householdLedger(world, household)
+      expect(ledger.jailed).toBeGreaterThan(0)
+      expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
+    }
+  })
+
+  it('reads the hard months back out of the record, paired and in order', () => {
+    const world = build(12345, 720)
+    let seen = 0
+    for (const household of world.households.values()) {
+      const spells = arrearsHistoryOf(world, household)
+      let previousEnd = -1
+      for (const spell of spells) {
+        expect(spell.fromTick).toBeGreaterThan(previousEnd)
+        if (spell.toTick !== null) {
+          expect(spell.toTick).toBeGreaterThan(spell.fromTick)
+          previousEnd = spell.toTick
+        }
+        seen++
+      }
+      // An open spell can only be the last one.
+      const open = spells.filter((s) => s.toTick === null)
+      expect(open.length).toBeLessThanOrEqual(1)
+      if (open.length === 1) expect(spells[spells.length - 1]?.toTick).toBeNull()
+    }
+    // Sixty years of a hundred-person town without one hard month would mean
+    // the arrears machinery never fires, which the solvency test contradicts.
+    expect(seen).toBeGreaterThan(0)
   })
 })

@@ -991,6 +991,113 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* P3 — the Money tab. The month, itemized, in a shape that reads like a
+   statement: label left, amount right, tabular numerals so the column lines
+   up. Every number comes from householdLedger; nothing here is arithmetic. */
+.balance {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.balance.behind {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+}
+
+.balance-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.balance-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.balance.behind .balance-value {
+  color: var(--bad);
+}
+
+.balance-sub {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ledger-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.3rem 0.2rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.ledger-amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledger-row.in .ledger-amount {
+  color: var(--ok);
+}
+
+.ledger-row.out .ledger-amount {
+  color: var(--muted);
+}
+
+.ledger-row.subtotal {
+  font-weight: 600;
+}
+
+.ledger-row.total {
+  margin-top: 0.15rem;
+  border-bottom: none;
+  border-top: 2px solid var(--line);
+  font-weight: 700;
+  font-size: 0.98rem;
+}
+
+.ledger-row.total.short .ledger-amount {
+  color: var(--bad);
+}
+
+/* The hard months: same two-column bones as the job list, no action column. */
+.spell-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.spell-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.35rem 0.2rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent);
+}
+
+.spell-list .job-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
 /* A news article, opened from its headline. */
 .card-why.article p {
   margin: 0 0 0.4rem;

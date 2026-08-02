@@ -247,6 +247,140 @@ export function setSpendStance(
   })
 }
 
+// ---------------------------------------------------------------------------
+// The ledger (P3) — the same month, itemized
+//
+// The Money tab shows a household's month line by line. Every number below is
+// a DECOMPOSITION of householdIncome / householdCosts / discretionaryFor, not
+// a second calculation of them: a test asserts the parts sum to the wholes to
+// the cent for every household in a simulated town. If the two ever disagree
+// the ledger is wrong, because those three functions are what the tick loop
+// actually spends.
+// ---------------------------------------------------------------------------
+
+/** One named person's contribution to one line of the month. */
+export interface LedgerEntry {
+  readonly personId: EntityId
+  readonly amount: Money
+}
+
+export interface HouseholdLedger {
+  /** Income, split by where it comes from. Only non-zero entries appear. */
+  readonly wages: readonly LedgerEntry[]
+  readonly servicePay: readonly LedgerEntry[]
+  readonly pensions: readonly LedgerEntry[]
+  readonly survivorPay: readonly LedgerEntry[]
+  readonly income: Money
+  /** Costs. `rent` + `livingCosts` === `costs`, always. */
+  readonly rent: Money
+  readonly adults: number
+  readonly children: number
+  /** Members the county is feeding this month (jailed), fed by nobody here. */
+  readonly jailed: number
+  readonly livingCosts: Money
+  readonly costs: Money
+  readonly lifestyle: Money
+  readonly net: Money
+  readonly savings: Money
+  readonly inArrears: boolean
+}
+
+export function householdLedger(world: World, household: Household): HouseholdLedger {
+  const wages: LedgerEntry[] = []
+  const servicePay: LedgerEntry[] = []
+  const pensions: LedgerEntry[] = []
+  const survivorPay: LedgerEntry[] = []
+
+  // Same iteration as householdIncome, kept deliberately parallel.
+  for (const memberId of household.memberIds) {
+    const job = world.employment.get(memberId)
+    if (job && job.monthlyPay > 0) wages.push({ personId: memberId, amount: job.monthlyPay })
+    const duty = servicePayOf(world, memberId)
+    if (duty > 0) servicePay.push({ personId: memberId, amount: duty as Money })
+    const pension = pensionOf(world, memberId)
+    if (pension > 0) pensions.push({ personId: memberId, amount: pension as Money })
+    const survivor = survivorPensionOf(world, memberId)
+    if (survivor > 0) survivorPay.push({ personId: memberId, amount: survivor as Money })
+  }
+
+  // Same iteration as householdCosts, including the jail exemption.
+  const place = world.places.get(household.placeId)
+  const rent = (place ? rentFor(place.desirability) : 0) as Money
+  let adults = 0
+  let children = 0
+  let jailed = 0
+  for (const memberId of household.memberIds) {
+    const member = world.people.get(memberId)
+    if (!member || member.deathTick !== null) continue
+    const criminal = world.criminal.get(memberId)
+    if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
+      jailed++
+      continue
+    }
+    if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults++
+    else children++
+  }
+  const livingCosts = (adults * LIVING_COST_ADULT + children * LIVING_COST_CHILD) as Money
+
+  return {
+    wages,
+    servicePay,
+    pensions,
+    survivorPay,
+    income: householdIncome(world, household),
+    rent,
+    adults,
+    children,
+    jailed,
+    livingCosts,
+    costs: householdCosts(world, household),
+    lifestyle: discretionaryFor(world, household),
+    net: monthlyNetOf(world, household),
+    savings: household.savings,
+    inArrears: household.savings < 0,
+  }
+}
+
+/** A stretch of months the household spent behind. Open if it still is. */
+export interface ArrearsSpell {
+  readonly fromTick: Tick
+  readonly toTick: Tick | null
+}
+
+/**
+ * The hard months, read back out of the record.
+ *
+ * The crossing events are stamped on the household's eldest member at the
+ * time (noteArrearsCrossing), not on the household — events carry no
+ * household id. So this reads the people who are under the roof NOW. For a
+ * child still at home that is exactly right: their parent's fell-behind IS
+ * the family's. For a household whose eldest has since died or moved out,
+ * older spells may be missing. Showing what the record actually says beats
+ * inventing the rest (Law 6).
+ */
+export function arrearsHistoryOf(world: World, household: Household): readonly ArrearsSpell[] {
+  const members = new Set<EntityId>(household.memberIds)
+  const crossings = world.events
+    .filter(
+      (e) =>
+        (e.type === 'fell-behind' || e.type === 'back-in-the-black') && members.has(e.subjectId),
+    )
+    .sort((a, b) => a.tick - b.tick || a.id - b.id)
+
+  const spells: ArrearsSpell[] = []
+  let open: Tick | null = null
+  for (const event of crossings) {
+    if (event.type === 'fell-behind') {
+      if (open === null) open = event.tick
+    } else if (open !== null) {
+      spells.push({ fromTick: open, toTick: event.tick })
+      open = null
+    }
+  }
+  if (open !== null) spells.push({ fromTick: open, toTick: null })
+  return spells
+}
+
 /** This month's true change in savings, mirroring runFinances exactly. */
 export function monthlyNetOf(world: World, household: Household): Money {
   return (householdIncome(world, household) -

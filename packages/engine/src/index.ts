@@ -182,13 +182,16 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 
 // Finances
 export {
+  arrearsHistoryOf,
   canAfford,
   discretionaryFor,
   householdCosts,
   householdIncome,
+  householdLedger,
   inArrears,
   monthlyNetOf,
 } from './finances.js'
+export type { ArrearsSpell, HouseholdLedger, LedgerEntry } from './finances.js'
 export { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
 
 // Records

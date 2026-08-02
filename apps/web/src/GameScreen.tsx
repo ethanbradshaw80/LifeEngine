@@ -21,6 +21,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import {
   activeWars,
   ageAt,
+  arrearsHistoryOf,
   canAfford,
   childrenIdsOf,
   enrolmentBar,
@@ -33,9 +34,7 @@ import {
   formatDate,
   formatYear,
   fullName,
-  householdCosts,
-  householdIncome,
-  discretionaryFor,
+  householdLedger,
   monthlyNetOf,
   newsSince,
   OCCUPATIONS,
@@ -80,7 +79,7 @@ import {
   offenceById,
   placesOfKind,
 } from '@life-engine/engine'
-import type { EntityId } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import type { VerbRequest } from './engine.worker.js'
@@ -152,13 +151,14 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   died: '⚰️',
 }
 
-type Tab = 'story' | 'home' | 'family' | 'jobs' | 'news' | 'service' | 'health' | 'record'
+type Tab = 'story' | 'home' | 'money' | 'family' | 'jobs' | 'news' | 'service' | 'health' | 'record'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
 const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
   { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'money', icon: '💰', label: 'Money' },
   { id: 'family', icon: '👪', label: 'Family' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'news', icon: '📰', label: 'News' },
@@ -498,17 +498,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
               </dd>
               <dt>Rent</dt>
-              <dd>{formatMoney(rentFor(home.desirability))} a month</dd>
-              <dt>{age < 18 ? 'Family money' : 'Money'}</dt>
               <dd>
-                {formatMoney(household.savings)}
-                {household.savings < 0 && <span className="muted"> (behind)</span>}
-                <span className="muted small">
-                  {' '}· {formatMoney(householdIncome(world, household))} in ·{' '}
-                  {formatMoney(householdCosts(world, household))} out ·{' '}
-                  {formatMoney(discretionaryFor(world, household))} lifestyle ·{' '}
-                  {formatMoney(monthlyNetOf(world, household))} net
-                </span>
+                {formatMoney(rentFor(home.desirability))} a month
+                <span className="muted small"> · the month in full is on the Money tab</span>
               </dd>
               <dt>Household</dt>
               <dd>
@@ -526,68 +518,215 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 <span className="muted small"> · this household since {formatYear(household.formedTick)}</span>
               </dd>
-              {age >= 18 && (
+            </dl>
+          )}
+        </div>
+      )}
+
+      {tab === 'money' && (
+        <div className="panel" aria-label="Money">
+          {!household ? (
+            <p className="feed-empty">No household yet.</p>
+          ) : (
+            (() => {
+              // Every number here is the engine's own: householdLedger is a
+              // decomposition of the three functions runFinances spends, and a
+              // test holds the parts to the wholes to the cent. Nothing on
+              // this tab is computed in the UI.
+              const ledger = householdLedger(world, household)
+              const spells = arrearsHistoryOf(world, household)
+              const nameOf = (id: EntityId) => {
+                const member = world.people.get(id)
+                return member ? (id === person.id ? 'you' : member.givenName) : 'someone'
+              }
+              const lines: { key: string; label: string; amount: Money }[] = [
+                ...ledger.wages.map((e) => ({
+                  key: `w${e.personId}`,
+                  label: `Wages — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
+                ...ledger.servicePay.map((e) => ({
+                  key: `s${e.personId}`,
+                  label: `Service pay — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
+                ...ledger.pensions.map((e) => ({
+                  key: `p${e.personId}`,
+                  label: `Pension — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
+                ...ledger.survivorPay.map((e) => ({
+                  key: `v${e.personId}`,
+                  label: `Survivor's share — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
+              ]
+              const mouths = [
+                ledger.adults > 0 ? `${ledger.adults} grown` : null,
+                ledger.children > 0 ? `${ledger.children} ${ledger.children === 1 ? 'child' : 'children'}` : null,
+              ].filter((part): part is string => part !== null)
+
+              return (
                 <>
-                  <dt>Spending</dt>
-                  <dd>
-                    {/* P2: the stance discretionaryFor reads. The active one
-                        is the household's current posture; null is the
-                        character-driven default. */}
-                    <span className="verb-row">
-                      {([
-                        ['thrifty', 'Thrifty'],
-                        [null, 'As it comes'],
-                        ['loose', 'Open-handed'],
-                      ] as const).map(([stance, label]) => (
-                        <button
-                          key={label}
-                          type="button"
-                          className={household.spendStance === stance ? 'apply active' : 'apply'}
-                          disabled={busy || household.spendStance === stance}
-                          onClick={() => onAct({ verb: 'spend-stance', stance })}
-                        >
-                          {label}
-                        </button>
-                      ))}
+                  <div className={ledger.inArrears ? 'balance behind' : 'balance'}>
+                    <span className="balance-label">
+                      {age < 18 ? 'The family has' : 'The household has'}
                     </span>
-                  </dd>
-                  <dt>Streets</dt>
-                  <dd>
-                    <ul className="job-list">
-                      {placesOfKind(world, 'neighbourhood')
+                    <span className="balance-value">{formatMoney(ledger.savings)}</span>
+                    <span className="balance-sub">
+                      {ledger.inArrears
+                        ? 'behind — nothing goes on lifestyle until it is clear'
+                        : `${formatMoney(ledger.net)} a month is staying put`}
+                    </span>
+                  </div>
+
+                  <h3 className="panel-heading">The month</h3>
+                  <ul className="ledger">
+                    {lines.length === 0 && (
+                      <li className="ledger-row muted">
+                        <span className="ledger-label">Nothing is coming in</span>
+                        <span className="ledger-amount">{formatMoney(0 as Money)}</span>
+                      </li>
+                    )}
+                    {lines.map((line) => (
+                      <li key={line.key} className="ledger-row in">
+                        <span className="ledger-label">{line.label}</span>
+                        <span className="ledger-amount">+{formatMoney(line.amount)}</span>
+                      </li>
+                    ))}
+                    <li className="ledger-row subtotal">
+                      <span className="ledger-label">Coming in</span>
+                      <span className="ledger-amount">{formatMoney(ledger.income)}</span>
+                    </li>
+                    <li className="ledger-row out">
+                      <span className="ledger-label">
+                        Rent{home && <span className="muted small"> · {home.name}</span>}
+                      </span>
+                      <span className="ledger-amount">−{formatMoney(ledger.rent)}</span>
+                    </li>
+                    <li className="ledger-row out">
+                      <span className="ledger-label">
+                        Living costs
+                        {mouths.length > 0 && <span className="muted small"> · {mouths.join(', ')}</span>}
+                        {ledger.jailed > 0 && (
+                          <span className="muted small"> · {ledger.jailed} fed by the county</span>
+                        )}
+                      </span>
+                      <span className="ledger-amount">−{formatMoney(ledger.livingCosts)}</span>
+                    </li>
+                    <li className="ledger-row out">
+                      <span className="ledger-label">
+                        Lifestyle
+                        <span className="muted small">
+                          {' '}· {ledger.inArrears ? 'belt tightened' : 'the life between rent and the bank'}
+                        </span>
+                      </span>
+                      <span className="ledger-amount">−{formatMoney(ledger.lifestyle)}</span>
+                    </li>
+                    <li className="ledger-row subtotal">
+                      <span className="ledger-label">Going out</span>
+                      <span className="ledger-amount">
+                        {formatMoney((ledger.costs + ledger.lifestyle) as Money)}
+                      </span>
+                    </li>
+                    <li className={ledger.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
+                      <span className="ledger-label">Left over</span>
+                      <span className="ledger-amount">{formatMoney(ledger.net)}</span>
+                    </li>
+                  </ul>
+
+                  <h3 className="panel-heading">Hard months</h3>
+                  {spells.length === 0 ? (
+                    <p className="muted small">
+                      This roof has never fallen behind on the record.
+                    </p>
+                  ) : (
+                    <ul className="spell-list">
+                      {spells
                         .slice()
-                        .sort((a, b) => a.desirability - b.desirability)
-                        .map((place) => {
-                          const current = place.id === household.placeId
-                          // The engine's own gate, so the disabled state
-                          // never disagrees with the refusal words.
-                          const affordable = canAfford(householdIncome(world, household), place.desirability)
+                        .reverse()
+                        .map((spell) => {
+                          const months =
+                            (spell.toTick ?? world.tick) - spell.fromTick
                           return (
-                            <li key={place.id} className={current ? 'current' : undefined}>
-                              <span className="job-title">{place.name}</span>
-                              <span className="muted small">
-                                {formatMoney(rentFor(place.desirability))} a month
-                                {current && ' — home'}
+                            <li key={spell.fromTick}>
+                              <span className="job-title">
+                                {formatDate(spell.fromTick)}
+                                {spell.toTick === null
+                                  ? ' — still behind'
+                                  : ` to ${formatDate(spell.toTick)}`}
                               </span>
-                              {!current && (
-                                <button
-                                  type="button"
-                                  className="apply"
-                                  disabled={busy || !affordable}
-                                  title={affordable ? undefined : 'The household cannot carry that rent.'}
-                                  onClick={() => onAct({ verb: 'look-for-place', placeId: place.id })}
-                                >
-                                  Look for a place
-                                </button>
-                              )}
+                              <span className="muted small">
+                                {months} {months === 1 ? 'month' : 'months'} behind
+                              </span>
                             </li>
                           )
                         })}
                     </ul>
-                  </dd>
+                  )}
+
+                  {age >= 18 && (
+                    <>
+                      <h3 className="panel-heading">Spending</h3>
+                      {/* P2: the stance discretionaryFor reads. The active one
+                          is the household's current posture; null is the
+                          character-driven default. */}
+                      <div className="verb-row">
+                        {([
+                          ['thrifty', 'Thrifty'],
+                          [null, 'As it comes'],
+                          ['loose', 'Open-handed'],
+                        ] as const).map(([stance, label]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            className={household.spendStance === stance ? 'apply active' : 'apply'}
+                            disabled={busy || household.spendStance === stance}
+                            onClick={() => onAct({ verb: 'spend-stance', stance })}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <h3 className="panel-heading">Streets</h3>
+                      <ul className="job-list">
+                        {placesOfKind(world, 'neighbourhood')
+                          .slice()
+                          .sort((a, b) => a.desirability - b.desirability)
+                          .map((place) => {
+                            const current = place.id === household.placeId
+                            // The engine's own gate, so the disabled state
+                            // never disagrees with the refusal words.
+                            const affordable = canAfford(ledger.income, place.desirability)
+                            return (
+                              <li key={place.id} className={current ? 'current' : undefined}>
+                                <span className="job-title">{place.name}</span>
+                                <span className="muted small">
+                                  {formatMoney(rentFor(place.desirability))} a month
+                                  {current && ' — home'}
+                                  {!current && !affordable && ' — out of reach'}
+                                </span>
+                                {!current && (
+                                  <button
+                                    type="button"
+                                    className="apply"
+                                    disabled={busy || !affordable}
+                                    title={affordable ? undefined : 'The household cannot carry that rent.'}
+                                    onClick={() => onAct({ verb: 'look-for-place', placeId: place.id })}
+                                  >
+                                    Look for a place
+                                  </button>
+                                )}
+                              </li>
+                            )
+                          })}
+                      </ul>
+                    </>
+                  )}
                 </>
-              )}
-            </dl>
+              )
+            })()
           )}
         </div>
       )}
