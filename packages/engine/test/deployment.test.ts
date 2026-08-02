@@ -24,8 +24,12 @@ import { livingPeople } from '../src/systems.js'
 import type { GeoRelation, World } from '../src/types.js'
 
 /** A world with a hand-declared homeland war and a hand-enlisted cohort. */
-function worldAtWar(seedValue = 12345, cohort = 12): { world: World; war: GeoRelation } {
-  const world = createWorld(makeSeed(seedValue), 100)
+function worldAtWar(
+  seedValue = 12345,
+  cohort = 12,
+  population = 100,
+): { world: World; war: GeoRelation } {
+  const world = createWorld(makeSeed(seedValue), population)
   const home = homeland(world)
   if (!home) throw new Error('no homeland')
 
@@ -180,6 +184,31 @@ describe('the tour', () => {
     expect(deployedMonths).toBeGreaterThan(20)
     // Foundation §6: deployment is not synonymous with fighting.
     expect(contacts).toBeLessThan(deployedMonths / 3)
+  })
+
+  it('a long war kills people — the fatal gate must stay reachable', () => {
+    // OWNER, from play: "we had a war and I didn't see anybody die to any
+    // combat exposure." The gate wanted severity >= 940 from a curve
+    // centred at 650 — a thousand-to-one draw — so three seeds × 20 years
+    // × 40 enlisted produced 75-85 contacts, 25 wounded, and ZERO dead.
+    // This test exists so that can never quietly come back.
+    // A full-size town, so the cohort is the forty the measurement used —
+    // a hundred people cannot field that many of enlistment age.
+    const { world } = worldAtWar(12345, 40, 400)
+    advanceTicks(world, 20 * 12)
+
+    const casualties = world.events.filter(
+      (e) => e.type === 'wounded-in-action' || (e.type === 'died' && String(e.detail).includes('action')),
+    ).length
+    const kia = world.events.filter(
+      (e) => e.type === 'died' && String(e.detail).includes('wounds taken in action'),
+    ).length
+
+    expect(casualties).toBeGreaterThan(5)
+    expect(kia).toBeGreaterThan(0)
+    // …and foundation §6 still bounds it from the other side: a war is not
+    // a meat grinder either. Most of the hit come home.
+    expect(kia).toBeLessThan(casualties / 2)
   })
 
   it('tours end, and people come home', () => {

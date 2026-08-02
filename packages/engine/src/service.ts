@@ -995,8 +995,12 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       }
     }
     // A school slot opens now and then — the way to train, and to earn the
-    // rating the board counts.
-    if (rng.chance(1, 36)) {
+    // rating the board counts. RARER than the first draft (owner: "I get
+    // hit with a lot of the base pop ups but not very many interactive
+    // scenes where it's life or death"): the routine questions were
+    // crowding out the ones that matter. Roughly one slot every six years,
+    // and the player can always ASK for one from the Service tab.
+    if (rng.chance(1, 72)) {
       raisePending(world, {
         tick,
         kind: 'attend-school',
@@ -1011,11 +1015,14 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
     // The rotation list, while the Republic fights. Orders can still come
     // regardless — volunteering just stops waiting for them.
+    // The rotation list, while the Republic fights — asked twice as rarely
+    // now, for the same reason as the schoolhouse: orders find people
+    // anyway, and the volunteer button is always there.
     const home = homeland(world)
     if (
       home !== undefined &&
       activeWars(world).some((w) => w.a === home.id || w.b === home.id) &&
-      rng.chance(1, 6)
+      rng.chance(1, 12)
     ) {
       raisePending(world, {
         tick,

@@ -73,7 +73,14 @@ describe('a second seed does not collapse either', () => {
   it('seed 777 stays alive at 150 years, and its rows reconcile', () => {
     const world = createWorld(makeSeed(777), 100)
     advanceTicks(world, 1800)
-    expect(populationAt(world, world.tick)).toBeGreaterThan(110)
+    // Bar lowered 110 → 100 at M-ARMY2 v31, deliberately and with the
+    // reason on the record: wars kill now (they killed nobody when this
+    // band was measured), so a century and a half of a 100-person seed
+    // comes out a few lives lighter — 106 where it was 112. This is a
+    // COLLAPSE guard, and growth from 100 with real war dead still proves
+    // the town lives. If it ever drops under the founding population,
+    // something is genuinely broken.
+    expect(populationAt(world, world.tick)).toBeGreaterThan(100)
     const rows = yearlyDemographics(world)
     for (let i = 1; i < rows.length; i++) {
       const previous = rows[i - 1]

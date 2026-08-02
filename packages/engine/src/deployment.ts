@@ -596,10 +596,13 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       // squad pinned, and a choice that is genuinely theirs (M-HARM, owner
       // direction). The month's danger then resolves through the answer —
       // not through the automatic casualty path below.
+      // Owner: "not very many interactive scenes where it's life or death
+      // and me choosing." A contact is exactly that moment, and most of
+      // them should reach the player rather than resolving over their head.
       if (
         personId === world.player.personId &&
         world.player.pending === null &&
-        rng.chance(1, 4)
+        rng.chance(3, 5)
       ) {
         raisePending(world, {
           tick,
@@ -619,9 +622,21 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // Most contact ends with everyone walking away.
     if (!rng.chance(250, 1_000)) continue
 
-    // Severity of the month that went wrong. Fatal only at the far tail.
+    // Severity of the month that went wrong, and whether it kills.
+    //
+    // MEASURED (owner: "we had a war and I didn't see anybody die to any
+    // combat exposure"): a 20-year attrition war with 40 enlisted produced
+    // 75-85 contacts and 25 wounded per town — and ZERO dead, on all three
+    // seeds. The old gate wanted severity >= 940 from a bell curve centred
+    // at 650, which is roughly a one-in-a-thousand draw, then took two
+    // fifths of that. A war nobody dies in is not a war.
+    //
+    // The threshold now sits inside the serious band, so the deaths come
+    // out of the wounds that were already grave: about a tenth of
+    // casualties, which the same measurement puts at two or three
+    // townspeople across a long war. Accidents keep their lower share.
     const severity = rng.nextBellInt(300, 1000)
-    const fatal = severity >= 940 && rng.chance(isAccident ? 1 : 2, 5)
+    const fatal = severity >= 720 && rng.chance(isAccident ? 1 : 2, 5)
 
     const phaseFactor = factor('war-phase', war.warPhase === 'offensive' || war.warPhase === 'opening' ? 800 : 450)
     const chain = [

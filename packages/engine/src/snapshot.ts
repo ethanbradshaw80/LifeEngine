@@ -28,6 +28,18 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v31 — M-ARMY2. Wars kill (owner: "we had a war and I didn't see anybody
+ *      die to any combat exposure"). MEASURED first: a 20-year attrition
+ *      war with 40 enlisted gave 75-85 contacts, 25 wounded and ZERO dead
+ *      on three seeds — the fatal gate wanted a severity roughly a
+ *      thousand-to-one draw. It now sits inside the serious band, so the
+ *      dead come out of the wounds that were already grave: 2-3
+ *      townspeople across a long war, 8-33% of casualties. The player's
+ *      combat moments rose from a quarter of contacts to three fifths,
+ *      and the routine base questions (school slots, rotation lists)
+ *      halved — the noise was crowding out the choices that matter. The
+ *      GOLDEN IS UNCHANGED: its 120-tick window holds no war casualty and
+ *      no player, so only war and played worlds differ.
  * v30 — M-ARMY2, military review fixes. The rotation accident channel is
  *      computed per ten thousand, so the trade's exposure survives the
  *      integer arithmetic instead of flooring every specialty to the same
@@ -169,7 +181,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 30
+export const SIMULATION_VERSION = 31
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
