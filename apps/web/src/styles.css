@@ -1658,3 +1658,35 @@ ul.welcome-points li + li {
   border-left: 3px solid var(--accent);
   border-radius: 0 6px 6px 0;
 }
+
+/* The Service tab's own sub-tabs (owner spec). Quieter than the main rail —
+   they navigate within a section rather than between them — and they wrap,
+   because five labels do not fit a phone in one line. */
+.sub-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 0.7rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.sub-tabs button {
+  padding: 0.2rem 0.7rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.sub-tabs button:hover:not(.active) {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.sub-tabs button.active {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}

@@ -29,6 +29,9 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v23 — School houses got a calendar: a service record holds the seat it
+ *       took and the month that class starts. Older saves held nobody in a
+ *       class, so both are null.
  * v22 — War length and difficulty. Nations carry a combat rating (1-10)
  *       and the months they have spent at war; a war carries the length it
  *       was rolled to run. Migrated saves derive ratings from strength and
@@ -85,7 +88,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 22
+export const SCHEMA_VERSION = 23
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

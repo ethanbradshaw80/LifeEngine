@@ -210,6 +210,8 @@ describe('veterans', () => {
       dischargeReason: 'end of term',
       termPerformanceSum: 0,
       unitId: null,
+      schoolId: null,
+      schoolStartsAtTick: null,
       fitnessScore: 0,
       fitnessTestedAtTick: null,
       priorSpecialtyIds: [],

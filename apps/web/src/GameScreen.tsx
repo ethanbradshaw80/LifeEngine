@@ -160,6 +160,21 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   died: '⚰️',
 }
 
+/**
+ * The Service tab's own sub-tabs (owner spec, 2026-08-02). One tab that
+ * scrolled forever became five that do not — and on a phone that is the
+ * difference between a screen you use and one you give up on.
+ */
+type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'record'
+
+const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
+  { id: 'career', label: 'Career' },
+  { id: 'schools', label: 'School Houses' },
+  { id: 'packet', label: 'Drop a Packet' },
+  { id: 'deployments', label: 'Deployments' },
+  { id: 'record', label: 'Record' },
+]
+
 type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'jobs' | 'news' | 'stats' | 'service' | 'health' | 'record'
 
 // Icon and name are separate so the rail can drop to icons alone when the
@@ -333,6 +348,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // id of their own because they are derived from events, not stored.
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
+  const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -1385,6 +1401,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       {tab === 'service' && (
         <div className="panel" aria-label="Service record">
+          {world.service.get(person.id) !== undefined && (
+            <nav className="sub-tabs" aria-label="Service sections">
+              {SERVICE_TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={serviceTab === t.id ? 'active' : undefined}
+                  aria-current={serviceTab === t.id}
+                  onClick={() => setServiceTab(t.id)}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </nav>
+          )}
           {(() => {
             const record = world.service.get(person.id)
             if (!record) {
@@ -1409,6 +1440,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const unlocks = veteranUnlocks(world, person.id)
             return (
               <>
+                {serviceTab === 'career' && (
                 <dl className="facts">
                   <dt>Branch</dt>
                   <dd>{branchName(world, record.branch)}</dd>
@@ -1498,7 +1530,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )}
                 </dl>
-                {record.dischargedAtTick === null &&
+                )}
+                {record.dischargedAtTick === null && serviceTab === 'career' &&
                   (() => {
                     // The squad: real people, real ranks. Whoever actually
                     // holds the rank answers for the rest — nobody is
@@ -1535,7 +1568,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </>
                     )
                   })()}
-                {record.dischargedAtTick === null && (
+                {record.dischargedAtTick === null && serviceTab === 'career' && (
                   <>
                     <h3>Actions</h3>
                     <div className="svc-actions">
@@ -1574,23 +1607,70 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         </p>
                       )
                     })()}
-                    <h3>Schools</h3>
+                  </>
+                )}
+
+                {/* SCHOOL HOUSES (owner spec). Branch-incompatible courses
+                    are HIDDEN rather than listed with a refusal — a soldier
+                    does not read a catalogue of schools his service does not
+                    send anyone to. Everything else shows its reason, and
+                    every open course shows when the next class starts and
+                    whether there is a seat in it. */}
+                {record.dischargedAtTick === null && serviceTab === 'schools' && (
+                  <>
+                    <h3>School Houses</h3>
                     <ul className="job-list">
-                      {schoolOptionsFor(world, person.id).map((option) => (
-                        <li key={option.id}>
-                          <span className="job-title">{option.title}</span>
-                          <span className="muted small">
-                            {option.open ? `earns ${option.badge}` : option.reason}
-                          </span>
-                          {option.open && (
-                            <button type="button" className="apply" disabled={busy} onClick={() => onRequestSchool(option.id)}>
-                              Request
-                            </button>
-                          )}
-                        </li>
-                      ))}
+                      {schoolOptionsFor(world, person.id)
+                        .filter((option) => !option.reason.includes('does not send people here'))
+                        .map((option) => (
+                          <li key={option.id}>
+                            <span className="job-title">{option.title}</span>
+                            <span className="muted small">
+                              {option.open
+                                ? `earns ${option.badge} · ${option.courseMonths} month${option.courseMonths === 1 ? '' : 's'} · ` +
+                                  (option.monthsUntilClass === 0
+                                    ? 'a class starts this month'
+                                    : `next class in ${option.monthsUntilClass} month${option.monthsUntilClass === 1 ? '' : 's'}`) +
+                                  ` · ${option.seatsLeft} seat${option.seatsLeft === 1 ? '' : 's'} left`
+                                : option.reason}
+                            </span>
+                            {option.open && (
+                              <button
+                                type="button"
+                                className="apply"
+                                disabled={busy}
+                                onClick={() => onRequestSchool(option.id)}
+                              >
+                                Request a Seat
+                              </button>
+                            )}
+                          </li>
+                        ))}
                     </ul>
-                    <h3>Special units</h3>
+                    {(() => {
+                      const seat = world.service.get(person.id)
+                      if (seat?.schoolId === null || seat?.schoolStartsAtTick === null) return null
+                      const school = world.spec.schools.find((sc) => sc.id === seat?.schoolId)
+                      if (!school || seat?.schoolStartsAtTick === undefined) return null
+                      const away = seat.schoolStartsAtTick - world.tick
+                      return (
+                        <p className="note small">
+                          You are down for {school.title} —{' '}
+                          {away > 0
+                            ? `class starts in ${String(away)} month${away === 1 ? '' : 's'}`
+                            : 'in class now'}
+                          .
+                        </p>
+                      )
+                    })()}
+                  </>
+                )}
+
+                {/* DROP A PACKET (owner spec): its own tab, branch-filtered
+                    the same way. */}
+                {record.dischargedAtTick === null && serviceTab === 'packet' && (
+                  <>
+                    <h3>Drop a Packet</h3>
                     <ul className="job-list">
                       {unitOptionsFor(world, person.id).map((option) => (
                         <li key={option.id}>
@@ -1612,9 +1692,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </ul>
                   </>
                 )}
-                {(() => {
+                {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
-                  if (decorations.length === 0) return null
+                  if (decorations.length === 0) {
+                    return <p className="muted small">Nothing on the rack yet.</p>
+                  }
                   return (
                     <>
                       <h3>Decorations</h3>
@@ -1635,8 +1717,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )
                 })()}
-                <h3>Deployments</h3>
-                {tours.length === 0 ? (
+                {serviceTab === 'deployments' && <h3>Deployments</h3>}
+                {serviceTab === 'deployments' && (tours.length === 0 ? (
                   <p className="muted">None. Service so far has been at home station.</p>
                 ) : (
                   <ol className="timeline">
@@ -1664,7 +1746,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </li>
                     ))}
                   </ol>
-                )}
+                ))}
               </>
             )
           })()}

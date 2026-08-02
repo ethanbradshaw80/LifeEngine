@@ -385,29 +385,41 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
   })
   world.player.nextDecisionId += 1
 
-  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 8777)
-  if (!rng.chance(1, 3)) {
-    return { attended: false, reason: `No slot at ${school.title} this cycle. Ask again next season.` }
-  }
-
-  recordEvent(world, world.tick, { type: 'completed-training', subjectId: person.id, detail: school.title })
-  const badgeEvent = recordEvent(world, world.tick, {
-    type: 'earned-qualification',
-    subjectId: person.id,
-    detail: school.badge,
+  // A SEAT IN THE NEXT CLASS, not an instant badge (owner spec). The
+  // schoolhouse has a calendar: you are slotted in, you wait for the class
+  // to start, you attend, and the badge is pinned on at graduation. The old
+  // one-in-three draw is gone — the honest scarcity is SEATS, which
+  // schoolOptionsFor already counts, and a full class is a reason a player
+  // can see rather than a die they cannot.
+  const classTick = option.nextClassTick
+  world.service.set(person.id, {
+    ...record,
+    schoolId: school.id,
+    schoolStartsAtTick: classTick,
   })
-  grantQualificationBadge(world, world.tick, person.id, badgeEvent, school.badge)
-  boostServicePerformance(world, person.id, school.performanceBoost)
+  recordEvent(world, world.tick, {
+    type: 'took-a-seat',
+    subjectId: person.id,
+    detail: school.title,
+  })
   recordDecision(world, world.tick, {
     subjectId: person.id,
     decision: 'training',
     significance: 'notable',
     inputs: [factor('own-choice', 1000), factor('ambition', person.traits.ambition)],
-    chosen: `asked for and got a slot at ${school.title}`,
+    chosen: `took a seat in the next ${school.title} class`,
     rejected: [],
     streamId: Stream.Employment,
   })
-  return { attended: true, reason: '' }
+
+  const wait = classTick - world.tick
+  return {
+    attended: true,
+    reason:
+      wait <= 0
+        ? `Class starts this month at ${school.title}.`
+        : `You have a seat. ${school.title} starts in ${String(wait)} month${wait === 1 ? '' : 's'}.`,
+  }
 }
 
 /**

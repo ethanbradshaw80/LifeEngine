@@ -53,6 +53,8 @@ function aServingPlayer(world: World, performance = 800): Person {
     dischargeReason: null,
     termPerformanceSum: performance * 6,
     unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
     fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],

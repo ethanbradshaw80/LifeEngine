@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v45 — SCHOOL HOUSES WITH A CALENDAR (owner spec). Schools carry their
+ *      REAL names (ADR-0023), a course length, a class cadence and seats.
+ *      Asking no longer rolls one-in-three for an instant badge: you take a
+ *      seat in the next class on a fixed grid, wait for it, attend, and the
+ *      badge is pinned on at graduation — for NPCs as well as the player,
+ *      because a calendar only the player sees is a menu, not a school.
  * v44 — COALITIONS (owner spec, ADR-0022). A belligerent that is losing
  *      calls on its allies, and the ones that answer declare against the
  *      same enemy — so a coalition is built out of ordinary pairwise
@@ -296,7 +302,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 44
+export const SIMULATION_VERSION = 45
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -362,26 +362,90 @@ export const MAX_FITNESS_POINTS = 300
 // ---------------------------------------------------------------------------
 
 
+/**
+ * The school houses. REAL NAMES BY OWNER OVERRIDE (ADR-0023, 2026-08-02):
+ * a school is a course of instruction and naming one asserts nothing about
+ * anybody. A REVIEWER MAY NOT RENAME THESE BACK — two reviews in this repo
+ * have already renamed schools by reflex for being close to real ones, and
+ * the ADR exists to stop a third.
+ *
+ * Units are the other half of that ruling and stay fictional, permanently.
+ *
+ * Every school runs on class cycles: a course length, a cadence between
+ * class start dates, and seats. The dates sit on a fixed grid off tick 0,
+ * so "the next class starts in four months" is the same fact in every
+ * replay of a world.
+ */
 export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
   {
-    id: 'jump-school', title: 'Jump School', branches: ['land-forces'], specialtyIds: [],
+    id: 'jump-school', title: 'Airborne School', branches: ['land-forces'], specialtyIds: [],
     minRank: 1, minPerformance: 450, badge: 'parachutist', performanceBoost: 40,
+    courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 4,
   },
   {
-    id: 'air-assault', title: 'the Air-Mobile Assault Course', branches: ['land-forces', 'air-guard'], specialtyIds: [],
+    id: 'air-assault', title: 'Air Assault School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
     minRank: 1, minPerformance: 450, badge: 'air assault', performanceBoost: 40,
+    courseMonths: 1, classCadenceMonths: 3, seatsPerClass: 4,
   },
   {
     id: 'sniper-school', title: 'Sniper School', branches: ['land-forces'], specialtyIds: ['rifleman'],
     minRank: 2, minPerformance: 600, badge: 'sniper qualified', performanceBoost: 60,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'pathfinder-school', title: 'Pathfinder School', branches: ['land-forces'], specialtyIds: [],
+    minRank: 2, minPerformance: 550, badge: 'pathfinder', performanceBoost: 50,
+    courseMonths: 1, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'freefall', title: 'Military Freefall School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
+    minRank: 3, minPerformance: 620, badge: 'military freefall', performanceBoost: 55,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'sere', title: 'SERE School', branches: [], specialtyIds: [],
+    minRank: 2, minPerformance: 520, badge: 'SERE qualified', performanceBoost: 45,
+    courseMonths: 1, classCadenceMonths: 4, seatsPerClass: 3,
   },
   {
     id: 'combat-diver', title: 'the Combat Diver Course', branches: ['naval-service'], specialtyIds: [],
     minRank: 2, minPerformance: 550, badge: 'combat diver', performanceBoost: 50,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'eod', title: 'EOD School', branches: [], specialtyIds: [],
+    minRank: 2, minPerformance: 620, badge: 'explosive ordnance disposal', performanceBoost: 60,
+    courseMonths: 6, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'combat-medic', title: 'the Combat Medic Course', branches: [], specialtyIds: ['medic'],
+    minRank: 2, minPerformance: 560, badge: 'combat medic', performanceBoost: 55,
+    courseMonths: 4, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'jumpmaster', title: 'Jumpmaster School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
+    minRank: 4, minPerformance: 620, badge: 'jumpmaster', performanceBoost: 55,
+    courseMonths: 1, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
+    id: 'mountain-warfare', title: 'the Mountain Warfare Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 2, minPerformance: 540, badge: 'mountain warfare', performanceBoost: 45,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 3,
+  },
+  {
+    id: 'ranger-school', title: 'Ranger School', branches: ['land-forces'], specialtyIds: [],
+    minRank: 3, minPerformance: 650, badge: 'ranger', performanceBoost: 70,
+    courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 2,
   },
   {
     id: 'leaders-course', title: 'the Junior Leaders Course', branches: [], specialtyIds: [],
     minRank: 4, minPerformance: 500, badge: 'small-unit leader', performanceBoost: 50,
+    courseMonths: 1, classCadenceMonths: 4, seatsPerClass: 3,
+  },
+  {
+    id: 'sf-qualification', title: 'the Special Forces Qualification Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 4, minPerformance: 700, badge: 'special forces', performanceBoost: 80,
+    courseMonths: 12, classCadenceMonths: 12, seatsPerClass: 1,
   },
 ]
 

@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { advanceTicks, createWorld } from '../src/index.js'
+import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, requestSchool, resolvePending, setPlayer, tryOutForUnit } from '../src/player.js'
 import { competitiveGates, promotionPointsFor } from '../src/service.js'
 import { specialtyById } from '../src/content.js'
@@ -44,6 +44,8 @@ function aPlayedSoldier(world: World, performance = 700): Person {
     dischargeReason: null,
     termPerformanceSum: performance * 6,
     unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
     fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
@@ -66,24 +68,34 @@ describe('schools', () => {
     expect(diver?.open).toBe(false)
     expect(diver?.reason.length).toBeGreaterThan(0)
 
-    // Ask until a slot comes through (1-in-3 per request, one per half-year).
-    let attended = false
-    for (let i = 0; i < 12 && !attended; i++) {
-      const result = requestSchool(world, 'jump-school')
-      attended = result.attended
-      if (!attended) {
-        advanceTicks(world, 6)
-        while (awaitingPlayer(world)) {
-          const pending = world.player.pending
-          if (!pending) break
-          resolvePending(world, pending.options[pending.options.length - 1] ?? 'decline')
-        }
+    // A SEAT, THEN THE CLASS, THEN THE BADGE (owner spec). Asking no longer
+    // hands out a qualification on the spot: you are slotted into the next
+    // class on the schoolhouse's grid, you wait for it, and graduation pins
+    // the badge on. So the test waits too — and it runs the tick loop to do
+    // it, because the class only starts and finishes there.
+    const asked = requestSchool(world, 'jump-school')
+    expect(asked.attended, asked.reason).toBe(true)
+    expect(world.service.get(person.id)?.schoolId).toBe('jump-school')
+
+    const startsAt = world.service.get(person.id)?.schoolStartsAtTick ?? world.tick
+    const jumpSchool = world.spec.schools.find((sc) => sc.id === 'jump-school')
+    expect(jumpSchool).toBeDefined()
+    const graduatesAt = startsAt + (jumpSchool?.courseMonths ?? 1)
+
+    while (world.tick <= graduatesAt + 1) {
+      if (awaitingPlayer(world)) {
+        const pending = world.player.pending
+        if (!pending) break
+        resolvePending(world, pending.options[pending.options.length - 1] ?? 'decline')
+        continue
       }
+      advanceTick(world)
     }
-    expect(attended).toBe(true)
+
     expect(badgesOf(world, person.id)).toContain('parachutist')
-    expect(world.events.some((e) => e.type === 'completed-training' && e.detail === 'Jump School')).toBe(true)
-    expect(world.player.log.some((entry) => entry.kind === 'school-request')).toBe(true)
+    // And the seat is given up again once the course is done.
+    expect(world.service.get(person.id)?.schoolId).toBeNull()
+
   })
 })
 

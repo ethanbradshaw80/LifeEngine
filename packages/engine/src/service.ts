@@ -48,7 +48,7 @@ import {
   } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
-import type { ServiceSpecialty } from './content.js'
+import type { ServiceSchool, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js'
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
@@ -367,15 +367,61 @@ export function badgesOf(world: World, personId: EntityId): readonly string[] {
  * The Service tab's school list, with the door open or the reason it is not
  * — engine-authored words, so the UI renders rather than writes.
  */
-export function schoolOptionsFor(
-  world: World,
-  personId: EntityId,
-): readonly { id: string; title: string; badge: string; open: boolean; reason: string }[] {
+export interface SchoolOption {
+  readonly id: string
+  readonly title: string
+  readonly badge: string
+  readonly open: boolean
+  readonly reason: string
+  /** How long the course runs, once you are on it. */
+  readonly courseMonths: number
+  /** The tick the next class starts, off the fixed grid. */
+  readonly nextClassTick: Tick
+  /** Months until that class starts. Zero means it starts this month. */
+  readonly monthsUntilClass: number
+  /** Seats left in it, after everyone already slotted in. */
+  readonly seatsLeft: number
+}
+
+/**
+ * The next class start for a school, off a FIXED GRID from tick 0 (owner
+ * spec). Not a draw and not "whenever you asked" — the schoolhouse has a
+ * calendar, every world's is the same, and a save reloaded mid-wait shows
+ * the same date it showed before.
+ */
+export function nextClassTick(school: ServiceSchool, tick: Tick): Tick {
+  const cadence = Math.max(1, school.classCadenceMonths)
+  const since = tick % cadence
+  return (since === 0 ? tick : tick + (cadence - since)) as Tick
+}
+
+/** Seats already taken in a school's next class. */
+function seatsTaken(world: World, schoolId: string, classTick: Tick): number {
+  let taken = 0
+  for (const record of world.service.values()) {
+    if (record.schoolId === schoolId && record.schoolStartsAtTick === classTick) taken++
+  }
+  return taken
+}
+
+/**
+ * The school houses, filtered to THIS BRANCH and answered with the class
+ * schedule: what it costs in months, when the next class starts, and whether
+ * there is a seat in it.
+ *
+ * Branch-incompatible schools are still returned with their reason, because
+ * the UI hides them rather than the engine pretending they do not exist —
+ * an engine that silently drops content is an engine you cannot debug.
+ */
+export function schoolOptionsFor(world: World, personId: EntityId): readonly SchoolOption[] {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return []
   const specialty = specialtyFor(world, record.specialtyId)
   const badges = badgesOf(world, personId)
   return world.spec.schools.map((school) => {
+    const classTick = nextClassTick(school, world.tick)
+    const seatsLeft = Math.max(0, school.seatsPerClass - seatsTaken(world, school.id, classTick))
+
     let reason = ''
     if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not send people here.`
@@ -387,8 +433,23 @@ export function schoolOptionsFor(
       reason = `Opens at ${rankTitle(world, record.branch, school.minRank)}.`
     } else if (record.performance < school.minPerformance) {
       reason = 'The work is not there yet.'
+    } else if (record.schoolId !== null) {
+      reason = 'You are already down for a course.'
+    } else if (seatsLeft === 0) {
+      reason = 'The next class is full.'
     }
-    return { id: school.id, title: school.title, badge: school.badge, open: reason === '', reason }
+
+    return {
+      id: school.id,
+      title: school.title,
+      badge: school.badge,
+      open: reason === '',
+      reason,
+      courseMonths: school.courseMonths,
+      nextClassTick: classTick,
+      monthsUntilClass: classTick - world.tick,
+      seatsLeft,
+    }
   })
 }
 
@@ -716,6 +777,8 @@ export function enlistPerson(
     dischargeReason: null,
     termPerformanceSum: 0,
     unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
     fitnessScore: 0,
     fitnessTestedAtTick: null,
   })
@@ -1654,4 +1717,56 @@ export function discharge(
 /** True when the education fork at eighteen should offer the uniform. */
 export function educationOffersEnlistment(world: World, person: Person, tick: Tick): boolean {
   return canEnlist(world, person, tick) && !hasAnswered(world, 'enlist')
+}
+
+/**
+ * The schoolhouse's own month: classes start, classes finish, badges get
+ * pinned on. Runs for EVERYONE with a seat, player or not — a school with a
+ * calendar that only the player experiences is not a school, it is a menu.
+ */
+export function runSchools(world: World, tick: Tick): void {
+  const records = [...world.service.values()].sort((a, b) => a.personId - b.personId)
+  for (const record of records) {
+    if (record.schoolId === null || record.schoolStartsAtTick === null) continue
+    if (record.dischargedAtTick !== null) {
+      // Out of the service is out of the class.
+      world.service.set(record.personId, { ...record, schoolId: null, schoolStartsAtTick: null })
+      continue
+    }
+    const school = world.spec.schools.find((s) => s.id === record.schoolId)
+    if (!school) {
+      world.service.set(record.personId, { ...record, schoolId: null, schoolStartsAtTick: null })
+      continue
+    }
+    if (tick === record.schoolStartsAtTick) {
+      recordEvent(world, tick, {
+        type: 'began-training',
+        subjectId: record.personId,
+        detail: school.title,
+      })
+      continue
+    }
+    if (tick < record.schoolStartsAtTick + school.courseMonths) continue
+
+    // Graduation: the badge is pinned on through the awards machinery, the
+    // same door an NPC's is.
+    recordEvent(world, tick, {
+      type: 'completed-training',
+      subjectId: record.personId,
+      detail: school.title,
+    })
+    const badgeEvent = recordEvent(world, tick, {
+      type: 'earned-qualification',
+      subjectId: record.personId,
+      detail: school.badge,
+    })
+    grantQualificationBadge(world, tick, record.personId, badgeEvent, school.badge)
+    const current = world.service.get(record.personId) ?? record
+    world.service.set(record.personId, {
+      ...current,
+      schoolId: null,
+      schoolStartsAtTick: null,
+      performance: Math.max(0, Math.min(1000, current.performance + school.performanceBoost)),
+    })
+  }
 }

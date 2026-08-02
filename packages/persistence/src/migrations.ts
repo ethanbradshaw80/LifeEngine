@@ -676,7 +676,33 @@ const V21_TO_V22: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22]
+/**
+ * School houses got a calendar (owner spec): a service record now holds the
+ * seat it took and the month that class starts. Nobody in an older save was
+ * ever down for a class, so both are null — an in-progress course is not a
+ * thing that existed to reconstruct.
+ */
+const V22_TO_V23: Migration = {
+  from: 22,
+  to: 23,
+  describe: 'give service records a school seat and its class date',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const service = (Array.isArray(world['service']) ? world['service'] : []).map((entry) => ({
+      ...requireObject(entry, 'save.world.service[]'),
+      schoolId: null,
+      schoolStartsAtTick: null,
+    }))
+    const nextWorld: Record<string, unknown> = { ...world, service }
+    return {
+      header: { ...header, schemaVersion: 23, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

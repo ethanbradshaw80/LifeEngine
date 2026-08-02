@@ -168,6 +168,18 @@ export interface ServiceSchool {
   /** The badge the course pins on — routed through the awards machinery. */
   readonly badge: string
   readonly performanceBoost: number
+  /** How long the course runs, in months. */
+  readonly courseMonths: number
+  /**
+   * Months between class start dates. A school is not a door you walk
+   * through when you feel like it — there is a next class, and you wait for
+   * it. Class starts sit on a fixed grid off tick 0, so they are the same in
+   * every replay of a world (owner spec, "class dates come off a fixed epoch
+   * grid").
+   */
+  readonly classCadenceMonths: number
+  /** Seats in one class. A full class is a real reason to wait. */
+  readonly seatsPerClass: number
 }
 
 export interface SpecialUnit {
@@ -532,6 +544,14 @@ export interface ServiceRecord {
    * month's noise happened to be. Reset when a new term begins.
    */
   readonly termPerformanceSum: number
+  /**
+   * The school this soldier is down for, or null. A seat is taken the month
+   * it is granted and held until the course finishes — which is what makes a
+   * class fill up and a schedule mean something.
+   */
+  readonly schoolId: string | null
+  /** The tick that class starts. Null when not down for one. */
+  readonly schoolStartsAtTick: Tick | null
   /**
    * Special unit (M-SPECOPS), or null for the line. Earned through a
    * selection that can be failed; carries duty pay and a sharper war.
@@ -967,6 +987,7 @@ export type EventType =
   | 'moved-house'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
+  | 'took-a-seat'
   | 'refused-orders'
   | 'asked-exemption'
   | 'call-to-arms'

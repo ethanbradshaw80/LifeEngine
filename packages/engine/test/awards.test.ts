@@ -51,6 +51,8 @@ function worldWithASoldier(): { world: World; soldierId: EntityId } {
     dischargeReason: null,
     termPerformanceSum: 0,
     unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
     fitnessScore: 0,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],

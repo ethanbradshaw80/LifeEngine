@@ -71,6 +71,8 @@ function putInUniform(
     dischargeReason: null,
     termPerformanceSum: overrides.termPerformanceSum ?? 700 * 6,
     unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
     fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
