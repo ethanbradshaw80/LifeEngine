@@ -65,7 +65,7 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `6641e94`.
+**STATE:** clean tree, everything pushed, HEAD `b533ba7`.
 SIMULATION_VERSION **47** · Classic golden **798939fc** · Heartland golden
 **c2e846c5** · SCHEMA_VERSION **23** · **527 tests**, all green.
 P3, W1 and W2 all COMPLETE and reviewed — six reviews, eighteen must-fixes,
@@ -83,33 +83,104 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. FINISH THE COMBAT PLAN — ONE STEP LEFT**
-(`docs/MILITARY_COMBAT_PLAN.md`). Four of five are done:
-  1. ~~Service sub-tabs + School Houses with a class calendar~~ (de3164a)
-  2. ~~Drop a Packet: an entry unit per branch, real chains~~ (555d6f0)
-  3. ~~The three-option combat scene: threat levels, the matrix, the tell,
-     tiered valor~~ (27ce03f)
-  4. **SHARED UNIT CUTSCENES — THE ONE THAT IS LEFT.** The packet drop,
-     selection day, reporting in, tier-up, losing one, the old hand. These
-     are NOT combat scenes: they need their own pending kind (commitment
-     and aftermath, not casualty) and selection day resolves against the
-     unit's `selectionDenominator` through the ACCIDENT channel rather than
-     an enemy. Everything else about them is the scenes.ts shape.
-  5. ~~Per-unit mission scenes~~ (6641e94) — eleven of them, and the
-     machinery takes more as pure content whenever you want them.
+**1. FINISH THE MILITARY MODULE — THREE PIECES, IN THIS ORDER**
+(`docs/MILITARY_COMBAT_PLAN.md` is the spec; the owner's awards pack lives
+in `C:\Users\ethan\Downloads\awards_badges_pack.zip` if you need it again.)
 
-  ALSO STILL OPEN from the awards pack, both deliberately:
-  - **The HOLD items.** The Prisoner of War Medal needs a capture branch in
-    the deployment resolver (a bad overrun ends in `was-captured`, then
-    `repatriated` or `died-in-captivity`); the Air Medal and aircrew badges
-    need an aviation specialty and the Nighthawk Squadron. Their award
-    KINDS are deliberately not in the union until then — a kind nothing can
-    grant is the "no unearnable award" rule broken one level down.
+The design calls below are ALREADY MADE. Do not re-derive them; build them.
+
+---
+
+#### PIECE 1 — Shared unit cutscenes (combat plan step 4/5)
+
+Six moments that make joining a unit feel like something: **the packet
+drop**, **selection day**, **reporting in**, **tier-up**, **losing one**,
+**the old hand**.
+
+THE KEY DESIGN CALL, already made: **these are NOT combat scenes.** They are
+commitment and aftermath, so they need their own pending kind —
+`'unit-moment'` — and they must NOT route through `resolveMomentCasualty`,
+which is the enemy-contact resolver. Reusing `combat-moment` would put a
+firefight's fatal tail on a moment where nobody is shooting.
+
+How to build it, concretely:
+  - `scenes.ts` already has the shape to copy: a scene with `tell`,
+    `labels`, `did` per option. Add `UNIT_MOMENTS` beside `COMBAT_SCENES`
+    with the same three-option spectrum (push / hold / cover re-flavoured).
+  - Raise from `service.ts`'s monthly pass, not from `deployment.ts`:
+    - packet drop → when `unitOptionsFor` first has an open unit
+    - selection day → resolves against the unit's own
+      `selectionDenominator`, and the risk is the ACCIDENT channel (an
+      injury or a quit), never an enemy
+    - reporting in → the month after `joined-unit`
+    - tier-up → when a tier-2 unit opens to someone already in its feeder
+    - losing one → when a squadmate of theirs dies (`unitRosterOf` gives
+      the squad; a `died` event for a member is the trigger)
+    - the old hand → 36+ months in the unit, once
+  - Selection day should REPLACE the instant pass/fail inside
+    `tryOutForUnit` for the player only — the NPC path stays as it is, the
+    same way the school seat did.
+  - RULE 1, THE ONE THAT KEEPS BITING: if any of these can raise a
+    follow-up, resolve it AFTER `commit()` in `resolvePending`. It has
+    shipped broken twice.
+
+#### PIECE 2 — The capture system, and the Prisoner of War Medal
+
+The awards pack marks it HOLD until this exists. Build the system, then the
+award — in that order, because the pack's rule is that nothing unearnable
+exists, and `'pow'` is deliberately NOT in the `AwardKind` union yet.
+
+  - **The branch:** in `deployment.ts`'s casualty resolution, a bad
+    **overrun** outcome can end in `was-captured` instead of wound or
+    death. Gate it hard — capture should be rarer than death, and only
+    from the worst cell.
+  - **Captivity is a state, not an event:** the person is neither deployed
+    nor home. Simplest shape that fits: a `capturedAtTick` on the service
+    record (schema bump), `isCaptured()` beside `isJailed()`, and the same
+    absence rules jail already has (no hiring, no promotion, the household
+    keeps the pay).
+  - **It ends two ways:** `repatriated` (a monthly draw, likelier once the
+    war ends) or `died-in-captivity`. Both are permanent record.
+  - **Then** add `'pow'` to `AwardKind`, `grantPow` off `was-captured`, and
+    `POINTS_PER_POW = 15`.
+  - The player's own capture should be a moment, not a silent state change.
+
+#### PIECE 3 — Aviation, and the Air Medal
+
+Same order: the system, then the award. `'air'` is not in the union yet.
+
+  - **A flying specialty** in `content.ts` (`aircrew`, air-guard, its own
+    exposure profile weighted to `accident` and `baseAttack`).
+  - **The Nighthawk Squadron** as the aviation tier-2 unit — it is already
+    in the combat plan §4e with four scenes written and waiting.
+  - **An `aerial-mission` event** raised on deployment for aircrew, and the
+    four Nighthawk scenes (hot LZ, gun run, brownout, your bird is hit)
+    added to `COMBAT_SCENES` with `unitId: 'nighthawk'`.
+  - **Then** `'air'` in the union, `grantAirMedal` off `aerial-mission`,
+    plus the aviator and aircrew badges from a flight school.
+
+---
+
+#### ALSO OPEN, smaller
   - **The ribbon rack UI.** `ribbon_rack.html` in the owner's pack is the
-    reference. The Record sub-tab currently lists decorations as a
-    timeline; the rack is the visual version of the same data.
-  - **Senior Parachutist**: holds the badge + 36 months in an airborne
-    unit, granted from the monthly service tick.
+    reference. The Record sub-tab lists decorations as a timeline today;
+    the rack is the visual version of the same data. Render from
+    `decorationsOf()` and `badgesOf()` — earned only, never a catalogue.
+  - **Senior Parachutist**: holds `parachutist` + 36 months in an airborne
+    unit, granted from the monthly service tick as a qualification badge.
+
+#### HOW TO WORK IN THIS REPO (the short version)
+  - `npm run check` before every commit. Node needs
+    `$env:Path = "C:\Program Files\nodejs;$env:Path";` prefixed.
+  - Two goldens move together on any unplayed-world change:
+    `determinism.test.ts` + `App.tsx` for Classic, `w2.test.ts` for
+    Heartland. Bump SIMULATION_VERSION in the same commit and say why in
+    `snapshot.ts`'s history. PLAYER-PATH-ONLY changes move neither.
+  - Measure before tuning: write a temp test that prints, read it, delete
+    it. That is the house style and it has caught every real balance bug.
+  - Run the reviewer before calling a milestone done —
+    `military-scope-reviewer` is MANDATORY for anything in this module. It
+    has found a real must-fix every single time.
 
 **2. W3 — PLACE DEPTH.** Climate/seasons, university institutions, regional
 priors — and the two military items deferred since M-ARMY2 ("families
