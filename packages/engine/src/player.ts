@@ -1207,6 +1207,17 @@ export function raisePending(
   spec: Omit<PendingDecision, 'id'>,
 ): boolean {
   if (world.player.pending !== null) return false // one question at a time
+  // AND NOTHING AT ALL REACHES A PRISONER. A man held by a hostile force is
+  // not weighing a job offer, not moving house, not being asked whether to
+  // rest or push on. Every one of those questions could reach him before
+  // this, because each raise site knew about its own subject and none knew
+  // about captivity.
+  //
+  // The guard is here rather than at the sites because there are fifteen of
+  // them and there will be more. Callers holding a one-shot flag are safe:
+  // this returns false, which is the same contract as a question that could
+  // not land because another one was already up.
+  if (spec.personId === world.player.personId && isCaptive(world, spec.personId)) return false
   world.player.pending = { ...spec, id: world.player.nextDecisionId }
   world.player.nextDecisionId += 1
   return true

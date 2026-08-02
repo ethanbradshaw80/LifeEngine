@@ -1532,7 +1532,18 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   const unitSinceTick =
     unitId === null ? null : joinedUnitThisMonth ? tick : (record.unitSinceTick ?? tick)
 
-  const termMonthsLeft = record.termMonthsLeft - 1
+  // MONTHS HELD DO NOT COUNT TOWARD THE TERM AVERAGE. They are not months
+  // of service anybody can judge, and letting them in meant a captivity
+  // quietly argued for the Good Conduct Medal at the end of it.
+  const heldThisMonth = isCaptive(world, person.id)
+
+  // A CELL IS NOT A TERM OF SERVICE. Neither side of the average moves while
+  // somebody is held: not the months, which the term counts, and not the
+  // sum, which the Good Conduct and Meritorious Service medals are judged
+  // on. Letting them move meant a captivity quietly argued for a decoration
+  // for "a term of distinguished service, by the record" — and, because the
+  // term kept counting down, could discharge a man in enemy hands.
+  const termMonthsLeft = heldThisMonth ? record.termMonthsLeft : record.termMonthsLeft - 1
 
   world.service.set(person.id, {
     ...record,
@@ -1549,7 +1560,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     termMonthsLeft,
     // The term's running ledger: good conduct is judged on the average of
     // every served month, not the last month's noise.
-    termPerformanceSum: record.termPerformanceSum + performance,
+    termPerformanceSum: heldThisMonth ? record.termPerformanceSum : record.termPerformanceSum + performance,
   })
 
   if (termMonthsLeft > 0) return
@@ -1950,7 +1961,12 @@ export function runSchools(world: World, tick: Tick): void {
     // for months he spent held — an award for service that provably did not
     // happen, which is the one thing the earnability rule exists to stop.
     // The seat is kept, not lost: he is held, not out.
-    if (isCaptive(world, record.personId)) continue
+    // NOBODY ATTENDS FROM A THEATRE EITHER. Pre-existing, and flight school's
+    // nine months widened the window enough to matter: a deployed soldier was
+    // graduating a course, collecting the badge and the ribbon that go with
+    // it, from the other side of a war. The seat is KEPT in both cases — they
+    // are away, not out — so the class resumes when they are home.
+    if (isCaptive(world, record.personId) || isDeployed(world, record.personId)) continue
     if (record.dischargedAtTick !== null) {
       // Out of the service is out of the class.
       world.service.set(record.personId, { ...record, schoolId: null, schoolStartsAtTick: null })
