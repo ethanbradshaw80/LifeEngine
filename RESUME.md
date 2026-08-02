@@ -65,14 +65,15 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `5f82a16`.
-SIMULATION_VERSION **41** · Classic golden **7ddc1784** · Heartland golden
-**41ec53de** · SCHEMA_VERSION **21** · **472 tests**, all green.
-P3, W1 and W2 all COMPLETE and reviewed — four reviews, ten must-fixes, all
-fixed.
+**STATE:** clean tree, everything pushed, HEAD `026f4ce`.
+SIMULATION_VERSION **42** · Classic golden **c83b07e9** · Heartland golden
+**05bf2c3d** · SCHEMA_VERSION **21** · **480 tests**, all green.
+P3, W1 and W2 all COMPLETE and reviewed — six reviews, eighteen must-fixes,
+every one fixed.
 
-**THERE IS ONE DECISION WAITING FOR YOU — see "THE REAL COUNTRIES QUESTION"
-below. Nothing was changed on the strength of it.**
+**THE REAL COUNTRIES QUESTION IS ANSWERED: you picked option 3.** Real
+countries, invented wars. ADR-0021 records it; the record below says what
+that cost and what it did not buy.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -170,44 +171,44 @@ pure refactor, which was the stated exit criterion.
     had a hole the size of the newsroom. purity.test.ts now fails on a NUL
     in any engine source.
 
-### THE REAL COUNTRIES QUESTION — your call, nothing done yet
-You sent a list of 21 real countries with ally/hostile labels, and a list of
-real military bases.
+### REAL COUNTRIES — SETTLED, option 3 (ADR-0021, commits 50d024e, 026f4ce)
+You picked 3: real countries, real (generated) wars. What that means now:
 
-**The bases are in.** Seven of them, filtered twice: by ERA (every name is
-one the post carried in 1970 and carries again today — the 2023 renamings
-were reverted in 2025; every "Joint Base" name is a 2004-2010 anachronism
-for a world that starts in 1970, so they are out, as is Vandenberg Space
-Force Base) and by BRANCH, which the review made a must-fix: the engine was
-posting sailors to army forts, which is harmless with invented names and a
-false claim about a real place without them.
+  - **american-heartland ships your 21 countries** with your ally/neutral/
+    hostile labels. Classic still invents its whole map — that is the point
+    of keeping it.
+  - **THE LINE THAT DID NOT MOVE: no war here is ever real.** Every
+    conflict is generated from modelled pressure. No real war, operation,
+    battle or campaign name exists in this codebase, and a test scans the
+    engine AND the UI and fails if one appears. Named units and decorations
+    stay fictional in every preset — you did not ask for those, and a real
+    unit has living members.
+  - **Your labels are a STARTING POSITION and nothing else**, which is how
+    you framed them yourself. Allies start at peace, rivals start one rung
+    up, and the ladder moves from month one. They decide only pairs
+    involving the United States, because a US-perspective label says how
+    Washington sees Moscow and not how Paris sees Beijing.
+  - **The framing is a condition, not a courtesy** (ADR-0021 §3): the
+    picker leads with it and a standing notice sits above the tabs in every
+    played life — "The countries are real. Every war here is invented."
 
-**The countries are not, and I did not add them, because doing so would
-reverse a decision you already made and would break something specific.**
-This engine does not merely list foreign countries — it GENERATES WARS with
-them. It escalates relations, sends people to those wars, kills them there,
-and writes the enemy's name onto campaign medals, newspaper headlines and
-death records that are permanent and never rewritten. Put Russia or China in
-that slot and the game manufactures a war that did not happen, with real
-casualties as a mechanic, on records a descendant reads a century later.
-That is R-14, it is MILITARY_AND_WAR_FOUNDATION §3, and it is ADR-0020 §2 in
-your own words: "foreign nations and named military units FICTIONAL
-permanently". It survived the homeland becoming real precisely because the
-argument was always about the WARS, not the map.
+**THE REVIEW CAUGHT FOUR THINGS AND THE FIRST ONE MATTERED.** Campaign
+medals were named after the enemy, which is fine for invented countries and
+mints "the Afghanistan Campaign Medal" — a real US decoration's exact name —
+for yours. There is one Expeditionary Medal now, with a device per campaign,
+and the country appears only in the citation. Also fixed: "the the United
+Kingdom front" (your list is the first with a nation carrying its own
+article); a framing that a player could miss entirely by never opening the
+News tab, and that described the WRONG WORLD after a reload; and alignments
+quietly building a permanent seven-country alliance instead of just setting
+a starting rung.
 
-**Your options, as I see them:**
-1. **Leave it.** Real US, real bases, invented enemies. This is what ships
-   now and it is the only option that needs no new work.
-2. **Real countries as a BACKDROP, never as belligerents** — they exist,
-   they trade, they are named in the news, but wars are only ever generated
-   against invented states. Medium work, and the seam is delicate: one
-   escalation path reaching a real name puts it on a medal.
-3. **Real countries, real wars.** I would need you to say so explicitly.
-   It means the game asserting invented history about real nations, and I
-   would want the alternate-history framing made much louder than one line
-   under a picker.
-My recommendation is 1, or 2 if you want the map to feel real. Say the word
-and I will do either.
+**ONE THING RECORDED RATHER THAN FIXED, so you know it is there:** a world
+that starts in 1970 and generates its own wars will sometimes land one near
+a real conflict's decade, and the engine does not notice. Era-locking
+country pairs would mean modelling real history in order to avoid it, which
+is worse. It is written into MILITARY_AND_WAR_FOUNDATION §3 as an accepted
+consequence.
 
 ### W2 — COMPLETE (the American Heartland; military-scope-reviewed)
 Commits 1d0d968 · 5f82a16. Ashcroft, a town that does not exist, in
