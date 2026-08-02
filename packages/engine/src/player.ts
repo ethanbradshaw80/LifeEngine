@@ -28,13 +28,17 @@ import { withArticle } from './text.js'
 import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
+  answerSupportDeployment,
   currentDeployment,
   evacuateHome,
   rotationAvailable,
+  supportDeploymentAvailable,
   volunteerForDeployment,
   volunteerForRotation,
+  volunteerForSupport,
 } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
+import { alliedWars } from './deployment.js'
 import { applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
@@ -511,6 +515,12 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
   if (volunteerForDeployment(world, world.tick, person.id)) {
     return { deployed: true, reason: '' }
   }
+  // An ALLY's war comes before a quiet posting (M-ARMY2, owner: "I want
+  // the option to be there as well so that we can get more combat if
+  // wanted"). The Republic is not a belligerent; the soldier still goes.
+  if (volunteerForSupport(world, world.tick, person.id)) {
+    return { deployed: true, reason: '' }
+  }
   // Between wars the list is still open — for the rotation (M-ARMY2). The
   // same button, the honest answer for the years the Republic is at peace.
   if (volunteerForRotation(world, world.tick, person.id)) {
@@ -520,9 +530,8 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
   const atWar = home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
   return {
     deployed: false,
-    reason: atWar
-      ? 'Not yet — finish the pipeline, or come home first.'
-      : rotationAvailable(world)
+    reason:
+      atWar || rotationAvailable(world) || supportDeploymentAvailable(world)
         ? 'Not yet — finish the pipeline, or come home first.'
         : 'No war, and no ally taking people this season.',
   }
@@ -1333,6 +1342,12 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'support-deployment': {
+      // Both answers end the rotation; one of them starts a war.
+      answerSupportDeployment(world, pending.tick, person.id, choice === 'stay-and-fight')
+      break
+    }
+
     case 'combat-moment': {
       // The squad is pinned. Both answers are real and both go on the
       // record — and BOTH are still a firefight: keeping down rolls the
@@ -1616,6 +1631,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'A slot at an advanced school has opened. Take it?'
     case 'volunteer-deploy':
       return 'The unit is taking names for the next deployment. Volunteer?'
+    case 'support-deployment': {
+      const ally = pending.placeId === null ? undefined : world.nations.get(pending.placeId)
+      return `${ally?.name ?? 'The country you are posted to'} has gone to war while you stand on its soil. Go home, or stay and fight beside them?`
+    }
     case 'combat-moment':
       return 'Fire off the ridge; the squad is pinned where it lies. What do you do?'
     case 'foremans-warning': {
@@ -2058,6 +2077,34 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'combat-moment': {
       lines.push('Going forward is how it gets unpinned — and how people get hit, and worse.')
       lines.push('Keeping down is still a firefight; the month is dangerous either way. Both answers go on the record.')
+      break
+    }
+
+    case 'support-deployment': {
+      const ally = pending.placeId === null ? undefined : world.nations.get(pending.placeId)
+      const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
+      if (ally && enemy) {
+        lines.push(`${ally.name} is at war with ${enemy.name}${
+          // The war's own state, which is what the danger is computed from.
+          (() => {
+            const war = alliedWars(world).find((o) => o.ally.id === ally.id)
+            return war?.war.warPhase !== undefined && war?.war.warPhase !== null
+              ? `, in its ${war.war.warPhase}`
+              : ''
+          })()
+        }.`)
+      }
+      lines.push('Staying makes it a real tour: ten months, the same danger as any front, and the same way home.')
+      lines.push('The Republic is not in this war. Going home costs you nothing and no one will hold it against you.')
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        const children = household.memberIds.filter((id) =>
+          world.people.get(id)?.parentIds.includes(person.id),
+        ).length
+        if (children > 0) {
+          lines.push(`${String(children)} ${children === 1 ? 'child' : 'children'} at home.`)
+        }
+      }
       break
     }
 

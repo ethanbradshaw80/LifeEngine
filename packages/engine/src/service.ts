@@ -64,7 +64,7 @@ import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
-import { openStream, Stream, type StreamId } from './rng.js'
+import { hash32, openStream, Stream, type StreamId } from './rng.js'
 import type { CausalFactor, Person, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -229,6 +229,115 @@ export function fitnessScoreFor(person: Person, age: number, noise: number): num
 }
 
 /** Badges this person wears — qualification-badge decorations, by title. */
+// ---------------------------------------------------------------------------
+// Unit rosters (M-ARMY2 item 7, owner: "add unit info like who our squad
+// members are and our SGT etc like the rank structure of that unit")
+// ---------------------------------------------------------------------------
+
+/** Fictional company letters and squad ordinals — no real unit is named. */
+const COMPANY_LETTERS = ['A', 'B', 'C', 'D'] as const
+const SQUAD_ORDINALS = ['1st', '2nd', '3rd', '4th'] as const
+
+/**
+ * Which sub-unit a soldier belongs to at their current posting.
+ *
+ * DERIVED, not stored (DOMAIN_MAP §1 — a roster kept in two places is two
+ * truths): the pair (person, base) hashes to a company and a squad, so a
+ * soldier keeps the same squadmates for as long as they are posted
+ * together, and a transfer genuinely moves them. No schema change, and a
+ * save written before this existed answers the same way.
+ */
+function subUnitOf(
+  world: World,
+  personId: EntityId,
+  baseId: EntityId,
+): { company: string; squad: string } {
+  const draw = hash32(world.seed, Stream.Employment, personId, baseId + 31_000)
+  const company = COMPANY_LETTERS[draw % COMPANY_LETTERS.length] ?? 'A'
+  const squad = SQUAD_ORDINALS[Math.floor(draw / 4) % SQUAD_ORDINALS.length] ?? '1st'
+  return { company, squad }
+}
+
+export interface RosterMember {
+  readonly personId: EntityId
+  readonly name: string
+  readonly rankTitle: string
+  readonly rank: number
+  readonly specialtyTitle: string
+  /** 'squad leader' | 'team leader' | the trade they actually do. */
+  readonly role: string
+  readonly deployed: boolean
+}
+
+export interface UnitRoster {
+  /** e.g. "1st Squad, A Company" — the fictional structure, in words. */
+  readonly unitName: string
+  readonly baseName: string
+  readonly branchName: string
+  readonly members: readonly RosterMember[]
+}
+
+/**
+ * The people a soldier actually serves beside: same posting, same branch,
+ * same squad, still serving. Sorted by rank (then seniority in grade, then
+ * id) so the top of the list is the person who answers for the rest — the
+ * squad leader is whoever really holds the rank, not a label.
+ *
+ * Read side only. Everyone here is a full simulated person who can be
+ * promoted, punished, hurt or killed, which is the point of showing them.
+ */
+export function unitRosterOf(world: World, personId: EntityId): UnitRoster | null {
+  const record = activeRecord(world, personId)
+  if (!record) return null
+  const mine = subUnitOf(world, personId, record.baseId)
+
+  const members: RosterMember[] = []
+  for (const other of world.service.values()) {
+    if (other.dischargedAtTick !== null) continue
+    if (other.baseId !== record.baseId || other.branch !== record.branch) continue
+    const person = world.people.get(other.personId)
+    if (!person || person.deathTick !== null) continue
+    const theirs = subUnitOf(world, other.personId, other.baseId)
+    if (theirs.company !== mine.company || theirs.squad !== mine.squad) continue
+    members.push({
+      personId: other.personId,
+      name: `${person.givenName} ${person.familyName}`,
+      rankTitle: rankTitle(other.branch, other.rank),
+      rank: other.rank,
+      specialtyTitle: specialtyById(other.specialtyId).title,
+      role: '',
+      deployed: isDeployed(world, other.personId),
+    })
+  }
+  members.sort(
+    (a, b) =>
+      b.rank - a.rank ||
+      (world.service.get(a.personId)?.rankSinceTick ?? 0) -
+        (world.service.get(b.personId)?.rankSinceTick ?? 0) ||
+      a.personId - b.personId,
+  )
+
+  const withRoles = members.map((member, index) => ({
+    ...member,
+    role: index === 0 ? 'squad leader' : index === 1 ? 'team leader' : member.specialtyTitle,
+  }))
+
+  return {
+    unitName: `${mine.squad} Squad, ${mine.company} Company`,
+    baseName: world.places.get(record.baseId)?.name ?? 'a home station',
+    branchName: BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service',
+    members: withRoles,
+  }
+}
+
+/** The squadmate a medic would reach first: nearest in the same squad, not
+ *  the person themselves. Used by the combat first-aid moment. */
+export function squadmatesOf(world: World, personId: EntityId): readonly RosterMember[] {
+  const roster = unitRosterOf(world, personId)
+  if (!roster) return []
+  return roster.members.filter((m) => m.personId !== personId)
+}
+
 export function badgesOf(world: World, personId: EntityId): readonly string[] {
   return (world.awards.get(personId) ?? [])
     .filter((a) => a.kind === 'qualification-badge')

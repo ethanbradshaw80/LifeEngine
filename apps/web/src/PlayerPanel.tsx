@@ -231,6 +231,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'promotion-board': { 'put-in': 'Put your name in', pass: 'Let it go by' },
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
+  'support-deployment': { 'stay-and-fight': 'Stay and fight', 'go-home': 'Go home' },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
   'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
   retrain: { keep: 'Keep your trade' },

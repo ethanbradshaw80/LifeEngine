@@ -28,6 +28,17 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v32 — M-ARMY2. Unit rosters and an ally's war. A soldier now serves in a
+ *      named squad at their posting — derived from (person, base), so no
+ *      schema moved and squadmates stay squadmates until someone
+ *      transfers — and whoever really holds the rank leads it. And when
+ *      the allied country a rotation is posted to goes to war, that is a
+ *      moment rather than a bus home (owner: "we should actually be able
+ *      to go and deploy over there... so that we can get more combat if
+ *      wanted"): the player is asked, an NPC answers with their own roll,
+ *      and staying opens a real tour against the ally's enemy under every
+ *      casualty rule the Republic's own wars use. The Service tab's
+ *      volunteer button offers an ally's war ahead of a quiet posting.
  * v31 — M-ARMY2. Wars kill (owner: "we had a war and I didn't see anybody
  *      die to any combat exposure"). MEASURED first: a 20-year attrition
  *      war with 40 enlisted gave 75-85 contacts, 25 wounded and ZERO dead
@@ -181,7 +192,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 31
+export const SIMULATION_VERSION = 32
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

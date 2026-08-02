@@ -96,6 +96,8 @@ export {
   boardStandingFor,
   disciplinaryFileOf,
   enlistmentBar,
+  squadmatesOf,
+  unitRosterOf,
   isServing,
   isVeteran,
   pensionOf,
@@ -136,10 +138,12 @@ export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content
 
 // Deployment (L4-M4)
 export {
+  alliedWars,
   currentDeployment,
   deploymentsOf,
   isDeployed,
   rotationAvailable,
+  supportDeploymentAvailable,
   threatVectorFor,
 } from './deployment.js'
 export type { ThreatVector } from './deployment.js'

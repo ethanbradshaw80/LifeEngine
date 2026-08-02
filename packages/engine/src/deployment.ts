@@ -197,6 +197,73 @@ export function rotationAvailable(world: World): boolean {
   return rotationHosts(world, home).length > 0
 }
 
+/**
+ * M-ARMY2 (owner direction). Wars an ALLY is fighting and the Republic is
+ * not. Same bloc, at peace with us — the alliance's war, which our people
+ * can be sent to support without the Republic itself being a belligerent.
+ *
+ * This is what replaced the "three wars at once" idea: rather than forcing
+ * the homeland into constant war, the alliance gives a soldier somewhere
+ * real to go. Danger still comes from the war's own state — the ally's
+ * enemy, the ally's war phase — so the permanent rule is untouched.
+ */
+export function alliedWars(world: World): { war: GeoRelation; ally: Nation; enemy: Nation }[] {
+  const home = homeland(world)
+  if (!home || home.bloc === null) return []
+  const found: { war: GeoRelation; ally: Nation; enemy: Nation }[] = []
+  for (const war of activeWars(world)) {
+    if (war.a === home.id || war.b === home.id) continue
+    for (const [allyId, enemyId] of [
+      [war.a, war.b],
+      [war.b, war.a],
+    ] as const) {
+      const ally = world.nations.get(allyId)
+      const enemy = world.nations.get(enemyId)
+      if (!ally || !enemy || ally.bloc !== home.bloc) continue
+      const standing = relationBetween(world, home.id, ally.id)
+      if (standing !== undefined && standing.state !== 'peace') continue
+      found.push({ war, ally, enemy })
+    }
+  }
+  found.sort((x, y) => x.ally.id - y.ally.id || x.enemy.id - y.enemy.id)
+  return found
+}
+
+/** Whether there is an ally's war a soldier could ask to join. */
+export function supportDeploymentAvailable(world: World): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  if (activeWars(world).some((w) => w.a === home.id || w.b === home.id)) return false
+  return alliedWars(world).length > 0
+}
+
+/**
+ * Go and fight alongside an ally. A real combat tour — the ally's enemy is
+ * the enemy, the ally's war phase drives the danger, and every casualty
+ * rule that applies to the Republic's own wars applies here. What differs
+ * is the record: this was asked for, not ordered.
+ */
+export function volunteerForSupport(world: World, tick: Tick, personId: EntityId): boolean {
+  const options = alliedWars(world)
+  const chosen = options[0]
+  if (!chosen) return false
+
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || person.deathTick !== null) return false
+  if (!record || record.dischargedAtTick !== null) return false
+  if (isDeployed(world, personId)) return false
+  if (!isPipelineTrained(tick, record)) return false
+
+  startCombatTour(world, tick, personId, chosen.war, chosen.enemy.id, [
+    factor('own-choice', 1000),
+    factor('war-demanded-troops', chosen.enemy.strength),
+  ], `volunteered for the ${chosen.enemy.name} front alongside ${chosen.ally.name}`, [
+    'to stay at the home station',
+  ])
+  return true
+}
+
 /** The shared rotation opener: orders and volunteers use one door. */
 function startRotation(
   world: World,
@@ -366,65 +433,34 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
     if (!rng.chanceInTenThousand(callRate)) continue
 
     const enemyId = war.a === home.id ? war.b : war.a
-    const history = world.deployments.get(person.id) ?? []
-    const deployment: Deployment = {
-      personId: person.id,
-      kind: 'combat',
-      warA: war.a,
-      warB: war.b,
-      enemyId,
-      hostId: null,
-      startedAtTick: tick,
-      endsAtTick: (tick + TOUR_MONTHS) as Tick,
-      returnedAtTick: null,
-      tourNumber: history.length + 1,
-    }
-    world.deployments.set(person.id, [...history, deployment])
-
     const enemy = world.nations.get(enemyId)
-    recordEvent(world, tick, {
-      type: 'deployed',
-      subjectId: person.id,
-      otherId: enemyId,
-      detail: enemy ? `the ${enemy.name} front` : 'the front',
-    })
-    recordDecision(world, tick, {
-      subjectId: person.id,
-      decision: 'deployment',
-      significance: 'defining',
-      inputs: [
+    startCombatTour(
+      world, tick, person.id, war, enemyId,
+      [
         factor('under-orders', 1000),
-        factor('war-demanded-troops', Math.min(1000, (world.nations.get(enemyId)?.strength ?? 300))),
+        factor('war-demanded-troops', Math.min(1000, enemy?.strength ?? 300)),
       ],
-      chosen: `deployed to ${enemy ? `the ${enemy.name} front` : 'the front'}`,
-      rejected: [],
-      streamId: Stream.CombatResolution,
-    })
+      `deployed to ${enemy ? `the ${enemy.name} front` : 'the front'}`,
+      [],
+    )
   }
 }
 
 /**
- * A hand raised for the rotation (M-SERVICE-PLAY). Same tour machinery as
- * orders — the war a volunteer gets is no kinder — but the record says
- * 'own-choice' where orders say 'under-orders', because that difference is
- * the truth of the moment and a life story should keep it. Returns false
- * when there is no war, no training, or no standing to go.
+ * One door into a war, for orders, for volunteers, and for going to an
+ * ally's war — so a tour is a tour whatever put someone on the boat, and
+ * only the record's factors say which it was.
  */
-export function volunteerForDeployment(world: World, tick: Tick, personId: EntityId): boolean {
-  const home = homeland(world)
-  if (!home) return false
-  const wars = activeWars(world).filter((w) => w.a === home.id || w.b === home.id)
-  const war = wars[0]
-  if (!war) return false
-
-  const person = world.people.get(personId)
-  const record = world.service.get(personId)
-  if (!person || person.deathTick !== null) return false
-  if (!record || record.dischargedAtTick !== null) return false
-  if (isDeployed(world, personId)) return false
-  if (!isPipelineTrained(tick, record)) return false
-
-  const enemyId = war.a === home.id ? war.b : war.a
+function startCombatTour(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  war: GeoRelation,
+  enemyId: EntityId,
+  inputs: readonly ReturnType<typeof factor>[],
+  chosen: string,
+  rejected: readonly string[],
+): void {
   const history = world.deployments.get(personId) ?? []
   const deployment: Deployment = {
     personId,
@@ -451,15 +487,75 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
     subjectId: personId,
     decision: 'deployment',
     significance: 'defining',
-    inputs: [
-      factor('own-choice', 1000),
-      factor('war-demanded-troops', Math.min(1000, world.nations.get(enemyId)?.strength ?? 300)),
-    ],
-    chosen: `volunteered for ${enemy ? `the ${enemy.name} front` : 'the front'}`,
-    rejected: ['to wait for orders'],
+    inputs: [...inputs],
+    chosen,
+    rejected: [...rejected],
     streamId: Stream.CombatResolution,
   })
+}
+
+/**
+ * A hand raised for the rotation (M-SERVICE-PLAY). Same tour machinery as
+ * orders — the war a volunteer gets is no kinder — but the record says
+ * 'own-choice' where orders say 'under-orders', because that difference is
+ * the truth of the moment and a life story should keep it. Returns false
+ * when there is no war, no training, or no standing to go.
+ */
+export function volunteerForDeployment(world: World, tick: Tick, personId: EntityId): boolean {
+  const home = homeland(world)
+  if (!home) return false
+  const wars = activeWars(world).filter((w) => w.a === home.id || w.b === home.id)
+  const war = wars[0]
+  if (!war) return false
+
+  const person = world.people.get(personId)
+  const record = world.service.get(personId)
+  if (!person || person.deathTick !== null) return false
+  if (!record || record.dischargedAtTick !== null) return false
+  if (isDeployed(world, personId)) return false
+  if (!isPipelineTrained(tick, record)) return false
+
+  const enemyId = war.a === home.id ? war.b : war.a
+  const enemy = world.nations.get(enemyId)
+  startCombatTour(
+    world, tick, personId, war, enemyId,
+    [
+      factor('own-choice', 1000),
+      factor('war-demanded-troops', Math.min(1000, enemy?.strength ?? 300)),
+    ],
+    `volunteered for ${enemy ? `the ${enemy.name} front` : 'the front'}`,
+    ['to wait for orders'],
+  )
   return true
+}
+
+/**
+ * The player's answer to "your host has gone to war". Staying closes the
+ * rotation and opens a real tour against the ally's enemy; going home just
+ * closes the rotation. Called from resolvePending so both roads run through
+ * the same machinery the automatic path uses.
+ */
+export function answerSupportDeployment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  stay: boolean,
+): void {
+  const deployment = currentDeployment(world, personId)
+  if (!deployment || deployment.kind !== 'rotation' || deployment.hostId === null) return
+  const hostId = deployment.hostId
+  const support = alliedWars(world).find((option) => option.ally.id === hostId)
+  if (!stay || support === undefined) {
+    closeTour(world, tick, personId, deployment, false, 'host at war')
+    return
+  }
+  closeTour(world, tick, personId, deployment, false, 'stayed to fight')
+  startCombatTour(
+    world, tick, personId, support.war, support.enemy.id,
+    [factor('own-choice', 1000), factor('war-demanded-troops', support.enemy.strength)],
+    `stayed on to fight beside ${support.ally.name}`,
+    ['to go home'],
+  )
 }
 
 /** Medical evacuation from outside the monthly resolver — a combat-moment
@@ -741,9 +837,49 @@ function resolveRotationMonth(
   // host was at peace when the orders were cut, but nations decide their
   // own quarrels. A country that has since gone to war is not a peacetime
   // posting, and this resolver — which has no threat vector and no combat
-  // channel at all — must not keep pretending it is. They come home.
+  // channel at all — must not keep pretending it is.
+  //
+  // OWNER DIRECTION: and that is a moment, not just a bus home. The
+  // country you are standing in has gone to war. You can go home, or you
+  // can stay and fight beside them — a real tour, with the ally's enemy
+  // and the ally's war phase driving every casualty rule the Republic's
+  // own wars use. The player is ASKED; an NPC's answer is their own.
   if (deployment.hostId !== null && isAtWar(world, deployment.hostId)) {
-    closeTour(world, tick, personId, deployment, false, 'host at war')
+    const hostId = deployment.hostId
+    const support = alliedWars(world).find((option) => option.ally.id === hostId)
+    if (support === undefined) {
+      // Not a war we could support (the host left the bloc, or turned on
+      // us). Nothing to decide: they come home.
+      closeTour(world, tick, personId, deployment, false, 'host at war')
+      return
+    }
+    if (personId === world.player.personId) {
+      if (world.player.pending !== null) return // ask next month; the posting holds
+      raisePending(world, {
+        tick,
+        kind: 'support-deployment',
+        personId,
+        otherId: support.enemy.id,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: hostId,
+        options: ['stay-and-fight', 'go-home'],
+      })
+      return
+    }
+    const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 613)
+    if (rng.chance(1, 4)) {
+      closeTour(world, tick, personId, deployment, false, 'stayed to fight')
+      startCombatTour(
+        world, tick, personId, support.war, support.enemy.id,
+        [factor('own-choice', 1000), factor('war-demanded-troops', support.enemy.strength)],
+        `stayed on to fight beside ${support.ally.name}`,
+        ['to go home'],
+      )
+    } else {
+      closeTour(world, tick, personId, deployment, false, 'host at war')
+    }
     return
   }
   if (tick >= deployment.endsAtTick || !record || record.dischargedAtTick !== null) {

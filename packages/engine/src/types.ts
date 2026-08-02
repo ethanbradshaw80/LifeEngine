@@ -553,6 +553,10 @@ export type PendingKind =
   /** The unit is taking names for the next rotation. The orders system
    *  can still call regardless — volunteering just stops waiting. */
   | 'volunteer-deploy'
+  /** M-ARMY2. The allied country you are posted to has gone to war. Go
+   *  home, or stay and fight beside them — a real tour against their
+   *  enemy. otherId is the enemy; placeId is the ally. */
+  | 'support-deployment'
   /**
    * LOG-ONLY (like 'custom-birth'): the player asked after work at a
    * particular trade — a tab verb, recorded so replay stays exact. Never a

@@ -53,6 +53,8 @@ import {
   currentDeployment,
   disciplinaryFileOf,
   rotationAvailable,
+  supportDeploymentAvailable,
+  unitRosterOf,
   BRANCH_NAMES,
   crimeNewsSince,
   enlistmentBar,
@@ -931,7 +933,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   {record.dischargedAtTick === null && (
                     <>
                       <dt>Posting</dt>
-                      <dd>{world.places.get(record.baseId)?.name ?? 'unknown'}</dd>
+                      <dd>
+                        {world.places.get(record.baseId)?.name ?? 'unknown'}
+                        {(() => {
+                          const roster = unitRosterOf(world, person.id)
+                          return roster === null ? null : (
+                            <span className="muted small"> · {roster.unitName}</span>
+                          )
+                        })()}
+                      </dd>
                       <dt>Pay</dt>
                       <dd>
                         {formatMoney(servicePayOf(world, person.id) as never)} a month
@@ -953,6 +963,43 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )}
                 </dl>
+                {record.dischargedAtTick === null &&
+                  (() => {
+                    // The squad: real people, real ranks. Whoever actually
+                    // holds the rank answers for the rest — nobody is
+                    // labelled "your sergeant" who is not one.
+                    const roster = unitRosterOf(world, person.id)
+                    if (roster === null || roster.members.length <= 1) return null
+                    return (
+                      <>
+                        <h3>{roster.unitName}</h3>
+                        <p className="muted small">
+                          {roster.branchName} · {roster.baseName}
+                        </p>
+                        <ul className="roster">
+                          {roster.members.map((member) => (
+                            <li key={member.personId}>
+                              <button
+                                type="button"
+                                className="linky"
+                                onClick={() => onInspect(member.personId)}
+                              >
+                                <span className="rank">{member.rankTitle}</span>{' '}
+                                {member.name}
+                                {member.personId === person.id && (
+                                  <span className="muted small"> — you</span>
+                                )}
+                              </button>
+                              <span className="muted small">
+                                {member.role}
+                                {member.deployed ? ' · away' : ''}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )
+                  })()}
                 {record.dischargedAtTick === null && (
                   <>
                     <h3>Actions</h3>
@@ -963,9 +1010,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           which caught this comment claiming rotations were
                           still unbuilt). */}
                       <button type="button" className="apply" disabled={busy} onClick={onRequestDeploy}>
-                        {rotationAvailable(world)
-                          ? '🛫 Volunteer for a rotation abroad'
-                          : '🛫 Volunteer for deployment'}
+                        {supportDeploymentAvailable(world)
+                          ? "🛫 Volunteer for an ally's war"
+                          : rotationAvailable(world)
+                            ? '🛫 Volunteer for a rotation abroad'
+                            : '🛫 Volunteer for deployment'}
                       </button>
                       <button type="button" className="apply" disabled={busy} onClick={onFitnessTest}>
                         🏃 Train for the fitness test

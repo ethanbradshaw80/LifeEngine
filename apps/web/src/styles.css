@@ -948,6 +948,54 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* The squad roster: rank, name, role — the shape of a real duty roster. */
+.roster {
+  list-style: none;
+  margin: 0.3rem 0 0.8rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.roster li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.roster li:last-child {
+  border-bottom: none;
+}
+
+.roster li:first-child {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.roster .linky {
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roster .linky:hover {
+  color: var(--accent);
+}
+
+.roster .rank {
+  display: inline-block;
+  min-width: 3.4rem;
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
 .enlist-now {
   margin-top: 0.6rem;
   padding: 0.55rem 1.4rem;

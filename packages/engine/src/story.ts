@@ -266,6 +266,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
           return `${year} — Brought home early; the host country had gone to war.`
         case 'rotation complete':
           return `${year} — Came home; the rotation was done.`
+        case 'stayed to fight':
+          return `${year} — The rotation ended where it stood: stayed on to fight beside the host.`
         default:
           return `${year} — Came home; the tour was done.`
       }
