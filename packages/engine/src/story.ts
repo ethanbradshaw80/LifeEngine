@@ -19,7 +19,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { occupationById, specialtyById } from './content.js'
+import { occupationById, offenceById, specialtyById } from './content.js'
 import { rankTitle } from './service.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
@@ -277,8 +277,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         default:
           return `${year} — Came home; the tour was done.`
       }
-    case 'committed-theft':
+    case 'committed-theft': {
+      // C2 details read "<offence-id>:<cents>"; C1's carry cents alone.
+      const parts = (event.detail ?? '').split(':')
+      const offence = parts.length > 1 ? offenceById(parts[0] ?? '') : undefined
+      if (offence) return `${year} — Committed ${offence.title}.`
       return `${year} — Took what was not ${objectPronoun(person) === 'her' ? 'hers' : 'his'} to take.`
+    }
+    case 'went-without':
+      return `${year} — Went without, when taking would have been easy.`
     case 'was-robbed':
       return `${year} — The house was robbed.`
     case 'was-arrested':

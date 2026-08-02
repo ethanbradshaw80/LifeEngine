@@ -433,6 +433,109 @@ export const BASE_NAMES: readonly string[] = ['Fort Calder', 'Redharbor Station'
  */
 export const NEWS_STATION = 'WCJC'
 
+// ---------------------------------------------------------------------------
+// Offences (C2, owner direction: "a list of crimes... sentences based on real
+// USA crime codes and penalties")
+//
+// GRADING follows the pattern common across US state codes — three grades of
+// misdemeanor and lettered felony classes, each with a statutory ceiling:
+//
+//   Class C misdemeanor   up to 30 days
+//   Class B misdemeanor   up to 6 months
+//   Class A misdemeanor   up to 1 year
+//   Class D felony        1-5 years
+//   Class C felony        2-10 years
+//   Class B felony        5-20 years
+//
+// Every state grades and names these differently and real sentencing turns on
+// guidelines, priors and discretion this model does not have. These are the
+// SHAPE of American penalties, not a citation — and the courthouse here is
+// the Republic's, which is fictional like everything else in the world.
+//
+// The offences themselves are named and graded only. Nothing here describes
+// how anything is done: the simulation models consequences, and a life sim
+// has no business being a manual.
+// ---------------------------------------------------------------------------
+
+export type OffenceGrade =
+  | 'class-c-misdemeanor'
+  | 'class-b-misdemeanor'
+  | 'class-a-misdemeanor'
+  | 'class-d-felony'
+  | 'class-c-felony'
+  | 'class-b-felony'
+
+export const GRADE_TITLES: Readonly<Record<OffenceGrade, string>> = {
+  'class-c-misdemeanor': 'Class C misdemeanor',
+  'class-b-misdemeanor': 'Class B misdemeanor',
+  'class-a-misdemeanor': 'Class A misdemeanor',
+  'class-d-felony': 'Class D felony',
+  'class-c-felony': 'Class C felony',
+  'class-b-felony': 'Class B felony',
+}
+
+export interface Offence {
+  readonly id: string
+  readonly title: string
+  readonly grade: OffenceGrade
+  /** Custodial range in months on conviction, within the grade's ceiling. */
+  readonly minMonths: number
+  readonly maxMonths: number
+  /** The fine when the court's answer is money rather than custody, in cents. */
+  readonly fine: number
+  /** Per 1000: the chance the offence is cleared and an arrest follows. */
+  readonly clearance: number
+  /** What it puts in a pocket, in cents. Zero where nothing is taken. */
+  readonly gainMin: number
+  readonly gainMax: number
+  /** Some offences are only open to someone with something to abuse. */
+  readonly needsJob?: boolean
+  /** True where a household is robbed and its money actually moves. */
+  readonly takesFromHousehold?: boolean
+}
+
+/**
+ * What a person can be charged with here. Twenty-two offences, weighted
+ * toward the ordinary end — most crime is small, and a catalogue that was
+ * all felonies would be a fantasy of crime rather than a model of it.
+ */
+export const OFFENCES: readonly Offence[] = [
+  // --- Misdemeanors ------------------------------------------------------
+  { id: 'disorderly-conduct', title: 'disorderly conduct', grade: 'class-c-misdemeanor', minMonths: 0, maxMonths: 1, fine: 15_000, clearance: 620, gainMin: 0, gainMax: 0 },
+  { id: 'public-intoxication', title: 'public intoxication', grade: 'class-c-misdemeanor', minMonths: 0, maxMonths: 1, fine: 12_000, clearance: 660, gainMin: 0, gainMax: 0 },
+  { id: 'trespassing', title: 'criminal trespass', grade: 'class-b-misdemeanor', minMonths: 0, maxMonths: 3, fine: 20_000, clearance: 520, gainMin: 0, gainMax: 0 },
+  { id: 'vandalism', title: 'criminal mischief', grade: 'class-b-misdemeanor', minMonths: 0, maxMonths: 4, fine: 30_000, clearance: 400, gainMin: 0, gainMax: 0 },
+  { id: 'reckless-driving', title: 'reckless driving', grade: 'class-b-misdemeanor', minMonths: 0, maxMonths: 3, fine: 25_000, clearance: 540, gainMin: 0, gainMax: 0 },
+  { id: 'shoplifting', title: 'petty theft', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 6, fine: 25_000, clearance: 480, gainMin: 3_000, gainMax: 18_000 },
+  { id: 'bad-check', title: 'passing a bad check', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 9, fine: 35_000, clearance: 560, gainMin: 8_000, gainMax: 40_000 },
+  { id: 'simple-assault', title: 'simple assault', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 40_000, clearance: 640, gainMin: 0, gainMax: 0 },
+  { id: 'dui', title: 'driving under the influence', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 80_000, clearance: 600, gainMin: 0, gainMax: 0 },
+  { id: 'drug-possession', title: 'possession of a controlled substance', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 50_000, clearance: 520, gainMin: 0, gainMax: 0 },
+  { id: 'resisting-arrest', title: 'resisting arrest', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 40_000, clearance: 900, gainMin: 0, gainMax: 0 },
+  { id: 'petty-fraud', title: 'petty fraud', grade: 'class-a-misdemeanor', minMonths: 0, maxMonths: 12, fine: 45_000, clearance: 500, gainMin: 10_000, gainMax: 50_000 },
+
+  // --- Felonies ----------------------------------------------------------
+  { id: 'forgery', title: 'forgery', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 100_000, clearance: 480, gainMin: 30_000, gainMax: 120_000 },
+  { id: 'tax-evasion', title: 'tax evasion', grade: 'class-d-felony', minMonths: 12, maxMonths: 60, fine: 150_000, clearance: 420, gainMin: 40_000, gainMax: 200_000, needsJob: true },
+  { id: 'grand-theft', title: 'grand theft', grade: 'class-c-felony', minMonths: 12, maxMonths: 120, fine: 120_000, clearance: 440, gainMin: 60_000, gainMax: 250_000, takesFromHousehold: true },
+  { id: 'auto-theft', title: 'motor vehicle theft', grade: 'class-c-felony', minMonths: 12, maxMonths: 120, fine: 130_000, clearance: 520, gainMin: 80_000, gainMax: 300_000 },
+  { id: 'embezzlement', title: 'embezzlement', grade: 'class-c-felony', minMonths: 12, maxMonths: 120, fine: 200_000, clearance: 460, gainMin: 100_000, gainMax: 400_000, needsJob: true },
+  { id: 'identity-theft', title: 'identity theft', grade: 'class-c-felony', minMonths: 12, maxMonths: 120, fine: 150_000, clearance: 400, gainMin: 60_000, gainMax: 250_000 },
+  { id: 'burglary', title: 'residential burglary', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 460, gainMin: 80_000, gainMax: 350_000, takesFromHousehold: true },
+  { id: 'robbery', title: 'robbery', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 620, gainMin: 40_000, gainMax: 200_000, takesFromHousehold: true },
+  { id: 'aggravated-assault', title: 'aggravated assault', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 700, gainMin: 0, gainMax: 0 },
+  { id: 'arson', title: 'arson', grade: 'class-b-felony', minMonths: 24, maxMonths: 240, fine: 0, clearance: 560, gainMin: 0, gainMax: 0 },
+]
+
+export function offenceById(id: string): Offence | undefined {
+  return OFFENCES.find((offence) => offence.id === id)
+}
+
+/** Felonies close doors misdemeanors do not. */
+export function isFelony(grade: OffenceGrade): boolean {
+  return grade.endsWith('felony')
+}
+
 /** How much schooling a level represents. Used to test whether a person qualifies. */
 const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   none: 0,

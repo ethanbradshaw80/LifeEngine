@@ -27,6 +27,8 @@ import {
   propose,
   quitJob,
   requestDeployment,
+  commitOffence,
+  playerPerson,
   requestDischarge,
   requestEnlistment,
   requestEnrolment,
@@ -75,6 +77,7 @@ export type VerbRequest =
   | { readonly verb: 'look-for-place'; readonly placeId: number }
   | { readonly verb: 'convalesce-stance'; readonly rest: boolean }
   | { readonly verb: 'request-discharge' }
+  | { readonly verb: 'commit-offence'; readonly offenceId: string }
 
 export type WorkerRequest =
   | { readonly type: 'new'; readonly seed: number }
@@ -302,6 +305,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'request-discharge': {
             const r = requestDischarge(world)
             outcome = { ok: r.discharged, reason: r.reason }
+            break
+          }
+          case 'commit-offence': {
+            const person = playerPerson(world)
+            if (!person) {
+              outcome = { ok: false, reason: 'Nobody is being played.' }
+              break
+            }
+            const r = commitOffence(world, world.tick, person, a.offenceId)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
         }

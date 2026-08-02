@@ -28,6 +28,17 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v38 — C2: THE PLAYER AND THE LAW. C1 kept the played life a bystander,
+ *      because an off-screen theft would be an unchosen crime on a chosen
+ *      timeline. Now the desperation moment the simulation already rolled
+ *      is the player's to answer, with both roads real — going without is
+ *      recorded as the choice it was. Arrest no longer sentences anyone
+ *      off-screen: the courthouse waits for a plea, and pleading guilty
+ *      buys a lighter hand at the cost of any chance of acquittal.
+ *      A CHARGE SHEET of 22 offences (owner direction), graded the way US
+ *      state codes grade them, each with its own clearance rate and its
+ *      grade's statutory ceiling. NPC crime is untouched — its desperation
+ *      theft keeps C1's own measured sentencing.
  * v37 — WARS GRIND NATIONS DOWN. A country's strength was a constant for
  *      all time, so a nation could bleed for twenty years and finish
  *      exactly as dangerous as it started — and our own soldiers' threat
@@ -237,7 +248,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 37
+export const SIMULATION_VERSION = 38
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

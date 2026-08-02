@@ -114,7 +114,16 @@ export {
 export { SPECIAL_UNITS, specialUnitById } from './content.js'
 
 // Crime & justice (C1)
-export { crimeNewsSince, criminalRecordOf, hasRecentConviction, isJailed } from './crime.js'
+export {
+  commitOffence,
+  crimeNewsSince,
+  criminalRecordOf,
+  hasRecentConviction,
+  isJailed,
+  offenceBar,
+} from './crime.js'
+export { GRADE_TITLES, isFelony, OFFENCES, offenceById } from './content.js'
+export type { Offence, OffenceGrade } from './content.js'
 
 // Demographics (D1) — read-side measures
 export {

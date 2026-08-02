@@ -70,7 +70,15 @@ import {
   unitOptionsFor,
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
-import { NEWS_STATION, placesOfKind } from '@life-engine/engine'
+import {
+  criminalRecordOf,
+  GRADE_TITLES,
+  NEWS_STATION,
+  OFFENCES,
+  offenceBar,
+  offenceById,
+  placesOfKind,
+} from '@life-engine/engine'
 import type { EntityId } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
@@ -143,7 +151,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   died: '⚰️',
 }
 
-type Tab = 'story' | 'home' | 'family' | 'jobs' | 'news' | 'service' | 'health'
+type Tab = 'story' | 'home' | 'family' | 'jobs' | 'news' | 'service' | 'health' | 'record'
 
 const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'story', label: '📖 Story' },
@@ -153,6 +161,7 @@ const TABS: readonly { id: Tab; label: string }[] = [
   { id: 'news', label: '📰 News' },
   { id: 'service', label: '🪖 Service' },
   { id: 'health', label: '🩺 Health' },
+  { id: 'record', label: '⚖️ Record' },
 ]
 
 const SCHOOLING_WORDS: Record<EducationLevel, string> = {
@@ -1138,6 +1147,109 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </li>
                     ))}
                   </ol>
+                )}
+              </>
+            )
+          })()}
+        </div>
+      )}
+
+      {tab === 'record' && (
+        <div className="panel" aria-label="Record">
+          {(() => {
+            const record = criminalRecordOf(world, person.id)
+            const jailedUntil = record?.jailedUntilTick ?? null
+            const inside = jailedUntil !== null && world.tick < jailedUntil
+            const monthsLeft = inside ? jailedUntil - world.tick : 0
+            const adult = ageAt(person.birthTick, world.tick) >= 18
+            return (
+              <>
+                {inside && (
+                  <p className="card news nearby">
+                    <span className="card-icon" aria-hidden="true">🔒</span>
+                    <span className="card-text">
+                      Serving a sentence — {monthsLeft} month{monthsLeft === 1 ? '' : 's'} left.
+                      The world keeps going without you.
+                    </span>
+                  </p>
+                )}
+
+                <h3>The record</h3>
+                {record === undefined || record.convictions.length === 0 ? (
+                  <p className="muted">Nothing on it. Absence is the clean record.</p>
+                ) : (
+                  <ol className="timeline">
+                    {record.convictions.map((conviction, i) => {
+                      const offence = offenceById(conviction.kind)
+                      return (
+                        <li key={`${String(conviction.tick)}-${String(i)}`}>
+                          <div className="row">
+                            <span className="year">{formatYear(conviction.tick)}</span>
+                            <span className="what">
+                              {offence?.title ?? conviction.kind}
+                              {offence !== undefined && (
+                                <span className="muted small"> · {GRADE_TITLES[offence.grade]}</span>
+                              )}
+                              {' — '}
+                              {conviction.sentenceMonths > 0
+                                ? `${conviction.sentenceMonths} months`
+                                : `fined ${formatMoney(conviction.fine as never)}`}
+                            </span>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+                {record !== undefined && record.convictions.length > 0 && (
+                  <p className="muted small">
+                    A conviction closes doors for ten years — every job you ask for, and the
+                    recruiting office. It never leaves the record.
+                  </p>
+                )}
+
+                <h3>What you could do</h3>
+                <p className="muted small">
+                  The town has a courthouse and it works. Every one of these can end in a
+                  cell, and what you take is real money out of somebody's real ledger.
+                </p>
+                {!adult ? (
+                  <p className="muted">Not yet eighteen.</p>
+                ) : (
+                  <ul className="offences">
+                    {OFFENCES.map((offence) => {
+                      const bar = offenceBar(world, person.id, offence.id)
+                      return (
+                        <li key={offence.id}>
+                          <div className="offence-head">
+                            <span className="offence-title">{offence.title}</span>
+                            <span className="muted small">{GRADE_TITLES[offence.grade]}</span>
+                          </div>
+                          <div className="offence-foot">
+                            <span className="muted small">
+                              {offence.maxMonths === 0
+                                ? 'a fine'
+                                : `up to ${
+                                    offence.maxMonths >= 24
+                                      ? `${String(Math.floor(offence.maxMonths / 12))} years`
+                                      : `${String(offence.maxMonths)} months`
+                                  }`}
+                            </span>
+                            <button
+                              type="button"
+                              className="apply"
+                              disabled={busy || bar !== null}
+                              title={bar ?? undefined}
+                              onClick={() => onAct({ verb: 'commit-offence', offenceId: offence.id })}
+                            >
+                              Do it
+                            </button>
+                          </div>
+                          {bar !== null && <p className="muted small">{bar}</p>}
+                        </li>
+                      )
+                    })}
+                  </ul>
                 )}
               </>
             )

@@ -40,6 +40,8 @@ import {
 } from './deployment.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { alliedWars } from './deployment.js'
+import { answerDesperation, isJailed, resolveCourt } from './crime.js'
+import { GRADE_TITLES, offenceById } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
@@ -262,6 +264,12 @@ export function applyForJob(world: World, occupationId: string): { hired: boolea
   }
   if (isSeverelyAiling(world, person.id)) {
     return { hired: false, reason: 'Too ill or hurt to take new work this month.' }
+  }
+  // Jail is absence (C1) — runEmployment has always known that and this
+  // verb never did, so a jailed player could be hired from a cell. Reachable
+  // the moment C2 let the player go to jail at all.
+  if (isJailed(world, person.id)) {
+    return { hired: false, reason: 'Nobody is hiring out of a cell.' }
   }
   const current = world.employment.get(person.id)
   if (current?.occupationId === occupationId) {
@@ -1354,6 +1362,23 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'desperation': {
+      answerDesperation(world, pending.tick, person, choice === 'take-it')
+      break
+    }
+
+    case 'plea': {
+      // The court sits either way; the plea decides how it goes.
+      const offence = pending.occupationId === null ? null : (offenceById(pending.occupationId) ?? null)
+      const rng = openStream(world.seed, Stream.Crime, person.id, pending.tick + 6363)
+      resolveCourt(
+        world, pending.tick, person, pending.monthlyPay ?? 0, rng,
+        choice === 'plead-guilty' ? 'plead-guilty' : 'stand-trial',
+        offence,
+      )
+      break
+    }
+
     case 'first-aid': {
       resolveFieldAid(world, pending.tick, person, person.id, choice)
       break
@@ -1816,6 +1841,12 @@ export function describePending(world: World, pending: PendingDecision): string 
       const ally = pending.placeId === null ? undefined : world.nations.get(pending.placeId)
       return `${ally?.name ?? 'The country you are posted to'} has gone to war while you stand on its soil. Go home, or stay and fight beside them?`
     }
+    case 'desperation':
+      return 'The money is not there and it is not coming. There is a house on the next street with something in it.'
+    case 'plea': {
+      const offence = pending.occupationId === null ? undefined : offenceById(pending.occupationId)
+      return `You are charged with ${offence?.title ?? 'theft'}. How do you plead?`
+    }
     case 'first-aid': {
       const record = world.health.get(pending.personId)
       const where = record?.ailmentSite ?? null
@@ -2271,6 +2302,45 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'combat-moment': {
       lines.push('Going forward is how it gets unpinned — and how people get hit, and worse.')
       lines.push('Keeping down is still a firefight; the month is dangerous either way. Both answers go on the record.')
+      break
+    }
+
+    case 'desperation': {
+      const household = person.householdId === null ? undefined : world.households.get(person.householdId)
+      if (household) {
+        if (household.savings < 0) {
+          lines.push(`The household is ${formatMoney(-household.savings as never)} behind.`)
+        }
+        const shortfall = householdCosts(world, household) - householdIncome(world, household)
+        if (shortfall > 0) {
+          lines.push(`It runs ${formatMoney(shortfall as never)} short every month.`)
+        }
+      }
+      lines.push('A house on this street holds a few hundred dollars. Taking it would be real money in a real pocket.')
+      lines.push('The town sees a lot. If it is seen, the courthouse answers within the month, and a record follows you into every job you ever ask for.')
+      lines.push('Going without is a choice too, and it goes on the record as one.')
+      break
+    }
+
+    case 'plea': {
+      const offence = pending.occupationId === null ? undefined : offenceById(pending.occupationId)
+      const priors = world.criminal.get(person.id)?.convictions.length ?? 0
+      if (offence) {
+        lines.push(
+          `${offence.title[0]?.toUpperCase() ?? ''}${offence.title.slice(1)} is ${withArticle(GRADE_TITLES[offence.grade])}: ${
+            offence.maxMonths === 0
+              ? 'a fine'
+              : `up to ${offence.maxMonths >= 24 ? `${String(Math.floor(offence.maxMonths / 12))} years` : `${String(offence.maxMonths)} months`}`
+          }.`,
+        )
+      }
+      if (priors > 0) {
+        lines.push(`The file shows ${String(priors)} prior conviction${priors === 1 ? '' : 's'}. The court reads it before you speak.`)
+      } else {
+        lines.push('The file is clean, which is worth something here.')
+      }
+      lines.push('Pleading guilty is a certain conviction and a lighter hand — a fine where a trial might have meant months.')
+      lines.push('Standing trial can end in acquittal and can end worse. The court has heard the case either way.')
       break
     }
 

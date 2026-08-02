@@ -948,6 +948,40 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* The charge sheet: what a person could be charged with, and what it costs. */
+.offences {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+
+.offences li {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 0.4rem;
+}
+
+.offence-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.offence-title {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.offence-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
 /* The town's news station masthead. */
 .station {
   display: flex;

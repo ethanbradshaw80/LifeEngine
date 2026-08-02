@@ -96,6 +96,13 @@ const ALLOWED_CYCLES: readonly string[] = [
   'finances ⇄ health ⇄ player ⇄ service',
   'deployment ⇄ finances ⇄ health ⇄ player ⇄ service',
   'crime ⇄ deployment ⇄ health ⇄ player ⇄ systems',
+  // Added by C2, and added deliberately: crime raises the desperation
+  // moment and the plea, player applies both answers through crime's own
+  // resolveCourt / answerDesperation. That is the SAME pattern as the ten
+  // above, not a new kind of coupling — crime simply joined the set of
+  // domains that can reach a player choice point. One seam dissolves all
+  // twelve; nothing dissolves this one alone.
+  'crime ⇄ deployment ⇄ health ⇄ player',
   'finances ⇄ health ⇄ player ⇄ service ⇄ worldgen',
   // worldgen builds the places service posts people to, and finances reads
   // rents off those places. The only cycle here with nothing to do with

@@ -317,7 +317,14 @@ export interface ServiceRecord {
 // entry exists only for people with a history — absence IS the clean record.
 // ---------------------------------------------------------------------------
 
-export type CrimeKind = 'theft'
+/**
+ * What someone was convicted of. 'theft' is C1's desperation offence, kept
+ * as its own kind because its sentencing was measured and tuned before the
+ * catalogue existed; every other value is an OFFENCES id (C2). A plain
+ * string rather than a closed union: the catalogue is content, and content
+ * should be able to grow without a type change rippling through saves.
+ */
+export type CrimeKind = string
 
 export interface Conviction {
   readonly kind: CrimeKind
@@ -565,6 +572,12 @@ export type PendingKind =
    *  home, or stay and fight beside them — a real tour against their
    *  enemy. otherId is the enemy; placeId is the ally. */
   | 'support-deployment'
+  /** C2. The month the ledger and the empty weeks made a theft thinkable.
+   *  Both roads are real: taking it, and going without. */
+  | 'desperation'
+  /** C2. Arrested and standing before the courthouse: plead, or be tried.
+   *  monthlyPay carries what was taken. */
+  | 'plea'
   /** M-ARMY2. Hit, and still conscious: the minutes that decide whether a
    *  serious wound is survived. The diagram shows where and how bad. */
   | 'first-aid'
@@ -754,6 +767,9 @@ export type EventType =
   /** A documented act under fire — the player's own recorded choice, and
    *  the ONLY thing valor recognition may ever read (foundation §11). */
   | 'act-of-valor'
+  /** C2. The desperation moment answered the other way — a life that
+   *  stayed honest while it was hard, which the record should keep. */
+  | 'went-without'
   /** M-ARMY2. Field aid worked on a wound — the player's own, or a
    *  medic's on a squadmate (otherId). */
   | 'field-aid'

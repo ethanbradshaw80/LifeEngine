@@ -233,6 +233,8 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'attend-school': { attend: 'Take the slot', pass: 'Pass' },
   'volunteer-deploy': { accept: 'Volunteer', decline: 'Wait for orders' },
   'support-deployment': { 'stay-and-fight': 'Stay and fight', 'go-home': 'Go home' },
+  desperation: { 'take-it': 'Take it', 'go-without': 'Go without' },
+  plea: { 'plead-guilty': 'Plead guilty', 'stand-trial': 'Stand trial' },
   'first-aid': {
     'press-the-wound': 'Press the wound',
     'call-for-help': 'Call out for help',

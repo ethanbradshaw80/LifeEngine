@@ -18,7 +18,9 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { RECORD_GATE_YEARS } from './content.js'
+import { isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
+import type { Offence } from './content.js'
+import { raisePending } from './player.js'
 import { isDeployed } from './deployment.js'
 import { chargeHousehold, inArrears, transferBetweenHouseholds } from './finances.js'
 import type { NewsItem } from './geopolitics.js'
@@ -73,11 +75,6 @@ export function runCrime(world: World, tick: Tick): void {
       continue
     }
 
-    // C1 keeps the played life a bystander or victim (CRIME_PLAN.md): the
-    // desperation moment with both roads real is C2's pending. An off-screen
-    // theft would be an unchosen crime on a chosen timeline.
-    if (person.id === world.player.personId) continue
-
     // Not in town, not in the pool: a deployed soldier cannot rob a house
     // here from a theatre away — and without this gate the deployment
     // system would later close a tour the county jail had interrupted,
@@ -104,8 +101,183 @@ export function runCrime(world: World, tick: Tick): void {
     const rng = openStream(world.seed, Stream.Crime, person.id, tick)
     if (!rng.chance(pressure, 12_000)) continue
 
+    // C2, THE DESPERATION MOMENT. C1 kept the played life a bystander,
+    // because an off-screen theft would be an unchosen crime on a chosen
+    // timeline. The moment the simulation already rolled is now the
+    // player's to answer — and BOTH roads are real: walking away is a
+    // choice the record keeps, not a non-event.
+    if (person.id === world.player.personId) {
+      raisePending(world, {
+        tick,
+        kind: 'desperation',
+        personId: person.id,
+        otherId: null,
+        occupationId: null,
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['take-it', 'go-without'],
+      })
+      continue
+    }
+
     attemptTheft(world, tick, person, behind, jobless, rng)
   }
+}
+
+/**
+ * C2 (owner direction). Why a given offence is closed to this person right
+ * now, or null when the door is open. The Crime tab shows the reason
+ * instead of a dead button — the applyForJob pattern, applied to the worst
+ * decision in the game.
+ */
+export function offenceBar(world: World, personId: EntityId, offenceId: string): string | null {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const offence = offenceById(offenceId)
+  if (!offence) return 'No such charge in the code.'
+  if (ageAt(person.birthTick, world.tick) < 18) return 'Not yet eighteen.'
+  if (isJailed(world, personId)) return 'From a cell, there is nothing to take.'
+  if (isDeployed(world, personId)) return 'Not from a theatre away.'
+  if (offence.needsJob && !world.employment.has(personId)) {
+    return 'This one needs a job to abuse.'
+  }
+  if (offence.takesFromHousehold && person.householdId === null) {
+    return 'You would need a roof of your own to bring it back to.'
+  }
+  return null
+}
+
+/**
+ * C2. Do it — the Crime tab's verb. Log before the roll, the same honest
+ * shape every other player verb uses: the asking is on the record whatever
+ * the answer turns out to be.
+ *
+ * Getting away with it is not a reward and getting caught is not a
+ * punishment: both are the clearance rate the offence carries, and the
+ * courthouse decides the rest. The player is never told the odds.
+ */
+export function commitOffence(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offenceId: string,
+): { done: boolean; reason: string } {
+  const bar = offenceBar(world, person.id, offenceId)
+  if (bar !== null) return { done: false, reason: bar }
+  const offence = offenceById(offenceId)
+  if (!offence) return { done: false, reason: 'No such charge in the code.' }
+
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 5252)
+
+  // What it puts in a pocket. Where a household is robbed the money MOVES
+  // — finances owns the transfer, and a victim who loses nothing is a
+  // crime that did not happen.
+  let taken = 0
+  if (offence.gainMax > 0) {
+    const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
+    if (offence.takesFromHousehold && person.householdId !== null) {
+      const candidates = [...world.households.values()]
+        .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && h.savings > 20_000)
+        .sort((a, b) => a.id - b.id)
+      if (candidates.length === 0) return { done: false, reason: 'No house in town worth the risk.' }
+      const victimHousehold = rng.pick(candidates)
+      taken = transferBetweenHouseholds(world, tick, victimHousehold.id, person.householdId, wanted)
+      const members = victimHousehold.memberIds
+        .map((id) => world.people.get(id))
+        .filter((p): p is Person => p !== undefined && p.deathTick === null)
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+      for (const member of members) {
+        if (ageAt(member.birthTick, tick) < 18) continue
+        recordEvent(world, tick, { type: 'was-robbed', subjectId: member.id, detail: String(taken) })
+      }
+    } else if (person.householdId !== null) {
+      // Money from outside the town's households — a shop, a stranger, the
+      // revenue. It still lands in a real ledger.
+      taken = -chargeHousehold(world, tick, person.householdId, -wanted)
+    }
+  }
+
+  recordEvent(world, tick, {
+    type: 'committed-theft',
+    subjectId: person.id,
+    detail: `${offence.id}:${String(taken)}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'crime',
+    significance: isFelony(offence.grade) ? 'defining' : 'major',
+    inputs: [
+      factor('own-choice', 1000),
+      ...(person.householdId !== null && inArrears(world, person.householdId)
+        ? [factor('in-arrears', 700)]
+        : []),
+      ...(!world.employment.has(person.id) && !isServing(world, person.id)
+        ? [factor('lost-work', 500)]
+        : []),
+    ],
+    chosen: `committed ${offence.title}`,
+    rejected: ['to leave it alone'],
+    streamId: Stream.Crime,
+  })
+
+  // Cleared, or not. An uncleared offence stays on the offender's own
+  // timeline and nowhere else — which is exactly how getting away with it
+  // works, and why the record is the only witness.
+  if (!rng.chance(offence.clearance, 1_000)) {
+    return { done: true, reason: '' }
+  }
+  recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
+
+  const landed = raisePending(world, {
+    tick,
+    kind: 'plea',
+    personId: person.id,
+    otherId: null,
+    occupationId: offence.id,
+    workplaceId: null,
+    monthlyPay: taken as never,
+    placeId: null,
+    options: ['plead-guilty', 'stand-trial'],
+  })
+  if (!landed) resolveCourt(world, tick, person, taken, rng, null, offence)
+  return { done: true, reason: '' }
+}
+
+/**
+ * C2. The player answered the desperation moment. Taking it runs the SAME
+ * theft the automatic path would have run — same victim selection, same
+ * clearance, same courthouse — with 'own-choice' on the record. Going
+ * without is recorded too: a life that stayed honest while it was hard
+ * should be able to say so.
+ */
+export function answerDesperation(world: World, tick: Tick, person: Person, take: boolean): void {
+  if (person.householdId === null) return
+  const behind = inArrears(world, person.householdId)
+  const jobless = !world.employment.has(person.id) && !isServing(world, person.id)
+
+  if (!take) {
+    recordEvent(world, tick, { type: 'went-without', subjectId: person.id })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'crime',
+      significance: 'notable',
+      inputs: [
+        factor('own-choice', 1000),
+        ...(behind ? [factor('in-arrears', 700)] : []),
+        ...(jobless ? [factor('lost-work', 500)] : []),
+      ],
+      chosen: 'went without',
+      rejected: ['to take what was not theirs'],
+      streamId: Stream.Crime,
+    })
+    return
+  }
+
+  // A fresh salt: the month's own draw was spent deciding whether the
+  // moment arrived at all.
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 4141)
+  attemptTheft(world, tick, person, behind, jobless, rng, true)
 }
 
 function attemptTheft(
@@ -115,6 +287,7 @@ function attemptTheft(
   behind: boolean,
   jobless: boolean,
   rng: ReturnType<typeof openStream>,
+  ownChoice = false,
 ): void {
   // A victim with something to take, deterministically chosen from the
   // households that have anything: nobody robs an emptier house than their
@@ -158,6 +331,7 @@ function attemptTheft(
     decision: 'crime',
     significance: 'major',
     inputs: [
+      ...(ownChoice ? [factor('own-choice', 1000)] : []),
       ...(behind ? [factor('in-arrears', 700)] : []),
       ...(jobless ? [factor('lost-work', 500)] : []),
       factor('desperation', Math.min(1000, (behind ? 500 : 200) + (jobless ? 300 : 0))),
@@ -172,10 +346,53 @@ function attemptTheft(
   if (!rng.chance(350, 1_000)) return
   recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id })
 
-  // The courthouse answers within the month. Priors weigh; a first offence
-  // in hard circumstances is usually a fine.
+  // C2: the player is not sentenced off-screen. The courthouse waits for a
+  // plea — the one moment in the chain where the accused genuinely decides
+  // something — and resolveCourt runs from the answer instead.
+  if (person.id === world.player.personId) {
+    const landed = raisePending(world, {
+      tick,
+      kind: 'plea',
+      personId: person.id,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: taken as never,
+      placeId: null,
+      options: ['plead-guilty', 'stand-trial'],
+    })
+    // If another question held the slot, the court still sits: nobody
+    // escapes a docket because the month was busy.
+    if (landed) return
+  }
+
+  resolveCourt(world, tick, person, taken, rng, null)
+}
+
+/**
+ * The courthouse. Shared by the automatic path and the player's plea, so a
+ * verdict is reached the same way whoever is standing there.
+ *
+ * `plea` is null for everyone the town tries without asking. Pleading
+ * guilty trades the chance of acquittal for a lighter hand — the oldest
+ * bargain there is, and an honest one to model: certainty of conviction,
+ * but a fine where a trial would have meant months.
+ */
+export function resolveCourt(
+  world: World,
+  tick: Tick,
+  person: Person,
+  taken: number,
+  rng: ReturnType<typeof openStream>,
+  plea: 'plead-guilty' | 'stand-trial' | null,
+  offence: Offence | null = null,
+): void {
   const priors = world.criminal.get(person.id)?.convictions.length ?? 0
-  const convicted = rng.chance(Math.min(950, 700 + priors * 100), 1_000)
+  // A plea of guilty is certain conviction. It is also the only thing in
+  // this model that reliably buys a lighter hand, which is the bargain
+  // the real thing runs on.
+  const convicted =
+    plea === 'plead-guilty' ? true : rng.chance(Math.min(950, 700 + priors * 100), 1_000)
   if (!convicted) {
     recordEvent(world, tick, { type: 'was-acquitted', subjectId: person.id })
     recordDecision(world, tick, {
@@ -190,19 +407,45 @@ function attemptTheft(
     return
   }
 
-  const jailTime = priors > 0 || taken > 25_000
-  const sentenceMonths = jailTime ? rng.nextIntInclusive(JAIL_MIN_MONTHS, JAIL_MAX_MONTHS) : 0
-  const fine = jailTime ? 0 : taken * FINE_MULTIPLIER
+  let sentenceMonths: number
+  let fine: number
+  if (offence === null) {
+    // The desperation theft C1 modelled, with C1's own numbers — measured
+    // and tuned, and not worth perturbing to share a table.
+    const jailTime = priors > 0 || taken > 25_000
+    sentenceMonths = jailTime ? rng.nextIntInclusive(JAIL_MIN_MONTHS, JAIL_MAX_MONTHS) : 0
+    fine = jailTime ? 0 : taken * FINE_MULTIPLIER
+  } else {
+    // The catalogue's own grade. The range is the statute; where in it the
+    // sentence lands is the record — priors push it up, a guilty plea keeps
+    // it in the lower half.
+    const span = Math.max(0, offence.maxMonths - offence.minMonths)
+    const roll =
+      plea === 'plead-guilty'
+        ? rng.nextIntInclusive(0, Math.floor(span / 2))
+        : rng.nextIntInclusive(0, span)
+    const priorWeight = Math.min(span, priors * Math.floor(span / 4))
+    const months = offence.minMonths + Math.min(span, roll + priorWeight)
+    // A fine instead of custody, where the offence allows one at all and
+    // the file is clean enough to earn it. Felonies here carry no fine.
+    const finable = offence.fine > 0 && priors === 0 && months <= 6
+    sentenceMonths = finable ? 0 : months
+    fine = finable ? offence.fine : 0
+  }
 
   const existing = world.criminal.get(person.id)
   world.criminal.set(person.id, {
     personId: person.id,
     convictions: [
       ...(existing?.convictions ?? []),
-      { kind: 'theft', tick, sentenceMonths, fine },
+      { kind: offence?.id ?? 'theft', tick, sentenceMonths, fine },
     ],
-    jailedUntilTick: jailTime ? ((tick + sentenceMonths) as Tick) : (existing?.jailedUntilTick ?? null),
+    jailedUntilTick:
+      sentenceMonths > 0
+        ? ((tick + sentenceMonths) as Tick)
+        : (existing?.jailedUntilTick ?? null),
   })
+  const jailTime = sentenceMonths > 0
 
   recordEvent(world, tick, {
     type: 'was-convicted',
@@ -218,8 +461,8 @@ function attemptTheft(
       ...(priors > 0 ? [factor('prior-record', Math.min(1000, priors * 400))] : [factor('clean-record', 300)]),
     ],
     chosen: jailTime
-      ? `convicted of theft; ${String(sentenceMonths)} months`
-      : 'convicted of theft; fined',
+      ? `convicted of ${offence?.title ?? 'theft'}; ${String(sentenceMonths)} months`
+      : `convicted of ${offence?.title ?? 'theft'}; fined`,
     rejected: ['acquittal'],
     streamId: Stream.Crime,
   })
