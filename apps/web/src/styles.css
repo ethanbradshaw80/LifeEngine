@@ -686,9 +686,13 @@ ul.welcome-points li + li {
 
 .stat-strip {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Fits however many stats there are on one row where they fit, instead
+     of a hardcoded four leaving a fifth stranded on a second row and
+     eating the height the story needs (owner). */
+  grid-template-columns: repeat(auto-fit, minmax(6.2rem, 1fr));
   gap: 0.5rem;
-  padding-bottom: 0.7rem;
+  padding-bottom: 0.6rem;
+  flex: 0 0 auto;
 }
 
 .stat {
@@ -781,11 +785,41 @@ ul.welcome-points li + li {
   margin: 0;
 }
 
+/* The sections sit in a rail down the left so every one is visible at a
+   glance — eight tabs in a row meant scrolling to reach the last of them. */
+.tab-layout {
+  display: flex;
+  align-items: stretch;
+  gap: 0.7rem;
+  /* THE HEIGHT CHAIN. .game is a full-height column ending in the action
+     bar; the panel in the middle takes what is left and scrolls inside
+     itself. Wrapping the panels in this row broke that chain — the panels
+     grew to their content and pushed "Age a year" off the bottom of the
+     screen, which is the one control the game cannot do without. flex +
+     min-height:0 hands the remaining height back down. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.tab-panels {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  /* min-* of 0 on both axes: without the width a wide table stretches the
+     row instead of scrolling; without the height the panel refuses to
+     shrink and the overflow never engages. */
+  min-width: 0;
+  min-height: 0;
+}
+
 .tab-bar {
   display: flex;
-  gap: 0.35rem;
-  padding-bottom: 0.6rem;
-  overflow-x: auto;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* Its own scroll if the rail ever outgrows the screen, so it can never
+     be the thing that pushes the action bar away. */
+  overflow-y: auto;
   scrollbar-width: none;
 }
 
@@ -794,14 +828,23 @@ ul.welcome-points li + li {
 }
 
 .tab-bar button {
-  flex: 0 0 auto;
-  padding: 0.32rem 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.34rem 0.7rem;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 0.82rem;
   color: var(--muted);
   white-space: nowrap;
+  text-align: left;
+}
+
+.tab-icon {
+  font-size: 0.95rem;
+  line-height: 1;
 }
 
 .tab-bar button.active {
@@ -1293,9 +1336,12 @@ ul.welcome-points li + li {
 .action-bar {
   display: flex;
   gap: 0.6rem;
-  padding: 0.7rem 0 0.3rem;
+  padding: 0.6rem 0 0.2rem;
   border-top: 0;
   margin-top: 0;
+  /* Never shrinks and never scrolls away: the game is unplayable without
+     it, and it was being cut off the bottom of the screen. */
+  flex: 0 0 auto;
 }
 
 .action-bar button {
@@ -1332,6 +1378,23 @@ ul.welcome-points li + li {
   }
   .game {
     padding: 0.4rem 0.5rem;
+  }
+  /* On a phone the rail keeps its place but drops to icons — eight of them
+     still fit the height, and the names would eat the width the panel
+     needs. The title attribute carries the name for anyone who hovers,
+     and the icon keeps its accessible name through the button title. */
+  .tab-layout {
+    gap: 0.45rem;
+  }
+  .tab-name {
+    display: none;
+  }
+  .tab-bar button {
+    justify-content: center;
+    padding: 0.42rem 0.5rem;
+  }
+  .tab-icon {
+    font-size: 1.1rem;
   }
 }
 

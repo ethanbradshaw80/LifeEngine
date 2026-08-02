@@ -154,15 +154,17 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
 
 type Tab = 'story' | 'home' | 'family' | 'jobs' | 'news' | 'service' | 'health' | 'record'
 
-const TABS: readonly { id: Tab; label: string }[] = [
-  { id: 'story', label: '📖 Story' },
-  { id: 'home', label: '🏠 Home' },
-  { id: 'family', label: '👪 Family' },
-  { id: 'jobs', label: '💼 Jobs' },
-  { id: 'news', label: '📰 News' },
-  { id: 'service', label: '🪖 Service' },
-  { id: 'health', label: '🩺 Health' },
-  { id: 'record', label: '⚖️ Record' },
+// Icon and name are separate so the rail can drop to icons alone when the
+// screen is too narrow to carry both.
+const TABS: readonly { id: Tab; icon: string; label: string }[] = [
+  { id: 'story', icon: '📖', label: 'Story' },
+  { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'family', icon: '👪', label: 'Family' },
+  { id: 'jobs', icon: '💼', label: 'Jobs' },
+  { id: 'news', icon: '📰', label: 'News' },
+  { id: 'service', icon: '🪖', label: 'Service' },
+  { id: 'health', icon: '🩺', label: 'Health' },
+  { id: 'record', icon: '⚖️', label: 'Record' },
 ]
 
 const SCHOOLING_WORDS: Record<EducationLevel, string> = {
@@ -393,6 +395,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         </div>
       </section>
 
+      <div className="tab-layout">
       <nav className="tab-bar" aria-label="Life sections">
         {TABS.map((t) => (
           <button
@@ -400,16 +403,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             type="button"
             className={tab === t.id ? 'active' : undefined}
             aria-current={tab === t.id}
+            title={t.label}
             onClick={() => {
               setTab(t.id)
               setConfirming(null)
             }}
           >
-            {t.label}
+            <span className="tab-icon" aria-hidden="true">{t.icon}</span>
+            <span className="tab-name">{t.label}</span>
           </button>
         ))}
       </nav>
 
+      <div className="tab-panels">
       {tab === 'story' && (
         <div className="feed" ref={feedRef} aria-label="Your story so far">
           {feedItems.length === 0 && (
@@ -1383,6 +1389,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           })()}
         </div>
       )}
+
+      </div>
+      </div>
 
       {notice !== null && <div className="action-notice">{notice}</div>}
 
