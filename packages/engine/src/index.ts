@@ -77,7 +77,6 @@ export type { CustomLifeSpec } from './player.js'
 // Geopolitics (L4-M1)
 export {
   activeWars,
-  articleFor,
   generateNations,
   homeland,
   isAtWar,
@@ -85,6 +84,10 @@ export {
   relationBetween,
 } from './geopolitics.js'
 export type { NewsItem } from './geopolitics.js'
+
+// The newsroom (WCJC): structured articles, to the owner's brief.
+export { articleFor } from './newsroom.js'
+export type { NewsArticle, NewsQuote } from './newsroom.js'
 
 // Health (L4-M2)
 export { healthOf, isSeverelyAiling, SEVERE_AILMENT } from './health.js'

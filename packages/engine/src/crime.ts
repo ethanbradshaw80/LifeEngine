@@ -576,10 +576,18 @@ export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
       if (!person) continue
       const sentence =
         event.detail?.startsWith('jail:') === true ? `${event.detail.slice(5)} months` : 'fined'
+      // The charge, from the record rather than assumed: the courthouse
+      // hears more than theft now (C2).
+      const conviction = [...(world.criminal.get(person.id)?.convictions ?? [])]
+        .reverse()
+        .find((c) => c.tick === event.tick)
+      const charge = offenceById(conviction?.kind ?? 'theft')?.title ?? 'theft'
       items.push({
         tick: event.tick,
-        text: `${fullName(person)} was convicted of theft at the courthouse — ${sentence}`,
+        text: `${fullName(person)} was convicted of ${charge} at the courthouse — ${sentence}`,
         nearby: false,
+        subjectId: person.id,
+        kind: 'crime',
       })
     }
   }

@@ -964,6 +964,37 @@ ul.welcome-points li + li {
   color: var(--accent);
 }
 
+.article-headline {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+
+.article-lede {
+  font-weight: 600;
+}
+
+.article-quote {
+  margin: 0.5rem 0;
+  padding-left: 0.7rem;
+  border-left: 3px solid var(--accent);
+}
+
+.article-quote p {
+  margin: 0 0 0.2rem;
+  font-style: italic;
+}
+
+.article-quote cite {
+  font-size: 0.78rem;
+  font-style: normal;
+  color: var(--muted);
+}
+
+.article-closing {
+  color: var(--muted);
+}
+
 /* Why?: what came of it, then what caused it. */
 .why-outcome {
   margin: 0 0 0.3rem;

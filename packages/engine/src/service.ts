@@ -57,6 +57,7 @@ import {
   specialUnitById,
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
+import type { NewsItem } from './geopolitics.js'
 import type { ServiceBranch, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js'
 import { isDeployed } from './deployment.js'
@@ -287,7 +288,24 @@ export interface UnitRoster {
  * promoted, punished, hurt or killed, which is the point of showing them.
  */
 export function unitRosterOf(world: World, personId: EntityId): UnitRoster | null {
-  const record = activeRecord(world, personId)
+  return rosterFrom(world, personId, activeRecord(world, personId))
+}
+
+/**
+ * The squad someone was in, for a record that has since CLOSED — the
+ * newsroom needs it the month a soldier dies, when the record is already
+ * shut and unitRosterOf rightly answers null. Members are still only the
+ * living and serving: it is the squad that survives them.
+ */
+export function lastUnitRosterOf(world: World, personId: EntityId): UnitRoster | null {
+  return rosterFrom(world, personId, world.service.get(personId))
+}
+
+function rosterFrom(
+  world: World,
+  personId: EntityId,
+  record: ServiceRecordT | undefined,
+): UnitRoster | null {
   if (!record) return null
   const mine = subUnitOf(world, personId, record.baseId)
 
@@ -821,8 +839,8 @@ export function runService(world: World, tick: Tick): void {
 export function serviceNewsSince(
   world: World,
   since: Tick,
-): { tick: Tick; text: string; nearby: boolean }[] {
-  const items: { tick: Tick; text: string; nearby: boolean }[] = []
+): NewsItem[] {
+  const items: NewsItem[] = []
   for (const event of world.events) {
     if (event.tick < since) continue
     if (event.type === 'recruiting-drive') {
@@ -830,6 +848,7 @@ export function serviceNewsSince(
         tick: event.tick,
         text: 'the recruiters set up on the square — a drive is on',
         nearby: true,
+        kind: 'recruiting-drive',
       })
       continue
     }
@@ -852,6 +871,8 @@ export function serviceNewsSince(
         tick: event.tick,
         text: `${person.givenName} ${person.familyName} came home from the war`,
         nearby: true,
+        subjectId: person.id,
+        kind: 'came-home',
       })
     } else if (event.type === 'died') {
       const record = world.service.get(event.subjectId)
@@ -863,6 +884,8 @@ export function serviceNewsSince(
         tick: event.tick,
         text: `${person.givenName} ${person.familyName} died in service`,
         nearby: true,
+        subjectId: person.id,
+        kind: 'died-in-service',
       })
     }
   }

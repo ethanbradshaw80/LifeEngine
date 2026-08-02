@@ -869,7 +869,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         <span className="card-text">
                           {item.text.charAt(0).toUpperCase() + item.text.slice(1)}.
                         </span>
-                        {article.length > 0 && (
+                        {article !== null && (
                           <button
                             type="button"
                             className="why"
@@ -887,12 +887,23 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </button>
                         )}
                       </div>
-                      {openArticles.has(key) && article.length > 0 && (
+                      {openArticles.has(key) && article !== null && (
                         <div className="card-why article">
-                          <p className="article-byline">{NEWS_STATION} · {year}</p>
-                          {article.map((paragraph) => (
+                          <p className="article-byline">{NEWS_STATION} — {article.dateline}</p>
+                          <h4 className="article-headline">{article.headline}</h4>
+                          <p className="article-lede">{article.lede}</p>
+                          {article.body.map((paragraph) => (
                             <p key={paragraph}>{paragraph}</p>
                           ))}
+                          {article.quote !== null && (
+                            <blockquote className="article-quote">
+                              <p>“{article.quote.text}”</p>
+                              <cite>— {article.quote.source}</cite>
+                            </blockquote>
+                          )}
+                          {article.closing !== null && (
+                            <p className="article-closing">{article.closing}</p>
+                          )}
                         </div>
                       )}
                     </div>
