@@ -1671,24 +1671,40 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 {record.dischargedAtTick === null && serviceTab === 'packet' && (
                   <>
                     <h3>Drop a Packet</h3>
+                    <p className="muted small">
+                      A packet is a request to attend selection. Selection can be
+                      failed, and the file allows two.
+                    </p>
                     <ul className="job-list">
-                      {unitOptionsFor(world, person.id).map((option) => (
-                        <li key={option.id}>
-                          <span className="job-title">{option.name}</span>
-                          <span className="muted small">
-                            {option.open
-                              ? option.tier === 2
-                                ? 'selection — the quiet tier'
-                                : 'selection — it can be failed'
-                              : option.reason}
-                          </span>
-                          {option.open && (
-                            <button type="button" className="apply" disabled={busy} onClick={() => onTryUnit(option.id)}>
-                              Try out
-                            </button>
-                          )}
-                        </li>
-                      ))}
+                      {/* Branch-incompatible units are hidden, the same as the
+                          school houses: a soldier does not read a catalogue of
+                          units his service does not select for. */}
+                      {unitOptionsFor(world, person.id)
+                        .filter((option) => !option.reason.includes('does not feed'))
+                        .map((option) => (
+                          <li key={option.id}>
+                            <span className="job-title">{option.name}</span>
+                            <span className="muted small">
+                              {option.open
+                                ? option.tier === 3
+                                  ? 'selection — the one at the top'
+                                  : option.tier === 2
+                                    ? 'selection — the quiet tier'
+                                    : 'selection — it can be failed'
+                                : option.reason}
+                            </span>
+                            {option.open && (
+                              <button
+                                type="button"
+                                className="apply"
+                                disabled={busy}
+                                onClick={() => onTryUnit(option.id)}
+                              >
+                                Drop a Packet
+                              </button>
+                            )}
+                          </li>
+                        ))}
                     </ul>
                   </>
                 )}

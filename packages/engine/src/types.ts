@@ -186,8 +186,8 @@ export interface SpecialUnit {
   readonly id: string
   /** Fictional name, authentic weight. */
   readonly name: string
-  /** 1 = the elite battalion; 2 = the quiet tier above it. */
-  readonly tier: 1 | 2
+  /** 1 = the entry unit; 2 = the tier above it; 3 = the one at the top. */
+  readonly tier: 1 | 2 | 3
   readonly branches: readonly string[]
   readonly minRank: number
   readonly minPerformance: number

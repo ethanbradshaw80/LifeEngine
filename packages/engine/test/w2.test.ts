@@ -329,9 +329,20 @@ describe('the rulings, enforced rather than remembered', () => {
     // Real units carry real casualty history and living members.
     expect(HEARTLAND_SPEC.units).toEqual(CLASSIC_SPEC.units)
     expect(HEARTLAND_SPEC.schools).toEqual(CLASSIC_SPEC.schools)
+    // Every one invented, in both presets. The list grew when each branch
+    // got its own entry unit; what must never change is that none of them
+    // is real.
     for (const unit of HEARTLAND_SPEC.units) {
-      expect(['the Pathfinder Battalion', 'Task Unit Ember']).toContain(unit.name)
+      expect([
+        'the Pathfinder Battalion',
+        'the Trident Detachment',
+        'the Guardian Flight',
+        'the Vanguard Group',
+        'Task Unit Ember',
+        'the Grey Section',
+      ]).toContain(unit.name)
     }
+    expect(HEARTLAND_SPEC.units.length).toBe(6)
   })
 
   it('names the branches and nothing else about them', () => {
@@ -385,7 +396,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '96d4d3ea'
+const HEARTLAND_GOLDEN = 'c2e846c5'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

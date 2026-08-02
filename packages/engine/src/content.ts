@@ -464,6 +464,18 @@ export function schoolById(id: string): ServiceSchool | undefined {
 }
 
 
+/**
+ * The special units. FICTIONAL NAMES, permanently, in every preset — the
+ * half of the owner's override that did not move (ADR-0023, ADR-0024): a
+ * school is a course of instruction, a decoration is a thing a government
+ * awards, but a unit is a body of living people with a record of its own
+ * dead.
+ *
+ * EVERY BRANCH GETS AN ENTRY UNIT (owner's combat plan §1b), so the Drop a
+ * Packet tab is never empty for anybody. The chain is real: an entry unit
+ * asks for the badge its road is paved with, the tier above draws from the
+ * unit below, and the one at the top draws from either.
+ */
 export const SPECIAL_UNITS: readonly SpecialUnit[] = [
   {
     id: 'pathfinders', name: 'the Pathfinder Battalion', tier: 1,
@@ -472,10 +484,34 @@ export const SPECIAL_UNITS: readonly SpecialUnit[] = [
     selectionDenominator: 500, dutyPay: dollars(150), exposureMultiplier: 1250,
   },
   {
+    id: 'trident', name: 'the Trident Detachment', tier: 1,
+    branches: ['naval-service'], minRank: 2, minPerformance: 560,
+    requiredBadges: ['combat diver'], feederUnitId: null,
+    selectionDenominator: 520, dutyPay: dollars(150), exposureMultiplier: 1250,
+  },
+  {
+    id: 'guardian-flight', name: 'the Guardian Flight', tier: 1,
+    branches: ['air-guard'], minRank: 2, minPerformance: 560,
+    requiredBadges: ['military freefall'], feederUnitId: null,
+    selectionDenominator: 520, dutyPay: dollars(150), exposureMultiplier: 1200,
+  },
+  {
+    id: 'vanguard', name: 'the Vanguard Group', tier: 2,
+    branches: ['land-forces'], minRank: 4, minPerformance: 700,
+    requiredBadges: ['special forces'], feederUnitId: 'pathfinders',
+    selectionDenominator: 850, dutyPay: dollars(350), exposureMultiplier: 1450,
+  },
+  {
     id: 'task-unit-ember', name: 'Task Unit Ember', tier: 2,
-    branches: ['land-forces'], minRank: 5, minPerformance: 720,
-    requiredBadges: ['parachutist'], feederUnitId: 'pathfinders',
+    branches: ['naval-service'], minRank: 5, minPerformance: 720,
+    requiredBadges: ['combat diver'], feederUnitId: 'trident',
     selectionDenominator: 900, dutyPay: dollars(400), exposureMultiplier: 1500,
+  },
+  {
+    id: 'grey-section', name: 'the Grey Section', tier: 3,
+    branches: [], minRank: 6, minPerformance: 800,
+    requiredBadges: [], feederUnitId: null,
+    selectionDenominator: 1400, dutyPay: dollars(600), exposureMultiplier: 1600,
   },
 ]
 

@@ -109,12 +109,21 @@ describe('special units', () => {
   })
 
   it('the quiet tier draws only from the feeder unit', () => {
+    // Every branch has its own chain now (owner's combat plan §1b), so a
+    // land soldier is refused Task Unit Ember for the branch before the
+    // feeder is even considered — and the LAND tier-2 is the one that names
+    // its feeder to him.
     const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 900)
     const options = unitOptionsFor(world, person.id)
+
     const ember = options.find((o) => o.id === 'task-unit-ember')
     expect(ember?.open).toBe(false)
-    expect(ember?.reason).toContain('Pathfinder')
+    expect(ember?.reason).toContain('does not feed')
+
+    const vanguard = options.find((o) => o.id === 'vanguard')
+    expect(vanguard?.open).toBe(false)
+    expect(vanguard?.reason.length).toBeGreaterThan(0)
   })
 
   it('selection can be failed, both outcomes are recorded, and the file allows two tries', () => {

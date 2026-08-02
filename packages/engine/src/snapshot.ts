@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v47 — EVERY BRANCH GETS A UNIT (owner's combat plan §1b). The Trident
+ *      Detachment, the Guardian Flight, the Vanguard Group and the Grey
+ *      Section join the Pathfinders and Ember, so Drop a Packet is never
+ *      empty for anybody and each branch has a real chain: entry unit asks
+ *      for the badge its road is paved with, the tier above draws from the
+ *      unit below. NPC selection rolls against a different unit list, so
+ *      every world with a soldier in it differs from v46.
  * v46 — THE AWARDS PACK (owner spec, ADR-0024). Decorations and badges
  *      carry their REAL names; the campaign medal is generic and never
  *      named for a war this engine invented; combat recognition takes its
@@ -309,7 +316,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 46
+export const SIMULATION_VERSION = 47
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
