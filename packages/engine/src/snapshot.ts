@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v35 — RETIREMENT PAY. A career now ends with money. Twenty years is the
+ *      door M-ARMY2's own career shape already put there; a quarter of a
+ *      per-cent per month served pays half the final wage at twenty and
+ *      three quarters at thirty, for life, and it stacks with any
+ *      disability pension because a wounded lifer is owed for both. A
+ *      four-year term pays nothing — that is what makes twenty years mean
+ *      something — and a career ended at the orderly room ends the claim
+ *      with it. Household income moves for every retiring veteran, so
+ *      this is an NPC-visible change.
  * v34 — M-ARMY2, military review fixes. A support tour looks its war up by
  *      its own pair instead of the homeland's list, so fighting beside an
  *      ally now actually happens — it used to close on the first tick,
@@ -212,7 +221,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 34
+export const SIMULATION_VERSION = 35
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

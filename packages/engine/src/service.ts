@@ -478,12 +478,51 @@ export function boardStandingFor(
 export function pensionOf(world: World, personId: EntityId): number {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick === null) return 0
-  const serviceDisability = world.health.get(personId)?.serviceDisability ?? 0
-  if (serviceDisability < PENSION_THRESHOLD) return 0
   const person = world.people.get(personId)
   if (!person || person.deathTick !== null) return 0
-  return serviceDisability * PENSION_CENTS_PER_POINT
+
+  let monthly = 0
+  // What the service took: harm it left on the body.
+  const serviceDisability = world.health.get(personId)?.serviceDisability ?? 0
+  if (serviceDisability >= PENSION_THRESHOLD) {
+    monthly += serviceDisability * PENSION_CENTS_PER_POINT
+  }
+  // What the service owes: the years themselves. Both can be true at once
+  // — a wounded lifer is owed for the wound AND for the career.
+  monthly += retirementPayOf(record)
+  return monthly
 }
+
+/**
+ * Retirement pay: what a full career is worth every month for the rest of
+ * a life. Twenty years is the door (M-ARMY2's own career shape put it
+ * there); a quarter of a per-cent per month served, so twenty years pays
+ * half the final wage and thirty pays three quarters.
+ *
+ * A term ended early pays nothing — that is what makes twenty years mean
+ * something. Neither does misconduct: the file that ends a career ends the
+ * claim with it. Medical discharge has its own pension, above.
+ */
+export function retirementPayOf(
+  record: NonNullable<ReturnType<World['service']['get']>>,
+): number {
+  if (record.dischargedAtTick === null) return 0
+  if (record.dischargeReason === null) return 0
+  if (!RETIREMENT_ENDINGS.has(record.dischargeReason)) return 0
+  const years = Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR)
+  if (years < Math.floor(RETIREMENT_ELIGIBLE_MONTHS / 12)) return 0
+  const share = Math.min(750, years * 25)
+  return Math.floor((record.monthlyPay * share) / 1000)
+}
+
+/** Endings that carry a career's pension. 'end of term' is not one of
+ *  them — four years is a term, not a career. */
+const RETIREMENT_ENDINGS: ReadonlySet<string> = new Set([
+  'twenty years served',
+  'thirty years served',
+  'retirement age',
+  'high-year tenure',
+])
 
 /** Civilian occupations a veteran's training opened. Empty for non-veterans.
  *  Unions EVERY trade served, not just the last — retraining for a final
@@ -1425,6 +1464,30 @@ export function discharge(
       significance: 'notable',
       inputs: [factor('service-disability', serviceDisability)],
       chosen: 'the pension board recognized the service-connected disability',
+      rejected: [],
+      streamId: Stream.Employment,
+    })
+  }
+
+  // And the career's own pension, which the years earned rather than the
+  // wounds. Read off the record we just closed, so the reason and the
+  // years are the ones that actually ended it (M-ARMY2: a thirty-year
+  // sergeant used to retire with nothing at all).
+  const closed = world.service.get(person.id)
+  const retirementPay = closed === undefined ? 0 : retirementPayOf(closed)
+  if (retirementPay > 0) {
+    const years = Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR)
+    recordEvent(world, tick, {
+      type: 'granted-pension',
+      subjectId: person.id,
+      detail: String(retirementPay),
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'pension',
+      significance: 'notable',
+      inputs: [factor('time-in-grade', Math.min(1000, years * 30)), factor('term-ended', 600)],
+      chosen: `retired on ${String(years)} years' service`,
       rejected: [],
       streamId: Stream.Employment,
     })

@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { Tick } from '@life-engine/shared'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
-import { enlistmentBar, enlistPerson } from '../src/service.js'
+import { enlistmentBar, enlistPerson, pensionOf } from '../src/service.js'
+import { householdIncome } from '../src/finances.js'
 import { recordEvent } from '../src/records.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
@@ -149,6 +150,68 @@ describe('sixty-two is the last year in uniform', () => {
     const record = world.service.get(elder.id)
     expect(record?.dischargedAtTick).not.toBeNull()
     expect(record?.dischargeReason).toBe('retirement age')
+  })
+})
+
+describe('retirement pay', () => {
+  it('pays a career, and pays nothing for a term', () => {
+    const world = createWorld(makeSeed(12345), 100)
+
+    // Twenty years, retired: half the final wage, for life.
+    const lifer = adultAged(world, 40, 50)
+    soldierWith(world, lifer, {
+      rank: 5,
+      enlistedAtTick: (world.tick - 240) as Tick,
+      rankSinceTick: (world.tick - 12) as Tick,
+      termMonthsLeft: 20,
+      performance: 700,
+      termPerformanceSum: 700 * 28,
+    })
+    const finalPay = world.service.get(lifer.id)?.monthlyPay ?? 0
+    advanceTick(world)
+
+    const record = world.service.get(lifer.id)
+    expect(record?.dischargeReason).toBe('twenty years served')
+    expect(pensionOf(world, lifer.id)).toBe(Math.floor(finalPay / 2))
+    // It reaches the kitchen table, not just the record.
+    const household = lifer.householdId === null ? undefined : world.households.get(lifer.householdId)
+    if (household) {
+      expect(householdIncome(world, household)).toBeGreaterThanOrEqual(Math.floor(finalPay / 2))
+    }
+    // And it is on the record, never silent income.
+    expect(
+      world.events.some(
+        (e) => e.type === 'granted-pension' && e.subjectId === lifer.id && e.tick === world.tick,
+      ),
+    ).toBe(true)
+
+    // A four-year term is not a career: nothing.
+    const shortTimer = adultAged(world, 22, 30)
+    soldierWith(world, shortTimer, {
+      enlistedAtTick: (world.tick - 48) as Tick,
+      termMonthsLeft: 1,
+      performance: 600,
+      termPerformanceSum: 600 * 47,
+    })
+    advanceTick(world)
+    const short = world.service.get(shortTimer.id)
+    if (short?.dischargedAtTick !== null) {
+      expect(short?.dischargeReason).not.toBe('twenty years served')
+      expect(pensionOf(world, shortTimer.id)).toBe(0)
+    }
+  })
+
+  it('is refused to a career ended at the orderly room', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    const person = adultAged(world, 40, 50)
+    soldierWith(world, person, {
+      rank: 5,
+      enlistedAtTick: (world.tick - 300) as Tick,
+      dischargedAtTick: world.tick as Tick,
+      dischargeReason: 'misconduct',
+    })
+    // Twenty-five years served — and the file ended it, so the claim ends too.
+    expect(pensionOf(world, person.id)).toBe(0)
   })
 })
 
