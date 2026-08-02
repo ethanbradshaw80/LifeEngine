@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { FrontPage } from './FrontPage.js'
 import { CountyRecords } from './CountyRecords.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
@@ -1515,7 +1516,24 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     })}
                   </>
                 )}
-                <h3>The record</h3>
+                {/* THE FRONT PAGE (newsroom spec §3). The feed below is
+                    still the archive — the front page is what a station
+                    actually shows you when you turn it on. */}
+                <FrontPage
+                  world={world}
+                  items={allNews}
+                  openKeys={openArticles}
+                  onOpen={(key) =>
+                    setOpenArticles((open) => {
+                      const next = new Set(open)
+                      if (next.has(key)) next.delete(key)
+                      else next.add(key)
+                      return next
+                    })
+                  }
+                />
+
+                <h3>The archive</h3>
                 {allNews.length === 0 && (
                   <p className="muted">Nothing yet. {world.spec.gazetteer.newsStation} has a quiet town to report.</p>
                 )}
