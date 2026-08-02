@@ -18,7 +18,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
+import { GRADE_TITLES, isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
 import type { Offence } from './content.js'
 import { raisePending } from './player.js'
 import { isDeployed } from './deployment.js'
@@ -122,6 +122,68 @@ export function runCrime(world: World, tick: Tick): void {
     }
 
     attemptTheft(world, tick, person, behind, jobless, rng)
+  }
+}
+
+/**
+ * C2 (owner direction). What the courthouse just did, read back off the
+ * record so the verdict can be shown as its own moment rather than a line
+ * that scrolls past in the feed.
+ *
+ * Reads the events of ONE tick — the month the court sat — so it answers
+ * for the case just heard and nothing earlier. Null when this person had
+ * no day in court that month.
+ */
+export interface CourtOutcome {
+  readonly tick: Tick
+  /** The charge, in words. */
+  readonly charge: string
+  readonly grade: string | null
+  readonly convicted: boolean
+  /** Months of custody; 0 when the answer was money or nothing. */
+  readonly sentenceMonths: number
+  /** The fine in cents; 0 when it was time or nothing. */
+  readonly fine: number
+  /** Convictions on the file BEFORE this one. */
+  readonly priors: number
+  /** Released in this month, if custody was ordered. */
+  readonly releasedAtTick: Tick | null
+}
+
+export function courtOutcomeOf(world: World, personId: EntityId, tick: Tick): CourtOutcome | null {
+  let arrested = false
+  let convicted: boolean | null = null
+  let detail: string | null = null
+  for (const event of world.events) {
+    if (event.tick !== tick || event.subjectId !== personId) continue
+    if (event.type === 'was-arrested') {
+      arrested = true
+      detail = event.detail
+    }
+    if (event.type === 'was-convicted') convicted = true
+    if (event.type === 'was-acquitted') convicted = false
+  }
+  if (!arrested || convicted === null) return null
+
+  const record = world.criminal.get(personId)
+  const conviction = convicted
+    ? [...(record?.convictions ?? [])].reverse().find((c) => c.tick === tick)
+    : undefined
+  const offence = conviction === undefined ? undefined : offenceById(conviction.kind)
+  const priors = (record?.convictions ?? []).filter((c) => c.tick < tick).length
+
+  return {
+    tick,
+    charge: offence?.title ?? detail ?? 'theft',
+    grade: offence === undefined ? null : GRADE_TITLES[offence.grade],
+    convicted,
+    sentenceMonths: conviction?.sentenceMonths ?? 0,
+    fine: conviction?.fine ?? 0,
+    priors,
+    releasedAtTick:
+      conviction !== undefined && conviction.sentenceMonths > 0
+        ? ((tick + conviction.sentenceMonths) as Tick)
+        : null,
   }
 }
 

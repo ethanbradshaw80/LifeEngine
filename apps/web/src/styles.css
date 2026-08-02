@@ -948,6 +948,41 @@ ul.welcome-points li + li {
   opacity: 0.55;
 }
 
+/* The verdict, as its own moment. */
+.sheet.verdict h2 {
+  margin: 0.1rem 0 0.6rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.01em;
+}
+
+.verdict-guilty {
+  color: #c0392b;
+}
+
+.verdict-clear {
+  color: #1e8449;
+}
+
+.verdict-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.3rem 0.9rem;
+  margin: 0 0 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.verdict-facts dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.verdict-facts dd {
+  margin: 0;
+  text-transform: none;
+}
+
 /* The charge sheet: what a person could be charged with, and what it costs. */
 .offences {
   list-style: none;

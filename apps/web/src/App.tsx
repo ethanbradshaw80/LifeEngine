@@ -12,11 +12,13 @@ import {
   personSummary,
   worldHashHex,
   yearlyDemographics,
+  courtOutcomeOf,
 } from '@life-engine/engine'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
 import { PersonDetail } from './PersonDetail.js'
 import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
+import { VerdictSheet } from './VerdictSheet.js'
 import { Welcome } from './Welcome.js'
 import { GameScreen } from './GameScreen.js'
 import { useWorld } from './useWorld.js'
@@ -79,7 +81,14 @@ export function App() {
   // A person being read in an overlay while the game screen is up. Interface
   // state only — closing it changes nothing in the world.
   const [inspecting, setInspecting] = useState<EntityId | null>(null)
+  // The month a plea was answered, so the verdict can be read back and shown
+  // as its own moment. Interface state: the case is already on the record.
+  const [verdictTick, setVerdictTick] = useState<number | null>(null)
   const busy = status === 'working' || status === 'starting'
+  const verdict =
+    world !== null && verdictTick !== null && world.player.personId !== null
+      ? courtOutcomeOf(world, world.player.personId, verdictTick as never)
+      : null
 
   function dismissWelcome(): void {
     setShowWelcome(false)
@@ -204,7 +213,20 @@ export function App() {
         />
 
         {pending !== null && !busy && (
-          <DecisionPrompt world={world} pending={pending} onChoose={choose} />
+          <DecisionPrompt
+            world={world}
+            pending={pending}
+            onChoose={(answer) => {
+              // A plea is answered and the court sits in the same tick, so
+              // remember the month to read the verdict back from.
+              if (pending.kind === 'plea') setVerdictTick(pending.tick)
+              choose(answer)
+            }}
+          />
+        )}
+
+        {verdict !== null && !busy && (
+          <VerdictSheet world={world} outcome={verdict} onClose={() => setVerdictTick(null)} />
         )}
 
         {inspecting !== null && world.people.has(inspecting) && (

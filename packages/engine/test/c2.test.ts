@@ -12,7 +12,13 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { GRADE_TITLES, isFelony, OFFENCES, offenceById } from '../src/content.js'
-import { commitOffence, hasRecentConviction, isJailed, offenceBar } from '../src/crime.js'
+import {
+  commitOffence,
+  courtOutcomeOf,
+  hasRecentConviction,
+  isJailed,
+  offenceBar,
+} from '../src/crime.js'
 import { applyForJob, resolvePending, setPlayer } from '../src/player.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
@@ -134,6 +140,39 @@ describe('committing an offence', () => {
       if (!offence) continue
       expect(conviction.sentenceMonths).toBeLessThanOrEqual(offence.maxMonths)
     }
+  })
+})
+
+describe('the verdict, read back', () => {
+  it('reports exactly what the courthouse did, and nothing on a quiet month', () => {
+    let checked = 0
+    for (let seedValue = 1; seedValue <= 60 && checked < 3; seedValue++) {
+      const { world, id } = playedAdult(seedValue)
+      const person = world.people.get(id)
+      if (!person) continue
+      // A month with no case at all answers null.
+      expect(courtOutcomeOf(world, id, world.tick)).toBeNull()
+
+      commitOffence(world, world.tick, person, 'burglary')
+      if (world.player.pending?.kind !== 'plea') continue
+      const tick = world.tick
+      resolvePending(world, 'plead-guilty')
+      checked++
+
+      const outcome = courtOutcomeOf(world, id, tick)
+      expect(outcome).not.toBeNull()
+      if (!outcome) continue
+      expect(outcome.convicted).toBe(true)
+      expect(outcome.charge).toBe('residential burglary')
+      expect(outcome.grade).toBe('Class B felony')
+      // The summary agrees with the record to the month and the cent.
+      const conviction = world.criminal.get(id)?.convictions.at(-1)
+      expect(outcome.sentenceMonths).toBe(conviction?.sentenceMonths)
+      expect(outcome.fine).toBe(conviction?.fine)
+      expect(outcome.priors).toBe(0)
+      expect(outcome.releasedAtTick).toBe(tick + (conviction?.sentenceMonths ?? 0))
+    }
+    expect(checked).toBeGreaterThan(0)
   })
 })
 

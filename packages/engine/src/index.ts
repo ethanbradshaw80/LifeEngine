@@ -116,6 +116,7 @@ export { SPECIAL_UNITS, specialUnitById } from './content.js'
 // Crime & justice (C1)
 export {
   commitOffence,
+  courtOutcomeOf,
   crimeNewsSince,
   criminalRecordOf,
   hasRecentConviction,
@@ -124,6 +125,7 @@ export {
 } from './crime.js'
 export { GRADE_TITLES, isFelony, OFFENCES, offenceById } from './content.js'
 export type { Offence, OffenceGrade } from './content.js'
+export type { CourtOutcome } from './crime.js'
 
 // Demographics (D1) — read-side measures
 export {
