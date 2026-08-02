@@ -28,13 +28,14 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
-import { GRADE_TITLES, NEWS_STATION, offenceById, specialtyById } from './content.js'
+import { GRADE_TITLES, NEWS_STATION, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
 import { sentenceCase } from './text.js'
 import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
+import { specialtyFor } from './worldspec.js'
 
 /** The homeland, named from the world rather than typed into the sentence
  *  (W1 resistance 6). */
@@ -154,7 +155,7 @@ function deathInService(
   const age = ageAt(person.birthTick, item.tick)
   const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank)
   const branch = record === undefined ? null : branchName(world, record.branch)
-  const trade = record === undefined ? null : specialtyById(record.specialtyId).title
+  const trade = record === undefined ? null : specialtyFor(world, record.specialtyId).title
   const cause = person.causeOfDeath ?? 'causes not stated'
   const years =
     record === undefined ? null : Math.max(1, Math.floor((item.tick - record.enlistedAtTick) / 12))

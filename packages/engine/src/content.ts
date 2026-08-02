@@ -11,6 +11,16 @@ import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
 import type { ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
+import type {
+  ExposureProfile,
+  ServiceSchool,
+  ServiceSpecialty,
+  SpecialUnit,
+} from './types.js'
+
+// The shapes moved to types.ts with W1 (the spec has to name them and
+// types.ts imports nothing); the DATA below is still Classic's content.
+export type { ExposureProfile, ServiceSchool, ServiceSpecialty, SpecialUnit }
 
 /**
  * NAMES come from the 1990 US Census now (names.ts, owner-supplied): 300
@@ -222,32 +232,7 @@ export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
  * danger ratings: a convoy weight of 800 means "this job is on the roads",
  * and what the roads are like is the geopolitical state's business.
  */
-export interface ExposureProfile {
-  readonly directCombat: number
-  readonly convoy: number
-  readonly baseAttack: number
-  readonly accident: number
-}
 
-export interface ServiceSpecialty {
-  readonly id: string
-  readonly title: string
-  readonly branch: ServiceBranch
-  readonly requires: EducationLevel
-  /** Months of occupational school after basic training (AIT-equivalent). */
-  readonly schoolMonths: number
-  /** The qualification this trade can earn, in words. L4-M5 reads these. */
-  readonly qualification: string
-  /**
-   * Offset on the board's points cutoff (M-SPECOPS): every trade promotes
-   * at its own speed, the way the real monthly cutoff lists work. Negative
-   * means the trade needs people and promotes faster.
-   */
-  readonly boardCutoffOffset: number
-  readonly exposure: ExposureProfile
-  /** Civilian occupations this specialty's training unlocks for veterans. */
-  readonly civilianUnlocks: readonly string[]
-}
 
 export const SPECIALTIES: readonly ServiceSpecialty[] = [
   {
@@ -352,19 +337,6 @@ export const MAX_FITNESS_POINTS = 300
 // you can fail, a tier above the tier, duty pay, and a sharper war.
 // ---------------------------------------------------------------------------
 
-export interface ServiceSchool {
-  readonly id: string
-  readonly title: string
-  /** Branches admitted; empty = all. */
-  readonly branches: readonly ServiceBranch[]
-  /** Specialties admitted; empty = any. */
-  readonly specialtyIds: readonly string[]
-  readonly minRank: number
-  readonly minPerformance: number
-  /** The badge the course pins on — routed through the awards machinery. */
-  readonly badge: string
-  readonly performanceBoost: number
-}
 
 export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
   {
@@ -393,25 +365,6 @@ export function schoolById(id: string): ServiceSchool | undefined {
   return SERVICE_SCHOOLS.find((s) => s.id === id)
 }
 
-export interface SpecialUnit {
-  readonly id: string
-  /** Fictional name, authentic weight. */
-  readonly name: string
-  /** 1 = the elite battalion; 2 = the quiet tier above it. */
-  readonly tier: 1 | 2
-  readonly branches: readonly ServiceBranch[]
-  readonly minRank: number
-  readonly minPerformance: number
-  readonly requiredBadges: readonly string[]
-  /** Selection draws from this unit first, or null. */
-  readonly feederUnitId: string | null
-  /** chance(clamp(perf − minPerf + 60, 10, 400), THIS). Selection fails people. */
-  readonly selectionDenominator: number
-  /** Monthly special-duty pay on top of grade pay, cents. */
-  readonly dutyPay: number
-  /** Direct-combat exposure multiplier, per-mille. The sharp end, sharper. */
-  readonly exposureMultiplier: number
-}
 
 export const SPECIAL_UNITS: readonly SpecialUnit[] = [
   {

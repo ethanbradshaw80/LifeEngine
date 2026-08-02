@@ -56,7 +56,6 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
     'The siren, the shelter, the counting after',
   ],
 }
-import { specialtyById, specialUnitById } from './content.js'
 import { activeWars, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
@@ -65,6 +64,7 @@ import { openStream, Stream } from './rng.js'
 import { boostServicePerformance, isServing, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
+import { specialtyFor, unitFor } from './worldspec.js'
 
 /** Planned tour length, months. */
 const TOUR_MONTHS = 10
@@ -258,7 +258,7 @@ export function volunteerForSupport(world: World, tick: Tick, personId: EntityId
   if (!person || person.deathTick !== null) return false
   if (!record || record.dischargedAtTick !== null) return false
   if (isDeployed(world, personId)) return false
-  if (!isPipelineTrained(tick, record)) return false
+  if (!isPipelineTrained(world, tick, record)) return false
 
   startCombatTour(world, tick, personId, chosen.war, chosen.enemy.id, [
     factor('own-choice', 1000),
@@ -352,7 +352,7 @@ export function volunteerForRotation(world: World, tick: Tick, personId: EntityI
   if (!person || person.deathTick !== null) return false
   if (!record || record.dischargedAtTick !== null) return false
   if (isDeployed(world, personId)) return false
-  if (!isPipelineTrained(tick, record)) return false
+  if (!isPipelineTrained(world, tick, record)) return false
 
   const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 612)
   const host = rng.pick(hosts)
@@ -370,10 +370,11 @@ export function volunteerForRotation(world: World, tick: Tick, personId: EntityI
  *  pipeline (basic + school), or — after a P2 retrain — the new school
  *  counted from the change. One rule for orders and volunteers alike. */
 function isPipelineTrained(
+  world: World,
   tick: Tick,
   record: NonNullable<ReturnType<World['service']['get']>>,
 ): boolean {
-  const schoolMonths = specialtyById(record.specialtyId).schoolMonths
+  const schoolMonths = specialtyFor(world, record.specialtyId).schoolMonths
   if (record.specialtyChangedAtTick !== null) {
     return tick - record.specialtyChangedAtTick >= schoolMonths
   }
@@ -393,7 +394,7 @@ function deployablePeople(world: World): Person[] {
     // reclassed soldier would carry the new exposure profile the same month
     // (military review S2).
     const record = world.service.get(person.id)
-    if (record && !isPipelineTrained(world.tick, record)) continue
+    if (record && !isPipelineTrained(world, world.tick, record)) continue
     eligible.push(person)
   }
   eligible.sort((a, b) => a.id - b.id)
@@ -518,7 +519,7 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
   if (!person || person.deathTick !== null) return false
   if (!record || record.dischargedAtTick !== null) return false
   if (isDeployed(world, personId)) return false
-  if (!isPipelineTrained(tick, record)) return false
+  if (!isPipelineTrained(world, tick, record)) return false
 
   const enemyId = war.a === home.id ? war.b : war.a
   const enemy = world.nations.get(enemyId)
@@ -725,7 +726,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     if (!enemy) continue
 
     const threat = threatVectorFor(war, enemy)
-    const exposure = specialtyById(record.specialtyId).exposure
+    const exposure = specialtyFor(world, record.specialtyId).exposure
     const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 7000)
 
     // The theatre's oldest killer never fired a shot: disease (M-HARM).
@@ -746,7 +747,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // A special unit's tour points at the fight (M-SPECOPS): the unit
     // multiplies the DIRECT-COMBAT exposure — a fact about what the job is,
     // never about where it is. The permanent rule stands.
-    const unit = record.unitId === null ? undefined : specialUnitById(record.unitId)
+    const unit = record.unitId === null ? undefined : unitFor(world, record.unitId)
     const unitMult = unit?.exposureMultiplier ?? 1000
 
     // One channel is checked per month — the month's dominant hazard, chosen
@@ -997,7 +998,7 @@ function resolveRotationMonth(
   }
 
   const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 6100)
-  const exposure = specialtyById(record.specialtyId).exposure
+  const exposure = specialtyFor(world, record.specialtyId).exposure
   const host = deployment.hostId === null ? undefined : world.nations.get(deployment.hostId)
 
   // Strange water, close quarters, a barracks full of people from two

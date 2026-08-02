@@ -19,7 +19,8 @@ import { CLASSIC_SPEC, specById } from '../src/worldspec.js'
 import type { WorldSpec } from '../src/types.js'
 import { serialize } from '../src/snapshot.js'
 import { setPlayer } from '../src/player.js'
-import { boardStandingFor, branchSpecFor, rankTitle, unitOptionsFor } from '../src/service.js'
+import { boardStandingFor, rankTitle, unitOptionsFor } from '../src/service.js'
+import { branchSpecFor } from '../src/worldspec.js'
 import { specialUnitById } from '../src/content.js'
 import { homeland } from '../src/geopolitics.js'
 import { recordEvent } from '../src/records.js'
@@ -252,6 +253,9 @@ describe('the WorldSpec', () => {
       },
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
+      specialties: CLASSIC_SPEC.specialties,
+      schools: CLASSIC_SPEC.schools,
+      units: CLASSIC_SPEC.units,
     }
     const world = createWorld(makeSeed(12345), 40, spec)
 
@@ -293,6 +297,9 @@ describe('a preset that is not Classic actually runs', () => {
       },
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
       branches: CLASSIC_SPEC.branches,
+      specialties: CLASSIC_SPEC.specialties,
+      schools: CLASSIC_SPEC.schools,
+      units: CLASSIC_SPEC.units,
     }
   }
 

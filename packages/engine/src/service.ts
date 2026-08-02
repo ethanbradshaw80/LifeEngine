@@ -48,9 +48,7 @@ import {
   servicePayOn,
   SPECIAL_UNITS,
   SPECIALTIES,
-  specialtyById,
-  specialUnitById,
-} from './content.js'
+  } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
 import type { ServiceSpecialty } from './content.js'
@@ -61,8 +59,9 @@ import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, Stream, type StreamId } from './rng.js'
-import type { CausalFactor, Person, ServiceBranchSpec, World } from './types.js'
+import type { CausalFactor, Person, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
+import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 
 const ENLIST_MIN_AGE = 18
 /** M-ARMY2 (owner): the office takes volunteers to thirty-eight. */
@@ -137,35 +136,10 @@ export function isVeteran(world: World, personId: EntityId): boolean {
 export function servicePayOf(world: World, personId: EntityId): number {
   const record = world.service.get(personId)
   if (record === undefined || record.dischargedAtTick !== null) return 0
-  const unit = record.unitId === null ? undefined : specialUnitById(record.unitId)
+  const unit = record.unitId === null ? undefined : unitFor(world, record.unitId)
   return record.monthlyPay + (unit?.dutyPay ?? 0)
 }
 
-/**
- * The branch a record names, resolved against the WORLD's preset (W1
- * resistance 3). Never undefined: a record naming a branch this preset does
- * not have falls back to the first service rather than crashing a load, the
- * same doctrine as specById. Records outlive content.
- */
-export function branchSpecFor(world: World, branchId: string): ServiceBranchSpec {
-  const found = world.spec.branches.find((b) => b.id === branchId)
-  if (found) return found
-  // NOT another service's ladder. The review caught what substitution does:
-  // a rank is an INDEX, so serving branches[0] re-reads every rank against
-  // the wrong ladder — grades[rank] falls off the end, `?? 9` makes an E-9,
-  // and a twenty-year career ceiling silently becomes thirty. That is a
-  // different life, not a mislabel. An honest blank instead: the id is its
-  // own name, no grade is invented, and both the promotion ladder and the
-  // board freeze, so the career stops rather than being re-dated.
-  return {
-    id: branchId,
-    name: branchId,
-    ranks: [],
-    grades: [],
-    competitiveFrom: Number.MAX_SAFE_INTEGER,
-    juniorTigMonths: [],
-  }
-}
 
 /** What a branch is called: "the Land Forces". */
 export function branchName(world: World, branchId: string): string {
@@ -352,7 +326,7 @@ function rosterFrom(
       name: `${person.givenName} ${person.familyName}`,
       rankTitle: rankTitle(world, other.branch, other.rank),
       rank: other.rank,
-      specialtyTitle: specialtyById(other.specialtyId).title,
+      specialtyTitle: specialtyFor(world, other.specialtyId).title,
       role: '',
       deployed: isDeployed(world, other.personId),
     })
@@ -402,7 +376,7 @@ export function schoolOptionsFor(
 ): readonly { id: string; title: string; badge: string; open: boolean; reason: string }[] {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return []
-  const specialty = specialtyById(record.specialtyId)
+  const specialty = specialtyFor(world, record.specialtyId)
   const badges = badgesOf(world, personId)
   return SERVICE_SCHOOLS.map((school) => {
     let reason = ''
@@ -428,7 +402,7 @@ export function unitOptionsFor(
 ): readonly { id: string; name: string; tier: number; open: boolean; reason: string }[] {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return []
-  const specialty = specialtyById(record.specialtyId)
+  const specialty = specialtyFor(world, record.specialtyId)
   const badges = badgesOf(world, personId)
   return SPECIAL_UNITS.map((unit) => {
     let reason = ''
@@ -440,7 +414,7 @@ export function unitOptionsFor(
     } else if (!unit.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not feed this unit.`
     } else if (unit.feederUnitId !== null && record.unitId !== unit.feederUnitId) {
-      reason = `Selection draws from ${specialUnitById(unit.feederUnitId)?.name ?? 'the feeder unit'}.`
+      reason = `Selection draws from ${unitFor(world, unit.feederUnitId)?.name ?? 'the feeder unit'}.`
     } else if (record.rank < unit.minRank) {
       reason = `Looks at ${rankTitle(world, record.branch, unit.minRank)} and above.`
     } else if (unit.requiredBadges.some((b) => !badges.includes(b))) {
@@ -501,7 +475,7 @@ export function boardStandingFor(
 } | null {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
-  const specialty = specialtyById(record.specialtyId)
+  const specialty = specialtyFor(world, record.specialtyId)
   const gates = competitiveGates(world, specialty, record.rank)
   if (!gates) return null
   const targetTitle = rankTitle(world, record.branch, gates.targetRank)
@@ -631,7 +605,7 @@ export function veteranUnlocks(world: World, personId: EntityId): readonly strin
   if (!record || record.dischargedAtTick === null) return []
   const unlocks: string[] = []
   for (const specialtyId of [...record.priorSpecialtyIds, record.specialtyId]) {
-    for (const occupation of specialtyById(specialtyId).civilianUnlocks) {
+    for (const occupation of specialtyFor(world, specialtyId).civilianUnlocks) {
       if (!unlocks.includes(occupation)) unlocks.push(occupation)
     }
   }
@@ -979,7 +953,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   const pull = person.traits.diligence - record.performance
   let performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
 
-  const specialty = specialtyById(record.specialtyId)
+  const specialty = specialtyFor(world, record.specialtyId)
   const branch = specialty.branch
   const ladder = branchSpecFor(world, branch).ranks
   const monthsIn = tick - record.enlistedAtTick
@@ -1547,14 +1521,14 @@ export function retrainSpecialty(
 ): void {
   const record = activeRecord(world, person.id)
   if (!record || record.specialtyId === specialtyId) return
-  const previous = specialtyById(record.specialtyId)
+  const previous = specialtyFor(world, record.specialtyId)
   world.service.set(person.id, {
     ...record,
     specialtyId,
     priorSpecialtyIds: [...record.priorSpecialtyIds, record.specialtyId],
     specialtyChangedAtTick: tick,
   })
-  const specialty = specialtyById(specialtyId)
+  const specialty = specialtyFor(world, specialtyId)
   recordEvent(world, tick, {
     type: 'began-training',
     subjectId: person.id,
@@ -1648,7 +1622,7 @@ export function discharge(
     decision: 'enlistment',
     significance: 'major',
     inputs: [...inputs],
-    chosen: `left ${branchName(world, specialtyById(record.specialtyId).branch)} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
+    chosen: `left ${branchName(world, specialtyFor(world, record.specialtyId).branch)} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
     rejected: ['to serve on'],
     streamId,
   })

@@ -25,7 +25,15 @@ export type { StreamId } from './rng.js'
 
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
-export { CLASSIC_SPEC, PRESETS, specById } from './worldspec.js'
+export {
+  branchSpecFor,
+  CLASSIC_SPEC,
+  PRESETS,
+  schoolFor,
+  specById,
+  specialtyFor,
+  unitFor,
+} from './worldspec.js'
 export { advanceTick, advanceTicks } from './tick.js'
 export {
   birthBar,
@@ -109,7 +117,6 @@ export {
   badgesOf,
   boardStandingFor,
   branchName,
-  branchSpecFor,
   disciplinaryFileOf,
   enlistmentBar,
   squadmatesOf,

@@ -112,6 +112,73 @@ export interface ServiceBranchSpec {
   readonly juniorTigMonths: readonly number[]
 }
 
+// ---------------------------------------------------------------------------
+// Service content (W1). Shapes here, DATA in content.ts and on the spec.
+// Branch ids are plain strings: the compile-time union is gone, so a preset
+// can name its own services without editing the engine's types.
+// ---------------------------------------------------------------------------
+
+export interface ExposureProfile {
+  readonly directCombat: number
+  readonly convoy: number
+  readonly baseAttack: number
+  readonly accident: number
+}
+
+export interface ServiceSpecialty {
+  readonly id: string
+  readonly title: string
+  readonly branch: string
+  readonly requires: EducationLevel
+  /** Months of occupational school after basic training (AIT-equivalent). */
+  readonly schoolMonths: number
+  /** The qualification this trade can earn, in words. L4-M5 reads these. */
+  readonly qualification: string
+  /**
+   * Offset on the board's points cutoff (M-SPECOPS): every trade promotes
+   * at its own speed, the way the real monthly cutoff lists work. Negative
+   * means the trade needs people and promotes faster.
+   */
+  readonly boardCutoffOffset: number
+  readonly exposure: ExposureProfile
+  /** Civilian occupations this specialty's training unlocks for veterans. */
+  readonly civilianUnlocks: readonly string[]
+}
+
+export interface ServiceSchool {
+  readonly id: string
+  readonly title: string
+  /** Branches admitted; empty = all. */
+  readonly branches: readonly string[]
+  /** Specialties admitted; empty = any. */
+  readonly specialtyIds: readonly string[]
+  readonly minRank: number
+  readonly minPerformance: number
+  /** The badge the course pins on — routed through the awards machinery. */
+  readonly badge: string
+  readonly performanceBoost: number
+}
+
+export interface SpecialUnit {
+  readonly id: string
+  /** Fictional name, authentic weight. */
+  readonly name: string
+  /** 1 = the elite battalion; 2 = the quiet tier above it. */
+  readonly tier: 1 | 2
+  readonly branches: readonly string[]
+  readonly minRank: number
+  readonly minPerformance: number
+  readonly requiredBadges: readonly string[]
+  /** Selection draws from this unit first, or null. */
+  readonly feederUnitId: string | null
+  /** chance(clamp(perf − minPerf + 60, 10, 400), THIS). Selection fails people. */
+  readonly selectionDenominator: number
+  /** Monthly special-duty pay on top of grade pay, cents. */
+  readonly dutyPay: number
+  /** Direct-combat exposure multiplier, per-mille. The sharp end, sharper. */
+  readonly exposureMultiplier: number
+}
+
 export interface WorldSpec {
   /** Stable id, recorded in the save header. Never rendered to the player. */
   readonly id: string
@@ -129,6 +196,19 @@ export interface WorldSpec {
   /** The services. Never empty — the engine falls back to the first entry
    *  when a record names a branch this preset does not have. */
   readonly branches: readonly ServiceBranchSpec[]
+  /**
+   * The trades. THE KEYSTONE of the branch extraction (W1 architecture
+   * review): every branch id that ever reaches a service record comes from
+   * `specialty.branch`, so until the trades are the preset's, `branches` is
+   * decorative — a preset physically cannot use its own branch ids.
+   */
+  readonly specialties: readonly ServiceSpecialty[]
+  /** Courses a soldier can be sent on. Shared fictional content in every
+   *  preset so far; here because their branch links are the preset's. */
+  readonly schools: readonly ServiceSchool[]
+  /** Named units are FICTIONAL in every preset (WORLD_MODES_PLAN.md); on
+   *  the spec for the same reason as schools. */
+  readonly units: readonly SpecialUnit[]
 }
 
 // ---------------------------------------------------------------------------

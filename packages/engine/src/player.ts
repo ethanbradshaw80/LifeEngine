@@ -64,15 +64,14 @@ import {
   veteranUnlocks,
   branchName,
 } from './service.js'
-import { MAX_FITNESS_POINTS, schoolById, specialUnitById } from './content.js'
+import { MAX_FITNESS_POINTS } from './content.js'
 import { placesOfKind } from './worldgen.js'
 import {
   meetsRequirement,
   SERVICE_TERM_MONTHS,
   servicePayOn,
   SPECIALTIES,
-  specialtyById,
-} from './content.js'
+  } from './content.js'
 import { rentFor } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
@@ -110,6 +109,7 @@ import {
   TRADE_YEARS,
 } from './systems.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
+import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
 /**
  * Begin playing a living person. Clears any stale pending decision.
@@ -356,17 +356,17 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
   if (world.player.pending !== null) return { attended: false, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { attended: false, reason: 'Not serving.' }
-  if (world.tick - record.enlistedAtTick <= 2 + specialtyById(record.specialtyId).schoolMonths) {
+  if (world.tick - record.enlistedAtTick <= 2 + specialtyFor(world, record.specialtyId).schoolMonths) {
     return { attended: false, reason: 'Finish the pipeline first.' }
   }
   // A retrain restarts the pipeline for the NEW trade (P2).
   if (
     record.specialtyChangedAtTick !== null &&
-    world.tick - record.specialtyChangedAtTick <= specialtyById(record.specialtyId).schoolMonths
+    world.tick - record.specialtyChangedAtTick <= specialtyFor(world, record.specialtyId).schoolMonths
   ) {
     return { attended: false, reason: 'Finish the pipeline first.' }
   }
-  const school = schoolById(schoolId)
+  const school = schoolFor(world, schoolId)
   if (!school) return { attended: false, reason: 'No such school.' }
   const option = schoolOptionsFor(world, person.id).find((o) => o.id === schoolId)
   if (!option) return { attended: false, reason: 'No such school.' }
@@ -421,7 +421,7 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
   if (world.player.pending !== null) return { joined: false, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { joined: false, reason: 'Not serving.' }
-  const unit = specialUnitById(unitId)
+  const unit = unitFor(world, unitId)
   if (!unit) return { joined: false, reason: 'No such unit.' }
   const option = unitOptionsFor(world, person.id).find((o) => o.id === unitId)
   if (!option) return { joined: false, reason: 'No such unit.' }
@@ -1350,7 +1350,7 @@ export function resolvePending(world: World, choice: string): void {
       if (choice === 'attend') {
         const record = world.service.get(person.id)
         if (record && record.dischargedAtTick === null) {
-          const specialty = specialtyById(record.specialtyId)
+          const specialty = specialtyFor(world, record.specialtyId)
           // One event, not a same-tick begin-and-end: a short course fits
           // inside the month, and the feed should not pretend otherwise.
           recordEvent(world, pending.tick, { type: 'completed-training', subjectId: person.id, detail: 'an advanced course' })
@@ -2242,7 +2242,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
         lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank)}, ${formatMoney(record.monthlyPay)} a month.`)
-        lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
+        lines.push(`Leaving keeps the record${specialtyFor(world, record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
       }
       break
     }
@@ -2316,7 +2316,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
 
     case 'retrain': {
       const record = world.service.get(pending.personId)
-      const current = record ? specialtyById(record.specialtyId) : undefined
+      const current = record ? specialtyFor(world, record.specialtyId) : undefined
       if (current) {
         lines.push(`Today you are ${withArticle(current.title)}.`)
       }

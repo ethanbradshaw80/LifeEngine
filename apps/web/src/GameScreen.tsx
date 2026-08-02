@@ -73,8 +73,8 @@ import {
   rankTitle,
   schoolOptionsFor,
   servicePayOf,
-  specialtyById,
-  specialUnitById,
+  specialtyFor,
+  unitFor,
   unitOptionsFor,
 } from '@life-engine/engine'
 import type { EducationLevel, EventType, Person, Relationship, World } from '@life-engine/engine'
@@ -444,7 +444,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <span className="stat-value">
-                    {rankTitle(world, record.branch, record.rank)} · {specialtyById(record.specialtyId).title}
+                    {rankTitle(world, record.branch, record.rank)} · {specialtyFor(world, record.specialtyId).title}
                   </span>
                   <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
@@ -1396,7 +1396,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dt>Rank</dt>
                   <dd>{rankTitle(world, record.branch, record.rank)}</dd>
                   <dt>Specialty</dt>
-                  <dd>{specialtyById(record.specialtyId).title}</dd>
+                  <dd>{specialtyFor(world, record.specialtyId).title}</dd>
                   {record.qualifications.length > 0 && (
                     <>
                       <dt>Qualifications</dt>
@@ -1443,7 +1443,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   {record.unitId !== null && (
                     <>
                       <dt>Unit</dt>
-                      <dd>{specialUnitById(record.unitId)?.name ?? record.unitId}</dd>
+                      <dd>{unitFor(world, record.unitId)?.name ?? record.unitId}</dd>
                     </>
                   )}
                   {record.dischargedAtTick === null && (

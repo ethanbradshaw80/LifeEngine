@@ -28,6 +28,9 @@ import {
   BASE_NAMES,
   CIVIC_NAMES,
   CLASSIC_BRANCHES,
+  SERVICE_SCHOOLS,
+  SPECIAL_UNITS,
+  SPECIALTIES,
   NATION_NAMES,
   NEIGHBOURHOOD_NAMES,
   SCHOOL_NAME,
@@ -42,7 +45,14 @@ import {
   MALE_GIVEN_NAMES,
   MALE_GIVEN_WEIGHTS,
 } from './names.js'
-import type { WorldSpec } from './types.js'
+import type { World } from './types.js'
+import type {
+  ServiceBranchSpec,
+  ServiceSchool,
+  ServiceSpecialty,
+  SpecialUnit,
+  WorldSpec,
+} from './types.js'
 
 /**
  * DETERMINISM.md §5 bans module-level MUTABLE state, and `readonly` is a
@@ -64,6 +74,9 @@ function freezeSpec(spec: WorldSpec): WorldSpec {
   Object.freeze(spec.foreignNations)
   for (const branch of spec.branches) Object.freeze(branch)
   Object.freeze(spec.branches)
+  Object.freeze(spec.specialties)
+  Object.freeze(spec.schools)
+  Object.freeze(spec.units)
   return Object.freeze(spec)
 }
 
@@ -83,6 +96,9 @@ export const CLASSIC_SPEC: WorldSpec = freezeSpec({
   },
   foreignNations: NATION_NAMES,
   branches: CLASSIC_BRANCHES,
+  specialties: SPECIALTIES,
+  schools: SERVICE_SCHOOLS,
+  units: SPECIAL_UNITS,
 })
 
 /**
@@ -102,4 +118,65 @@ export const PRESETS: readonly WorldSpec[] = [CLASSIC_SPEC]
 export function specById(id: string | null | undefined): WorldSpec {
   if (id === null || id === undefined) return CLASSIC_SPEC
   return PRESETS.find((preset) => preset.id === id) ?? CLASSIC_SPEC
+}
+
+// ---------------------------------------------------------------------------
+// Resolving a record's content ids against the world's preset
+//
+// EVERY one of these is TOTAL — none throws, none returns undefined. Records
+// outlive content: a save can hold an id from a preset this build does not
+// have, and refusing to load, or throwing inside the tick, is worse than
+// serving an honest blank. This is the same doctrine as specById, and the
+// W1 review's third must-fix is why the blank is a BLANK rather than a
+// substitution: a stand-in from another branch re-reads rank INDEXES against
+// the wrong ladder and rewrites a career.
+//
+// (WORLD_MODES_PLAN.md resistance 2: occupationById and specialtyById used to
+// throw on exactly these ids.)
+// ---------------------------------------------------------------------------
+
+export function branchSpecFor(world: World, branchId: string): ServiceBranchSpec {
+  const found = world.spec.branches.find((b) => b.id === branchId)
+  if (found) return found
+  // No ladder at all: no rank is invented, the board is unreachable, and the
+  // career freezes where it stands instead of being re-dated.
+  return {
+    id: branchId,
+    name: branchId,
+    ranks: [],
+    grades: [],
+    competitiveFrom: Number.MAX_SAFE_INTEGER,
+    juniorTigMonths: [],
+  }
+}
+
+export function specialtyFor(world: World, specialtyId: string): ServiceSpecialty {
+  const found = world.spec.specialties.find((sp) => sp.id === specialtyId)
+  if (found) return found
+  // A trade nobody here can name: it keeps its id as its title so the record
+  // still reads, and it does nothing — no school, no unlocks, and no exposure
+  // to invent danger the preset never described.
+  return {
+    id: specialtyId,
+    title: specialtyId,
+    branch: '',
+    requires: 'none',
+    schoolMonths: 0,
+    qualification: '',
+    boardCutoffOffset: 0,
+    exposure: { directCombat: 0, convoy: 0, baseAttack: 0, accident: 0 },
+    civilianUnlocks: [],
+  }
+}
+
+/** Null, not a blank: a school id that resolves to nothing is a course that
+ *  cannot be attended, and every caller already handles "no such course". */
+export function schoolFor(world: World, schoolId: string): ServiceSchool | null {
+  return world.spec.schools.find((school) => school.id === schoolId) ?? null
+}
+
+/** Null for the same reason as schoolFor — and `unitId` is already nullable
+ *  on the record, so "no unit I can name" reads exactly like "no unit". */
+export function unitFor(world: World, unitId: string): SpecialUnit | null {
+  return world.spec.units.find((unit) => unit.id === unitId) ?? null
 }

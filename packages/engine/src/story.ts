@@ -19,7 +19,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { occupationById, offenceById, specialtyById, specialUnitById } from './content.js'
+import { occupationById, offenceById } from './content.js'
 import { branchName, rankTitle } from './service.js'
 import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
@@ -27,6 +27,7 @@ import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
+import { specialtyFor, unitFor } from './worldspec.js'
 
 export function fullName(person: Person): string {
   return `${person.givenName} ${person.familyName}`
@@ -64,9 +65,9 @@ function objectPronoun(person: Person): string {
  * naming the unit and the rank they always named; nothing is migrated and
  * nothing is lost.
  */
-function unitWordsFor(detail: string | null): string {
+function unitWordsFor(world: World, detail: string | null): string {
   if (detail === null) return 'a special unit'
-  return specialUnitById(detail)?.name ?? detail
+  return unitFor(world, detail)?.name ?? detail
 }
 
 function rankWordsFor(world: World, event: WorldEvent): string {
@@ -265,9 +266,9 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'passed-over':
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
     case 'joined-unit':
-      return `${year} — Selected for ${unitWordsFor(event.detail)}.`
+      return `${year} — Selected for ${unitWordsFor(world, event.detail)}.`
     case 'dropped-selection':
-      return `${year} — Went to ${unitWordsFor(event.detail)} selection; came back without it.`
+      return `${year} — Went to ${unitWordsFor(world, event.detail)} selection; came back without it.`
     case 'fitness-tested':
       return `${year} — Scored ${event.detail ?? 'the standard'} on the fitness test.`
     case 'turned-down':
@@ -605,7 +606,7 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
     case 'enlisted': {
       const record = world.service.get(event.subjectId)
       if (!record) return null
-      return `Signed on at ${String(at(event.tick))} as ${withArticle(specialtyById(record.specialtyId).title)}, ${branchName(world, record.branch)}.`
+      return `Signed on at ${String(at(event.tick))} as ${withArticle(specialtyFor(world, record.specialtyId).title)}, ${branchName(world, record.branch)}.`
     }
 
     case 'discharged': {
@@ -837,7 +838,7 @@ export function personSummary(world: World, personId: EntityId): string {
   // trade, the way the person would answer the question.
   const service = world.service.get(personId)
   if (service && service.dischargedAtTick === null) {
-    const trade = specialtyById(service.specialtyId).title
+    const trade = specialtyFor(world, service.specialtyId).title
     return `${fullName(person)}, ${age}, ${rankTitle(world, service.branch, service.rank)} — ${trade}${married}`
   }
   if (occupation) return `${fullName(person)}, ${age}, ${occupation}${married}`
