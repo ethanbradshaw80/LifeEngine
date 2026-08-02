@@ -409,6 +409,43 @@ const RACK_ORDER: readonly string[] = [
   'long-service',
 ]
 
+/**
+ * A ribbon nobody else wears.
+ *
+ * THE OWNER: "no ribbons should ever be the same colour, they need to be
+ * unique to that battle." A campaign ribbon is now one per conflict, so its
+ * colours are derived from the campaign's own name — deterministic, so the
+ * Belarus ribbon looks the same every time it is drawn and in every save,
+ * and different from every other war's.
+ *
+ * Real ribbon designs are insignia and stay out of this (charter §3). These
+ * are generated, and the point of generating them is that the rack reads as
+ * a history: three campaigns are three different bars, not one bar worn
+ * three times.
+ */
+function campaignRibbon(title: string): string {
+  let hash = 2166136261
+  for (let i = 0; i < title.length; i++) {
+    hash ^= title.charCodeAt(i)
+    hash = Math.imul(hash, 16777619) >>> 0
+  }
+  const hue = hash % 360
+  const second = (hue + 40 + (hash % 90)) % 360
+  const light = `hsl(${String(hue)} 45% 42%)`
+  const dark = `hsl(${String(second)} 40% 26%)`
+  const centre = `hsl(${String((hue + 180) % 360)} 35% 60%)`
+  // A stripe pattern that also varies, so two campaigns with close hues
+  // still read apart at a glance.
+  return hash % 2 === 0
+    ? `linear-gradient(90deg,${dark} 0 22%,${centre} 22% 34%,${light} 34% 66%,${centre} 66% 78%,${dark} 78%)`
+    : `linear-gradient(90deg,${light} 0 30%,${dark} 30% 50%,${centre} 50% 70%,${dark} 70%)`
+}
+
+function ribbonFor(kind: string, title: string): string {
+  if (kind === 'campaign') return campaignRibbon(title)
+  return RIBBON_LOOK[kind]?.css ?? 'linear-gradient(90deg,#555 0 100%)'
+}
+
 function RibbonRack({ world, personId }: { readonly world: World; readonly personId: EntityId }) {
   const decorations = [...decorationsOf(world, personId)]
     // A COMBAT BADGE IS A BADGE. The Combat Infantryman Badge is not a
@@ -430,7 +467,7 @@ function RibbonRack({ world, personId }: { readonly world: World; readonly perso
           <li
             key={`${award.kind}:${award.title}`}
             title={`${award.title}${award.count > 1 ? ` (×${String(award.count)})` : ''} — ${award.citation}`}
-            style={{ background: RIBBON_LOOK[award.kind]?.css ?? 'linear-gradient(90deg,#555 0 100%)' }}
+            style={{ background: ribbonFor(award.kind, award.title) }}
           >
             {award.count > 1 && <span className="count">×{award.count}</span>}
           </li>
@@ -441,7 +478,7 @@ function RibbonRack({ world, personId }: { readonly world: World; readonly perso
           <li key={`legend:${award.kind}:${award.title}`}>
             <span
               className="swatch"
-              style={{ background: RIBBON_LOOK[award.kind]?.css ?? 'linear-gradient(90deg,#555 0 100%)' }}
+              style={{ background: ribbonFor(award.kind, award.title) }}
             />
             {award.title}
             {award.count > 1 && ` ×${award.count}`}

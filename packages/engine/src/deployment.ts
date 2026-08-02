@@ -1065,7 +1065,6 @@ function resolveCaptivityMonth(
         if (captor !== undefined) {
           grantCampaignMedal(
             world, tick, person.id, died, captor.name, tick - deployment.startedAtTick, true,
-            tourTally(world, person.id, 'enemy'),
           )
         }
         break
@@ -1133,7 +1132,6 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         if (enemyName !== undefined) {
           grantCampaignMedal(
             world, tick, personId, died, enemyName, tick - deployment.startedAtTick, true,
-            tourTally(world, personId, 'enemy'),
           )
         }
         break
@@ -1384,7 +1382,6 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         grantCampaignMedal(
           world, tick, personId, died, enemy.name,
           tick - deployment.startedAtTick, true,
-          tourTally(world, personId, 'enemy'),
         )
         break
       }
@@ -1679,7 +1676,6 @@ export function closeTour(
       : grantCampaignMedal(
           world, tick, personId, homecoming, enemyName,
           tick - deployment.startedAtTick, medical,
-          tourTally(world, personId, 'enemy'),
         )
 
   // ONE AWARD PER DEPLOYMENT MEANS ONE, NOT ZERO. A combat tour too short

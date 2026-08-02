@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v60 — ONE RIBBON PER CONFLICT, and the Bronze Star goes back to being a
+ *      combat award (owner, playing). The campaign medal names its own war
+ *      instead of tallying them all onto one ribbon, and the merit tier of
+ *      the Bronze Star — which arrived at REENLISTMENT on a term average —
+ *      is retired. Fewer and different decorations than v59, which moves
+ *      the boards that count them.
  * v59 — HISTORY IS COMPRESSED (Law 6, and the owner's lag). Nothing ever
  *      compressed anything: the ledger grew forever, and handing it to the
  *      interface costs more than simulating the month does. MEASURED at
@@ -389,7 +395,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 59
+export const SIMULATION_VERSION = 60
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

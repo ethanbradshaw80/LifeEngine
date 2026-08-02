@@ -26,7 +26,6 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import {
   grantAchievement,
-  grantCombatMerit,
   grantCommendation,
   grantGoodConduct,
   grantLongService,
@@ -49,7 +48,6 @@ import {
   POINTS_PER_BADGE,
   POINTS_PER_ACHIEVEMENT,
   POINTS_PER_CAMPAIGN,
-  POINTS_PER_COMBAT_MERIT,
   POINTS_PER_COMMENDATION,
   POINTS_PER_NATIONAL_DEFENSE,
   POINTS_PER_NCO_DEVELOPMENT,
@@ -226,7 +224,6 @@ export function promotionPointsFor(world: World, personId: EntityId): PromotionP
     if (award.kind === 'valor') return sum + award.count * POINTS_PER_VALOR
     if (award.kind === 'meritorious-service') return sum + award.count * POINTS_PER_MERITORIOUS
     if (award.kind === 'long-service') return sum + award.count * POINTS_PER_LONG_SERVICE
-    if (award.kind === 'combat-merit') return sum + award.count * POINTS_PER_COMBAT_MERIT
     if (award.kind === 'commendation') return sum + award.count * POINTS_PER_COMMENDATION
     if (award.kind === 'achievement') return sum + award.count * POINTS_PER_ACHIEVEMENT
     if (award.kind === 'nco-development') return sum + award.count * POINTS_PER_NCO_DEVELOPMENT
@@ -1683,11 +1680,12 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
   grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
-  // The two the awards pack added at this door: a commendable term
-  // below the meritorious bar, and the merit Bronze Star for a
-  // distinguished one served in a combat zone.
+  // A commendable term, below the meritorious bar. The merit Bronze Star
+  // used to be granted here too and is retired (owner): a Bronze Star means
+  // somebody did something under fire, and it was arriving for signing on
+  // again. A distinguished term has the Meritorious Service Medal, which is
+  // what that medal is for.
   grantCommendation(world, tick, person.id, reenlisted, termAverage)
-  grantCombatMerit(world, tick, person.id, reenlisted, termAverage)
   grantLongService(world, tick, person.id, reenlisted, Math.floor((tick - record.enlistedAtTick) / 12))
 }
 
@@ -1884,11 +1882,10 @@ export function discharge(
   // is refused by the grant itself, which reads the reason off the event.
   grantGoodConduct(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
   grantMeritoriousService(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
-  // The two the awards pack added at this door: a commendable term
-  // below the meritorious bar, and the merit Bronze Star for a
-  // distinguished one served in a combat zone.
+  // A commendable term, below the meritorious bar. The merit Bronze Star
+  // was granted here too and is retired (owner) — see the reenlistment
+  // door for why.
   grantCommendation(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
-  grantCombatMerit(world, tick, person.id, dischargedEvent, termAveragePerformance(record))
   grantLongService(world, tick, person.id, dischargedEvent, Math.floor((tick - record.enlistedAtTick) / 12))
 
   // If the service already left recognized harm on the body, the pension

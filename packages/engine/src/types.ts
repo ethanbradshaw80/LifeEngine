@@ -638,8 +638,6 @@ export type AwardKind =
   | 'good-conduct'
   /** An occupational rating, earned and recorded during service. */
   | 'qualification-badge'
-  /** Meritorious service in a combat zone — the merit Bronze Star. */
-  | 'combat-merit'
   /** A commendable term, below the meritorious bar. */
   | 'commendation'
   /** A single strong achievement rather than a whole term. */

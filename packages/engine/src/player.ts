@@ -39,7 +39,7 @@ import {
   volunteerForSupport,
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
-import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation, tourTally } from './deployment.js'
+import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
@@ -1191,7 +1191,6 @@ function resolveMomentCasualty(
       grantWoundRecognition(world, tick, person.id, died, enemyName)
       grantCampaignMedal(
         world, tick, person.id, died, enemyName, monthsIn, true,
-        tourTally(world, person.id, 'enemy'),
       )
       break
     }

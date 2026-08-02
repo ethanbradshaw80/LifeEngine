@@ -76,7 +76,6 @@ export const COMBAT_ACTION_BADGE = 'the Combat Action Badge'
 export const COMBAT_ACTION_TITLE = COMBAT_ACTION_BADGE
 
 /** The new ribbons, all earned from events the engine already records. */
-export const COMBAT_MERIT_TITLE = 'the Bronze Star'
 export const COMMENDATION_TITLE = 'the Army Commendation Medal'
 export const ACHIEVEMENT_TITLE = 'the Army Achievement Medal'
 export const NATIONAL_DEFENSE_TITLE = 'the National Defense Service Medal'
@@ -312,8 +311,6 @@ export function grantCampaignMedal(
   enemyName: string,
   monthsInTheatre: number,
   casualty: boolean,
-  /** Every campaign so far, tallied: "Venezuela ×2, Chile ×1". */
-  campaigns?: string,
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (
@@ -338,15 +335,17 @@ export function grantCampaignMedal(
   // world's invented war rather than the name of a real medal.
   return grant(world, tick, personId, {
     kind: 'campaign',
-    title: EXPEDITIONARY_MEDAL,
+    // ONE RIBBON PER CONFLICT (owner, 2026-08-02). A second tour in the SAME
+    // war adds a device to the same ribbon; a different war is a different
+    // ribbon, because it was a different war.
+    //
+    // The base name stays generic and the campaign is named inside it. "the
+    // Afghanistan Campaign Medal" is the verbatim name of a real decoration
+    // and ADR-0024 forbids a generated war minting one; this says which war
+    // without claiming to be a real award.
+    title: `${EXPEDITIONARY_MEDAL} (${bareName(enemyName)})`,
     qualifying,
-    // ONE MEDAL, A DEVICE AND A LINE PER CAMPAIGN. Two tours against two
-    // countries is this medal worn twice, and the citation is where the
-    // campaigns are named.
-    citation:
-      campaigns === undefined || campaigns === ''
-        ? `service in the campaign against ${enemyName}`
-        : `service in the campaigns against ${campaigns}`,
+    citation: `service in the campaign against ${bareName(enemyName)}`,
     inputs: [factor('campaign-service', Math.min(1000, monthsInTheatre * 100))],
   })
 }
@@ -522,35 +521,6 @@ export function grantCommendation(
   })
 }
 
-/**
- * The merit Bronze Star: a distinguished term SERVED IN A COMBAT ZONE. The
- * combat tour is what separates it from the Meritorious Service Medal, and
- * it is read off the person's own deployments rather than asserted.
- */
-export function grantCombatMerit(
-  world: World,
-  tick: Tick,
-  personId: EntityId,
-  qualifying: WorldEvent,
-  termAveragePerformance: number,
-): AwardRecord | null {
-  if (qualifying.subjectId !== personId) return null
-  if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
-  if (qualifying.type === 'discharged' && !HONOURABLE_TERM_ENDINGS.has(qualifying.detail ?? '')) {
-    return null
-  }
-  if (termAveragePerformance < MERITORIOUS_PERFORMANCE) return null
-  const combatTour = (world.deployments.get(personId) ?? []).some((tour) => tour.kind !== 'rotation')
-  if (!combatTour) return null
-
-  return grant(world, tick, personId, {
-    kind: 'combat-merit',
-    title: COMBAT_MERIT_TITLE,
-    qualifying,
-    citation: 'for meritorious service in a combat zone',
-    inputs: [factor('strong-performance', termAveragePerformance), factor('campaign-service', 700)],
-  })
-}
 
 /**
  * A single strong achievement rather than a whole term: finishing a course

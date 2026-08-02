@@ -70,6 +70,17 @@ function objectPronoun(person: Person): string {
  * What a unit moment's "moment-id:answer" detail says in words. The catalogue
  * owns the phrasing; this only picks the one that was answered.
  */
+/**
+ * The citation behind an 'awarded' event, or null if the decoration is no
+ * longer on the record. Matched on the title the event already carries, so
+ * one person's three medals in a month each read their own words.
+ */
+function citationFor(world: World, event: WorldEvent): string | null {
+  if (event.detail === null) return null
+  const award = (world.awards.get(event.subjectId) ?? []).find((a) => a.title === event.detail)
+  return award?.citation ?? null
+}
+
 function unitMomentWordsFor(detail: string | null): string {
   const said = (words: string): string => words.charAt(0).toUpperCase() + words.slice(1)
   if (detail === null) return said('answered the unit')
@@ -277,8 +288,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a new rating'}.`
     case 'changed-post':
       return `${year} — Posted to ${event.detail ?? 'a new station'}.`
-    case 'awarded':
-      return `${year} — Awarded ${event.detail ?? 'a decoration'}.`
+    case 'awarded': {
+      // WHAT IT WAS FOR, not just what it was. The citation is written at
+      // the moment of the grant and says what the person did; reading it
+      // back here is the difference between "Awarded the Bronze Star" and
+      // knowing why it turned up months after a homecoming.
+      const citation = citationFor(world, event)
+      return citation === null
+        ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
+        : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
+    }
     case 'passed-over':
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
     case 'unit-moment':

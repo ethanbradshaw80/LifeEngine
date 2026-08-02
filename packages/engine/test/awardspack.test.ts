@@ -19,7 +19,6 @@ import {
   COMBAT_ACTION_BADGE,
   COMBAT_INFANTRY_BADGE,
   COMBAT_MEDICAL_BADGE,
-  COMBAT_MERIT_TITLE,
   COMMENDATION_TITLE,
   EXPEDITIONARY_MEDAL,
   GOOD_CONDUCT_TITLE,
@@ -35,7 +34,6 @@ import {
   WOUND_RECOGNITION_TITLE,
   grantAchievement,
   grantCombatAction,
-  grantCombatMerit,
   grantCommendation,
   grantNationalDefense,
   grantNcoDevelopment,
@@ -56,7 +54,6 @@ const EVERY_KIND: readonly AwardKind[] = [
   'campaign',
   'good-conduct',
   'qualification-badge',
-  'combat-merit',
   'commendation',
   'achievement',
   'national-defense',
@@ -161,7 +158,6 @@ describe('no award exists that cannot be earned', () => {
     expect(grantAchievement(world, world.tick, personId as never, wrong, 900)).toBeNull()
     expect(grantOverseas(world, world.tick, personId as never, wrong, '')).toBeNull()
     expect(grantCommendation(world, world.tick, personId as never, wrong, 600)).toBeNull()
-    expect(grantCombatMerit(world, world.tick, personId as never, wrong, 900)).toBeNull()
 
     // Somebody else's event is not yours, either.
     const other = [...world.people.values()].find((p) => p.id !== personId)
@@ -234,7 +230,11 @@ describe('no award exists that cannot be earned', () => {
     expect(grantCommendation(world, world.tick, personId as never, discharged, 900)).toBeNull()
   })
 
-  it('gives the merit Bronze Star only to a term with a combat tour behind it', () => {
+  it('no longer hands out a Bronze Star for a good term', () => {
+    // THE OWNER, PLAYING: "I should not be getting these awards for
+    // reenlisting — a bronze star is a combat award." The merit tier is
+    // retired; the Bronze Star survives only as the valour tier, which an
+    // act of valour earns and nothing else does.
     const world = createWorld(makeSeed(12345), 40, HEARTLAND_SPEC)
     const personId = aSoldier(world)
     const discharged = recordEvent(world, world.tick, {
@@ -242,10 +242,6 @@ describe('no award exists that cannot be earned', () => {
       subjectId: personId as never,
       detail: 'end of term',
     })
-
-    // No deployments: no combat zone, no Bronze Star, however good the term.
-    expect(grantCombatMerit(world, world.tick, personId as never, discharged, 950)).toBeNull()
-
     world.deployments.set(personId as never, [
       {
         personId: personId as never,
@@ -261,9 +257,12 @@ describe('no award exists that cannot be earned', () => {
         capturedAtTick: null,
       },
     ])
-    expect(grantCombatMerit(world, world.tick, personId as never, discharged, 950)?.title).toBe(
-      COMBAT_MERIT_TITLE,
-    )
+
+    // A perfect term with a combat tour behind it: the term awards land,
+    // and no Bronze Star among them.
+    grantCommendation(world, world.tick, personId as never, discharged, 600)
+    const titles = decorationsOf(world, personId as never).map((a) => a.title)
+    expect(titles.some((t) => t.includes('Bronze Star'))).toBe(false)
   })
 })
 
