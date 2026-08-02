@@ -397,7 +397,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = 'df95489f'
+const HEARTLAND_GOLDEN = '1bb337ad'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

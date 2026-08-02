@@ -37,6 +37,7 @@ function anAirman(world: World, specialtyId: string): EntityId {
     dischargeReason: null,
     termPerformanceSum: 4_200,
     unitId: null,
+    unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
     fitnessScore: 200,

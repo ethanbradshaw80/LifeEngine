@@ -559,6 +559,17 @@ export interface ServiceRecord {
    */
   readonly unitId: string | null
   /**
+   * When they joined it. Months in the UNIT is not months enlisted — eight
+   * years in a line unit does not make somebody the old hand of a team they
+   * joined last month, and the senior parachutist's clock counts time on a
+   * jump status rather than time in uniform.
+   *
+   * Null means UNKNOWN, not zero: a record migrated from a save written
+   * before this field existed does not know, and the clock starts where the
+   * knowledge starts rather than at a date we would be inventing.
+   */
+  readonly unitSinceTick: Tick | null
+  /**
    * Latest fitness test score, 0-300 promotion points (M-SPECOPS). The body
    * is one of the roads to the board; it ages, and the test says so.
    */

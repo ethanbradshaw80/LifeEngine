@@ -29,6 +29,10 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v26 — A service record carries `unitSinceTick`: when they joined their
+ *      unit, which is not when they enlisted. Migrated records get null,
+ *      meaning UNKNOWN — the clock starts at the first month after the load
+ *      rather than at a date nobody wrote down.
  * v25 — Capture (ADR-0025). A deployment carries `capturedAtTick`. Migrated
  *      tours are set free — nobody in an old save was ever taken, because
  *      no build before this one could take them.
@@ -95,7 +99,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 25
+export const SCHEMA_VERSION = 26
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

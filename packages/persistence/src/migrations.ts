@@ -749,7 +749,30 @@ const V24_TO_V25: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25]
+const V25_TO_V26: Migration = {
+  from: 25,
+  to: 26,
+  describe: 'record when a soldier joined their unit, where it is known',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    // NULL MEANS UNKNOWN, and that is the honest value. An old save never
+    // recorded the date; enlistedAtTick would be a guess that reads as a
+    // fact, and it would hand a senior parachutist's badge to somebody on
+    // the strength of it.
+    const service = (Array.isArray(world['service']) ? world['service'] : []).map((entry) => ({
+      ...requireObject(entry, 'save.world.service[]'),
+      unitSinceTick: null,
+    }))
+    const nextWorld: Record<string, unknown> = { ...world, service }
+    return {
+      header: { ...header, schemaVersion: 26, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

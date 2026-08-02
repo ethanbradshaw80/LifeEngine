@@ -28,6 +28,10 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v50 — SENIOR PARACHUTIST, and the record that makes it possible: a
+ *      service record now knows when its soldier joined their unit, and
+ *      three years on a jump status earns the badge from the monthly pass.
+ *      The extra grants shift seeds wherever anybody wore the tab.
  * v49 — AVIATION (ADR-0026). Two flying trades, a flight school, and the
  *      Nighthawk Squadron. New trades change who takes which job at
  *      enlistment and which civilian career follows, so every seed's
@@ -325,7 +329,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 49
+export const SIMULATION_VERSION = 50
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

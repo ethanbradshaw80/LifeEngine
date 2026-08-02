@@ -48,6 +48,7 @@ function aDeployedSoldier(world: World): EntityId {
     dischargeReason: null,
     termPerformanceSum: 3_600,
     unitId: null,
+    unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
     fitnessScore: 200,

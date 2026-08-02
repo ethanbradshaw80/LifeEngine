@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { BadgeMark } from './BadgeMark.js'
 import {
   activeWars,
   ageAt,
@@ -1838,7 +1839,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <h3>Badges</h3>
                           <ul className="badge-chips">
                             {badges.map((badge) => (
-                              <li key={badge}>{badge}</li>
+                              <li key={badge} title={badge}>
+                                <BadgeMark badge={badge} />
+                                <span>{badge}</span>
+                              </li>
                             ))}
                           </ul>
                         </>

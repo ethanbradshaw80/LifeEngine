@@ -44,6 +44,7 @@ function aPlayedSoldier(world: World, performance = 700): Person {
     dischargeReason: null,
     termPerformanceSum: performance * 6,
     unitId: null,
+    unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
     fitnessScore: 200,

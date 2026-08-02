@@ -808,6 +808,7 @@ export function enlistPerson(
     personId: person.id,
     branch: specialty.branch,
     specialtyId: specialty.id,
+    unitSinceTick: null,
     rank: 0,
     rankSinceTick: tick,
     qualifications: [],
@@ -1387,6 +1388,33 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         options: ['attend', 'pass'],
       })
     }
+    // --- SENIOR PARACHUTIST (awards pack §7). ---------------------------
+    // Not a course — a clock. Three years carrying a parachutist rating on
+    // a jump status is what the badge recognises, so it is granted by the
+    // monthly pass rather than by a schoolhouse. (Master Parachutist is the
+    // Jumpmaster Course's badge and stays a school's to give.)
+    if (unitId !== null && record.unitSinceTick !== null) {
+      const unit = unitFor(world, unitId)
+      const onJumpStatus =
+        unit !== null &&
+        unit !== undefined &&
+        unit.requiredBadges.some((badge) => badge === 'parachutist' || badge === 'military freefall')
+      const held = badgesOf(world, person.id)
+      if (
+        onJumpStatus &&
+        held.includes('parachutist') &&
+        !held.includes('senior parachutist') &&
+        tick - record.unitSinceTick >= 36
+      ) {
+        const earned = recordEvent(world, tick, {
+          type: 'earned-qualification',
+          subjectId: person.id,
+          detail: 'senior parachutist',
+        })
+        grantQualificationBadge(world, tick, person.id, earned, 'senior parachutist')
+      }
+    }
+
     // --- UNIT MOMENTS (owner's combat plan §4a). ------------------------
     // Commitment and aftermath, not contact. Each plays ONCE, and the log
     // is what remembers: a cutscene the player has already been through is
@@ -1431,7 +1459,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           raiseMoment('packet-drop', open.id)
         }
       } else {
-        const monthsInUnit = joinedAt < 0 ? -1 : tick - joinedAt
+        const monthsInUnit = record.unitSinceTick === null ? tick - joinedAt : tick - record.unitSinceTick
         if (!played('reporting-in') && monthsInUnit >= 0 && monthsInUnit <= 3) {
           // First day in the team room — and it has to actually BE the first
           // day. Ungated, this told a six-year veteran (and every migrated
@@ -1478,12 +1506,19 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
+  // A record migrated from before the field existed does not know when its
+  // soldier joined the unit. It learns the date HERE, at the first month it
+  // is seen — the clock starts where the knowledge starts, rather than at a
+  // date nobody recorded.
+  const unitSinceTick = unitId === null ? null : (record.unitSinceTick ?? tick)
+
   const termMonthsLeft = record.termMonthsLeft - 1
 
   world.service.set(person.id, {
     ...record,
     rank,
     rankSinceTick,
+    unitSinceTick,
     qualifications,
     baseId,
     unitId,
@@ -1683,7 +1718,7 @@ export function boostServicePerformance(world: World, personId: EntityId, amount
 export function assignServiceUnit(world: World, personId: EntityId, unitId: string): void {
   const record = activeRecord(world, personId)
   if (!record) return
-  world.service.set(personId, { ...record, unitId })
+  world.service.set(personId, { ...record, unitId, unitSinceTick: world.tick })
 }
 
 /** Set the fitness score, clamped to the test's own scale. */

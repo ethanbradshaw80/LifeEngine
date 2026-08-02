@@ -85,6 +85,7 @@ function aSoldier(world: World, performance = 800): number {
     dischargeReason: null,
     termPerformanceSum: performance * 40,
     unitId: null,
+    unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
     fitnessScore: 200,
