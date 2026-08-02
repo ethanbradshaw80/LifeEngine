@@ -125,3 +125,27 @@ describe('engine purity (ADR-0003)', () => {
     },
   )
 })
+
+/**
+ * A source file must be TEXT.
+ *
+ * newsroom.ts carried two literal NUL bytes for months (in `?? '\0'`
+ * fallbacks). TypeScript compiled it happily, the tests passed, and the file
+ * ran correctly — but ripgrep classifies a file containing a NUL as BINARY
+ * and skips it silently, so every grep over this repo had a hole in it
+ * exactly the size of the newsroom. A review found it by cross-checking a
+ * file listing against a grep for `import` and noticing one file missing.
+ *
+ * The tests that matter read with node:fs and were never fooled. Everything
+ * else — audits, refactors, "grep for every call site" — was.
+ */
+describe('the source is text', () => {
+  const files = sourceFiles(SRC_DIR)
+  it.each(files.map((f) => [relative(ENGINE_ROOT, f), f] as const))(
+    '%s has no NUL bytes to hide it from grep',
+    (_label, file) => {
+      const bytes = readFileSync(file)
+      expect(bytes.includes(0), 'contains a NUL byte — greps will skip this file').toBe(false)
+    },
+  )
+})
