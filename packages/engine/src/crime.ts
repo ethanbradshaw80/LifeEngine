@@ -47,6 +47,7 @@ import { inflictWound } from './health.js'
 import { performDeath } from './systems.js'
 import { discharge as dischargeService, isServing } from './service.js'
 import { fullName } from './story.js'
+import { sentenceInWords } from './text.js'
 import type { CriminalRecord, Person, World, Conviction, GateStrength, Disposition } from './types.js'
 
 /** Sentences and gates. RECORD_GATE_YEARS lives in content.ts so
@@ -1369,24 +1370,6 @@ export function resolveCourt(
  * becomes public only at the courthouse. An unconvicted thief's name never
  * makes the paper — that asymmetry is the point.
  */
-/**
- * A sentence in words: "3 years, 2 months".
- *
- * The clock this world runs on is MONTHLY, so there are no days to report —
- * a sentence of "4 years, 2 months and 11 days" would be inventing a
- * precision the simulation does not have, the same way a day on the orders
- * sheet did. Years and months are what the court actually handed down.
- */
-export function sentenceInWords(months: number): string {
-  if (months <= 0) return 'no time'
-  const years = Math.floor(months / 12)
-  const rest = months % 12
-  const yearPart = years === 0 ? '' : years === 1 ? '1 year' : `${String(years)} years`
-  const monthPart = rest === 0 ? '' : rest === 1 ? '1 month' : `${String(rest)} months`
-  if (yearPart === '') return monthPart
-  if (monthPart === '') return yearPart
-  return `${yearPart}, ${monthPart}`
-}
 
 /**
  * C3 §6. The player answered the burglary.

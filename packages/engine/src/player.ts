@@ -24,7 +24,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
-import { bareName, sentenceCase, withArticle } from './text.js'
+import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
@@ -53,7 +53,6 @@ import {
   isJailed,
   pleaDealFor,
   resolveCourt,
-  sentenceInWords,
 } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import type { Offence } from './content.js'

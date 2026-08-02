@@ -30,17 +30,18 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
 import { describeAilment } from './wounds.js'
 import {
+  CRIME_OPENERS,
   DEATH_OPENERS,
   DEATH_QUOTES,
   HOUSE_GRIT,
   pickPhrase,
   WOUND_CLAUSES,
 } from './newsvoice.js'
-import { GRADE_TITLES, offenceById } from './content.js'
+import { GRADE_TITLES, isFelony, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
-import { bareName, sentenceCase } from './text.js'
+import { bareName, sentenceCase, sentenceInWords } from './text.js'
 import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
@@ -400,10 +401,25 @@ function crimeReport(world: World, item: NewsItem, person: Person, dateline: str
 
   const body: string[] = []
   if (conviction !== undefined) {
+    // WHAT THE COURT ACTUALLY DID. C3 gave the bench seven answers between a
+    // fine and a term, and this line still knew about two of them — it read
+    // "imposed a fine" for a man put on probation. And a sentence reads in
+    // years and months, not a count of months (owner).
+    const disposition = conviction.disposition ?? (conviction.sentenceMonths > 0 ? 'jail' : 'fine')
+    const did =
+      disposition === 'probation'
+        ? 'placed the defendant on probation'
+        : disposition === 'suspended'
+          ? 'imposed a suspended sentence'
+          : disposition === 'split'
+            ? `imposed ${sentenceInWords(conviction.sentenceMonths)} in custody with probation to follow`
+            : disposition === 'service'
+              ? 'imposed a fine and community service'
+              : conviction.sentenceMonths > 0
+                ? `imposed a sentence of ${sentenceInWords(conviction.sentenceMonths)}`
+                : 'imposed a fine'
     body.push(
-      conviction.sentenceMonths > 0
-        ? `The court imposed a sentence of ${String(conviction.sentenceMonths)} month${conviction.sentenceMonths === 1 ? '' : 's'}. The charge is graded ${offence === undefined ? 'under the criminal code' : GRADE_TITLES[offence.grade]}.`
-        : `The court imposed a fine. The charge is graded ${offence === undefined ? 'under the criminal code' : GRADE_TITLES[offence.grade]}.`,
+      `The court ${did}. The charge is graded ${offence === undefined ? 'under the criminal code' : GRADE_TITLES[offence.grade]}.`,
     )
   }
   body.push(
@@ -411,14 +427,35 @@ function crimeReport(world: World, item: NewsItem, person: Person, dateline: str
       ? `Court records show ${String(priors)} prior conviction${priors === 1 ? '' : 's'} against the defendant.`
       : 'Court records show no prior convictions against the defendant.',
   )
-  body.push(
-    'A conviction remains on the record permanently and is read by employers and the recruiting office for ten years.',
-  )
+  // THE GATE THIS CONVICTION ACTUALLY CARRIES (owner, reading the paper).
+  // This line predated C3 and said every conviction gates for ten years,
+  // which stopped being true when the gate was graded: a misdemeanor is
+  // read for three, a felony for ten and counted for twenty-five, and a
+  // violent felony is never not read. Printing the old rule was the paper
+  // stating a law the county no longer has.
+  if (offence !== undefined) {
+    const violentFelony = offence.violent === true && isFelony(offence.grade)
+    body.push(
+      offence.grade === 'capital' || violentFelony
+        ? 'A conviction of this kind is read by employers and the recruiting office for the rest of a life, and cannot be sealed.'
+        : isFelony(offence.grade)
+          ? 'A felony conviction bars hiring and enlistment for ten years, counts against an application for twenty-five, and never leaves the record.'
+          : 'A misdemeanor conviction bars hiring and enlistment for three years and counts against an application for eight. It never leaves the record.',
+    )
+  }
+
+  const grit = HOUSE_GRIT
+  const opener = pickPhrase(CRIME_OPENERS[grit], world.seed, person.id * 53, item.tick)
 
   return {
     headline: `${fullName(person)} convicted of ${charge}`,
     dateline,
-    lede: `${fullName(person)}, ${String(age)}, of ${world.town.name}, was convicted of ${charge} at the county courthouse in ${formatDate(world, item.tick)}.`,
+    lede: `${opener
+      .replace('{who}', fullName(person))
+      .replace('{age}', String(age))
+      .replace('{town}', world.town.name)
+      .replace('{charge}', charge)
+      .replace('{when}', formatDate(world, item.tick))}.`,
     body: body.slice(0, 4),
     quote: null,
     closing:

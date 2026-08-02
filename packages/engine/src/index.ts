@@ -109,7 +109,7 @@ export { COMBAT_SCENES, decodeScene, outcomeFor, SCENE_OPTIONS, sceneById } from
 export { UNIT_MOMENTS, unitMomentById } from './scenes.js'
 export type { UnitMoment, UnitMomentId } from './scenes.js'
 export type { CombatScene, SceneChoice, Threat } from './scenes.js'
-export { describeTraits, sentenceCase, traitWords, withArticle } from './text.js'
+export { describeTraits, sentenceCase, traitWords, withArticle, sentenceInWords } from './text.js'
 export type { NewsArticle, NewsQuote } from './newsroom.js'
 
 // Health (L4-M2)
@@ -152,7 +152,6 @@ export {
   offenceBar,
   expungementBar,
   gateStrengthOf,
-  sentenceInWords,
   recordGateOf,
   petitionForExpungement,
   crimePressureOf,
