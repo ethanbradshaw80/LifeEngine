@@ -8,7 +8,17 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { advanceTicks, createWorld, describeTraits, traitWords } from '../src/index.js'
+import {
+  advanceTicks,
+  ageAt,
+  createWorld,
+  describeTraits,
+  lookForPlace,
+  moveBar,
+  placesOfKind,
+  setPlayer,
+  traitWords,
+} from '../src/index.js'
 import type { Traits } from '../src/types.js'
 
 function traits(overrides: Partial<Traits>): Traits {
@@ -78,5 +88,64 @@ describe('temperament in words', () => {
     // everybody would be noise, adjectives on nobody would be a dead feature.
     expect(described.length).toBeGreaterThan(5)
     expect(described.length).toBeLessThan(people.length)
+  })
+})
+
+describe('the streets browser asks the engine for the whole gate', () => {
+  it('refuses in the same words the verb would, for every reason it has', () => {
+    // P3 review: the browser modelled affordability alone and claimed in a
+    // comment to model all four gates, so a nineteen-year-old still at home
+    // saw live buttons everywhere and was refused by all of them. moveBar is
+    // now the single source of both answers — this test is the proof that
+    // they cannot drift, because the same string has to come back twice.
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 60)
+    const street = placesOfKind(world, 'neighbourhood')
+      .slice()
+      .sort((a, b) => a.desirability - b.desirability)[0]
+    expect(street).toBeDefined()
+    if (!street) return
+
+    const child = [...world.people.values()]
+      .filter((person) => person.deathTick === null && ageAt(person.birthTick, world.tick) < 18)
+      .sort((a, b) => a.id - b.id)[0]
+    expect(child).toBeDefined()
+    if (!child) return
+
+    setPlayer(world, child.id)
+    const bar = moveBar(world, child.id, street.id, world.tick)
+    expect(bar).not.toBeNull()
+    expect(lookForPlace(world, street.id)).toEqual({ moved: false, reason: bar })
+  })
+
+  it('lets a grown householder look, and says so by returning nothing', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 360)
+    const streets = placesOfKind(world, 'neighbourhood')
+      .slice()
+      .sort((a, b) => a.desirability - b.desirability)
+    const cheapest = streets[0]
+    expect(cheapest).toBeDefined()
+    if (!cheapest) return
+
+    // Somebody grown, in a household of their own, living somewhere other
+    // than the cheapest street and earning enough to carry it.
+    const mover = [...world.people.values()]
+      .filter((person) => {
+        if (person.deathTick !== null) return false
+        if (ageAt(person.birthTick, world.tick) < 18) return false
+        if (person.householdId === null) return false
+        const household = world.households.get(person.householdId)
+        if (!household || household.placeId === cheapest.id) return false
+        if (person.parentIds.some((id) => household.memberIds.includes(id))) return false
+        return world.employment.has(person.id)
+      })
+      .sort((a, b) => a.id - b.id)[0]
+    expect(mover).toBeDefined()
+    if (!mover) return
+
+    setPlayer(world, mover.id)
+    expect(moveBar(world, mover.id, cheapest.id, world.tick)).toBeNull()
+    expect(lookForPlace(world, cheapest.id).moved).toBe(true)
   })
 })

@@ -139,6 +139,10 @@ function noteArrearsCrossing(world: World, tick: Tick, householdId: EntityId, be
   recordEvent(world, tick, {
     type: after < 0 ? 'fell-behind' : 'back-in-the-black',
     subjectId: head.id,
+    // The crossing is a fact about the HOUSEHOLD; the subject is only
+    // whoever headed it that month. Naming the household here is what lets
+    // the read side pair the spells correctly — see arrearsHistoryOf.
+    detail: String(householdId),
   })
 }
 
@@ -293,14 +297,17 @@ export function householdLedger(world: World, household: Household): HouseholdLe
 
   // Same iteration as householdIncome, kept deliberately parallel.
   for (const memberId of household.memberIds) {
+    // `!== 0`, not `> 0`: the point of the filter is to drop rows that say
+    // nothing, and a component that ever goes negative (a clawback, a
+    // garnishment) must still appear or the lines stop summing to the total.
     const job = world.employment.get(memberId)
-    if (job && job.monthlyPay > 0) wages.push({ personId: memberId, amount: job.monthlyPay })
+    if (job && job.monthlyPay !== 0) wages.push({ personId: memberId, amount: job.monthlyPay })
     const duty = servicePayOf(world, memberId)
-    if (duty > 0) servicePay.push({ personId: memberId, amount: duty as Money })
+    if (duty !== 0) servicePay.push({ personId: memberId, amount: duty as Money })
     const pension = pensionOf(world, memberId)
-    if (pension > 0) pensions.push({ personId: memberId, amount: pension as Money })
+    if (pension !== 0) pensions.push({ personId: memberId, amount: pension as Money })
     const survivor = survivorPensionOf(world, memberId)
-    if (survivor > 0) survivorPay.push({ personId: memberId, amount: survivor as Money })
+    if (survivor !== 0) survivorPay.push({ personId: memberId, amount: survivor as Money })
   }
 
   // Same iteration as householdCosts, including the jail exemption.
@@ -350,20 +357,24 @@ export interface ArrearsSpell {
 /**
  * The hard months, read back out of the record.
  *
- * The crossing events are stamped on the household's eldest member at the
- * time (noteArrearsCrossing), not on the household — events carry no
- * household id. So this reads the people who are under the roof NOW. For a
- * child still at home that is exactly right: their parent's fell-behind IS
- * the family's. For a household whose eldest has since died or moved out,
- * older spells may be missing. Showing what the record actually says beats
- * inventing the rest (Law 6).
+ * Keyed on the household id the crossing event carries, NOT on the people
+ * under the roof. The first draft read it by current member and the review
+ * caught what that does: crossings travel with a person. A 19-year-old who
+ * falls behind in their own place and then moves in with a partner carries
+ * those events into the partner's household, where an unmatched fell-behind
+ * pairs with the NEW household's recovery and renders one long spell that
+ * happened to nobody. Law 3 — the record is what happened, and pairing two
+ * households' crossings is fabrication however true each event is.
+ *
+ * Events written before this milestone carry no household id and are
+ * skipped: unrecorded history stays unrecorded (Law 6), and the empty state
+ * says only that there is nothing on the record.
  */
 export function arrearsHistoryOf(world: World, household: Household): readonly ArrearsSpell[] {
-  const members = new Set<EntityId>(household.memberIds)
+  const key = String(household.id)
   const crossings = world.events
     .filter(
-      (e) =>
-        (e.type === 'fell-behind' || e.type === 'back-in-the-black') && members.has(e.subjectId),
+      (e) => (e.type === 'fell-behind' || e.type === 'back-in-the-black') && e.detail === key,
     )
     .sort((a, b) => a.tick - b.tick || a.id - b.id)
 

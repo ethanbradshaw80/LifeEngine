@@ -156,6 +156,31 @@ contain two contradictory truths with no way to tell which is right.
 
 ---
 
+## 6a. Numbers into words — where that code lives
+
+The engine keeps most of its state as 0-1000 integers, and Law 9 says the
+player sees words, not internals. P3 put four such translations in the UI and
+two in the engine, which is a coin flip for whoever writes the seventh. The
+rule, settled 2026-08-02:
+
+| Kind | Home | Examples |
+|---|---|---|
+| A threshold that **gates behaviour** | The engine, exported, imported by the UI — never retyped | `RAISE_MIN_PERFORMANCE`, `WARNING_PERFORMANCE`, `DISMISSAL_PERFORMANCE`, and every `*Bar()` |
+| Words the engine's own **prose** also uses | `text.ts` | `describeTraits`, `withArticle` |
+| Words that only **describe** a number on one screen | The UI component that shows it | `closenessWords`, `standingWords`, `attainmentWords`, `compatibilityWords` |
+
+The test for the third row: the function gates nothing, holds no state, is
+recomputed from engine state each render, and is never fed back into the
+simulation. If any of those is false it is not presentation, and it belongs in
+the engine where it can be unit-tested without a DOM.
+
+The reason the first row is absolute: a UI that retypes `240` describes a model
+that can move without it. `standingWords` is the pattern — it imports the three
+thresholds that decide the raise, the warning and the sack, and invents only the
+descriptive bands between them, which decide nothing.
+
+---
+
 ## 7. Layer 1 scope
 
 Only six domains are built for Milestone 1: **Time, Identity, People, Events,

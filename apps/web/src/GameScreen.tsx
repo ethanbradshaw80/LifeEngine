@@ -44,6 +44,7 @@ import {
   householdLedger,
   livingPeople,
   monthlyNetOf,
+  moveBar,
   newsSince,
   OCCUPATIONS,
   occupationById,
@@ -383,6 +384,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     })
   }
 
+  // The Money tab's two reads, memoized on the world snapshot: the ledger
+  // walks every member and arrearsHistoryOf walks the entire event log, and
+  // neither may re-run on a keystroke (review D1-5, and again at P3). The
+  // world object is replaced wholesale by the worker each tick, so this is
+  // fresh exactly when the facts are.
+  const ledger = useMemo(
+    () => (household ? householdLedger(world, household) : null),
+    [world, household],
+  )
+  const arrearsSpells = useMemo(
+    () => (household ? arrearsHistoryOf(world, household) : []),
+    [world, household],
+  )
+
   // The TRUE monthly change — after lifestyle spending, not just the bills —
   // mirroring the ledger exactly so the chip never flatters the household.
   const monthlyNet = household ? monthlyNetOf(world, household) : 0
@@ -647,8 +662,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               // decomposition of the three functions runFinances spends, and a
               // test holds the parts to the wholes to the cent. Nothing on
               // this tab is computed in the UI.
-              const ledger = householdLedger(world, household)
-              const spells = arrearsHistoryOf(world, household)
+              if (ledger === null) return null
+              const spells = arrearsSpells
               const nameOf = (id: EntityId) => {
                 const member = world.people.get(id)
                 return member ? (id === person.id ? 'you' : member.givenName) : 'someone'
@@ -754,7 +769,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <h3 className="panel-heading">Hard months</h3>
                   {spells.length === 0 ? (
                     <p className="muted small">
-                      This roof has never fallen behind on the record.
+                      Nothing on the record for this roof.
                     </p>
                   ) : (
                     <ul className="spell-list">
@@ -812,23 +827,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           .sort((a, b) => a.desirability - b.desirability)
                           .map((place) => {
                             const current = place.id === household.placeId
-                            // The engine's own gate, so the disabled state
-                            // never disagrees with the refusal words.
-                            const affordable = canAfford(ledger.income, place.desirability)
+                            // The engine's WHOLE gate (P3 review): moveBar is
+                            // the same function lookForPlace answers from, so
+                            // a live button and an honest refusal cannot
+                            // disagree — affordability was only one of four.
+                            const bar = moveBar(world, person.id, place.id, world.tick)
                             return (
                               <li key={place.id} className={current ? 'current' : undefined}>
                                 <span className="job-title">{place.name}</span>
                                 <span className="muted small">
                                   {formatMoney(rentFor(place.desirability))} a month
                                   {current && ' — home'}
-                                  {!current && !affordable && ' — out of reach'}
+                                  {!current && !canAfford(ledger.income, place.desirability) && ' — out of reach'}
                                 </span>
                                 {!current && (
                                   <button
                                     type="button"
                                     className="apply"
-                                    disabled={busy || !affordable}
-                                    title={affordable ? undefined : 'The household cannot carry that rent.'}
+                                    disabled={busy || bar !== null}
+                                    title={bar ?? undefined}
                                     onClick={() => onAct({ verb: 'look-for-place', placeId: place.id })}
                                   >
                                     Look for a place

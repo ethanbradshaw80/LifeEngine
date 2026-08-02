@@ -59,6 +59,7 @@ export {
   endCourtship,
   heirsOf,
   lookForPlace,
+  moveBar,
   motherCandidates,
   playerIsAlive,
   playerPerson,

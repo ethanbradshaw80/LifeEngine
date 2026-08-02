@@ -20,7 +20,7 @@
  *    same life exactly.
  */
 
-import type { EntityId, Money } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
@@ -869,33 +869,52 @@ export function chooseSpendStance(
 
 /** Look for a place on a chosen street. The affordability rule is the same
  *  one every move obeys; the whole household comes along. */
+/**
+ * Why this household cannot go looking at that street — or null if it can.
+ *
+ * P3 review: the Streets browser modelled ONE of this verb's four gates and
+ * claimed in a comment to model them all, so a nineteen-year-old still at
+ * home saw live buttons on every affordable street and was refused by every
+ * one. The bar pattern (proposalBar, courtshipBar, enrolmentBar) exists to
+ * stop exactly that, and lookForPlace now answers from this function, so the
+ * disabled state and the refusal are the same sentence by construction.
+ */
+export function moveBar(
+  world: World,
+  personId: EntityId,
+  placeId: EntityId,
+  tick: Tick,
+): string | null {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 'There is nobody to move.'
+  if (ageAt(person.birthTick, tick) < 18) return 'Not yet eighteen.'
+  if (person.householdId === null) return 'There is no household to move.'
+  const household = world.households.get(person.householdId)
+  if (!household) return 'There is no household to move.'
+  // Living with the parents means it is THEIR house to move (review S4);
+  // the way out of it is the move-out moment, not this verb.
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+    return "Your parents' house is not yours to move."
+  }
+  const target = world.places.get(placeId)
+  if (!target || target.kind !== 'neighbourhood') return 'No such street.'
+  if (target.id === household.placeId) return 'You already live there.'
+  if (world.player.log.some((entry) => entry.kind === 'house-hunt' && tick - entry.tick < 6)) {
+    return 'The household moved house this half-year already. Let it settle.'
+  }
+  if (!canAfford(householdIncome(world, household), target.desirability)) {
+    return `Rent on ${target.name} is ${formatMoney(rentFor(target.desirability))} a month — the household cannot carry it.`
+  }
+  return null
+}
+
 export function lookForPlace(world: World, placeId: EntityId): { moved: boolean; reason: string } {
   const guard = verbPerson(world)
   if ('reason' in guard) return { moved: false, reason: guard.reason }
   const { person } = guard
 
-  if (ageAt(person.birthTick, world.tick) < 18) return { moved: false, reason: 'Not yet eighteen.' }
-  if (person.householdId === null) return { moved: false, reason: 'There is no household to move.' }
-  const household = world.households.get(person.householdId)
-  if (!household) return { moved: false, reason: 'There is no household to move.' }
-  // Living with the parents means it is THEIR house to move (review S4);
-  // the way out of it is the move-out moment, not this verb.
-  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
-    return { moved: false, reason: "Your parents' house is not yours to move." }
-  }
-  const target = world.places.get(placeId)
-  if (!target || target.kind !== 'neighbourhood') return { moved: false, reason: 'No such street.' }
-  if (target.id === household.placeId) return { moved: false, reason: 'You already live there.' }
-  if (world.player.log.some((entry) => entry.kind === 'house-hunt' && world.tick - entry.tick < 6)) {
-    return { moved: false, reason: 'The household moved house this half-year already. Let it settle.' }
-  }
-  const income = householdIncome(world, household)
-  if (!canAfford(income, target.desirability)) {
-    return {
-      moved: false,
-      reason: `Rent on ${target.name} is ${formatMoney(rentFor(target.desirability))} a month — the household cannot carry it.`,
-    }
-  }
+  const bar = moveBar(world, person.id, placeId, world.tick)
+  if (bar !== null) return { moved: false, reason: bar }
 
   logVerb(world, 'house-hunt', String(placeId))
   moveHouse(world, world.tick, person, placeId, [factor('own-choice', 1000)])

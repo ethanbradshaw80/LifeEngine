@@ -14,6 +14,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
 import {
   advanceTicks,
+  ageAt,
   arrearsHistoryOf,
   canAfford,
   createWorld,
@@ -332,8 +333,10 @@ describe('the itemized ledger (P3)', () => {
 
       expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
       expect(ledger.costs).toBe(householdCosts(world, household))
-      expect(ledger.livingCosts).toBe(
-        ledger.adults * LIVING_COST_ADULT + ledger.children * LIVING_COST_CHILD,
+      // Not a tautology only because rent is in `costs` too: this pins the
+      // adult/child SPLIT against the total the tick loop actually charges.
+      expect(ledger.rent + ledger.adults * LIVING_COST_ADULT + ledger.children * LIVING_COST_CHILD).toBe(
+        householdCosts(world, household),
       )
 
       expect(ledger.lifestyle).toBe(discretionaryFor(world, household))
@@ -361,20 +364,41 @@ describe('the itemized ledger (P3)', () => {
   })
 
   it('a jailed member is fed by the county, and the ledger says which', () => {
-    const world = build(12345, 720)
-    const jailedHouseholds = [...world.households.values()].filter((h) =>
-      h.memberIds.some((id) => {
-        const criminal = world.criminal.get(id)
-        return criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick
-      }),
-    )
-    // If nobody is inside this month the claim is untestable here, but the
-    // sum test above still covers the arithmetic. Assert only when present.
-    for (const household of jailedHouseholds) {
-      const ledger = householdLedger(world, household)
-      expect(ledger.jailed).toBeGreaterThan(0)
-      expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
-    }
+    // Built by hand, not fished out of a seed. The first draft looped over
+    // whatever households seed 12345 happened to have someone inside at tick
+    // 720 — which is NONE of them (P3 review: the loop was empty and the
+    // check passed anyway). A jail exemption copied from householdCosts has
+    // to be exercised deliberately or it is not covered at all.
+    const world = build(12345, 240)
+    const household = [...world.households.values()]
+      .filter((h) => h.dissolvedTick === null && h.memberIds.length >= 2)
+      .sort((a, b) => a.id - b.id)[0]
+    expect(household).toBeDefined()
+    if (!household) return
+
+    const before = householdLedger(world, household)
+    const inmateId = household.memberIds[0]
+    expect(inmateId).toBeDefined()
+    if (inmateId === undefined) return
+    const inmate = world.people.get(inmateId)
+    expect(inmate).toBeDefined()
+    if (!inmate) return
+    const grown = ageAt(inmate.birthTick, world.tick) >= 16
+
+    world.criminal.set(inmateId, {
+      personId: inmateId,
+      convictions: [],
+      jailedUntilTick: (world.tick + 12) as never,
+    })
+
+    const after = householdLedger(world, household)
+    expect(after.jailed).toBe(1)
+    expect(after.adults + after.children).toBe(before.adults + before.children - 1)
+    // One mouth fewer at this table, and the ledger still agrees with the
+    // function the tick loop charges.
+    expect(after.livingCosts).toBe(before.livingCosts - (grown ? LIVING_COST_ADULT : LIVING_COST_CHILD))
+    expect(after.rent + after.livingCosts).toBe(householdCosts(world, household))
+    expect(after.costs).toBe(householdCosts(world, household))
   })
 
   it('reads the hard months back out of the record, paired and in order', () => {
@@ -399,5 +423,28 @@ describe('the itemized ledger (P3)', () => {
     // Sixty years of a hundred-person town without one hard month would mean
     // the arrears machinery never fires, which the solvency test contradicts.
     expect(seen).toBeGreaterThan(0)
+  })
+
+  it('never reports a spell the household could not have had (P3 review)', () => {
+    // The first draft read the crossings by CURRENT member, and crossings
+    // travel with a person: someone who fell behind in their own place and
+    // then moved in with a partner carried that fell-behind across, where it
+    // paired with the new household's recovery into one long spell that
+    // happened to nobody. Two claims pin it: every spell starts at or after
+    // the household was formed, and every crossing counted belongs to this
+    // household by id.
+    const world = build(12345, 720)
+    let checked = 0
+    for (const household of world.households.values()) {
+      for (const spell of arrearsHistoryOf(world, household)) {
+        expect(spell.fromTick).toBeGreaterThanOrEqual(household.formedTick)
+        const opener = world.events.find(
+          (e) => e.tick === spell.fromTick && e.type === 'fell-behind' && e.detail === String(household.id),
+        )
+        expect(opener).toBeDefined()
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
   })
 })

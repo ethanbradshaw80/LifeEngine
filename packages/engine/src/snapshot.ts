@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v40 — P3. The arrears crossing event now names the HOUSEHOLD it happened
+ *      to (previously only the person who headed it that month), so the
+ *      Money tab can pair fell-behind with back-in-the-black for the right
+ *      roof. The review found the old read — by current member — importing
+ *      a mover's crossings into their partner's household and rendering a
+ *      spell that happened to nobody. No behaviour changes: same draws,
+ *      same lives, one more field on two event types.
  * v39 — CENSUS NAMES (owner-supplied). The town drew from 32 male, 32
  *      female and 40 invented family names, so four hundred people meant a
  *      dozen Jameses and everybody a Thorne or a Whitlock. It now draws
@@ -255,7 +262,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 39
+export const SIMULATION_VERSION = 40
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
