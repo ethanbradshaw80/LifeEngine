@@ -71,12 +71,14 @@ export const MACHINES_BY_OCCUPATION: Readonly<Record<string, readonly string[]>>
  * MILITARY_AND_WAR_FOUNDATION §3). Chosen to sound like places without
  * sounding like any place in particular.
  */
-// All invented, and FOREIGN NATIONS ARE INVENTED IN EVERY PRESET (foundation
-// §3 as amended at W2): a homeland may be real, a theatre never may. 'Ashkelon'
-// was here until L4-M5's review caught it — a real city and a real conflict
-// site, about to be minted onto campaign medals. A real FOREIGN place must
-// never reach a permanent record; real domestic installations may, and do in
-// the American Heartland preset, but only ever as somewhere a person served.
+// CLASSIC's nations, all invented. Since ADR-0021 a preset MAY name real
+// countries (american-heartland does), so the rule is no longer "no real
+// foreign name on a record" — it is: NO REAL CONFLICT, EVER, and no real
+// decoration's name. 'Ashkelon' was here until L4-M5's review caught it — a
+// real city and a real conflict SITE, about to be minted onto campaign
+// medals. That instinct was right and still is: a real place-name that
+// carries a real battle with it is the thing to keep out, which is also why
+// the campaign decoration stopped being named after its enemy at v42.
 /**
  * The homeland's name, Classic's. It carries its own article because the
  * sentences that render it do not know whether the preset's homeland is

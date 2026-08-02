@@ -32,7 +32,7 @@ import { GRADE_TITLES, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
-import { sentenceCase } from './text.js'
+import { bareName, sentenceCase } from './text.js'
 import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
@@ -175,7 +175,7 @@ function deathInService(
   const where = onTour && away !== null
     ? lastTour.kind === 'rotation'
       ? ` while posted to ${away}`
-      : ` on the ${away} front`
+      : ` on the ${bareName(away)} front`
     : ''
 
   const body: string[] = []
@@ -332,7 +332,7 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
       Math.floor((item.tick - (record?.enlistedAtTick ?? item.tick)) / 12),
     )
     body.push(
-      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(world, tour.startedAtTick)}${enemy === null ? '' : ` on the ${enemy} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
+      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(world, tour.startedAtTick)}${enemy === null ? '' : ` on the ${bareName(enemy)} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
     )
   }
   const household = householdOthers(world, person)
@@ -362,7 +362,7 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
   return {
     headline: `${who} returns from tour`,
     dateline,
-    lede: `${who} of ${world.town.name} returned from deployment in ${formatDate(world, item.tick)}${enemy === null ? '' : `, back from the ${enemy} front`}.`,
+    lede: `${who} of ${world.town.name} returned from deployment in ${formatDate(world, item.tick)}${enemy === null ? '' : `, back from the ${bareName(enemy)} front`}.`,
     body: body.slice(0, 3),
     quote,
     closing: 'The soldier returns to the home station roster and is off the rotation list pending further orders.',
@@ -462,7 +462,7 @@ function warReport(world: World, item: NewsItem, dateline: string): NewsArticle 
   return {
     headline: ourWar
       ? `${sentenceCase(homelandName(world))} at war with ${other?.name ?? 'foreign power'}, ${phase} continues`
-      : `${a.name} and ${b.name} remain at war`,
+      : `${sentenceCase(a.name)} and ${b.name} remain at war`,
     dateline,
     lede: ourWar
       ? `${sentenceCase(homelandName(world))} remains at war with ${other?.name ?? 'a foreign power'} as of ${formatDate(world, item.tick)}, with fighting in its ${phase}.`

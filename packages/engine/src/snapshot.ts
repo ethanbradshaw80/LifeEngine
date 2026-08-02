@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v42 — W2 review. The campaign decoration is named for the SERVICE, not
+ *      for the enemy: with real countries on the map the old
+ *      `the ${enemy} Campaign Medal` minted "the Afghanistan Campaign
+ *      Medal", the verbatim name of a real United States decoration, onto
+ *      a permanent record — and awards are fictional in EVERY preset.
+ *      One medal with a device per campaign, which is how they work.
+ *      Also: a nation name that carries its own article no longer doubles
+ *      it ("the the United Kingdom front") in citations, death records and
+ *      headlines.
  * v41 — W1 (resistances 4 and 5). Three events carried DISPLAY NAMES in
  *      their detail — 'joined-unit' and 'dropped-selection' the unit's
  *      name, 'passed-over' the rank's title — and two of them were then
@@ -272,7 +281,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 41
+export const SIMULATION_VERSION = 42
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

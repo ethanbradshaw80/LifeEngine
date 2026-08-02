@@ -24,7 +24,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
-import type { Alignment, GeoRelation, GeoState, Nation, World } from './types.js'
+import type { GeoRelation, GeoState, Nation, World } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
 
@@ -115,14 +115,14 @@ export function generateNations(world: World): void {
       stability: rng.nextBellInt(200, 950),
       // Bloc 0 is the homeland's; some nations are non-aligned (null).
       //
-      // The draw happens either way — an ALLY is simply put in the
-      // homeland's bloc afterwards, so the RNG stream advances identically
-      // whether a preset has opinions or not, and Classic cannot move.
-      // Only 'ally' is honoured: the alignments are from the HOMELAND's
-      // point of view (ADR-0021 §4), so they say nothing about whether two
-      // other countries stand together, and the simulation still decides
-      // that.
-      bloc: blocFor(entry?.alignment ?? null, rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT)),
+      // ALIGNMENT DOES NOT TOUCH THIS. The first draft put every 'ally' in
+      // the homeland's bloc, and blocs are never re-drawn — so seven
+      // countries were locked into one alliance, and their twenty-one
+      // pairs into permanent peace, for the whole life of the world. That
+      // is not a starting position, it is permanent structure, and it is
+      // more than ADR-0021 §4 says an alignment may do. The review caught
+      // it; the alignment now decides one thing only, in startingState.
+      bloc: rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
       exhaustedUntilTick: null,
     })
   }
@@ -152,20 +152,16 @@ export function generateNations(world: World): void {
 }
 
 
-/** An ally stands with the homeland; everyone else takes the world's draw. */
-function blocFor(alignment: Alignment | null, drawn: number | null): number | null {
-  return alignment === 'ally' ? 0 : drawn
-}
-
 /**
  * Where a pair starts on the ladder.
  *
- * A preset's alignments describe how a country stands TO THE HOMELAND and
- * nothing else (ADR-0021 §4), so they decide the homeland's own pairs and
- * leave every other pair to the model — the label "rival" says how
- * Washington sees Moscow, not how Paris sees Beijing. And it decides only
- * the FIRST RUNG: the ladder starts moving on tick one, and a rival can be
- * at peace within a decade or a war can start with an ally.
+ * THIS IS THE ONLY THING AN ALIGNMENT DOES. It describes how a country
+ * stands TO THE HOMELAND (ADR-0021 §4), so it decides the homeland's own
+ * pairs and leaves every other pair to the model — the label "rival" says
+ * how Washington sees Moscow, not how Paris sees Beijing. And it decides
+ * only the FIRST RUNG: it touches no bloc, no escalation pressure and no
+ * later state, the ladder starts moving on tick one, and a rival can be at
+ * peace within a decade or a war can start with an ally.
  */
 function startingState(world: World, a: Nation, b: Nation, grudge: boolean): GeoState {
   const drawn: GeoState = grudge ? 'tension' : 'peace'

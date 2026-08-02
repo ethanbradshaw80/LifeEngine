@@ -186,9 +186,13 @@ export const HEARTLAND_SPEC: WorldSpec = {
    * simulation decided, in a world that has already diverged from ours, and
    * the preset says so in its own description and on the news screen.
    *
-   * The alignments set the FIRST RUNG and nothing else: they decide where
-   * each pair starts relative to the homeland on tick zero, the ladder
-   * starts moving in month one, and an ally can end up at war.
+   * The alignments set the FIRST RUNG and nothing else — verified by the
+   * review, which caught the first draft also putting every ally in the
+   * homeland's BLOC, a thing that is never re-drawn and so would have
+   * locked a seven-country alliance in place for the life of the world.
+   * They decide where each pair starts relative to the homeland on tick
+   * zero. The ladder starts moving in month one, and an ally can end up at
+   * war.
    */
   foreignNations: REAL_NATIONS.map((nation) => ({
     name: nation.name,

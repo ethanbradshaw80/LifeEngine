@@ -36,7 +36,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '7ddc1784'
+const GOLDEN_HASH_HEX = 'c83b07e9'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -65,7 +65,13 @@ export function App() {
   const [filter, setFilter] = useState<Filter>('living')
   // The preset for the NEXT world. The current world's own preset is
   // world.spec and cannot be changed (ADR-0020).
-  const [presetId, setPresetId] = useState<string>('classic')
+  //
+  // It follows the LOADED world until the player touches it. Without that,
+  // reopening an American Heartland save showed Classic's description —
+  // "an invented country called the Republic" — over a world whose homeland
+  // is the United States, which is worse than no framing at all (military
+  // review, ADR-0021 §3).
+  const [presetId, setPresetId] = useState<string | null>(null)
   const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
@@ -138,11 +144,15 @@ export function App() {
 
   const selectedStillKnown = selected !== null && world !== null && world.people.has(selected)
 
+  // Null means "whatever this world is" — the picker follows the loaded save
+  // until the player chooses otherwise (military review, ADR-0021 §3).
+  const chosenPreset = presetId ?? world?.spec.id ?? 'classic'
+
   function applySeed() {
     const value = Number.parseInt(seedInput, 10)
     if (!Number.isInteger(value)) return
     setSelected(null)
-    newWorld(value, presetId)
+    newWorld(value, chosenPreset)
   }
 
   // No world: either still starting, or a load failed.
@@ -328,7 +338,7 @@ export function App() {
         <label className="preset">
           Setting
           <select
-            value={presetId}
+            value={chosenPreset}
             disabled={busy}
             onChange={(event) => setPresetId(event.target.value)}
           >
@@ -342,13 +352,13 @@ export function App() {
         {/* The preset's own words. For a real homeland this is the
             alternate-history framing WORLD_MODES_PLAN.md requires. */}
         <p className="preset-note muted small">
-          {PRESETS.find((preset) => preset.id === presetId)?.description ?? ''}
+          {PRESETS.find((preset) => preset.id === chosenPreset)?.description ?? ''}
         </p>
 
         {confirmingNewWorld ? (
           <span className="confirm">
             Replace this world and its history with a new {
-              PRESETS.find((preset) => preset.id === presetId)?.name ?? 'Classic'
+              PRESETS.find((preset) => preset.id === chosenPreset)?.name ?? 'Classic'
             } one?
             <button
               type="button"

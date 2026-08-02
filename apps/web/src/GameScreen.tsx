@@ -523,6 +523,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         </div>
       </section>
 
+      {/* ADR-0021 §3: the framing is a CONDITION of naming real countries,
+          and the review found every path that dodged it — the Story feed
+          carries news cards ("War broke out between the United States and
+          Iran") on the DEFAULT tab, and a player can live a whole life
+          without opening the News tab at all. So it sits above the tabs,
+          where no path can miss it. */}
+      {world.spec.inGameNotice !== null && (
+        <p className="world-notice">{world.spec.inGameNotice}</p>
+      )}
+
       <div className="tab-layout">
       <nav className="tab-bar" aria-label="Life sections">
         {TABS.map((t) => (

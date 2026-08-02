@@ -24,6 +24,19 @@ export function withArticle(word: string): string {
 }
 
 /**
+ * A name with its leading article removed, for the positions that supply
+ * their own: "the {X} front", "the {X} Campaign".
+ *
+ * Classic's invented nations are all bare words, so this never mattered
+ * until ADR-0021 put "the United Kingdom" on the map and every front in the
+ * engine started reading "the the United Kingdom front" — into award
+ * citations, death records and headlines that are never rewritten.
+ */
+export function bareName(name: string): string {
+  return name.startsWith('the ') ? name.slice(4) : name
+}
+
+/**
  * Capitalise a name that carries its own article — "the Republic" mid
  * sentence, "The Republic" at the start of one. W1: homeland names come from
  * the world now, not from a literal typed into the sentence, so the sentence

@@ -65,6 +65,7 @@ import { boostServicePerformance, isServing, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
+import { bareName } from './text.js'
 
 /** Planned tour length, months. */
 const TOUR_MONTHS = 10
@@ -446,7 +447,7 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
         factor('under-orders', 1000),
         factor('war-demanded-troops', Math.min(1000, enemy?.strength ?? 300)),
       ],
-      `deployed to ${enemy ? `the ${enemy.name} front` : 'the front'}`,
+      `deployed to ${enemy ? `the ${bareName(enemy.name)} front` : 'the front'}`,
       [],
     )
   }
@@ -487,7 +488,7 @@ function startCombatTour(
     type: 'deployed',
     subjectId: personId,
     otherId: enemyId,
-    detail: enemy ? `the ${enemy.name} front` : 'the front',
+    detail: enemy ? `the ${bareName(enemy.name)} front` : 'the front',
   })
   recordDecision(world, tick, {
     subjectId: personId,
@@ -529,7 +530,7 @@ export function volunteerForDeployment(world: World, tick: Tick, personId: Entit
       factor('own-choice', 1000),
       factor('war-demanded-troops', Math.min(1000, enemy?.strength ?? 300)),
     ],
-    `volunteered for ${enemy ? `the ${enemy.name} front` : 'the front'}`,
+    `volunteered for ${enemy ? `the ${bareName(enemy.name)} front` : 'the front'}`,
     ['to wait for orders'],
   )
   return true
@@ -914,7 +915,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         decision: 'deployment',
         significance: 'defining',
         inputs: chain,
-        chosen: `was wounded in action on the ${enemy.name} front`,
+        chosen: `was wounded in action on the ${bareName(enemy.name)} front`,
         rejected: [],
         streamId: Stream.CombatResolution,
       })

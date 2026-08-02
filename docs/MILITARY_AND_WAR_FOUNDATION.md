@@ -79,8 +79,19 @@ argument is about the WARS, which is why it survives the homeland becoming real:
 Republic's wars and the United States' wars in this simulation are equally generated,
 against equally invented enemies.
 
-Real US geography may be used for domestic installations. Foreign theatres are
-fictional.
+Real US geography may be used for domestic installations. **Foreign theatres may be
+real countries where the preset says so (ADR-0021) — the CONFLICT in them never is.**
+Classic's theatres are invented along with its countries.
+
+**Accepted consequence, recorded rather than mitigated (military review, 2026-08-02).**
+A world that starts in 1970 and generates its own wars against real countries will
+sometimes land one near the decade of a real conflict, and nothing in the engine
+notices. Era-locking country pairs would be worse design — it would mean modelling
+real history in order to avoid it. The mitigations that DO hold: no real war,
+operation, battle or campaign name exists in the codebase (tested); decorations are
+named for service rather than for enemies; and every preset naming real countries
+carries standing alternate-history framing. The model can as easily produce a
+United States-Canada war, which reads unmistakably as invention.
 
 ---
 

@@ -29,6 +29,7 @@ import { branchSpecFor } from './worldspec.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { Stream } from './rng.js'
 import type { AwardKind, AwardRecord, CausalFactor, World, WorldEvent } from './types.js'
+import { bareName } from './text.js'
 
 /** The wound decoration's name. One per lifetime; later wounds add devices.
  *  Deliberately not triumphal — a laurel is a victory crown, and a wound
@@ -95,7 +96,7 @@ export function grantWoundRecognition(
     kind: 'wound-recognition',
     title: WOUND_RECOGNITION_TITLE,
     qualifying,
-    citation: `wounded by enemy action on the ${enemyName} front`,
+    citation: `wounded by enemy action on the ${bareName(enemyName)} front`,
     inputs: [factor('enemy-action-wound', 1000)],
   })
 }
@@ -124,7 +125,7 @@ export function grantValor(
     qualifying,
     // The citation asserts only what the simulation can honour: the
     // person's own act, no squad the world does not model (review).
-    citation: `went forward under fire on the ${enemyName} front`,
+    citation: `went forward under fire on the ${bareName(enemyName)} front`,
     inputs: [factor('own-choice', 1000), factor('battlefield-chaos', 800)],
   })
 }
@@ -220,7 +221,7 @@ export function grantCombatAction(
     kind: 'combat-action',
     title: COMBAT_ACTION_TITLE,
     qualifying,
-    citation: `came under fire on the ${enemyName} front`,
+    citation: `came under fire on the ${bareName(enemyName)} front`,
     inputs: [factor('campaign-service', 800)],
   })
 }
@@ -231,6 +232,13 @@ export function grantCombatAction(
  * rule too). The qualifying event is the tour's own close: 'returned-home',
  * or the casualty event that ended it.
  */
+/**
+ * The campaign decoration. Invented, like every decoration in this project,
+ * and deliberately named for the SERVICE rather than for the enemy — see
+ * grantCampaignMedal.
+ */
+export const EXPEDITIONARY_MEDAL = 'the Expeditionary Medal'
+
 export function grantCampaignMedal(
   world: World,
   tick: Tick,
@@ -250,9 +258,20 @@ export function grantCampaignMedal(
   }
   if (monthsInTheatre < CAMPAIGN_QUALIFYING_MONTHS && !casualty) return null
 
+  // ONE DECORATION, A DEVICE PER CAMPAIGN — which is how campaign medals
+  // actually work, and the only shape that is safe now that a preset may
+  // name real countries (ADR-0021).
+  //
+  // The title used to be `the ${enemyName} Campaign Medal`. With Classic's
+  // invented nations that was a fictional decoration. With the owner's real
+  // list it mints "the Afghanistan Campaign Medal" — the verbatim name of a
+  // real United States decoration — onto a permanent record, which the
+  // foundation forbids in EVERY preset: awards are fictional, always. The
+  // country still appears in the CITATION, which is a statement about this
+  // world's invented war rather than the name of a real medal.
   return grant(world, tick, personId, {
     kind: 'campaign',
-    title: `the ${enemyName} Campaign Medal`,
+    title: EXPEDITIONARY_MEDAL,
     qualifying,
     citation: `service in the campaign against ${enemyName}`,
     inputs: [factor('campaign-service', Math.min(1000, monthsInTheatre * 100))],

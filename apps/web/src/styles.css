@@ -1645,3 +1645,16 @@ ul.welcome-points li + li {
   border-left: 3px solid var(--accent);
   border-radius: 0 6px 6px 0;
 }
+
+/* ADR-0021 §3 — the standing frame for a preset that names real countries.
+   Above the tabs, so no path through the game misses it: the Story feed is
+   the default tab and carries war headlines of its own. */
+.world-notice {
+  margin: 0 0 0.5rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}

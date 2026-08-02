@@ -208,8 +208,6 @@ describe('the rulings, enforced rather than remembered', () => {
       expect(relation).toBeDefined()
       if (alignment === 'ally') {
         expect(relation?.state, `${nation.name} should start at peace`).toBe('peace')
-        // An ally stands in the homeland's bloc; nobody else is placed.
-        expect(nation.bloc).toBe(0)
       } else if (alignment === 'rival') {
         expect(relation?.state, `${nation.name} should start in tension`).toBe('tension')
       }
@@ -217,6 +215,22 @@ describe('the rulings, enforced rather than remembered', () => {
       // this world's own time.
       expect(relation?.state).not.toBe('war')
     }
+
+    // AND NOTHING STRUCTURAL. The first draft also put every ally in the
+    // homeland's bloc — and blocs are never re-drawn, so that locked seven
+    // countries into one alliance, and their twenty-one pairs into
+    // permanent peace, for the life of the world. An alignment sets the
+    // first rung; it does not build an alliance (military review).
+    const allyBlocs = new Set(
+      [...world.nations.values()]
+        .filter(
+          (n) =>
+            !n.isHomeland &&
+            HEARTLAND_SPEC.foreignNations.find((f) => f.name === n.name)?.alignment === 'ally',
+        )
+        .map((n) => n.bloc),
+    )
+    expect(allyBlocs.size, 'every ally landed in the same bloc — alignment leaked').toBeGreaterThan(1)
   })
 
   it('says nothing about how two OTHER countries get along', () => {
@@ -251,13 +265,25 @@ describe('the rulings, enforced rather than remembered', () => {
   it('carries no real war, operation or battle name anywhere in the engine', async () => {
     // THE LINE THAT DOES NOT MOVE (ADR-0021, foundation §3). Real countries
     // are a setting; a real war is nobody's to invent around. This scans
-    // the engine's own source, because a conflict name would arrive as
-    // content — a headline template, a campaign medal, a citation.
+    // the source, because a conflict name would arrive as content — a
+    // headline template, a campaign medal, a citation.
+    //
+    // BE HONEST ABOUT WHAT IT CANNOT DO. A literal scan cannot catch the
+    // COMPOSITIONAL case — a real country plus a generic template — which
+    // is exactly what produced "the Afghanistan Campaign Medal" and got
+    // past every test here. That case is handled by not naming decorations
+    // after enemies at all (awards.ts), not by this scan.
     const fs = await import('node:fs/promises')
     const path = await import('node:path')
     const url = await import('node:url')
     const here = path.dirname(url.fileURLToPath(import.meta.url))
-    const srcDir = path.join(here, '..', 'src')
+    // The engine AND the UI: headline and label copy lives in
+    // GameScreen.tsx too, and the first version of this scan did not look
+    // there (military review).
+    const dirs = [
+      path.join(here, '..', 'src'),
+      path.join(here, '..', '..', '..', 'apps', 'web', 'src'),
+    ]
 
     const realConflicts = [
       'Vietnam',
@@ -274,13 +300,20 @@ describe('the rulings, enforced rather than remembered', () => {
       '9/11',
     ]
     const offenders: string[] = []
-    for (const file of await fs.readdir(srcDir)) {
-      if (!file.endsWith('.ts')) continue
-      const text = await fs.readFile(path.join(srcDir, file), 'utf8')
+    const files: string[] = []
+    for (const dir of dirs) {
+      for (const name of await fs.readdir(dir)) {
+        if (name.endsWith('.ts') || name.endsWith('.tsx')) files.push(path.join(dir, name))
+      }
+    }
+    for (const file of files) {
+      const text = await fs.readFile(file, 'utf8')
       for (const [i, line] of text.split('\n').entries()) {
         const code = line.replace(/^\s*(\*|\/\/).*/, '')
         for (const conflict of realConflicts) {
-          if (code.includes(conflict)) offenders.push(`${file}:${String(i + 1)} — ${conflict}`)
+          if (code.includes(conflict)) {
+            offenders.push(`${path.basename(file)}:${String(i + 1)} — ${conflict}`)
+          }
         }
       }
     }
@@ -347,7 +380,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = 'd8ade688'
+const HEARTLAND_GOLDEN = '05bf2c3d'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {
