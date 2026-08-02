@@ -60,6 +60,7 @@ const EVERY_KIND: readonly AwardKind[] = [
   'overseas',
   'nco-development',
   'service-ribbon',
+  'pow',
 ]
 
 function aSoldier(world: World, performance = 800): number {
@@ -134,10 +135,14 @@ describe('no award exists that cannot be earned', () => {
     for (const kind of EVERY_KIND) {
       expect(awards, `nothing grants '${kind}'`).toContain(`kind: '${kind}'`)
     }
-    // And the two the pack marked HOLD are not in the union at all.
+    // 'pow' is IN the union now, and the rule is the reason it is allowed to
+    // be: the capture system exists (ADR-0025), so grantPow can reach it.
+    // 'air' is still HOLD and still absent — an aviation unit has to exist
+    // before an Air Medal is a thing anybody could earn.
+    expect(awards).toContain("kind: 'pow'")
     const types = await fs.readFile(path.join(here, '..', 'src', 'types.ts'), 'utf8')
     const union = types.slice(types.indexOf('export type AwardKind'), types.indexOf('export interface AwardRecord'))
-    expect(union).not.toContain("| 'pow'")
+    expect(union).toContain("| 'pow'")
     expect(union).not.toContain("| 'air'")
   })
 
@@ -248,6 +253,7 @@ describe('no award exists that cannot be earned', () => {
         startedAtTick: (world.tick - 12) as never,
         endsAtTick: (world.tick - 2) as never,
         returnedAtTick: (world.tick - 2) as never,
+        capturedAtTick: null,
       },
     ])
     expect(grantCombatMerit(world, world.tick, personId as never, discharged, 950)?.title).toBe(

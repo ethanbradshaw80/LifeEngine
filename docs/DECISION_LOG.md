@@ -855,3 +855,48 @@ rulings in WORLD_MODES_PLAN.md.
 rather than a constant. The fictional-foreign-wars line holds because
 generated wars with real countries would fabricate history onto permanent
 records (R-14), which no preset may do.
+
+---
+
+## ADR-0025 — Capture, captivity, and the Prisoner of War Medal
+
+**Date.** 2026-08-02. **Status.** Accepted.
+
+**Context.** ADR-0024 admitted the owner's awards pack but held two items:
+the Prisoner of War Medal and the Air Medal. Both were held for the same
+stated reason — his rule is that no award exists that cannot be earned, and
+neither had a system behind it. The POW Medal needed a capture system. Until
+now a month that went wrong on deployment ended in a wound or a death, which
+quietly asserted that no war this simulation runs has ever taken a prisoner.
+
+**Decision.**
+
+1. **Capture is the third thing a bad month can end in.** Enemy contact
+   only — an accident does not hand anybody over — and it REPLACES the
+   wound rather than adding to it, because the capture is what happened to
+   them that month. Roughly one in fourteen of the serious contacts that
+   were already going to hurt somebody.
+
+2. **A captive's tour stops running on the calendar.** `capturedAtTick`
+   lives on the deployment. A prisoner does not come home because the orders
+   said this month, is not accruing contact, and is not on the roster the
+   war can spend.
+
+3. **Captivity ends two ways, and the war's end is the wide door.**
+   Repatriation, or death held. Prisoners go home when the shooting stops; a
+   captivity that outlived its war by decades would be a different and much
+   darker system than this one models, and we are not building that one. A
+   test runs 25 captivities out fifty years and asserts nobody is still held.
+
+4. **The medal is granted at CAPTURE, off the capture event.** Not at
+   repatriation. A man who dies held earned it the same as the one who walks
+   out, and hanging it on the way out would quietly say otherwise.
+
+5. **The Air Medal stays held.** It needs an aviation unit. The earnability
+   test now asserts `'pow'` is in the union and `'air'` still is not — the
+   rule enforced in both directions.
+
+**Consequences.** SIMULATION_VERSION 48: the extra draw shifts every seed
+where the Republic fought. SCHEMA_VERSION 25 with a real migration — every
+migrated tour is set free, because no build before this one could take
+anybody, and guessing otherwise would invent captivity that never happened.

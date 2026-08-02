@@ -24,7 +24,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { grantCampaignMedal, grantCombatAction, grantWoundRecognition,
+import { grantPow, grantCampaignMedal, grantCombatAction, grantWoundRecognition,
   grantOverseas,
 } from './awards.js'
 
@@ -310,6 +310,7 @@ function startRotation(
     endsAtTick: (tick + ROTATION_MONTHS) as Tick,
     returnedAtTick: null,
     tourNumber: history.length + 1,
+    capturedAtTick: null,
   }
   world.deployments.set(personId, [...history, rotation])
 
@@ -519,6 +520,7 @@ function startCombatTour(
     endsAtTick: (tick + TOUR_MONTHS) as Tick,
     returnedAtTick: null,
     tourNumber: history.length + 1,
+    capturedAtTick: null,
   }
   world.deployments.set(personId, [...history, deployment])
 
@@ -698,6 +700,135 @@ export function evacuateHome(world: World, tick: Tick, personId: EntityId): void
 }
 
 /** A month in theatre for everyone out there — and the way home at tour's end. */
+// ---------------------------------------------------------------------------
+// CAPTURE (ADR-0025). The third thing a bad day can end in.
+//
+// Until now a month that went wrong ended in a wound or a death, which
+// makes every war a war where nobody is ever taken. Capture is rarer than
+// either and worse than most: the tour stops running on the calendar, the
+// clock outside keeps going, and how it ends is not the prisoner's to
+// decide. The Prisoner of War Medal is grantable because of this branch and
+// only because of it — the owner's rule is that no award exists that
+// cannot be earned.
+// ---------------------------------------------------------------------------
+
+/** Held right now — an open tour with a capture on it. */
+export function isCaptive(world: World, personId: EntityId): boolean {
+  return currentDeployment(world, personId)?.capturedAtTick !== null &&
+    currentDeployment(world, personId) !== undefined
+}
+
+/** When they were taken, or null. */
+export function capturedSince(world: World, personId: EntityId): Tick | null {
+  return currentDeployment(world, personId)?.capturedAtTick ?? null
+}
+
+/**
+ * Take somebody prisoner. Returns false when there is nothing to take them
+ * from — no open tour, no enemy, or already held.
+ */
+export function capture(world: World, tick: Tick, personId: EntityId, rng: ReturnType<typeof openStream>): boolean {
+  const deployment = currentDeployment(world, personId)
+  if (!deployment || deployment.capturedAtTick !== null || deployment.enemyId === null) return false
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return false
+  const enemy = world.nations.get(deployment.enemyId)
+
+  const tours = world.deployments.get(personId) ?? []
+  world.deployments.set(
+    personId,
+    tours.map((tour) =>
+      tour.returnedAtTick === null && tour.startedAtTick === deployment.startedAtTick
+        ? { ...tour, capturedAtTick: tick }
+        : tour,
+    ),
+  )
+
+  const captured = recordEvent(world, tick, {
+    type: 'was-captured',
+    subjectId: personId,
+    ...(deployment.enemyId !== null ? { otherId: deployment.enemyId } : {}),
+    detail: enemy?.name ?? 'a hostile force',
+  })
+  // Law 3: being taken is not a choice, and the record says so plainly
+  // rather than inventing a decision the prisoner never made.
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'deployment',
+    significance: 'defining',
+    inputs: [factor('battlefield-chaos', 900), factor('enemy-capability', enemy?.strength ?? 500)],
+    chosen: `was taken prisoner by ${enemy?.name ?? 'a hostile force'}`,
+    rejected: [],
+    streamId: Stream.CombatResolution,
+  })
+  grantPow(world, tick, personId, captured)
+  // A captive is not on the roster the war can spend. Whatever the moment
+  // did to their body stays; the fighting stops for them here.
+  rng.nextInt(0, 1)
+  return true
+}
+
+/**
+ * One month held. Nothing here is the prisoner's decision — that is what
+ * makes it captivity — so it is resolved rather than asked.
+ *
+ * Two doors out. The war ending is by far the wider one: prisoners go home
+ * when the shooting stops, and a captivity that outlives its war by decades
+ * would be a different and much darker system than this one models.
+ */
+function resolveCaptivityMonth(
+  world: World,
+  tick: Tick,
+  person: Person,
+  deployment: Deployment,
+  warOngoing: boolean,
+): void {
+  const held = tick - (deployment.capturedAtTick ?? tick)
+  const rng = openStream(world.seed, Stream.CombatResolution, person.id, tick + 8801)
+
+  // Dying held. Rare per month, worse the longer it runs, and worse still
+  // while the war gives nobody a reason to look after prisoners.
+  const mortality = Math.min(60, 6 + Math.floor(held / 2)) + (warOngoing ? 0 : -3)
+  if (rng.chance(Math.max(1, mortality), 1_000)) {
+    performDeath(
+      world, tick, person, 'died in captivity',
+      [factor('battlefield-chaos', 700), factor('own-choice', 0)],
+      Stream.CombatResolution,
+    )
+    recordEvent(world, tick, {
+      type: 'died-in-captivity',
+      subjectId: person.id,
+      ...(deployment.enemyId !== null ? { otherId: deployment.enemyId } : {}),
+      detail: String(held),
+    })
+    closeTour(world, tick, person.id, deployment, true)
+    return
+  }
+
+  // Home. The war's end opens the gate; before that it is escape, exchange
+  // or a raid, and none of those is common.
+  const release = warOngoing ? 12 : 400
+  if (held >= 1 && rng.chance(release, 1_000)) {
+    recordEvent(world, tick, {
+      type: 'repatriated',
+      subjectId: person.id,
+      ...(deployment.enemyId !== null ? { otherId: deployment.enemyId } : {}),
+      detail: String(held),
+    })
+    const tours = world.deployments.get(person.id) ?? []
+    world.deployments.set(
+      person.id,
+      tours.map((tour) =>
+        tour.returnedAtTick === null && tour.startedAtTick === deployment.startedAtTick
+          ? { ...tour, capturedAtTick: null }
+          : tour,
+      ),
+    )
+    closeTour(world, tick, person.id, currentDeployment(world, person.id) ?? deployment, true)
+    evacuateHome(world, tick, person.id)
+  }
+}
+
 function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
   // Open tours directly, NOT isDeployed — the dead fail isDeployed now,
   // and their tours are exactly the ones the block below must close.
@@ -728,6 +859,18 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         }
         break
       }
+      continue
+    }
+
+    // HELD. Before the calendar, before the war lookup, before any of the
+    // month's rolls: a prisoner is not fighting, is not accruing contact,
+    // and does not come home because the orders said this month.
+    if (deployment.capturedAtTick !== null) {
+      const theirWar =
+        deployment.warA === null || deployment.warB === null
+          ? undefined
+          : relationBetween(world, deployment.warA, deployment.warB)
+      resolveCaptivityMonth(world, tick, person, deployment, theirWar?.state === 'war')
       continue
     }
 
@@ -935,6 +1078,15 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         break
       }
       continue
+    }
+
+    // TAKEN. A bad month against a capable enemy, where the fighting was
+    // enemy contact rather than an accident — an accident does not hand
+    // anybody over. Rarer than a wound by an order of magnitude, and it
+    // replaces the wound rather than adding to it: the capture IS what
+    // happened to them this month.
+    if (!isAccident && severity >= 650 && rng.chance(1, 14)) {
+      if (capture(world, tick, personId, rng)) continue
     }
 
     // Wounded — and wounded SPECIFICALLY (M-WOUNDS): the channel that found

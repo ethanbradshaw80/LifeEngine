@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v48 — CAPTURE (ADR-0025). A bad month against enemy contact can end in
+ *      a soldier being taken prisoner instead of wounded — the third thing
+ *      a bad day can end in, and the reason the Prisoner of War Medal is
+ *      grantable at all. A captive's tour stops running on the calendar.
+ *      The extra draw shifts every seed where the Republic fought.
  * v47 — EVERY BRANCH GETS A UNIT (owner's combat plan §1b). The Trident
  *      Detachment, the Guardian Flight, the Vanguard Group and the Grey
  *      Section join the Pathfinders and Ember, so Drop a Packet is never
@@ -316,7 +321,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 47
+export const SIMULATION_VERSION = 48
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

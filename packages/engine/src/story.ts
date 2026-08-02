@@ -283,6 +283,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
     case 'unit-moment':
       return `${year} — ${unitMomentWordsFor(event.detail)}.`
+    case 'was-captured':
+      return `${year} — Taken prisoner by ${event.detail ?? 'a hostile force'}.`
+    case 'repatriated': {
+      const held = Number(event.detail ?? '0')
+      return `${year} — Came home after ${held <= 1 ? 'a month' : `${String(held)} months`} held prisoner.`
+    }
+    case 'died-in-captivity': {
+      const held = Number(event.detail ?? '0')
+      return `${year} — Died in captivity, ${held <= 1 ? 'within a month' : `${String(held)} months`} after being taken.`
+    }
     case 'joined-unit':
       return `${year} — Selected for ${unitWordsFor(world, event.detail)}.`
     case 'dropped-selection':

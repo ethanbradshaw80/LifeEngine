@@ -641,12 +641,14 @@ export type AwardKind =
   | 'nco-development'
   /** Finished initial training. The first ribbon anybody gets. */
   | 'service-ribbon'
+  /** Held prisoner. Earned by the capture system, ADR-0025. */
+  | 'pow'
   //
-  // NOT HERE, DELIBERATELY: 'pow' and 'air'. The owner's pack marks both
-  // HOLD — the first needs a capture system, the second an aviation unit —
-  // and his rule is that no award exists that cannot be earned. A kind
-  // nothing can grant is that rule broken one level down, so they arrive
-  // with the systems that earn them (ADR-0024 §4).
+  // NOT HERE, DELIBERATELY: 'air'. The owner's pack marks it HOLD — it
+  // needs an aviation unit — and his rule is that no award exists that
+  // cannot be earned. A kind nothing can grant is that rule broken one
+  // level down, so it arrives with the system that earns it (ADR-0024 §4).
+  // 'pow' left this list on 2026-08-02 with the capture branch below it.
 
 export interface AwardRecord {
   readonly personId: EntityId
@@ -695,6 +697,13 @@ export interface Deployment {
   readonly endsAtTick: Tick
   readonly returnedAtTick: Tick | null
   readonly tourNumber: number
+  /**
+   * Taken prisoner, and when. A captive's tour does NOT end on the calendar
+   * — that is the whole truth of captivity, and closing it on schedule
+   * would have them walk home on the day the orders said. It closes when
+   * they are repatriated, or when they die held.
+   */
+  readonly capturedAtTick: Tick | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1052,6 +1061,9 @@ export type EventType =
   /** Selected for a special unit (M-SPECOPS). */
   | 'joined-unit'
   | 'unit-moment'
+  | 'was-captured'
+  | 'repatriated'
+  | 'died-in-captivity'
   /** Went to selection and did not make it. On the record, without shame. */
   | 'dropped-selection'
   /** Scored the annual fitness test — promotion points for the body's work. */

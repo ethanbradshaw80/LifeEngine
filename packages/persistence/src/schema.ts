@@ -29,6 +29,9 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v25 — Capture (ADR-0025). A deployment carries `capturedAtTick`. Migrated
+ *      tours are set free — nobody in an old save was ever taken, because
+ *      no build before this one could take them.
  * v24 — Unit moments. A pending can now be kind 'unit-moment', and the
  *      player log's `choice` for one carries the cutscene it answered
  *      ("losing-one:hold"). No new field and no migration: an old save has
@@ -92,7 +95,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 24
+export const SCHEMA_VERSION = 25
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1

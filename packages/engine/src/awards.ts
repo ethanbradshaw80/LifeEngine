@@ -302,6 +302,8 @@ export function grantCombatAction(
  * grantCampaignMedal.
  */
 export const EXPEDITIONARY_MEDAL = 'the Armed Forces Expeditionary Medal'
+/** ADR-0025. Real, and earned the hard way: it needs a capture. */
+export const POW_TITLE = 'the Prisoner of War Medal'
 
 export function grantCampaignMedal(
   world: World,
@@ -646,5 +648,26 @@ export function grantOverseas(
     qualifying,
     citation: 'for a tour of duty overseas',
     inputs: [factor('under-orders', 300)],
+  })
+}
+
+/**
+ * The Prisoner of War Medal. Granted at CAPTURE, off the capture itself —
+ * not at repatriation. A man who dies held earned it the same as the one
+ * who walks out, and hanging it on the way out would quietly say otherwise.
+ */
+export function grantPow(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+): AwardRecord | null {
+  if (qualifying.type !== 'was-captured' || qualifying.subjectId !== personId) return null
+  return grant(world, tick, personId, {
+    kind: 'pow',
+    title: POW_TITLE,
+    qualifying,
+    inputs: [factor('enemy-capability', 1000)],
+    citation: 'for having been held prisoner by a hostile force',
   })
 }
