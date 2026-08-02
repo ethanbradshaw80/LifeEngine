@@ -104,6 +104,36 @@ describe('WCJC', () => {
     expect(quoted).toBeGreaterThan(0)
   })
 
+  it('does not print the same quote every time', () => {
+    // Owner: every death used to be interviewed with one sentence. The
+    // speaker and the line are drawn from a pure hash of (person, month),
+    // so they vary across deaths and never vary for the same death.
+    const quotes = articles.map((a) => a.quote?.text).filter((t): t is string => t !== undefined)
+    if (quotes.length < 3) return // too few in this window to say anything
+    expect(new Set(quotes).size).toBeGreaterThan(1)
+    // Sources vary too — it is not always the same person being asked.
+    const sources = articles.map((a) => a.quote?.source).filter((s): s is string => s !== undefined)
+    expect(new Set(sources).size).toBeGreaterThan(1)
+  })
+
+  it('gives the same story the same quote, every time it is asked', () => {
+    for (const item of items.slice(0, 40)) {
+      const first = articleFor(world, item)
+      const second = articleFor(world, item)
+      expect(second?.quote?.text).toBe(first?.quote?.text)
+      expect(second?.quote?.source).toBe(first?.quote?.source)
+    }
+  })
+
+  it('runs recruiting notices without the red rule or an article', () => {
+    const drives = items.filter((i) => i.kind === 'recruiting-drive')
+    expect(drives.length).toBeGreaterThan(0)
+    for (const drive of drives) {
+      expect(drive.nearby).toBe(false)
+      expect(articleFor(world, drive)).toBeNull()
+    }
+  })
+
   it('reports a death with the facts a death report needs', () => {
     const deaths = items.filter((i) => i.kind === 'died-in-service')
     expect(deaths.length).toBeGreaterThan(0)

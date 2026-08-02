@@ -32,6 +32,7 @@ import { BRANCH_NAMES, GRADE_TITLES, NEWS_STATION, offenceById, specialtyById } 
 import type { ServiceBranch } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
+import { hash32, Stream } from './rng.js'
 import { lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
 
@@ -198,17 +199,16 @@ function deathInService(
   // lastUnitRosterOf, not unitRosterOf: the record closed the moment they
   // died, and the squad they served in is exactly who can speak to it.
   const roster = lastUnitRosterOf(world, person.id)
-  const leader = roster?.members.find((m) => m.personId !== person.id && m.role === 'squad leader')
-  const quote: NewsQuote | null =
-    leader !== undefined && roster !== null
-      ? {
-          text: `${person.givenName} was in ${roster.unitName} with us. That is who we lost.`,
-          source: `${leader.rankTitle} ${leader.name}, ${roster.unitName}`,
-        }
-      : null
+  const speakers = roster?.members.filter((m) => m.personId !== person.id) ?? []
+  const spouse = livingSpouse(world, person.id)
+  const quote = deathQuote(world, item, person, roster?.unitName ?? null, speakers, spouse, {
+    years,
+    trade,
+    onTour,
+    away,
+  })
 
   // CLOSING: survivors and next steps, from the family the world holds.
-  const spouse = livingSpouse(world, person.id)
   const children = childrenOf(world, person)
   const parents = parentsOf(world, person)
   const survivors = [
@@ -229,6 +229,69 @@ function deathInService(
     quote,
     closing,
   }
+}
+
+/**
+ * The quote on a death report. Varied, but never random — a reporter
+ * speaks to whoever is there, and who that is follows from the world.
+ *
+ * The speaker is drawn from the squad by a pure hash of (person, month),
+ * so the same death always yields the same interview and two deaths do
+ * not read alike. Every line asserts only what the simulation holds: the
+ * unit, the years, the trade, the tour. Nobody says anything that is not
+ * true of them.
+ */
+function deathQuote(
+  world: World,
+  item: NewsItem,
+  person: Person,
+  unitName: string | null,
+  speakers: readonly { personId: EntityId; name: string; rankTitle: string; role: string }[],
+  spouse: Person | undefined,
+  facts: { years: number | null; trade: string | null; onTour: boolean; away: string | null },
+): NewsQuote | null {
+  const draw = hash32(world.seed, Stream.Employment, person.id, item.tick + 4_242)
+
+  // A squadmate, if the squad has anyone left to ask.
+  if (speakers.length > 0 && unitName !== null) {
+    const speaker = speakers[draw % speakers.length]
+    if (speaker !== undefined) {
+      const lines: string[] = [
+        `${person.givenName} was in ${unitName} with us. That is who we lost.`,
+        `We served together in ${unitName}. You do not replace somebody like that on a roster.`,
+        `${person.givenName} pulled the same duty the rest of us pulled, every day, without a word about it.`,
+      ]
+      if (facts.trade !== null) {
+        lines.push(
+          `Best ${facts.trade} in ${unitName}, and I would say that in front of anyone who wants to argue it.`,
+        )
+      }
+      if (facts.years !== null && facts.years >= 3) {
+        lines.push(
+          `${String(facts.years)} years in, and ${person.givenName} still did the job like it was the first week.`,
+        )
+      }
+      if (facts.onTour && facts.away !== null) {
+        lines.push(`We were out there together. ${person.givenName} did not come back with us.`)
+      }
+      const text = lines[Math.floor(draw / 7) % lines.length] ?? lines[0]
+      if (text !== undefined) {
+        return { text, source: `${speaker.rankTitle} ${speaker.name}, ${unitName}` }
+      }
+    }
+  }
+
+  // Otherwise the family speaks, which is its own kind of report.
+  if (spouse !== undefined) {
+    const lines = [
+      `We knew what the work was. Knowing does not do much for you when the notice comes.`,
+      `${person.givenName} signed on and never once talked about quitting it.`,
+      `I would like people to know ${person.givenName} was more than the uniform.`,
+    ]
+    const text = lines[draw % lines.length] ?? lines[0]
+    if (text !== undefined) return { text, source: `${fullName(spouse)}, spouse` }
+  }
+  return null
 }
 
 function countServing(world: World): number {
@@ -265,13 +328,19 @@ function cameHome(world: World, item: NewsItem, person: Person, dateline: string
   }
 
   const spouse = livingSpouse(world, person.id)
+  const draw = hash32(world.seed, Stream.Employment, person.id, item.tick + 8_484)
   const quote: NewsQuote | null =
     spouse === undefined
       ? null
-      : {
-          text: `${months === null ? 'The tour' : `${String(months)} months`} is a long time to run a house on your own. We have him back.`,
-          source: `${fullName(spouse)}, spouse`,
-        }
+      : (() => {
+          const lines = [
+            `${months === null ? 'A tour' : `${String(months)} months`} is a long time to run a house on your own.`,
+            'The children have been counting it out on the calendar since the day the orders came.',
+            'You do not settle back into it overnight. But they are home, and that is the part I wanted.',
+          ]
+          const text = lines[draw % lines.length] ?? lines[0]
+          return text === undefined ? null : { text, source: `${fullName(spouse)}, spouse` }
+        })()
 
   return {
     headline: `${who} returns from tour`,

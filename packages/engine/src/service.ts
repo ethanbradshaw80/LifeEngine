@@ -846,8 +846,11 @@ export function serviceNewsSince(
     if (event.type === 'recruiting-drive') {
       items.push({
         tick: event.tick,
+        // Not 'nearby': the red rule is for what lands ON the town — a war
+        // it is in, one of its own dead. A recruiting season is a notice
+        // and should not wear the same emphasis (owner).
         text: 'the recruiters set up on the square — a drive is on',
-        nearby: true,
+        nearby: false,
         kind: 'recruiting-drive',
       })
       continue
