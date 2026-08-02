@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { criminalRecordOf, hasRecentConviction, isJailed } from '../src/crime.js'
+import { criminalRecordOf, hasRecentConviction, isJailed, gateStrengthOf } from '../src/crime.js'
 import { transferBetweenHouseholds } from '../src/finances.js'
 import { advanceTicks, createWorld, enlistmentBar } from '../src/index.js'
 import { worldHashHex } from '../src/snapshot.js'
@@ -105,15 +105,38 @@ describe('jail is absence, and the record follows', () => {
         expect(world.employment.has(personId)).toBe(false)
       }
     }
-    // A recent conviction bars enlistment, in words.
+    // A recent conviction bars enlistment, in words — and "recent" is now
+    // the HARD window specifically (C3 §5). A misdemeanor four years old no
+    // longer shuts this door, which is the whole point of grading the gate,
+    // so the assertion asks about a conviction inside its own hard window.
     const convicted = [...world.criminal.values()].find((r) =>
-      r.convictions.some((c) => world.tick - c.tick < 60),
+      r.convictions.some((c) => gateStrengthOf(c, world.tick) === 'hard'),
     )
     if (convicted) {
       const person = livingPeople(world).find((p) => p.id === convicted.personId)
       if (person) {
         const bar = enlistmentBar(world, person, world.tick)
         expect(bar).not.toBeNull()
+      }
+    }
+
+    // And an old, light conviction does NOT — a door that got heavier, not
+    // one that shut.
+    const faded = [...world.criminal.values()].find(
+      (r) =>
+        r.convictions.length > 0 &&
+        r.convictions.every((c) => gateStrengthOf(c, world.tick) === 'none') &&
+        (r.probationUntilTick ?? null) === null &&
+        r.jailedUntilTick === null,
+    )
+    if (faded) {
+      const person = livingPeople(world).find((p) => p.id === faded.personId)
+      // Age and the one-career rule can still bar them; what must not is
+      // the record.
+      if (person) {
+        expect(enlistmentBar(world, person, world.tick)).not.toBe(
+          'The record at the courthouse answers first.',
+        )
       }
     }
   })

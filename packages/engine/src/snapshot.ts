@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v64 — C3 STEP 5: PROBATION RUNS. The rung the ladder needed most: a
+ *      monthly supervision pass, a revocation that imposes what was
+ *      hanging over somebody, and a new offence while supervised as the
+ *      violation that matters. Probation restricts enlistment and does not
+ *      touch the job — that is the difference between it and a cell. The
+ *      hiring and enlistment gates read the GRADE now rather than a
+ *      boolean that switched off on an anniversary.
  * v63 — C3 STEP 4: THE SENTENCING LADDER. The court had two answers, so a
  *      five-time burglar and a first shoplifter landed in the same two
  *      buckets. Seven rungs now — dismissed, fine, community service,
@@ -414,7 +421,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 63
+export const SIMULATION_VERSION = 64
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

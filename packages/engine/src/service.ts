@@ -62,11 +62,13 @@ import {
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_TERM_MONTHS,
   servicePayOn,
-  } from './content.js'
+  offenceById,
+  isFelony,
+} from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
 import type { ServiceSchool, ServiceSpecialty } from './content.js'
-import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js'
+import { educationRank, meetsRequirement } from './content.js'
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
@@ -745,7 +747,28 @@ export function enlistmentBar(world: World, person: Person, tick: Tick): string 
     if (criminal.jailedUntilTick !== null && tick < criminal.jailedUntilTick) {
       return 'Not from a cell.'
     }
-    if (criminal.convictions.some((c) => tick - c.tick < RECORD_GATE_YEARS * 12)) {
+    // C3 §2. NOT WHILE SUPERVISED. Probation restricts movement and the
+    // army is movement — you cannot report to a posting in another country
+    // while a court expects to see you monthly.
+    const probationUntil = criminal.probationUntilTick ?? null
+    if (probationUntil !== null && tick < probationUntil) {
+      return 'The court expects to see you monthly; the recruiter will wait.'
+    }
+    // C3 §5. THE GRADED GATE, read inline for the same reason the comment
+    // above gives: a hard gate refuses, a soft one does not — an old
+    // misdemeanor should not still be closing this door, and a violent
+    // felony always will.
+    const gated = criminal.convictions.some((c) => {
+      if (c.sealed === true) return false
+      const offence = offenceById(c.kind)
+      const years = Math.floor((tick - c.tick) / 12)
+      if (offence !== undefined && (offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade)))) {
+        return true
+      }
+      const felony = offence !== undefined && isFelony(offence.grade)
+      return years < (felony ? 10 : 3)
+    })
+    if (gated) {
       return 'The record at the courthouse answers first.'
     }
   }

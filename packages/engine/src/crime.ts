@@ -134,7 +134,107 @@ export function hasRecentConviction(world: World, personId: EntityId): boolean {
  */
 const BASELINE_PRESSURE = 26
 
+/**
+ * C3 §2. On probation right now.
+ *
+ * Probation is NOT custody and the difference is the whole point of the
+ * rung: the job survives, the household survives, the person is still in
+ * their own life. What it costs is freedom of movement and a second
+ * chance — a new offence while it runs imposes the term that was hanging
+ * over them.
+ */
+export function isOnProbation(world: World, personId: EntityId): boolean {
+  const record = world.criminal.get(personId)
+  const until = record?.probationUntilTick ?? null
+  return until !== null && world.tick < until
+}
+
+/** Months still hanging over somebody, imposed if probation is revoked. */
+export function suspendedTermOf(world: World, personId: EntityId): number {
+  return world.criminal.get(personId)?.suspendedMonths ?? 0
+}
+
+/**
+ * C3 §2. Probation is revoked and the suspended term is imposed.
+ *
+ * Shared by the NPC path and the player's, because a revocation is a
+ * revocation: the same cell, the same record, the same absence from a job
+ * and a household.
+ */
+export function revokeProbation(world: World, tick: Tick, person: Person, why: string): void {
+  const record = world.criminal.get(person.id)
+  if (!record) return
+  const months = Math.max(1, record.suspendedMonths ?? 1)
+
+  world.criminal.set(person.id, {
+    ...record,
+    jailedUntilTick: (tick + months) as Tick,
+    probationUntilTick: null,
+    suspendedMonths: 0,
+  })
+  recordEvent(world, tick, {
+    type: 'violated-probation',
+    subjectId: person.id,
+    detail: `${why}:${String(months)}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'crime',
+    significance: 'major',
+    inputs: [factor('own-choice', 700), factor('prior-record', 900)],
+    chosen: `had probation revoked and went in for ${String(months)} months`,
+    rejected: ['to keep the terms'],
+    streamId: Stream.Crime,
+  })
+  // Jail is absence, and the job goes the same way it goes for a sentence
+  // handed down in the first place.
+  world.employment.delete(person.id)
+}
+
+/**
+ * C3 §2. One month of supervision, for everybody serving it.
+ *
+ * Nothing here is a draw against character — the violation that matters is
+ * a NEW OFFENCE, which the crime pass above already models, and this is
+ * where it lands. What is drawn is the small remainder: missed obligations,
+ * a failed check-in, the ordinary friction of being supervised.
+ */
+function runProbation(world: World, tick: Tick): void {
+  for (const person of livingSorted(world)) {
+    const record = world.criminal.get(person.id)
+    const until = record?.probationUntilTick ?? null
+    if (!record || until === null) continue
+    if (record.jailedUntilTick !== null) continue // already inside
+
+    if (tick >= until) {
+      world.criminal.set(person.id, {
+        ...record,
+        probationUntilTick: null,
+        suspendedMonths: 0,
+      })
+      recordEvent(world, tick, { type: 'completed-probation', subjectId: person.id })
+      continue
+    }
+
+    // A missed obligation. Rare, and it does not by itself send anybody
+    // back — the court's patience is what the second chance is made of.
+    const rng = openStream(world.seed, Stream.Crime, person.id, tick + 4141)
+    if (!rng.chance(12, 1_000)) continue
+    if (rng.chance(1, 3)) {
+      revokeProbation(world, tick, person, 'missed the terms')
+    } else {
+      recordEvent(world, tick, {
+        type: 'community-service',
+        subjectId: person.id,
+        detail: 'a warning from the court',
+      })
+    }
+  }
+}
+
 export function runCrime(world: World, tick: Tick): void {
+  runProbation(world, tick)
+
   for (const person of livingSorted(world)) {
     const record = world.criminal.get(person.id)
 
@@ -575,6 +675,14 @@ function carryOutOffence(
   // Cleared, or not — the same door the player's own offence goes through.
   if (!rng.chance(offence.clearance, 1_000)) return
   recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
+
+  // C3 §2. OFFENDING ON PROBATION IS THE VIOLATION THAT MATTERS. The term
+  // hanging over them lands first, and then the new charge is answered for
+  // on its own — which is how somebody on a suspended sentence ends up
+  // serving both.
+  if (isOnProbation(world, person.id)) {
+    revokeProbation(world, tick, person, offence.id)
+  }
   resolveCourt(world, tick, person, taken, rng, null, offence)
 }
 
@@ -907,7 +1015,13 @@ export function resolveCourt(
   recordEvent(world, tick, {
     type: 'was-convicted',
     subjectId: person.id,
-    detail: jailTime ? `jail:${String(sentenceMonths)}` : `fine:${String(fine)}`,
+    // The disposition travels with the event, because the paper reads it:
+    // custody is a story and a fine is not (owner), and after the ladder
+    // "did they go inside" is no longer the same question as "were they
+    // convicted".
+    detail: jailTime
+      ? `jail:${String(sentenceMonths)}:${disposition}`
+      : `${disposition}:${String(fine)}`,
   })
   recordDecision(world, tick, {
     subjectId: person.id,
@@ -956,6 +1070,25 @@ export function resolveCourt(
  * becomes public only at the courthouse. An unconvicted thief's name never
  * makes the paper — that asymmetry is the point.
  */
+/**
+ * A sentence in words: "3 years, 2 months".
+ *
+ * The clock this world runs on is MONTHLY, so there are no days to report —
+ * a sentence of "4 years, 2 months and 11 days" would be inventing a
+ * precision the simulation does not have, the same way a day on the orders
+ * sheet did. Years and months are what the court actually handed down.
+ */
+export function sentenceInWords(months: number): string {
+  if (months <= 0) return 'no time'
+  const years = Math.floor(months / 12)
+  const rest = months % 12
+  const yearPart = years === 0 ? '' : years === 1 ? '1 year' : `${String(years)} years`
+  const monthPart = rest === 0 ? '' : rest === 1 ? '1 month' : `${String(rest)} months`
+  if (yearPart === '') return monthPart
+  if (monthPart === '') return yearPart
+  return `${yearPart}, ${monthPart}`
+}
+
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
   const items: NewsItem[] = []
   for (const event of world.events) {
@@ -969,13 +1102,16 @@ export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {
     } else if (event.type === 'was-convicted') {
       const person = world.people.get(event.subjectId)
       if (!person) continue
-      // CUSTODY ONLY (owner, 2026-08-02). A fine is a bad afternoon; a
-      // sentence takes somebody out of the town, out of a job and out of a
-      // household, and that is what a paper this size prints. Reporting
-      // every fine turned the feed into a docket.
+      // CUSTODY ONLY, AND CUSTODY MEANS JAIL OR A SPLIT SENTENCE (owner).
+      // A fine is a bad afternoon; probation, a suspended term and
+      // community service all leave somebody in their own life. What the
+      // paper prints is the one that takes them out of the town, out of a
+      // job and out of a household.
       if (event.detail?.startsWith('jail:') !== true) continue
-      const months = Number(event.detail.slice(5))
-      const sentence = months === 1 ? 'a month' : `${String(months)} months`
+      const parts = event.detail.split(':')
+      const disposition = parts[2] ?? 'jail'
+      if (disposition !== 'jail' && disposition !== 'split') continue
+      const sentence = sentenceInWords(Number(parts[1] ?? '0'))
       // The charge, from the record rather than assumed: the courthouse
       // hears more than theft now (C2).
       const conviction = [...(world.criminal.get(person.id)?.convictions ?? [])]

@@ -36,7 +36,7 @@ import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
 import { canAfford, distributeEstate, householdCosts, householdIncome, inArrears } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
-import { hasRecentConviction, isJailed } from './crime.js'
+import { isJailed, recordGateOf } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
 import {
   closeServiceOnDeath,
@@ -344,8 +344,13 @@ export function runEmployment(world: World, tick: Tick): void {
     // Hiring is not guaranteed — ambition and diligence improve the odds,
     // and a recent conviction closes some doors before they open (C1): the
     // record follows, though after ten clean years it stops gating.
+    // C3 §5. THE GATE GRADES INSTEAD OF FLIPPING. It used to be a boolean
+    // that switched off on an anniversary: barred one month, forgotten the
+    // next. A hard gate is the wall it always was, a soft one is a door
+    // that got heavier, and an old conviction is not read at all.
     const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
-    const recordDrag = hasRecentConviction(world, person.id) ? 120 : 0
+    const gate = recordGateOf(world, person.id, world.tick)
+    const recordDrag = gate === 'hard' ? 120 : gate === 'soft' ? 45 : 0
     if (!rng.chance(Math.max(40, 250 + Math.floor(drive / 4) - recordDrag), 1000)) continue
 
     // Prefer better-paid roles, weighted rather than always-the-best, so two
