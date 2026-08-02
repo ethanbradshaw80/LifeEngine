@@ -74,7 +74,10 @@ describe('the peacetime career', () => {
       for (const title of titles) {
         const index = ladder.indexOf(title)
         expect(index, `${title} is not on the ${record.branch} ladder`).toBeGreaterThan(-1)
-        expect(index, `promotion skipped a rank: ${titles.join(' → ')}`).toBe(previous + 1)
+        // Never MORE than one step up. Equal-or-lower is legal since
+        // M-ARMY2's company punishments can bust a stripe — the ladder is
+        // then climbed again, one step at a time, which is the guarantee.
+        expect(index, `promotion skipped a rank: ${titles.join(' → ')}`).toBeLessThanOrEqual(previous + 1)
         previous = index
       }
     }

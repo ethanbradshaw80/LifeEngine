@@ -28,6 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v28 — M-ARMY2. Career shape and misconduct (owner direction): up-or-out
+ *      applies below E-5 only ("a ton of people retire at SGT, SSG"); a
+ *      career is thirty years; the office takes volunteers to thirty-
+ *      eight; sixty-two is the last year in uniform. And the mistakes at
+ *      base arrived: company punishments — careless months produce them,
+ *      a severe one can bust a stripe, and a third in five years ends the
+ *      career by misconduct discharge, which is also the honest removal
+ *      path for the ranks up-or-out no longer touches. Service histories
+ *      differ from v27.
  * v27 — M-ARMY2. Enlistment is a modelled pull, not a flat rate: a parent
  *      who served draws the child a little (service-tradition, finally
  *      emitted), and recruiting drives — three months of roughly every
@@ -143,7 +152,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 27
+export const SIMULATION_VERSION = 28
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -69,9 +69,39 @@ import type { CausalFactor, Person, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
 
 const ENLIST_MIN_AGE = 18
-const ENLIST_MAX_AGE = 26
+/** M-ARMY2 (owner): the office takes volunteers to thirty-eight. */
+const ENLIST_MAX_AGE = 38
 /** Disability at or above this ends (or bars) service on medical grounds. */
 const MEDICAL_LIMIT = 400
+
+// --- M-ARMY2 career shape (owner direction, 2026-08-01) --------------------
+/** Up-or-out applies BELOW this pay grade only. Make E-5 (SGT, PO2, SSgt)
+ *  and the service will keep you: "a ton of people retire at SGT, SSG". */
+const HYT_BELOW_GRADE = 5
+/** A career is thirty years, and a term that would cross it is not offered. */
+const MAX_CAREER_MONTHS = 360
+/** Mandatory retirement age. Nobody serves past it, rank regardless. */
+const SERVICE_RETIREMENT_AGE = 62
+
+// --- M-ARMY2 misconduct ----------------------------------------------------
+/** Monthly incident chance per 1000: 1 for the diligent up to 4 for the
+ *  careless, +2 more when the work is already failing. ~1-5% a year. */
+function misconductChance(person: Person, performance: number): number {
+  let chance = 1 + Math.floor(Math.max(0, 550 - person.traits.diligence) / 140)
+  if (performance < 300) chance += 2
+  return chance
+}
+/** A third company punishment inside this window ends the career. */
+const MISCONDUCT_STRIKES = 3
+const MISCONDUCT_WINDOW_MONTHS = 60
+const MINOR_INFRACTIONS = [
+  'late off leave',
+  'asleep on stint',
+  'a scrap in barracks',
+  'missed movement',
+  'drink where it should not have been',
+] as const
+const SEVERE_INFRACTIONS = ['a fight that went too far', 'insubordination before the company'] as const
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -331,7 +361,7 @@ function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
 export function enlistmentBar(world: World, person: Person, tick: Tick): string | null {
   const age = ageAt(person.birthTick, tick)
   if (age < ENLIST_MIN_AGE) return 'Not yet eighteen.'
-  if (age > ENLIST_MAX_AGE) return 'Past enlistment age — the office takes volunteers at eighteen to twenty-six.'
+  if (age > ENLIST_MAX_AGE) return 'Past enlistment age — the office takes volunteers at eighteen to thirty-eight.'
   if (world.service.has(person.id)) return 'One service career per life; the record stands.'
   if (isSeverelyAiling(world, person.id)) return 'The body would not pass the medical today.'
   if ((world.health.get(person.id)?.disability ?? 0) >= MEDICAL_LIMIT) {
@@ -619,9 +649,24 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     return
   }
 
+  // M-ARMY2 career shape (owner): thirty years is a career, sixty-two is
+  // the last year in uniform — the army's decisions, not questions, player
+  // and NPC alike. Neither fires in a theatre (the boat home first; the
+  // dead-in-theatre lessons hold for the living too).
+  if (!isDeployed(world, person.id)) {
+    if (ageAt(person.birthTick, tick) >= SERVICE_RETIREMENT_AGE) {
+      discharge(world, tick, person, record, 'retirement age', [factor('old-age', 700)])
+      return
+    }
+    if (tick - record.enlistedAtTick >= MAX_CAREER_MONTHS) {
+      discharge(world, tick, person, record, 'thirty years served', [factor('term-ended', 800)])
+      return
+    }
+  }
+
   // Performance drifts toward what diligence can deliver, as at any work.
   const pull = person.traits.diligence - record.performance
-  const performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
+  let performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
 
   const specialty = specialtyById(record.specialtyId)
   const branch = specialty.branch
@@ -816,6 +861,47 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
+  // --- Misconduct (M-ARMY2, owner: "mistakes that can get you Article
+  // 15's"). A company punishment happens TO a soldier the way an illness
+  // does: careless months produce it, the record keeps it, and a third
+  // inside five years ends the career — which is also the honest removal
+  // path for the ranks up-or-out no longer touches. Not in a theatre
+  // (deployment owns those months), not during basic.
+  if (!deployed && monthsIn > 2 && rng.chance(misconductChance(person, performance), 1_000)) {
+    const priorStrikes = world.events.filter(
+      (e) =>
+        e.type === 'disciplined' &&
+        e.subjectId === person.id &&
+        tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
+    ).length
+    const severe = rng.chance(1, 6)
+    const willBust = severe && rank > 0 && priorStrikes + 1 < MISCONDUCT_STRIKES
+    const infraction = severe ? rng.pick(SEVERE_INFRACTIONS) : rng.pick(MINOR_INFRACTIONS)
+    // The stripe lost is in the event's own words — a demotion must never
+    // be silent (the P1 principle).
+    recordEvent(world, tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: willBust ? `${infraction} — busted a stripe` : infraction,
+    })
+
+    if (priorStrikes + 1 >= MISCONDUCT_STRIKES) {
+      // The file is full. The month ends at the orderly room.
+      discharge(world, tick, person, world.service.get(person.id)!, 'misconduct', [
+        factor('poor-performance', 1000 - performance),
+        factor('prior-record', priorStrikes * 300),
+      ])
+      return
+    }
+    performance = Math.max(0, performance - (severe ? 80 : 60))
+    if (willBust) {
+      // Busted a grade. The month's promotion, if one landed, is undone by
+      // the same stroke.
+      rank -= 1
+      rankSinceTick = tick
+    }
+  }
+
   // --- The player's own hands on the career (M-SERVICE-PLAY). -------------
   // Service used to happen TO the player; these are the handles. Only the
   // player draws here (guarded), so a world played by nobody is untouched.
@@ -915,12 +1001,15 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     return
   }
 
-  // HIGH-YEAR TENURE: up or out. Six years in the same grade and the
-  // service does not offer another term — player and NPC alike, because
-  // this is the army's decision, not a question. The term itself was served
-  // in full, so good conduct is still judged (the grant accepts this
-  // discharge). Nobody sits at SPC for forty years any more.
-  if (rank < ladder.length - 1 && tick - rankSinceTick >= HIGH_YEAR_TENURE_TIG) {
+  // HIGH-YEAR TENURE: up or out — but ONLY below E-5 (M-ARMY2, owner:
+  // "a ton of people retire at SGT, SSG"). Make sergeant and the service
+  // will keep you to thirty years or sixty-two, unless the file fills with
+  // misconduct. Below the line, six years in grade and the service does
+  // not offer another term — player and NPC alike, the army's decision,
+  // not a question. The term was served in full, so good conduct is still
+  // judged (the grant accepts this discharge).
+  const grade = BRANCH_GRADES[branch][rank] ?? 9
+  if (grade < HYT_BELOW_GRADE && tick - rankSinceTick >= HIGH_YEAR_TENURE_TIG) {
     discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
       factor('time-in-grade', 1000),
     ])

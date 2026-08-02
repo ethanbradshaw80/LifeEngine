@@ -59,11 +59,12 @@ describe('recruiting drives', () => {
     const outRate = outSeason / (monthsTotal - seasonMonths.size)
     // The drive is when people walk in — a higher per-month rate in season…
     expect(inRate).toBeGreaterThan(outRate)
-    // …while the overall volume stays in the measured band (~15/decade at
-    // the 400 default), not a recruiting-poster spike.
+    // …while the overall volume stays in a believable band — the town
+    // GROWS across the window (~15/decade at 400, more as it climbs), so
+    // the ceiling guards against a ×3 recruiting-poster spike, not drift.
     const total = inSeason + outSeason
     expect(total).toBeGreaterThan(30)
-    expect(total).toBeLessThan(130)
+    expect(total).toBeLessThan(220)
   })
 })
 

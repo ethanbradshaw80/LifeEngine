@@ -27,7 +27,7 @@ import {
 } from '../src/player.js'
 import { isDeployed } from '../src/deployment.js'
 import { isVeteran } from '../src/service.js'
-import { BRANCH_RANKS } from '../src/content.js'
+import { BRANCH_GRADES } from '../src/content.js'
 import type { ServiceBranch } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
 import type { Person, World } from '../src/types.js'
@@ -107,14 +107,13 @@ describe('high-year tenure — up or out', () => {
     advanceTicks(world, 900)
     for (const record of world.service.values()) {
       if (record.dischargedAtTick !== null) continue
-      // Each BRANCH's own ladder top may stay — the engine's actual rule.
-      // The old `rank >= 8` was land-forces thinking: a naval CPO tops out
-      // at index 6 and is rightly exempt (bug surfaced by the M-ARMY2
-      // enlistment mix producing the first long-serving naval top).
-      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
-      const ladderTopped = record.rank >= ladder.length - 1
+      // M-ARMY2 career shape: up-or-out applies BELOW E-5 only — make
+      // sergeant and the service keeps you. (Before that this exempted the
+      // ladder top; before THAT it hardcoded the land-forces top, which
+      // naval/air never reach.)
+      const grade = BRANCH_GRADES[record.branch as ServiceBranch][record.rank] ?? 9
       const tig = world.tick - record.rankSinceTick
-      if (!ladderTopped) {
+      if (grade < 5) {
         // TIG can exceed the 72-month line only until the current term ends.
         expect(tig).toBeLessThan(72 + 48)
       }

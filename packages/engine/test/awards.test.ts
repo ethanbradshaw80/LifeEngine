@@ -239,10 +239,14 @@ describe('a grown world decorates only from the record', () => {
             expect(['returned-home', 'died', 'wounded-in-action']).toContain(qualifying.type)
             break
           case 'good-conduct':
+            // The honourable term endings (M-ARMY2 added the two mandatory
+            // ones); misconduct, medical and death never qualify.
             expect(
               qualifying.type === 'reenlisted' ||
                 (qualifying.type === 'discharged' &&
-                  (qualifying.detail === 'end of term' || qualifying.detail === 'high-year tenure')),
+                  ['end of term', 'high-year tenure', 'thirty years served', 'retirement age'].includes(
+                    qualifying.detail ?? '',
+                  )),
             ).toBe(true)
             break
           case 'qualification-badge':

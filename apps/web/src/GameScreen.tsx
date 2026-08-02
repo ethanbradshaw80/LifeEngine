@@ -97,6 +97,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'joined-unit': '🪂',
   'dropped-selection': '↩️',
   'fitness-tested': '🏃',
+  disciplined: '📛',
   deployed: '🛫',
   'returned-home': '🛬',
   'wounded-in-action': '🎗️',

@@ -53,6 +53,20 @@ export const CAMPAIGN_QUALIFYING_MONTHS = 3
 /** Good conduct needs the term served at or above this performance. */
 export const GOOD_CONDUCT_PERFORMANCE = 400
 
+/**
+ * Discharge reasons whose closing term still qualifies for term-judged
+ * awards. M-ARMY2 added two honourable mandatory endings ('thirty years
+ * served', 'retirement age') — a lifer's last term must not forfeit the
+ * medal a high-year-tenure discharge keeps. Misconduct and medical stay
+ * outside: the first is the point, the second was never term-judged.
+ */
+const HONOURABLE_TERM_ENDINGS: ReadonlySet<string> = new Set([
+  'end of term',
+  'high-year tenure',
+  'thirty years served',
+  'retirement age',
+])
+
 export function decorationsOf(world: World, personId: EntityId): readonly AwardRecord[] {
   return world.awards.get(personId) ?? []
 }
@@ -129,11 +143,7 @@ export function grantMeritoriousService(
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
-  if (
-    qualifying.type === 'discharged' &&
-    qualifying.detail !== 'end of term' &&
-    qualifying.detail !== 'high-year tenure'
-  ) {
+  if (qualifying.type === 'discharged' && !HONOURABLE_TERM_ENDINGS.has(qualifying.detail ?? '')) {
     return null
   }
   if (termAveragePerformance < MERITORIOUS_PERFORMANCE) return null
@@ -266,11 +276,7 @@ export function grantGoodConduct(
 ): AwardRecord | null {
   if (qualifying.subjectId !== personId) return null
   if (qualifying.type !== 'reenlisted' && qualifying.type !== 'discharged') return null
-  if (
-    qualifying.type === 'discharged' &&
-    qualifying.detail !== 'end of term' &&
-    qualifying.detail !== 'high-year tenure'
-  ) {
+  if (qualifying.type === 'discharged' && !HONOURABLE_TERM_ENDINGS.has(qualifying.detail ?? '')) {
     return null
   }
   if (performance < GOOD_CONDUCT_PERFORMANCE) return null
