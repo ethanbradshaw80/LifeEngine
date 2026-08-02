@@ -892,22 +892,18 @@ export function serviceNewsSince(
     // about a man who enlisted forty years ago reads as a claim about him
     // today. A career belongs on the person's own timeline.
     //
-    // What the town DOES hear is the heavy end: someone coming home from a
-    // WAR (about one every three years, not one a month), and someone not
-    // coming home at all. Review S6: a feed of recruiting notices and
-    // deaths, with nothing in between, tilts in both directions at once.
-    if (event.type === 'returned-home' && event.detail === 'tour complete') {
-      const person = world.people.get(event.subjectId)
-      const record = world.service.get(event.subjectId)
-      if (!person || !record) continue
-      items.push({
-        tick: event.tick,
-        text: `${person.givenName} ${person.familyName} came home from the war`,
-        nearby: true,
-        subjectId: person.id,
-        kind: 'came-home',
-      })
-    } else if (event.type === 'died') {
+    // OWNER DIRECTION, 2026-08-02: a homecoming is NOT news. The paper
+    // reports the ones who did not come back, and nothing else about an
+    // individual's service.
+    //
+    // The homecoming card was added deliberately, against exactly this —
+    // review S6 warned that recruiting notices and funerals with nothing
+    // between them tilts the feed in both directions at once. The owner has
+    // read that and wants the paper narrower anyway, which is his call: a
+    // small-town paper runs the death and not the return, and a soldier's
+    // own homecoming still sits on their own timeline where it belongs.
+    // The recruiting-drive notice above still carries the other end.
+    if (event.type === 'died') {
       const record = world.service.get(event.subjectId)
       if (!record || record.dischargedAtTick !== event.tick) continue
       if (record.dischargeReason !== 'died in service') continue

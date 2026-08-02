@@ -98,14 +98,17 @@ describe('service news', () => {
     // where a wall of them buried the things that matter.
     expect(world.events.some((e) => e.type === 'enlisted')).toBe(true)
     expect(news.some((n) => n.text.includes('enlisted in'))).toBe(false)
-    // A peacetime homecoming is not news either; a WAR's is (review S6).
-    expect(news.some((n) => n.text.includes('came home from the service'))).toBe(false)
-    // What remains: the drives, a war's return leg, and a death in uniform.
+    // NO HOMECOMING IS NEWS, peacetime or war (owner, 2026-08-02). The
+    // paper reports the ones who did not come back. A war's return leg used
+    // to run here — review S6 wanted something between the recruiting
+    // notices and the funerals — and the owner has read that and wants the
+    // paper narrower anyway. A homecoming still sits on the soldier's own
+    // timeline, which is where it was always the better story.
+    expect(news.some((n) => n.text.includes('came home'))).toBe(false)
+    // What remains: the drives, and a death in uniform.
     for (const item of news) {
       expect(
-        item.text.includes('recruiters set up') ||
-          item.text.includes('came home from the war') ||
-          item.text.includes('died in service'),
+        item.text.includes('recruiters set up') || item.text.includes('died in service'),
       ).toBe(true)
     }
   })

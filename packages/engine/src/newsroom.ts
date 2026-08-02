@@ -67,17 +67,6 @@ function fullName(person: Person): string {
   return `${person.givenName} ${person.familyName}`
 }
 
-/** The people who share a roof with someone, minus themselves. */
-function householdOthers(world: World, person: Person): Person[] {
-  if (person.householdId === null) return []
-  const household = world.households.get(person.householdId)
-  if (!household) return []
-  return household.memberIds
-    .filter((id) => id !== person.id)
-    .map((id) => world.people.get(id))
-    .filter((p): p is Person => p !== undefined && p.deathTick === null)
-}
-
 /** A spouse, if there is a living one. Read off the graph directly so the
  *  newsroom adds no module cycle. */
 function livingSpouse(world: World, personId: EntityId): Person | undefined {
@@ -128,8 +117,6 @@ export function articleFor(world: World, item: NewsItem): NewsArticle | null {
   switch (item.kind) {
     case 'died-in-service':
       return subject === undefined ? null : deathInService(world, item, subject, dateline)
-    case 'came-home':
-      return subject === undefined ? null : cameHome(world, item, subject, dateline)
     case 'recruiting-drive':
       // OWNER: a recruiting season is a notice, not a story. It stays in
       // the feed as a headline and gets no article behind it.
@@ -307,71 +294,6 @@ function countServing(world: World): number {
   return serving
 }
 
-// ---------------------------------------------------------------------------
-// Home from a tour
-// ---------------------------------------------------------------------------
-
-function cameHome(world: World, item: NewsItem, person: Person, dateline: string): NewsArticle {
-  const record = world.service.get(person.id)
-  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank)
-  const who = rank === null ? fullName(person) : `${rank} ${fullName(person)}`
-  const tours = world.deployments.get(person.id) ?? []
-  const tour = tours.find((t) => t.returnedAtTick === item.tick)
-  const months = tour === undefined ? null : item.tick - tour.startedAtTick
-  const enemy =
-    tour?.enemyId === null || tour?.enemyId === undefined
-      ? null
-      : world.nations.get(tour.enemyId)?.name ?? null
-
-  const body: string[] = []
-  if (months !== null && tour !== undefined) {
-    // (A ternary here once had the same word in both branches, so the
-    // sentence read the same however it was reached — review must-fix.)
-    const careerYears = Math.max(
-      1,
-      Math.floor((item.tick - (record?.enlistedAtTick ?? item.tick)) / 12),
-    )
-    body.push(
-      `The tour ran ${String(months)} month${months === 1 ? '' : 's'}, beginning in ${formatDate(world, tour.startedAtTick)}${enemy === null ? '' : ` on the ${bareName(enemy)} front`}. It was the ${ordinal(tour.tourNumber)} tour of a career now in its ${ordinal(careerYears)} year.`,
-    )
-  }
-  const household = householdOthers(world, person)
-  const home = person.householdId === null ? undefined : world.households.get(person.householdId)
-  const place = home === undefined ? undefined : world.places.get(home.placeId)?.name
-  if (household.length > 0) {
-    body.push(
-      `${person.givenName} returns to a household of ${String(household.length + 1)}${place === undefined ? '' : ` in ${place}`}.`,
-    )
-  }
-
-  const spouse = livingSpouse(world, person.id)
-  const draw = hash32(world.seed, Stream.Employment, person.id, item.tick + 8_484)
-  const quote: NewsQuote | null =
-    spouse === undefined
-      ? null
-      : (() => {
-          const lines = [
-            `${months === null ? 'A tour' : `${String(months)} months`} is a long time to run a house on your own.`,
-            'The children have been counting it out on the calendar since the day the orders came.',
-            'You do not settle back into it overnight. But they are home, and that is the part I wanted.',
-          ]
-          const text = lines[draw % lines.length] ?? lines[0]
-          return text === undefined ? null : { text, source: `${fullName(spouse)}, spouse` }
-        })()
-
-  return {
-    headline: `${who} returns from tour`,
-    dateline,
-    lede: `${who} of ${world.town.name} returned from deployment in ${formatDate(world, item.tick)}${enemy === null ? '' : `, back from the ${bareName(enemy)} front`}.`,
-    body: body.slice(0, 3),
-    quote,
-    closing: 'The soldier returns to the home station roster and is off the rotation list pending further orders.',
-  }
-}
-
-function ordinal(n: number): string {
-  return n === 1 ? 'first' : n === 2 ? 'second' : n === 3 ? 'third' : `${String(n)}th`
-}
 
 
 // ---------------------------------------------------------------------------
