@@ -142,7 +142,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(19) // v1 through v20, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(20) // v1 through v21, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household
@@ -275,5 +275,38 @@ describe('encoding', () => {
 
   it('changes the checksum when any byte changes', () => {
     expect(checksumOf({ a: 1 })).not.toBe(checksumOf({ a: 2 }))
+  })
+})
+
+describe('the world remembers which preset made it (W1)', () => {
+  it('round-trips the preset id through the header', () => {
+    const world = createWorld(makeSeed(2024), 40)
+    const save = toSaveFile(world)
+    expect(save.header.presetId).toBe('classic')
+
+    const loaded = fromSaveFile(save, SIMULATION_VERSION)
+    expect(loaded.world.spec.id).toBe('classic')
+    expect(loaded.header.presetId).toBe('classic')
+  })
+
+  it('loads a pre-preset save as Classic — which is what it is', () => {
+    const rawV1: unknown = JSON.parse(readFileSync(FIXTURE_V1, 'utf8'))
+    const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
+    expect(loaded.world.spec.id).toBe('classic')
+    expect(loaded.world.town.name.length).toBeGreaterThan(0)
+  })
+
+  it('an unknown preset degrades to Classic rather than refusing the save', () => {
+    // A save written by a LATER build, opened here. A world that loads beats
+    // a worker that throws (WORLD_MODES_PLAN.md, resistance 2).
+    const world = createWorld(makeSeed(2024), 40)
+    const save = toSaveFile(world)
+    const fromTheFuture = {
+      ...save,
+      header: { ...save.header, presetId: 'american-heartland-2' },
+    }
+    const loaded = fromSaveFile(fromTheFuture, SIMULATION_VERSION)
+    expect(loaded.world.spec.id).toBe('classic')
+    expect(loaded.world.people.size).toBe(world.people.size)
   })
 })

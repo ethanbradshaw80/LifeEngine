@@ -13,9 +13,7 @@ import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, isBirthdayMonth } from './clock.js'
 import {
   educationRank,
-  FEMALE_GIVEN_NAMES,
   FEMALE_GIVEN_WEIGHTS,
-  MALE_GIVEN_NAMES,
   MALE_GIVEN_WEIGHTS,
   meetsRequirement,
   OCCUPATIONS,
@@ -1244,7 +1242,7 @@ export function deliverChild(
     givenName:
       overrides?.givenName ??
       rng.pickWeighted(
-        childSex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES,
+        childSex === 'female' ? world.spec.femaleGiven.names : world.spec.maleGiven.names,
         childSex === 'female' ? FEMALE_GIVEN_WEIGHTS : MALE_GIVEN_WEIGHTS,
       ),
     familyName: overrides?.familyName ?? partner?.familyName ?? mother.familyName,

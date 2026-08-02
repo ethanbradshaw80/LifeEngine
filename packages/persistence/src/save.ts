@@ -7,7 +7,7 @@
  * server (ADR-0003, ADR-0010).
  */
 
-import { generateNations, relationshipKey, toSnapshot } from '@life-engine/engine'
+import { generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
 import type {
   AwardRecord,
   CausalRecord,
@@ -28,6 +28,7 @@ import type {
   World,
   WorldEvent,
 } from '@life-engine/engine'
+import type { WorldSpec } from '@life-engine/engine'
 import type { EntityId, Seed, Tick } from '@life-engine/shared'
 import { checksumOf } from './encoding.js'
 import { migrate } from './migrations.js'
@@ -52,6 +53,7 @@ export function toSaveFile(world: World, userId: string = LOCAL_USER_ID): SaveFi
     tick: world.tick,
     savedAtTick: world.tick,
     userId,
+    presetId: world.spec.id,
     checksum: checksumOf(body),
   }
 
@@ -97,9 +99,18 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
   const body = validateWorldBody(worldValue)
   const simulationVersion = requireInteger(header, 'simulationVersion', 'save.header')
 
+  // A save from before W1 has no preset; every one of them is Classic.
+  const presetId =
+    typeof header['presetId'] === 'string' && header['presetId'].length > 0
+      ? header['presetId']
+      : 'classic'
+
   const world = hydrate(body, {
     seed: requireInteger(header, 'seed', 'save.header') as Seed,
     tick: requireInteger(header, 'tick', 'save.header') as Tick,
+    // An unknown preset id resolves to Classic rather than throwing: a world
+    // that loads beats a worker that dies (resistance 2).
+    spec: specById(presetId),
   })
 
   return {
@@ -111,6 +122,7 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
       tick: world.tick,
       savedAtTick: requireInteger(header, 'savedAtTick', 'save.header') as Tick,
       userId: requireString(header, 'userId', 'save.header'),
+      presetId,
       checksum: actual,
     },
     migrationsApplied: applied,
@@ -131,7 +143,10 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
  * arrive from somewhere less trusted than the player's own browser — which is
  * exactly what Milestone 6 introduces.
  */
-function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }): World {
+function hydrate(
+  body: Record<string, unknown>,
+  meta: { seed: Seed; tick: Tick; spec: WorldSpec },
+): World {
   const places = new Map<EntityId, Place>()
   for (const place of body['places'] as Place[]) places.set(place.id, place)
 
@@ -191,6 +206,7 @@ function hydrate(body: Record<string, unknown>, meta: { seed: Seed; tick: Tick }
   const world: World = {
     seed: meta.seed,
     tick: meta.tick,
+    spec: meta.spec,
     nextEntityId: body['nextEntityId'] as number,
     nextEventId: body['nextEventId'] as number,
     nextCausalRecordId: body['nextCausalRecordId'] as number,

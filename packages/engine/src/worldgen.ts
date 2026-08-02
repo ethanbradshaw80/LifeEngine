@@ -24,20 +24,8 @@ import { relationshipKey } from './types.js'
 import { foundingSavings } from './finances.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
-import {
-  BASE_NAMES,
-  CIVIC_NAMES,
-  FAMILY_NAME_WEIGHTS,
-  FAMILY_NAMES,
-  FEMALE_GIVEN_NAMES,
-  FEMALE_GIVEN_WEIGHTS,
-  MALE_GIVEN_NAMES,
-  MALE_GIVEN_WEIGHTS,
-  NEIGHBOURHOOD_NAMES,
-  SCHOOL_NAME,
-  TOWN_NAME,
-  WORKPLACE_NAMES,
-} from './content.js'
+import { CLASSIC_SPEC } from './worldspec.js'
+import type { WorldSpec } from './types.js'
 
 /**
  * Founding population. ~100 from Milestone 1 through P2; 400 from M-ARMY2
@@ -88,10 +76,10 @@ function startingEducation(age: number, curiosity: number, rng: Rng): EducationL
   return 'primary'
 }
 
-function makePlaces(world: World, rng: Rng): void {
+function makePlaces(world: World, rng: Rng, spec: WorldSpec): void {
   const placeIds: EntityId[] = []
 
-  for (const name of NEIGHBOURHOOD_NAMES) {
+  for (const name of spec.gazetteer.neighbourhoods) {
     const id = allocateId(world)
     world.places.set(id, {
       id,
@@ -103,16 +91,16 @@ function makePlaces(world: World, rng: Rng): void {
   }
 
   const schoolId = allocateId(world)
-  world.places.set(schoolId, { id: schoolId, name: SCHOOL_NAME, kind: 'school', desirability: 500 })
+  world.places.set(schoolId, { id: schoolId, name: spec.gazetteer.schoolName, kind: 'school', desirability: 500 })
   placeIds.push(schoolId)
 
-  for (const name of WORKPLACE_NAMES) {
+  for (const name of spec.gazetteer.workplaces) {
     const id = allocateId(world)
     world.places.set(id, { id, name, kind: 'workplace', desirability: 500 })
     placeIds.push(id)
   }
 
-  for (const name of CIVIC_NAMES) {
+  for (const name of spec.gazetteer.civic) {
     const id = allocateId(world)
     world.places.set(id, { id, name, kind: 'civic', desirability: 500 })
     placeIds.push(id)
@@ -139,14 +127,19 @@ export function placesOfKind(world: World, kind: Place['kind']): Place[] {
  * some are two adults, and some have children whose parentage is recorded so
  * family history is real from the first tick rather than invented later.
  */
-export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World {
+export function createWorld(
+  seed: Seed,
+  population = DEFAULT_POPULATION,
+  spec: WorldSpec = CLASSIC_SPEC,
+): World {
   const world: World = {
     seed,
     tick: makeTick(0),
     nextEntityId: 1,
     nextEventId: 1,
     nextCausalRecordId: 1,
-    town: { name: TOWN_NAME, placeIds: [] },
+    spec,
+    town: { name: spec.gazetteer.townName, placeIds: [] },
     places: new Map(),
     people: new Map(),
     households: new Map(),
@@ -166,7 +159,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
   }
 
   const genRng = openStream(seed, Stream.WorldGeneration, 0, 0)
-  makePlaces(world, genRng)
+  makePlaces(world, genRng, spec)
 
   const neighbourhoods = placesOfKind(world, 'neighbourhood')
   if (neighbourhoods.length === 0) throw new Error('world generation produced no neighbourhoods')
@@ -177,7 +170,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
     const home = genRng.pick(neighbourhoods)
     // Weighted by real census frequency: a town should hold several Smiths
     // and one Kowalczyk, which is what the numbers are carried for.
-    const familyName = genRng.pickWeighted(FAMILY_NAMES, FAMILY_NAME_WEIGHTS)
+    const familyName = genRng.pickWeighted(spec.family.names, spec.family.weights)
     const memberIds: EntityId[] = []
 
     // 55% of households are a couple, the rest a single adult.
@@ -276,7 +269,7 @@ export function createWorld(seed: Seed, population = DEFAULT_POPULATION): World 
   // population for the same reason nations are (below): person ids seed trait
   // streams, and id-shifting reshuffles the whole town. Nothing during person
   // generation needs a base to exist.
-  for (const name of BASE_NAMES) {
+  for (const name of spec.gazetteer.bases) {
     const id = allocateId(world)
     world.places.set(id, { id, name, kind: 'base', desirability: 500 })
     ;(world.town as { placeIds: readonly EntityId[] }).placeIds = [...world.town.placeIds, id]
@@ -314,8 +307,11 @@ function makePerson(world: World, genRng: Rng, spec: PersonSpec): EntityId {
   const traitRng = openStream(world.seed, Stream.PersonTraits, id, 0)
   const traits = rollTraits(traitRng)
 
-  const givenNames = spec.sex === 'female' ? FEMALE_GIVEN_NAMES : MALE_GIVEN_NAMES
-  const givenWeights = spec.sex === 'female' ? FEMALE_GIVEN_WEIGHTS : MALE_GIVEN_WEIGHTS
+  // NB: `spec` here is the PERSON spec (this function's own parameter); the
+  // world's preset is world.spec.
+  const pool = spec.sex === 'female' ? world.spec.femaleGiven : world.spec.maleGiven
+  const givenNames = pool.names
+  const givenWeights = pool.weights
   const birthTick = makeTick(0) - spec.age * TICKS_PER_YEAR - genRng.nextInt(0, TICKS_PER_YEAR)
 
   const person: Person = {

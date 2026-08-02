@@ -14,7 +14,10 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
+import { CLASSIC_SPEC, specById } from '../src/worldspec.js'
+import type { WorldSpec } from '../src/types.js'
+import { serialize } from '../src/snapshot.js'
 import { setPlayer } from '../src/player.js'
 import { boardStandingFor, unitOptionsFor } from '../src/service.js'
 import { specialUnitById } from '../src/content.js'
@@ -198,5 +201,74 @@ describe('the homeland is named by the world, not by the sentence', () => {
       }
     }
     expect(offenders).toEqual([])
+  })
+})
+
+describe('the WorldSpec', () => {
+  it('changes nothing for Classic — the default IS the preset', () => {
+    // W1's exit criterion. Passing the spec explicitly and letting it
+    // default must produce the same town down to the byte; if they ever
+    // differ, the extraction moved something it should not have.
+    const implicit = createWorld(makeSeed(12345), 120)
+    const explicit = createWorld(makeSeed(12345), 120, CLASSIC_SPEC)
+    expect(serialize(explicit)).toBe(serialize(implicit))
+
+    advanceTicks(implicit, 120)
+    advanceTicks(explicit, 120)
+    expect(serialize(explicit)).toBe(serialize(implicit))
+  })
+
+  it('records its preset on the world, and it never changes', () => {
+    const world = createWorld(makeSeed(12345), 60)
+    expect(world.spec.id).toBe('classic')
+    advanceTicks(world, 240)
+    expect(world.spec.id).toBe('classic')
+  })
+
+  it('resolves ids without ever throwing — saves carry these strings', () => {
+    // Resistance 2: a lookup that throws on an id out of a save file is a
+    // worker that dies instead of a world that loads.
+    expect(specById('classic')).toBe(CLASSIC_SPEC)
+    expect(specById(null)).toBe(CLASSIC_SPEC)
+    expect(specById(undefined)).toBe(CLASSIC_SPEC)
+    expect(specById('')).toBe(CLASSIC_SPEC)
+    expect(specById('a-preset-from-a-later-build')).toBe(CLASSIC_SPEC)
+  })
+
+  it('actually decides the world — a different spec builds a different town', () => {
+    const spec: WorldSpec = {
+      id: 'classic', // resolvable, so newborn naming still finds a pool
+      name: 'Test',
+      maleGiven: { names: ['Auberon'], weights: [1] },
+      femaleGiven: { names: ['Isolde'], weights: [1] },
+      family: { names: ['Vasquez-Nakamura'], weights: [1] },
+      gazetteer: {
+        townName: 'Little Compton',
+        schoolName: 'the schoolhouse',
+        neighbourhoods: ['Anvil Row', 'The Green'],
+        workplaces: ['the cannery'],
+        civic: ['the meeting hall'],
+        bases: ['Camp Ridge'],
+      },
+      foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
+    }
+    const world = createWorld(makeSeed(12345), 40, spec)
+
+    expect(world.town.name).toBe('Little Compton')
+    const names = [...world.places.values()].map((place) => place.name)
+    expect(names).toContain('Anvil Row')
+    expect(names).toContain('the cannery')
+    expect(names).toContain('Camp Ridge')
+    expect(names).not.toContain('Kestrel Hill')
+
+    for (const person of world.people.values()) {
+      expect(person.familyName).toBe('Vasquez-Nakamura')
+      expect(['Auberon', 'Isolde']).toContain(person.givenName)
+    }
+
+    // Foreign nations come from the spec; the homeland is generated.
+    const foreign = [...world.nations.values()].filter((n) => !n.isHomeland).map((n) => n.name)
+    expect(foreign).toEqual(['Aldaria', 'Brennisk', 'Cothery'])
+    expect([...world.nations.values()].filter((n) => n.isHomeland).length).toBe(1)
   })
 })

@@ -25,6 +25,7 @@ export type { StreamId } from './rng.js'
 
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
+export { CLASSIC_SPEC, PRESETS, specById } from './worldspec.js'
 export { advanceTick, advanceTicks } from './tick.js'
 export {
   birthBar,
@@ -267,6 +268,9 @@ export type {
   Nation,
   Town,
   Traits,
+  Gazetteer,
+  NamePool,
+  WorldSpec,
   WarPhase,
   World,
   WorldEvent,

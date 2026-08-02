@@ -22,7 +22,6 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { NATION_NAMES } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
 import type { GeoRelation, GeoState, Nation, World } from './types.js'
@@ -92,9 +91,15 @@ export function generateNations(world: World): void {
     exhaustedUntilTick: null,
   })
 
-  for (let i = 0; i < FOREIGN_NATION_COUNT; i++) {
+  // W1: the COUNT is a balance constant, the NAMES are the preset's. A
+  // preset that ships fewer names gets fewer nations rather than two
+  // countries called the same thing — names reach campaign medals and
+  // headlines, and a name on a permanent record must identify one nation.
+  // Classic ships exactly FOREIGN_NATION_COUNT, so nothing moves for it.
+  const foreignCount = Math.min(FOREIGN_NATION_COUNT, world.spec.foreignNations.length)
+  for (let i = 0; i < foreignCount; i++) {
     const id = allocate(world)
-    const name = NATION_NAMES[i % NATION_NAMES.length] ?? `Nation ${String(i)}`
+    const name = world.spec.foreignNations[i] ?? `Nation ${String(i)}`
     const strength = rng.nextBellInt(150, 900)
     world.nations.set(id, {
       id,

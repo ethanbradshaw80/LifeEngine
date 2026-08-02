@@ -612,7 +612,29 @@ const V19_TO_V20: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20]
+/**
+ * W1. The header records which WorldSpec preset made the world. Every save
+ * that predates presets was made by the only world there was, so they are
+ * all Classic — this states it rather than leaving the field absent and
+ * making every reader guess (the load path defaults too, belt and braces).
+ *
+ * The world body is untouched, so the checksum does not move.
+ */
+const V20_TO_V21: Migration = {
+  from: 20,
+  to: 21,
+  describe: "name the preset that made the world ('classic' for every save that predates presets)",
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireField(save, 'world', 'save')
+    return {
+      header: { ...header, schemaVersion: 21, presetId: 'classic' },
+      world,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

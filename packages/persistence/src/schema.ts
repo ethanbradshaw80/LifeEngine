@@ -76,7 +76,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 20
+export const SCHEMA_VERSION = 21
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1
@@ -98,6 +98,14 @@ export interface SaveHeader {
   readonly tick: Tick
   readonly savedAtTick: Tick
   readonly userId: string
+  /**
+   * Which WorldSpec preset made this world (W1). Recorded HERE rather than
+   * in the engine's snapshot because the preset is an INPUT to the world the
+   * way the seed is, and because the engine's fingerprint should describe the
+   * town rather than the recipe. Saves written before presets existed carry
+   * no value and load as 'classic', which is what they are.
+   */
+  readonly presetId: string
   /** Covers the serialized world. Detects corruption, not tampering. */
   readonly checksum: string
 }
