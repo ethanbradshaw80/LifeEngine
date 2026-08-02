@@ -340,9 +340,10 @@ describe('the rulings, enforced rather than remembered', () => {
         'the Vanguard Group',
         'Task Unit Ember',
         'the Grey Section',
+        'the Nighthawk Squadron',
       ]).toContain(unit.name)
     }
-    expect(HEARTLAND_SPEC.units.length).toBe(6)
+    expect(HEARTLAND_SPEC.units.length).toBe(7)
   })
 
   it('names the branches and nothing else about them', () => {
@@ -396,7 +397,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = 'f4371511'
+const HEARTLAND_GOLDEN = 'df95489f'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

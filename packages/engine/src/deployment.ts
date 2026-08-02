@@ -24,7 +24,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { grantPow, grantCampaignMedal, grantCombatAction, grantWoundRecognition,
+import { grantAirMedal, grantPow, grantCampaignMedal, grantCombatAction, grantWoundRecognition,
   grantOverseas,
 } from './awards.js'
 
@@ -981,6 +981,20 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         detail: rng.pick(flavors),
       })
       grantCombatAction(world, tick, personId, sawCombat, enemy.name)
+
+      // AVIATION (ADR-0026). What contact means for the aircrew is a
+      // mission flown into it — so the same month that gives a rifleman a
+      // firefight gives them a sortie, and the Air Medal follows the
+      // sortie. Repeatable on purpose: the clusters are the usual case.
+      if (record.specialtyId === 'aviator' || record.specialtyId === 'aircrew') {
+        const mission = recordEvent(world, tick, {
+          type: 'aerial-mission',
+          subjectId: personId,
+          otherId: enemyId,
+          detail: record.specialtyId === 'aviator' ? 'flew the aircraft' : 'crewed the aircraft',
+        })
+        grantAirMedal(world, tick, personId, mission, enemy.name)
+      }
 
       // Sometimes the month's contact arrives as the PLAYER'S moment: the
       // squad pinned, and a choice that is genuinely theirs (M-HARM, owner

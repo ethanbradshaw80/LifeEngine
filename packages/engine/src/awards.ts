@@ -302,6 +302,8 @@ export function grantCombatAction(
  * grantCampaignMedal.
  */
 export const EXPEDITIONARY_MEDAL = 'the Armed Forces Expeditionary Medal'
+/** ADR-0026. Real, and repeatable — the clusters are the usual case. */
+export const AIR_MEDAL = 'the Air Medal'
 /** ADR-0025. Real, and earned the hard way: it needs a capture. */
 export const POW_TITLE = 'the Prisoner of War Medal'
 
@@ -669,5 +671,30 @@ export function grantPow(
     qualifying,
     inputs: [factor('enemy-capability', 1000)],
     citation: 'for having been held prisoner by a hostile force',
+  })
+}
+
+/**
+ * The Air Medal, for a mission flown under fire.
+ *
+ * REPEATABLE ON PURPOSE. The real decoration is awarded again and again to
+ * the same aircrew — the clusters are the usual case, not the exception —
+ * and the grant helper's own count is what carries that, so a long tour of
+ * flying reads as a long tour of flying instead of one medal and silence.
+ */
+export function grantAirMedal(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  qualifying: WorldEvent,
+  enemyName: string,
+): AwardRecord | null {
+  if (qualifying.type !== 'aerial-mission' || qualifying.subjectId !== personId) return null
+  return grant(world, tick, personId, {
+    kind: 'air',
+    title: AIR_MEDAL,
+    qualifying,
+    inputs: [factor('enemy-action-wound', 600)],
+    citation: `for a mission flown under fire on the ${bareName(enemyName)} front`,
   })
 }

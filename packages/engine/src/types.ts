@@ -643,12 +643,14 @@ export type AwardKind =
   | 'service-ribbon'
   /** Held prisoner. Earned by the capture system, ADR-0025. */
   | 'pow'
+  /** A mission flown under fire. Earned by the aviation trades, ADR-0026. */
+  | 'air'
   //
-  // NOT HERE, DELIBERATELY: 'air'. The owner's pack marks it HOLD — it
-  // needs an aviation unit — and his rule is that no award exists that
-  // cannot be earned. A kind nothing can grant is that rule broken one
-  // level down, so it arrives with the system that earns it (ADR-0024 §4).
-  // 'pow' left this list on 2026-08-02 with the capture branch below it.
+  // BOTH OF THE PACK'S HOLD ITEMS ARE NOW EARNABLE, which is the only
+  // condition on which they were ever allowed in. 'pow' arrived with the
+  // capture branch (ADR-0025) and 'air' with the aviation trades and the
+  // Nighthawk Squadron (ADR-0026), both on 2026-08-02. Any future kind
+  // waits for its system the same way (ADR-0024 §4).
 
 export interface AwardRecord {
   readonly personId: EntityId
@@ -1064,6 +1066,7 @@ export type EventType =
   | 'was-captured'
   | 'repatriated'
   | 'died-in-captivity'
+  | 'aerial-mission'
   /** Went to selection and did not make it. On the record, without shame. */
   | 'dropped-selection'
   /** Scored the annual fitness test — promotion points for the body's work. */

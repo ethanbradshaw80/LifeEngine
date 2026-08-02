@@ -118,6 +118,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'turned-down': '🚪',
   'joined-unit': '🪂',
   'unit-moment': '🎖️',
+  'aerial-mission': '🚁',
   'was-captured': '⛓️',
   'repatriated': '🕊️',
   'died-in-captivity': '🕯️',

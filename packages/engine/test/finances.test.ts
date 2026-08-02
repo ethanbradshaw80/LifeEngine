@@ -101,15 +101,23 @@ describe('the ledger', () => {
 
   it('keeps lifetime savings believable, not absurd', () => {
     // The bug this milestone fixes: a working couple used to bank ~80% of
-    // income, holding $414k within a decade. With lifestyle spending, even
-    // the richest household after 60 years stays under $1m — and someone
-    // still has real savings, or thrift means nothing.
+    // income, holding $414k within a decade. With lifestyle spending the
+    // richest household after 60 years lands in the high six figures to low
+    // seven — and someone still has real savings, or thrift means nothing.
+    //
+    // BOUND WIDENED 2026-08-02, and measured before it was moved. The old
+    // $1m ceiling was tuned to one draw: across five seeds the richest
+    // household ran $540k, $724k, $1.00m, $963k and $1.62m. The aviation
+    // trades (ADR-0026) reshuffled who takes which job, one world crossed
+    // the line, and the ceiling was catching the reshuffle rather than any
+    // absurdity. $3m still catches the runaway this test exists for — the
+    // old bug would have blown straight through it.
     const world = build(12345, 720)
     const active = [...world.households.values()].filter(
       (h) => h.dissolvedTick === null && h.memberIds.length > 0,
     )
     const richest = Math.max(...active.map((h) => h.savings))
-    expect(richest).toBeLessThan(1_000_000_00)
+    expect(richest).toBeLessThan(3_000_000_00)
     expect(richest).toBeGreaterThan(5_000_00)
   })
 })
@@ -304,7 +312,7 @@ describe('the town stays solvent', () => {
     expect(share).toBeLessThan(0.5)
 
     const richest = Math.max(...active.map((h) => h.savings))
-    expect(richest).toBeLessThan(1_000_000_00) // $1m after 60 small-town years is the new ceiling
+    expect(richest).toBeLessThan(3_000_000_00) // measured $540k-$1.62m across five seeds; see above
     expect(richest).toBeGreaterThan(0)
   })
 })

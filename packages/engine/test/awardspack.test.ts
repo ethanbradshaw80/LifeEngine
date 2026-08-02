@@ -61,6 +61,7 @@ const EVERY_KIND: readonly AwardKind[] = [
   'nco-development',
   'service-ribbon',
   'pow',
+  'air',
 ]
 
 function aSoldier(world: World, performance = 800): number {
@@ -135,15 +136,15 @@ describe('no award exists that cannot be earned', () => {
     for (const kind of EVERY_KIND) {
       expect(awards, `nothing grants '${kind}'`).toContain(`kind: '${kind}'`)
     }
-    // 'pow' is IN the union now, and the rule is the reason it is allowed to
-    // be: the capture system exists (ADR-0025), so grantPow can reach it.
-    // 'air' is still HOLD and still absent — an aviation unit has to exist
-    // before an Air Medal is a thing anybody could earn.
     expect(awards).toContain("kind: 'pow'")
+    expect(awards).toContain("kind: 'air'")
     const types = await fs.readFile(path.join(here, '..', 'src', 'types.ts'), 'utf8')
     const union = types.slice(types.indexOf('export type AwardKind'), types.indexOf('export interface AwardRecord'))
+    // BOTH hold items are earnable now — pow from the capture branch
+    // (ADR-0025), air from the aviation trades (ADR-0026) — which is the
+    // only condition on which either was ever allowed into the union.
     expect(union).toContain("| 'pow'")
-    expect(union).not.toContain("| 'air'")
+    expect(union).toContain("| 'air'")
   })
 
   it('refuses an event that does not qualify, every time', () => {

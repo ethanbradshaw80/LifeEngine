@@ -283,6 +283,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`
     case 'unit-moment':
       return `${year} — ${unitMomentWordsFor(event.detail)}.`
+    case 'aerial-mission':
+      return `${year} — Flew a mission under fire.`
     case 'was-captured':
       return `${year} — Taken prisoner by ${event.detail ?? 'a hostile force'}.`
     case 'repatriated': {

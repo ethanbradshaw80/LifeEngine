@@ -284,6 +284,23 @@ export const SPECIALTIES: readonly ServiceSpecialty[] = [
     civilianUnlocks: ['nurse'],
   },
   {
+    // AVIATION (ADR-0026). The exposure profile is the honest shape of the
+    // job rather than a flat "dangerous": an aircraft is rarely in a
+    // firefight and is never in a convoy, but the machine itself is the
+    // hazard — accidents are the aviator's real killer, in this simulation
+    // as in the world.
+    id: 'aviator', title: 'aviator', branch: 'air-guard', requires: 'college',
+    schoolMonths: 12, qualification: 'aviator wings', boardCutoffOffset: 60,
+    exposure: { directCombat: 220, convoy: 0, baseAttack: 300, accident: 700 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'aircrew', title: 'aircrew', branch: 'air-guard', requires: 'secondary',
+    schoolMonths: 6, qualification: 'aircrew wings', boardCutoffOffset: 40,
+    exposure: { directCombat: 260, convoy: 0, baseAttack: 320, accident: 620 },
+    civilianUnlocks: ['machinist'],
+  },
+  {
     id: 'signals', title: 'signals operator', branch: 'air-guard', requires: 'secondary',
     schoolMonths: 4, qualification: 'senior signals rating', boardCutoffOffset: 40,
     exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
@@ -393,6 +410,11 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 4,
   },
   {
+    id: 'flight-school', title: 'Flight School', branches: ['air-guard'], specialtyIds: ['aviator'],
+    minRank: 1, minPerformance: 500, badge: 'senior aviator', performanceBoost: 60,
+    courseMonths: 9, classCadenceMonths: 6, seatsPerClass: 2,
+  },
+  {
     id: 'air-assault', title: 'Air Assault School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
     minRank: 1, minPerformance: 450, badge: 'air assault', performanceBoost: 40,
     courseMonths: 1, classCadenceMonths: 3, seatsPerClass: 4,
@@ -494,6 +516,14 @@ export const SPECIAL_UNITS: readonly SpecialUnit[] = [
     branches: ['air-guard'], minRank: 2, minPerformance: 560,
     requiredBadges: ['military freefall'], feederUnitId: null,
     selectionDenominator: 520, dutyPay: dollars(150), exposureMultiplier: 1200,
+  },
+  {
+    // The pack's aviation unit. Tier 2 and fed by the Guardian Flight: the
+    // people who fly the quiet tier's aircraft come from the quiet tier.
+    id: 'nighthawks', name: 'the Nighthawk Squadron', tier: 2,
+    branches: ['air-guard'], minRank: 4, minPerformance: 700,
+    requiredBadges: ['senior aviator'], feederUnitId: 'guardian-flight',
+    selectionDenominator: 900, dutyPay: dollars(400), exposureMultiplier: 1450,
   },
   {
     id: 'vanguard', name: 'the Vanguard Group', tier: 2,
