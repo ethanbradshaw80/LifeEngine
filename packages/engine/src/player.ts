@@ -70,7 +70,6 @@ import {
   meetsRequirement,
   SERVICE_TERM_MONTHS,
   servicePayOn,
-  SPECIALTIES,
   } from './content.js'
 import { rentFor } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -1248,7 +1247,7 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'specialty': {
-      const specialty = SPECIALTIES.find((sp) => sp.id === choice)
+      const specialty = world.spec.specialties.find((sp) => sp.id === choice)
       if (specialty) {
         // The circumstances an NPC's record names, on the player's too
         // (military review S4): both are public facts the character knows.
@@ -1613,7 +1612,7 @@ function askRetrain(world: World, tick: PendingDecision['tick'], personId: Entit
   if (!record || record.dischargedAtTick !== null) return
   const education = world.education.get(personId)
   const level = education?.level ?? 'none'
-  const alternatives = SPECIALTIES.filter(
+  const alternatives = world.spec.specialties.filter(
     (sp) => sp.id !== record.specialtyId && sp.branch === record.branch && meetsRequirement(level, sp.requires),
   ).map((sp) => sp.id)
   if (alternatives.length === 0) return // nothing to cross to; no empty question
@@ -1789,7 +1788,9 @@ function askSpecialty(world: World, tick: PendingDecision['tick'], personId: Ent
   if (!person) return
   const education = world.education.get(personId)
   const level = education?.level ?? 'none'
-  const options = SPECIALTIES.filter((sp) => meetsRequirement(level, sp.requires)).map((sp) => sp.id)
+  const options = world.spec.specialties
+    .filter((sp) => meetsRequirement(level, sp.requires))
+    .map((sp) => sp.id)
   if (options.length === 0) return
   raisePending(world, {
     tick,
@@ -2224,7 +2225,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
 
     case 'specialty': {
       for (const id of pending.options) {
-        const sp = SPECIALTIES.find((x) => x.id === id)
+        const sp = world.spec.specialties.find((x) => x.id === id)
         if (!sp) continue
         const risky = sp.exposure.directCombat >= 500 || sp.exposure.convoy >= 500
         // Name the doors it opens, not just that doors exist (P1).
@@ -2322,7 +2323,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       }
       for (const id of pending.options) {
         if (id === 'keep') continue
-        const sp = SPECIALTIES.find((x) => x.id === id)
+        const sp = world.spec.specialties.find((x) => x.id === id)
         if (!sp) continue
         // What a serving soldier knows better than any recruit: where the
         // trade stands when it comes to it, and how its board runs

@@ -768,6 +768,13 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // rate and go in the feed as the tour's texture; only the smaller share
     // below escalates to the casualty path, so wound and death rates stay
     // where they were tuned (foundation §6 bound intact).
+    // A trade with NO exposure profile at all — the blank that a specialty
+    // id this build cannot resolve returns — means no contact, not a floor
+    // of it. The Math.max(1, …) below exists so a low-exposure trade is
+    // never perfectly safe; a trade the preset never described is not
+    // low-exposure, it is unknown, and inventing danger for it invents
+    // history (second W1 review).
+    if (totalWeight <= 0) continue
     const contactPerMille = Math.min(600, Math.floor(totalWeight / 2))
     if (!rng.chance(Math.max(1, contactPerMille), 1_000)) continue
 

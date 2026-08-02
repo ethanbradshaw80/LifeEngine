@@ -74,10 +74,37 @@ function freezeSpec(spec: WorldSpec): WorldSpec {
   Object.freeze(spec.family)
   Object.freeze(spec.gazetteer)
   Object.freeze(spec.foreignNations)
-  for (const branch of spec.branches) Object.freeze(branch)
+  Object.freeze(spec.gazetteer.neighbourhoods)
+  Object.freeze(spec.gazetteer.workplaces)
+  Object.freeze(spec.gazetteer.civic)
+  Object.freeze(spec.gazetteer.bases)
+  for (const branch of spec.branches) {
+    // The ladders especially: DETERMINISM.md §8 makes them append-only,
+    // because a record's rank is an INDEX into one and reordering a ladder
+    // re-ranks every soldier in every existing save of the preset.
+    Object.freeze(branch.ranks)
+    Object.freeze(branch.grades)
+    Object.freeze(branch.juniorTigMonths)
+    Object.freeze(branch)
+  }
   Object.freeze(spec.branches)
+  for (const specialty of spec.specialties) {
+    Object.freeze(specialty.exposure)
+    Object.freeze(specialty.civilianUnlocks)
+    Object.freeze(specialty)
+  }
   Object.freeze(spec.specialties)
+  for (const school of spec.schools) {
+    Object.freeze(school.branches)
+    Object.freeze(school.specialtyIds)
+    Object.freeze(school)
+  }
   Object.freeze(spec.schools)
+  for (const unit of spec.units) {
+    Object.freeze(unit.branches)
+    Object.freeze(unit.requiredBadges)
+    Object.freeze(unit)
+  }
   Object.freeze(spec.units)
   return Object.freeze(spec)
 }

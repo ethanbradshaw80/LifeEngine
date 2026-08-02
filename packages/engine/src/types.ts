@@ -212,8 +212,9 @@ export interface WorldSpec {
    * countries would put fabricated history on permanent records.
    */
   readonly foreignNations: readonly string[]
-  /** The services. Never empty — the engine falls back to the first entry
-   *  when a record names a branch this preset does not have. */
+  /** The services. A record naming a branch this preset does not have
+   *  resolves to a BLANK, never to another service's ladder — substituting
+   *  one re-reads every rank index and rewrites a career. */
   readonly branches: readonly ServiceBranchSpec[]
   /**
    * The trades. THE KEYSTONE of the branch extraction (W1 architecture

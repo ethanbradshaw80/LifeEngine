@@ -28,7 +28,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
-import { GRADE_TITLES, NEWS_STATION, offenceById } from './content.js'
+import { GRADE_TITLES, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
@@ -422,11 +422,15 @@ function crimeReport(world: World, item: NewsItem, person: Person, dateline: str
 
 function warReport(world: World, item: NewsItem, dateline: string): NewsArticle | null {
   const home = homeland(world)
-  const war = activeWars(world).find(
-    (w) =>
-      item.text.includes(world.nations.get(w.a)?.name ?? ' ') &&
-      item.text.includes(world.nations.get(w.b)?.name ?? ' '),
-  )
+  // Both belligerents must be NAMED in the headline for this to be that
+  // war's article. A nation the world no longer has cannot match — which
+  // is why this is not `?? ''`: an empty needle matches every string, and
+  // one missing nation would make every war look like this one.
+  const war = activeWars(world).find((w) => {
+    const a = world.nations.get(w.a)?.name
+    const b = world.nations.get(w.b)?.name
+    return a !== undefined && b !== undefined && item.text.includes(a) && item.text.includes(b)
+  })
   if (war === undefined) return null
   const a = world.nations.get(war.a)
   const b = world.nations.get(war.b)
@@ -492,5 +496,3 @@ function grouped(n: number): string {
   return n < 0 ? `-${out}` : out
 }
 
-/** The station's own name, for the byline. */
-export { NEWS_STATION }

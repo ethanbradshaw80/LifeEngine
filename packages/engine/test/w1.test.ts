@@ -424,3 +424,78 @@ describe('the start year is the preset’s', () => {
     expect(formatYear(b, b.tick)).not.toBe(formatYear(a, a.tick))
   })
 })
+
+describe('a preset can put its own people in its own uniform', () => {
+  it('enlists them into ITS branch, in ITS trades, over a century', () => {
+    // The second architecture review's must-fix, as a test. Resolving ids
+    // against the spec was only half the extraction: what a world OFFERS
+    // was still read from Classic's tables, so a preset's own trades would
+    // never have been offered to anyone — and because enlistPerson stamps
+    // `specialty.branch` onto the record, every soldier in that preset
+    // would have carried a CLASSIC branch id its own spec did not contain,
+    // straight onto the blank-branch path.
+    const branch = {
+      id: 'ranger-corps',
+      name: 'the Ranger Corps',
+      ranks: ['REC', 'RGR', 'LCPL', 'CPL', 'SGT', 'WO'],
+      grades: [1, 2, 3, 4, 5, 6],
+      competitiveFrom: 3,
+      juniorTigMonths: [6, 6, 12],
+    }
+    const spec: WorldSpec = {
+      ...CLASSIC_SPEC,
+      branches: [branch],
+      specialties: [
+        {
+          id: 'scout',
+          title: 'scout',
+          branch: 'ranger-corps',
+          requires: 'none',
+          schoolMonths: 3,
+          qualification: 'pathfinding',
+          boardCutoffOffset: 0,
+          exposure: { directCombat: 600, convoy: 200, baseAttack: 150, accident: 300 },
+          civilianUnlocks: [],
+        },
+        {
+          id: 'quartermaster',
+          title: 'quartermaster',
+          branch: 'ranger-corps',
+          requires: 'secondary',
+          schoolMonths: 4,
+          qualification: 'supply',
+          boardCutoffOffset: 20,
+          exposure: { directCombat: 50, convoy: 400, baseAttack: 200, accident: 350 },
+          civilianUnlocks: ['bookkeeper'],
+        },
+      ],
+      schools: [],
+      units: [],
+    }
+
+    const world = createWorld(makeSeed(12345), 200, spec)
+    advanceTicks(world, 1200)
+
+    const records = [...world.service.values()]
+    expect(records.length).toBeGreaterThan(0)
+
+    const ownTrades = new Set(spec.specialties.map((sp) => sp.id))
+    for (const record of records) {
+      expect(ownTrades.has(record.specialtyId), `${record.specialtyId} is not this preset's`).toBe(true)
+      expect(record.branch).toBe('ranger-corps')
+      // And the branch RESOLVES, so nobody is on the blank path: a real
+      // ladder, and a rank that reads as one of its own titles.
+      const resolved = branchSpecFor(world, record.branch)
+      expect(resolved.ranks.length).toBeGreaterThan(0)
+      expect(branch.ranks).toContain(rankTitle(world, record.branch, record.rank))
+      expect(record.monthlyPay).toBeGreaterThan(0)
+    }
+
+    // Promotions happen on the preset's OWN ladder, not on Classic's.
+    const promotions = world.events.filter((e) => e.type === 'promoted')
+    expect(promotions.length).toBeGreaterThan(0)
+    for (const event of promotions) {
+      expect(branch.ranks, `${event.detail ?? ''} is not a Ranger Corps rank`).toContain(event.detail ?? '')
+    }
+  })
+})

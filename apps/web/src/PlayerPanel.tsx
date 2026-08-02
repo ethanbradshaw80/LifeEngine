@@ -24,7 +24,6 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { SPECIALTIES } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
@@ -269,7 +268,7 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
   // Specialty ids become their titles (also fixes the long-standing raw-id
   // labels on the enlistment specialty menu).
   if (pending.kind === 'specialty' || (pending.kind === 'retrain' && option !== 'keep')) {
-    const specialty = SPECIALTIES.find((sp) => sp.id === option)
+    const specialty = world.spec.specialties.find((sp) => sp.id === option)
     if (specialty) return pending.kind === 'retrain' ? `Retrain as ${specialty.title}` : specialty.title
   }
   return OPTION_LABELS[pending.kind]?.[option] ?? option

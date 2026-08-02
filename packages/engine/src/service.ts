@@ -43,11 +43,8 @@ import {
   POINTS_PER_MERITORIOUS,
   POINTS_PER_VALOR,
   POINTS_PER_WOUND_RECOGNITION,
-  SERVICE_SCHOOLS,
   SERVICE_TERM_MONTHS,
   servicePayOn,
-  SPECIAL_UNITS,
-  SPECIALTIES,
   } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
@@ -378,7 +375,7 @@ export function schoolOptionsFor(
   if (!record || record.dischargedAtTick !== null) return []
   const specialty = specialtyFor(world, record.specialtyId)
   const badges = badgesOf(world, personId)
-  return SERVICE_SCHOOLS.map((school) => {
+  return world.spec.schools.map((school) => {
     let reason = ''
     if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not send people here.`
@@ -404,7 +401,7 @@ export function unitOptionsFor(
   if (!record || record.dischargedAtTick !== null) return []
   const specialty = specialtyFor(world, record.specialtyId)
   const badges = badgesOf(world, personId)
-  return SPECIAL_UNITS.map((unit) => {
+  return world.spec.units.map((unit) => {
     let reason = ''
     const drops = world.events.filter(
       (e) => e.type === 'dropped-selection' && e.subjectId === personId && e.detail === unit.id,
@@ -615,7 +612,7 @@ export function veteranUnlocks(world: World, personId: EntityId): readonly strin
 function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
   const education = world.education.get(person.id)
   const level = education?.level ?? 'none'
-  return SPECIALTIES.filter((sp) => meetsRequirement(level, sp.requires))
+  return world.spec.specialties.filter((sp) => meetsRequirement(level, sp.requires))
 }
 
 /**
@@ -954,7 +951,12 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   let performance = Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
 
   const specialty = specialtyFor(world, record.specialtyId)
-  const branch = specialty.branch
+  // The branch is the RECORD's, never re-derived from the trade. They are
+  // written together at enlistment and can only disagree when the trade
+  // does not resolve — and then re-deriving it costs the soldier their pay:
+  // a blank branch has no grades, servicePayOn falls to E-1, and the ledger
+  // is rewritten every month at any rank (second W1 review, must-fix).
+  const branch = record.branch
   const ladder = branchSpecFor(world, branch).ranks
   const monthsIn = tick - record.enlistedAtTick
   const schoolDone = 2 + specialty.schoolMonths // basic (~10 weeks) then the trade school
@@ -1096,7 +1098,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // NPCs go to schools too — the player is not special (charter §2).
       // Their path is quieter: the first open school takes them.
       const badges = badgesOf(world, person.id)
-      const school = SERVICE_SCHOOLS.find(
+      const school = world.spec.schools.find(
         (s) =>
           (s.branches.length === 0 || s.branches.includes(branch)) &&
           (s.specialtyIds.length === 0 || s.specialtyIds.includes(record.specialtyId)) &&
@@ -1124,7 +1126,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         world.events.filter(
           (e) => e.type === 'dropped-selection' && e.subjectId === person.id && e.detail === unitId,
         ).length
-      const unit = SPECIAL_UNITS.find(
+      const unit = world.spec.units.find(
         (u) =>
           u.branches.includes(branch) &&
           record.unitId !== u.id &&
@@ -1622,7 +1624,7 @@ export function discharge(
     decision: 'enlistment',
     significance: 'major',
     inputs: [...inputs],
-    chosen: `left ${branchName(world, specialtyFor(world, record.specialtyId).branch)} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
+    chosen: `left ${branchName(world, record.branch)} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
     rejected: ['to serve on'],
     streamId,
   })

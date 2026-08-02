@@ -134,7 +134,7 @@ export {
   unitOptionsFor,
   veteranUnlocks,
 } from './service.js'
-export { SPECIAL_UNITS, specialUnitById } from './content.js'
+export { specialUnitById } from './content.js'
 
 // Crime & justice (C1)
 export {
@@ -168,8 +168,8 @@ export {
   grantQualificationBadge,
   grantWoundRecognition,
 } from './awards.js'
-export { BRANCH_NAMES, BRANCH_RANKS, CLASSIC_BRANCHES, SPECIALTIES, specialtyById } from './content.js'
-export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
+export { BRANCH_NAMES, BRANCH_RANKS, CLASSIC_BRANCHES, specialtyById } from './content.js'
+
 
 // Deployment (L4-M4)
 export {
@@ -233,7 +233,7 @@ export { LOCAL_USER_ID, serialize, toSnapshot, worldHash, worldHashHex } from '.
 export type { SnapshotHeader, WorldSnapshot } from './snapshot.js'
 
 // Content
-export { NEWS_STATION, OCCUPATIONS, occupationById } from './content.js'
+export { OCCUPATIONS, occupationById } from './content.js'
 export { friendshipKey, relationshipKey } from './types.js'
 
 // Types
@@ -278,6 +278,10 @@ export type {
   Town,
   Traits,
   Gazetteer,
+  ExposureProfile,
+  ServiceSchool,
+  ServiceSpecialty,
+  SpecialUnit,
   ServiceBranchSpec,
   NamePool,
   WorldSpec,

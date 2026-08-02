@@ -95,45 +95,33 @@ PERFORMANCE_BASELINE). Time zones: skipped — meaningless at monthly ticks.
 
 ## W-milestones
 
-- **W1 — WorldSpec extraction. PART DONE 2026-08-02** (commits 298fb0e,
-  1ee4dcb). Landed: the spec itself (`packages/engine/src/worldspec.ts`,
-  shape in types.ts to keep the import graph acyclic), carried on
-  `world.spec`; name pools, gazetteer and foreign-nation names read from
-  it; `createWorld(seed, population, spec = CLASSIC_SPEC)`; save header
-  records the preset id (schema v21, migration names every older save
-  'classic'); `specById` never throws, so a save from a later build loads
-  as Classic instead of killing the worker (resistance 2); resistance 4
-  (display names as logic keys) and resistance 6 (prose hardcodes) both
-  fixed, with a test that fails if "the Republic" reappears inside an
-  engine string. **Classic's golden hash did not move** — the extraction
-  is a proved pure refactor. STILL OPEN for W1: service content and
-  START_YEAR onto the spec. RESISTANCE 3 IS DONE (86d7bdf): branches are
-  data now. What is left, in the order it blocks W2, per the W1
-  architecture review:
-    1. **SPECIALTIES** (`content.ts`) — the keystone, and not because trade
-       names are US-specific. Every branch id that ever reaches a service
-       record comes from `specialty.branch`, so until this table is
-       preset-owned, `spec.branches` is decorative: a preset physically
-       cannot use its own branch ids.
-    2. **Homeland identity** (`geopolitics.ts` — `'the Republic'`, plus the
-       nation count and bloc count). W2's whole premise is homeland = the
-       United States. Was missing from this plan's own open list.
-    3. **START_YEAR** (`clock.ts`). Mechanically trivial today — nothing in
-       the tick path reads the calendar year — but it is a DESIGN decision:
-       if the start year is ever player-selectable it is an input like the
-       seed and belongs in the save header beside presetId, not only on the
-       spec. Extract it before era-weighted name pools make the year a
-       determinism input rather than a display offset.
-    4. **`NEWS_STATION`** ('WCJC') — a town fact wearing a masthead;
-       gazetteer-shaped.
-    5. **Resistance 2 is only half closed**: `specialtyById` and
-       `occupationById` still THROW on ids that live in saves.
-    6. **The worker has no preset seam**: `{type:'new', seed}` calls
-       `createWorld(makeSeed(seed))`, so W2 cannot be started from the UI
-       until the message carries a preset id.
-  NOT blockers, and ruled shared-fictional in every preset: SERVICE_SCHOOLS,
-  SPECIAL_UNITS (this plan already rules named units fictional forever),
-  decoration titles, OCCUPATIONS, OFFENCES, month names.
+- **W1 — WorldSpec extraction. COMPLETE 2026-08-02** (commits 298fb0e,
+  1ee4dcb, 86d7bdf, 7c9e6bd, a2a064f, 7f5f021, 4850c53, 6129fb4, afabf0d).
+  Everything a preset decides now comes from `world.spec`: name pools, the
+  gazetteer (town, school, streets, workplaces, civic places, bases, the
+  news station), the homeland's name, the foreign nations, the service
+  branches (name, ladder, pay grades, competitive threshold, junior TIG),
+  the trades, the schools, the units, and the start year. `createWorld`
+  takes a spec; the save header records its id (schema v21, migration names
+  every older save 'classic'); the worker's 'new world' message can carry
+  one. **Classic's golden hash never moved** — the whole extraction is a
+  proved pure refactor.
+  Resistances: **2 CLOSED** (every content lookup is total — an id out of a
+  save can no longer throw inside the tick), **3 CLOSED** (branches are
+  data, not a compile-time union), **4 CLOSED** (records key on ids, never
+  display names), **6 CLOSED** (no homeland name typed into engine prose,
+  with a test that fails if one reappears). **1 stands and always will**:
+  presets with different place counts or ORDER produce different people
+  from the same seed, because place ids lead person ids lead trait streams
+  — a save can never be switched to another preset.
+  Reviewed twice (architecture + persistence); four must-fixes found and
+  fixed, the worst of them a `RangeError` on the first birth under any
+  preset whose name pool was a different length from Classic's.
+  DEFERRED, deliberately: decoration titles and named units stay shared
+  fictional content in every preset (this plan already rules them so); the
+  nation COUNT and bloc count stay engine balance; and if a start year is
+  ever player-selectable it moves from the spec to the save header beside
+  presetId, which is one schema bump then and nothing now.
 - **W1 (original scope, for reference) — WorldSpec extraction.** Classic preset = current content
   verbatim; engine reads the spec everywhere content.ts is read today;
   resistances 2-4 and 6 fixed; save header gains preset id (schema bump;
