@@ -34,7 +34,14 @@ import { checksumOf } from './encoding.js'
 import { migrate } from './migrations.js'
 import { LOCAL_USER_ID, SaveError, SCHEMA_VERSION } from './schema.js'
 import type { SaveFile, SaveHeader } from './schema.js'
-import { requireField, requireInteger, requireObject, requireString, validateWorldBody } from './validate.js'
+import {
+  optionalString,
+  requireField,
+  requireInteger,
+  requireObject,
+  requireString,
+  validateWorldBody,
+} from './validate.js'
 
 /**
  * Serialize a world.
@@ -53,7 +60,7 @@ export function toSaveFile(world: World, userId: string = LOCAL_USER_ID): SaveFi
     tick: world.tick,
     savedAtTick: world.tick,
     userId,
-    presetId: world.spec.id,
+    presetId: world.presetId,
     checksum: checksumOf(body),
   }
 
@@ -100,17 +107,17 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
   const simulationVersion = requireInteger(header, 'simulationVersion', 'save.header')
 
   // A save from before W1 has no preset; every one of them is Classic.
-  const presetId =
-    typeof header['presetId'] === 'string' && header['presetId'].length > 0
-      ? header['presetId']
-      : 'classic'
+  const presetId = optionalString(header, 'presetId') ?? 'classic'
 
   const world = hydrate(body, {
     seed: requireInteger(header, 'seed', 'save.header') as Seed,
     tick: requireInteger(header, 'tick', 'save.header') as Tick,
     // An unknown preset id resolves to Classic rather than throwing: a world
-    // that loads beats a worker that dies (resistance 2).
+    // that loads beats a worker that dies (resistance 2). The id itself is
+    // carried through UNRESOLVED so re-saving cannot rewrite the world's
+    // identity as 'classic' (persistence review).
     spec: specById(presetId),
+    presetId,
   })
 
   return {
@@ -145,7 +152,7 @@ export function fromSaveFile(raw: unknown, currentSimulationVersion: number): Lo
  */
 function hydrate(
   body: Record<string, unknown>,
-  meta: { seed: Seed; tick: Tick; spec: WorldSpec },
+  meta: { seed: Seed; tick: Tick; spec: WorldSpec; presetId: string },
 ): World {
   const places = new Map<EntityId, Place>()
   for (const place of body['places'] as Place[]) places.set(place.id, place)
@@ -207,6 +214,7 @@ function hydrate(
     seed: meta.seed,
     tick: meta.tick,
     spec: meta.spec,
+    presetId: meta.presetId,
     nextEntityId: body['nextEntityId'] as number,
     nextEventId: body['nextEventId'] as number,
     nextCausalRecordId: body['nextCausalRecordId'] as number,

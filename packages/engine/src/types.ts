@@ -1024,6 +1024,18 @@ export interface World {
    * back to a spec with specById().
    */
   readonly spec: WorldSpec
+  /**
+   * The preset id AS WRITTEN in the save, which is not always spec.id.
+   *
+   * specById falls back to Classic for a preset this build does not know, so
+   * a world saved by a LATER build and opened here runs on Classic content —
+   * correct, and better than refusing to load. But writing spec.id back out
+   * would then overwrite the world's true identity with 'classic', and the
+   * autosave fires 600ms after any change, so the loss would be silent and
+   * permanent (persistence review, W1). This field is what gets written
+   * back: what the world says it is, even when this build cannot serve it.
+   */
+  readonly presetId: string
   readonly seed: Seed
   readonly tick: Tick
   /** Monotonic. Never reused, even after an entity dies. */

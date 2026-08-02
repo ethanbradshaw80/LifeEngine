@@ -29,6 +29,9 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v21 — W1. The header names the WorldSpec preset that made the world.
+ *       Every save that predates presets is 'classic', which is what they
+ *       all are. The world BODY is untouched, so the checksum does not move.
  * v20 — Nations gain `baseStrength`, the peacetime weight their strength
  *      recovers toward after a war grinds it down. Old saves take their
  *      current strength as the baseline — it has never moved, so that is

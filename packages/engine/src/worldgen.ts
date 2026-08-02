@@ -139,6 +139,7 @@ export function createWorld(
     nextEventId: 1,
     nextCausalRecordId: 1,
     spec,
+    presetId: spec.id,
     town: { name: spec.gazetteer.townName, placeIds: [] },
     places: new Map(),
     people: new Map(),

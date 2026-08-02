@@ -54,6 +54,18 @@ export function requireInteger(
   return value
 }
 
+/**
+ * A string field that MAY be absent — a field added by a later schema and
+ * read from an older save. Returns null rather than throwing, so the caller
+ * supplies the default. Every other header field goes through this module's
+ * require* helpers (R-23); the optional ones belong here too rather than as
+ * an inline typeof at the call site.
+ */
+export function optionalString(source: Record<string, unknown>, field: string): string | null {
+  const value = source[field]
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
 export function requireString(
   object: Record<string, unknown>,
   field: string,

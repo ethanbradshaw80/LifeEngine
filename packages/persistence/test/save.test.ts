@@ -286,6 +286,7 @@ describe('the world remembers which preset made it (W1)', () => {
 
     const loaded = fromSaveFile(save, SIMULATION_VERSION)
     expect(loaded.world.spec.id).toBe('classic')
+    expect(loaded.world.presetId).toBe('classic')
     expect(loaded.header.presetId).toBe('classic')
   })
 
@@ -308,5 +309,29 @@ describe('the world remembers which preset made it (W1)', () => {
     const loaded = fromSaveFile(fromTheFuture, SIMULATION_VERSION)
     expect(loaded.world.spec.id).toBe('classic')
     expect(loaded.world.people.size).toBe(world.people.size)
+  })
+
+  it('does not rewrite an unknown preset as Classic when the world is saved again', () => {
+    // The persistence review's must-fix. Running an unfamiliar preset's
+    // world on Classic content is a graceful degradation; writing 'classic'
+    // back into its header is DATA LOSS, and the autosave fires 600ms after
+    // any change, so it would happen silently and could not be undone.
+    const world = createWorld(makeSeed(2024), 40)
+    const fromTheFuture = {
+      ...toSaveFile(world),
+      header: { ...toSaveFile(world).header, presetId: 'american-heartland-2' },
+    }
+
+    const loaded = fromSaveFile(fromTheFuture, SIMULATION_VERSION)
+    expect(loaded.world.spec.id).toBe('classic') // content it can serve
+    expect(loaded.world.presetId).toBe('american-heartland-2') // identity it keeps
+
+    const resaved = toSaveFile(loaded.world)
+    expect(resaved.header.presetId).toBe('american-heartland-2')
+
+    // And it survives any number of round trips, not just the first.
+    expect(
+      toSaveFile(fromSaveFile(resaved, SIMULATION_VERSION).world).header.presetId,
+    ).toBe('american-heartland-2')
   })
 })
