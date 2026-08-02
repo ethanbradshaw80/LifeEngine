@@ -25,6 +25,7 @@ export type { StreamId } from './rng.js'
 
 // World
 export { createWorld, DEFAULT_POPULATION, placesOfKind } from './worldgen.js'
+export { HEARTLAND_COUNTY, HEARTLAND_SPEC, HEARTLAND_STATE } from './heartland.js'
 export {
   branchSpecFor,
   CLASSIC_SPEC,

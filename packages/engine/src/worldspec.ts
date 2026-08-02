@@ -47,6 +47,7 @@ import {
   MALE_GIVEN_NAMES,
   MALE_GIVEN_WEIGHTS,
 } from './names.js'
+import { HEARTLAND_SPEC } from './heartland.js'
 import type { World } from './types.js'
 import type {
   ServiceBranchSpec,
@@ -139,7 +140,7 @@ export const CLASSIC_SPEC: WorldSpec = freezeSpec({
  * content cannot be resolved is a world that cannot be loaded
  * (WORLD_MODES_PLAN.md, resistance 2).
  */
-export const PRESETS: readonly WorldSpec[] = [CLASSIC_SPEC]
+export const PRESETS: readonly WorldSpec[] = [CLASSIC_SPEC, freezeSpec(HEARTLAND_SPEC)]
 
 /**
  * Resolve a preset id. NEVER throws: this is called with strings that came

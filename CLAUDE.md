@@ -72,9 +72,16 @@ An ambitious generational life simulation set in a realistic simulated United St
 
 Real geography, cities, states, regional characteristics, and climate patterns may
 be used where legally and ethically appropriate. **People, companies, brands,
-politicians, parties, media organizations, sports organizations, and military units
-are fictional** — this reduces privacy, licensing, trademark, publicity-rights, and
-IP risk. No real private individuals, ever.
+politicians, parties, media organizations, sports organizations, and named military
+units are fictional** — this reduces privacy, licensing, trademark,
+publicity-rights, and IP risk. No real private individuals, ever.
+
+**Branches are not units** (amended 2026-08-02 with milestone W2, as ADR-0020 §3
+pre-authorized). A service BRANCH may carry its real name where the preset's homeland
+is real — "the United States Army" is nominative use in an expressive work — but
+never its insignia, emblems or seals, which are licensed. A named UNIT is fictional in
+every preset, permanently: a real one carries real casualty history and living
+members, and this simulation kills, wounds and disgraces the people in it.
 
 World identity is becoming a **preset** (ADR-0020): Classic keeps today's
 fully fictional world; Real World Mode grounds the homeland in the real

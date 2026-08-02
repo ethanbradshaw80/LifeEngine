@@ -7,6 +7,7 @@ import {
   fullName,
   isServing,
   livingPeople,
+  PRESETS,
   personSummary,
   worldHashHex,
   courtOutcomeOf,
@@ -62,6 +63,9 @@ export function App() {
   } = useWorld(GOLDEN_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
+  // The preset for the NEXT world. The current world's own preset is
+  // world.spec and cannot be changed (ADR-0020).
+  const [presetId, setPresetId] = useState<string>('classic')
   const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
@@ -138,7 +142,7 @@ export function App() {
     const value = Number.parseInt(seedInput, 10)
     if (!Number.isInteger(value)) return
     setSelected(null)
-    newWorld(value)
+    newWorld(value, presetId)
   }
 
   // No world: either still starting, or a load failed.
@@ -317,9 +321,30 @@ export function App() {
             }}
           />
         </label>
+        {/* W2 — which world to build. The preset is chosen HERE and never
+            again: it is fixed for a world's whole life, because place ids
+            lead person ids lead trait streams, so the same seed under two
+            presets is two different towns. */}
+        <label className="preset">
+          Setting
+          <select
+            value={presetId}
+            disabled={busy}
+            onChange={(event) => setPresetId(event.target.value)}
+          >
+            {PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id}>
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
         {confirmingNewWorld ? (
           <span className="confirm">
-            Replace this world and its history?
+            Replace this world and its history with a new {
+              PRESETS.find((preset) => preset.id === presetId)?.name ?? 'Classic'
+            } one?
             <button
               type="button"
               className="danger"

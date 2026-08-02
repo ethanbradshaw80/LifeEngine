@@ -29,7 +29,7 @@ export interface WorldController {
   readonly lastElapsedMs: number | null
   readonly saveState: 'unsaved' | 'saving' | 'saved' | 'failed'
   advance: (months: number) => void
-  newWorld: (seed: number) => void
+  newWorld: (seed: number, presetId?: string) => void
   /** Start or stop living as a person. Null returns to watching the town.
    *  `heir: true` continues the line — the finished life joins the lineage. */
   play: (personId: number | null, heir?: boolean) => void
@@ -142,8 +142,10 @@ export function useWorld(initialSeed: number): WorldController {
   )
 
   const newWorld = useCallback(
-    (seed: number) => {
-      send({ type: 'new', seed })
+    (seed: number, presetId?: string) => {
+      // W2: which world to build. Omitted is Classic, which is what every
+      // existing save is and what the first-run world has always been.
+      send({ type: 'new', seed, presetId })
     },
     [send],
   )

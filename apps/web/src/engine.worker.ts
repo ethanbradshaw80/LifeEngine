@@ -86,7 +86,7 @@ export type WorkerRequest =
       readonly seed: number
       /** W1: which preset builds the world. Omitted means Classic — the only
        *  one that ships today, and the one every older save is. */
-      readonly presetId?: string
+      readonly presetId?: string | undefined
     }
   | { readonly type: 'advance'; readonly months: number }
   | { readonly type: 'load'; readonly save: unknown }

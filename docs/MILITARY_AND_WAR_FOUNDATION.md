@@ -47,13 +47,26 @@ If danger is ever implemented as a lookup table keyed on country, the design has
 
 ## 3. Fictional world constraint
 
-All countries, factions, alliances, conflicts, units, installations, and awards are
-**fictional and generated**. See `PROJECT_CHARTER.md` §5 and R-14.
+**Amended 2026-08-02 with milestone W2, exactly as ADR-0020 §3 pre-authorized.
+The scope of "fictional" narrowed from *all* countries to *foreign* ones; nothing
+else in this section changed, and nothing about foreign theatres has moved.**
+
+All **FOREIGN** countries, factions, alliances and conflicts, and all named military
+units and awards, are **fictional and generated**, in every preset, permanently. See
+`PROJECT_CHARTER.md` §5 and R-14.
+
+The HOMELAND is defined by the world's preset (ADR-0020): fictional in Classic ("the
+Republic"), the United States in American Heartland. Service BRANCHES follow the
+homeland — real by NAME only, never with insignia, which are licensed. Named units
+never do: a real unit carries real casualty history and living members.
 
 This is not only legal caution. Modelling real wars means either misrepresenting real
 events or building a game where real casualties are a mechanic. A generated
 geopolitical world lets the system model *how conflicts work* without claiming
-anything about any actual war, and it makes every playthrough different.
+anything about any actual war, and it makes every playthrough different. That
+argument is about the WARS, which is why it survives the homeland becoming real: the
+Republic's wars and the United States' wars in this simulation are equally generated,
+against equally invented enemies.
 
 Real US geography may be used for domestic installations. Foreign theatres are
 fictional.

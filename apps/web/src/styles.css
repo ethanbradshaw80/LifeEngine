@@ -1605,3 +1605,22 @@ ul.welcome-points li + li {
   color: var(--muted);
   font-style: italic;
 }
+
+/* W2 — the setting picker. Sits beside the seed box: both are "what the
+   NEXT world is made of", and neither can be changed once one exists. */
+.preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.preset select {
+  padding: 0.15rem 0.3rem;
+  font: inherit;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
