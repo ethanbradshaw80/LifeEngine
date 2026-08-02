@@ -19,7 +19,8 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { occupationById } from './content.js'
+import { occupationById, specialtyById } from './content.js'
+import { rankTitle } from './service.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
@@ -203,11 +204,25 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'reenlisted':
       return `${year} — Signed for another term.`
     case 'discharged':
-      return event.detail === 'medical'
-        ? `${year} — Discharged on medical grounds at ${age}.`
-        : event.detail === 'high-year tenure'
-          ? `${year} — The service did not offer another term; separated at ${age}.`
-          : `${year} — Left the service at ${age}.`
+      // Every ending names itself. A thirty-year career and a career ended
+      // at the orderly room are not "left the service" (review S5); Law 8
+      // asks the retrospective to say what actually happened.
+      switch (event.detail) {
+        case 'medical':
+          return `${year} — Discharged on medical grounds at ${age}.`
+        case 'high-year tenure':
+          return `${year} — The service did not offer another term; separated at ${age}.`
+        case 'misconduct':
+          return `${year} — Put out of the service at ${age}; the file had filled.`
+        case 'thirty years served':
+          return `${year} — Thirty years done. Retired at ${age}.`
+        case 'retirement age':
+          return `${year} — Reached the age the service keeps nobody past; retired at ${age}.`
+        case 'twenty years served':
+          return `${year} — Twenty years in, and took the retirement at ${age}.`
+        default:
+          return `${year} — Left the service at ${age}.`
+      }
     case 'began-training':
       return `${year} — Reported to ${event.detail ?? 'training'}.`
     case 'completed-training':
@@ -236,11 +251,24 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — The pension board recognized what the service left: ${sum} a month.`
     }
     case 'deployed':
-      return `${year} — Deployed to ${event.detail ?? 'the front'} at ${age}.`
+      // A rotation's detail already reads "a rotation to Osmark", so the
+      // wartime preposition would stack into nonsense (review S5).
+      return event.detail !== null && event.detail.startsWith('a rotation')
+        ? `${year} — Posted abroad at ${age}: ${event.detail}.`
+        : `${year} — Deployed to ${event.detail ?? 'the front'} at ${age}.`
     case 'returned-home':
-      return event.detail === 'evacuated'
-        ? `${year} — Evacuated home.`
-        : `${year} — Came home; the tour was done.`
+      switch (event.detail) {
+        case 'evacuated':
+          return `${year} — Evacuated home.`
+        case 'recalled':
+          return `${year} — Recalled home; the Republic had gone to war.`
+        case 'host at war':
+          return `${year} — Brought home early; the host country had gone to war.`
+        case 'rotation complete':
+          return `${year} — Came home; the rotation was done.`
+        default:
+          return `${year} — Came home; the tour was done.`
+      }
     case 'committed-theft':
       return `${year} — Took what was not ${objectPronoun(person) === 'her' ? 'hers' : 'his'} to take.`
     case 'was-robbed':
@@ -567,6 +595,14 @@ export function personSummary(world: World, personId: EntityId): string {
   if (!alive) return `${fullName(person)}, died at ${age} (${person.causeOfDeath})`
 
   const married = spouseOf(world, personId) !== null ? ', married' : ''
+  // The uniform is the work, and the town list should say so (owner: the
+  // Working tab read as though nobody was ever in the service). Rank and
+  // trade, the way the person would answer the question.
+  const service = world.service.get(personId)
+  if (service && service.dischargedAtTick === null) {
+    const trade = specialtyById(service.specialtyId).title
+    return `${fullName(person)}, ${age}, ${rankTitle(service.branch, service.rank)} — ${trade}${married}`
+  }
   if (occupation) return `${fullName(person)}, ${age}, ${occupation}${married}`
   const education = world.education.get(personId)
   if (education?.enrolledIn) return `${fullName(person)}, ${age}, in ${education.enrolledIn} school`

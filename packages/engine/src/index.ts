@@ -94,6 +94,7 @@ export type { InjuryContext } from './wounds.js'
 export {
   badgesOf,
   boardStandingFor,
+  disciplinaryFileOf,
   enlistmentBar,
   isServing,
   isVeteran,
@@ -138,6 +139,7 @@ export {
   currentDeployment,
   deploymentsOf,
   isDeployed,
+  rotationAvailable,
   threatVectorFor,
 } from './deployment.js'
 export type { ThreatVector } from './deployment.js'

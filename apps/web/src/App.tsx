@@ -6,6 +6,7 @@ import {
   fertilityCohort,
   formatDate,
   fullName,
+  isServing,
   livingPeople,
   partneringFunnel,
   personSummary,
@@ -34,7 +35,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '17e3b083'
+const GOLDEN_HASH_HEX = '7a823afb'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -112,7 +113,11 @@ export function App() {
       filter === 'dead'
         ? dead
         : filter === 'working'
-          ? living.filter((p) => world.employment.has(p.id))
+          ? // The uniform IS the work (owner: the Working tab showed only
+            // civilian jobs, so every serving soldier looked idle). A
+            // serving person holds no employment record BY DESIGN — the
+            // service system owns their working life.
+            living.filter((p) => world.employment.has(p.id) || isServing(world, p.id))
           : filter === 'children'
             ? living.filter((p) => ageAt(p.birthTick, world.tick) < 18)
             : living

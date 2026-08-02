@@ -912,8 +912,15 @@ export function requestDischarge(world: World): { discharged: boolean; reason: s
 
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { discharged: false, reason: 'Not serving.' }
-  if (currentDeployment(world, person.id) !== undefined) {
-    return { discharged: false, reason: 'Not from a theatre. The boat home comes first, then the question.' }
+  const away = currentDeployment(world, person.id)
+  if (away !== undefined) {
+    return {
+      discharged: false,
+      reason:
+        away.kind === 'rotation'
+          ? 'Not from an overseas posting. Finish the rotation, then ask.'
+          : 'Not from a theatre. The boat home comes first, then the question.',
+    }
   }
   if (record.termMonthsLeft > 0) {
     const months = record.termMonthsLeft

@@ -162,11 +162,14 @@ describe('the tour', () => {
     return built
   }
 
+  // M-ARMY2: rotation months must not dilute this — foundation §6 is a
+  // claim about being in a THEATRE (review note).
   it('most deployed months, nothing happens', () => {
     const { world } = longWar()
     let deployedMonths = 0
     for (const [, tours] of world.deployments) {
       for (const tour of tours) {
+        if (tour.kind !== 'combat') continue
         deployedMonths += (tour.returnedAtTick ?? world.tick) - tour.startedAtTick
       }
     }

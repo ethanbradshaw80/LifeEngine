@@ -78,17 +78,36 @@ const MEDICAL_LIMIT = 400
 /** Up-or-out applies BELOW this pay grade only. Make E-5 (SGT, PO2, SSgt)
  *  and the service will keep you: "a ton of people retire at SGT, SSG". */
 const HYT_BELOW_GRADE = 5
-/** A career is thirty years, and a term that would cross it is not offered. */
-const MAX_CAREER_MONTHS = 360
+/**
+ * Twenty years is the door everyone aims at — the reason "a ton of people
+ * retire at SGT, SSG" is true. Reaching it makes leaving attractive rather
+ * than forced.
+ */
+export const RETIREMENT_ELIGIBLE_MONTHS = 240
+/**
+ * How long a career can run AT a grade. Up-or-out handles everything below
+ * E-5; above it, the ceiling rises with the grade, so a sergeant serves
+ * their twenty and retires while a senior NCO can run the full thirty
+ * (review S2: with no ceiling at all, a thirty-year SGT reads wrong to
+ * anyone who wore the rank).
+ */
+function careerCeilingMonths(grade: number): number {
+  return grade <= 5 ? RETIREMENT_ELIGIBLE_MONTHS : 360
+}
 /** Mandatory retirement age. Nobody serves past it, rank regardless. */
 const SERVICE_RETIREMENT_AGE = 62
 
 // --- M-ARMY2 misconduct ----------------------------------------------------
-/** Monthly incident chance per 1000: 1 for the diligent up to 4 for the
- *  careless, +2 more when the work is already failing. ~1-5% a year. */
+/**
+ * Monthly incident chance per 1000: 2 for the diligent up to 8 for the
+ * careless, +3 more when the work is already failing. Tuned UP from the
+ * first draft (review S1), where a third strike inside five years fired
+ * roughly once a century — a career-ending path nobody would ever meet,
+ * and the only removal path the E-5 tenure exemption leaves standing.
+ */
 function misconductChance(person: Person, performance: number): number {
-  let chance = 1 + Math.floor(Math.max(0, 550 - person.traits.diligence) / 140)
-  if (performance < 300) chance += 2
+  let chance = 2 + Math.floor(Math.max(0, 550 - person.traits.diligence) / 90)
+  if (performance < 300) chance += 3
   return chance
 }
 /** A third company punishment inside this window ends the career. */
@@ -96,7 +115,7 @@ const MISCONDUCT_STRIKES = 3
 const MISCONDUCT_WINDOW_MONTHS = 60
 const MINOR_INFRACTIONS = [
   'late off leave',
-  'asleep on stint',
+  'asleep on watch',
   'a scrap in barracks',
   'missed movement',
   'drink where it should not have been',
@@ -283,6 +302,31 @@ export function unitOptionsFor(
  * board resolution — everything here is what the person themselves would
  * know. Null when not serving or the next step is not competitive.
  */
+/**
+ * The marks on someone's file inside the window that can end a career, and
+ * how many it takes. A soldier knows exactly where they stand with the
+ * orderly room; the player was the only one who did not (review S3). Read
+ * side only — the punishments themselves are never a choice.
+ */
+export function disciplinaryFileOf(
+  world: World,
+  personId: EntityId,
+): { readonly marks: number; readonly endsCareerAt: number; readonly windowYears: number } | null {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return null
+  const marks = world.events.filter(
+    (e) =>
+      e.type === 'disciplined' &&
+      e.subjectId === personId &&
+      world.tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
+  ).length
+  return {
+    marks,
+    endsCareerAt: MISCONDUCT_STRIKES,
+    windowYears: Math.floor(MISCONDUCT_WINDOW_MONTHS / 12),
+  }
+}
+
 export function boardStandingFor(
   world: World,
   personId: EntityId,
@@ -567,12 +611,16 @@ export function runService(world: World, tick: Tick): void {
 
 /**
  * M-ARMY2. The town's service news, read from EVENTS like every other news
- * source (review S7 — derived news would assert drives an old save never
- * lived): who enlisted, who came home, who died in uniform (the player
- * excluded — their own timeline carries their story), and the seasons the
- * recruiters set up on the square. Both legs of the story, deliberately —
- * a feed of enlistments alone is the shape of a recruiting poster
- * (review S5).
+ * source (an earlier draft derived it, which would assert drives an old
+ * save never lived). The player is excluded throughout — their own
+ * timeline carries their story.
+ *
+ * WHAT MAKES THE FEED, and why: the recruiting seasons (rare, and the
+ * thing that makes people walk in), someone home from a war, and a death
+ * in uniform. Enlistments and peacetime homecomings were removed on owner
+ * direction — at four hundred people they buried the feed. Keeping the
+ * war's return leg is deliberate: recruiting notices and funerals with
+ * nothing between them is not a neutral picture of service either.
  */
 export function serviceNewsSince(
   world: World,
@@ -590,14 +638,26 @@ export function serviceNewsSince(
       continue
     }
     if (event.subjectId === world.player.personId) continue
-    // OWNER DIRECTION: every enlistment and every homecoming is NOT news.
-    // At a town of four hundred those are a few a year, and the News tab
-    // reads from the beginning of the world — the wall of cards buried the
-    // things that actually matter, and a card about a man who enlisted
-    // forty years ago reads as a claim about him today. They remain on the
-    // person's own timeline, which is where a career belongs. The town
-    // still hears the rare, heavy fact: a death in uniform.
-    if (event.type === 'died') {
+    // OWNER DIRECTION: enlistments are NOT news. At four hundred people
+    // that was several a year, and the News tab reads from the beginning of
+    // the world — the wall of cards buried everything else, and a card
+    // about a man who enlisted forty years ago reads as a claim about him
+    // today. A career belongs on the person's own timeline.
+    //
+    // What the town DOES hear is the heavy end: someone coming home from a
+    // WAR (about one every three years, not one a month), and someone not
+    // coming home at all. Review S6: a feed of recruiting notices and
+    // deaths, with nothing in between, tilts in both directions at once.
+    if (event.type === 'returned-home' && event.detail === 'tour complete') {
+      const person = world.people.get(event.subjectId)
+      const record = world.service.get(event.subjectId)
+      if (!person || !record) continue
+      items.push({
+        tick: event.tick,
+        text: `${person.givenName} ${person.familyName} came home from the war`,
+        nearby: true,
+      })
+    } else if (event.type === 'died') {
       const record = world.service.get(event.subjectId)
       if (!record || record.dischargedAtTick !== event.tick) continue
       if (record.dischargeReason !== 'died in service') continue
@@ -643,8 +703,16 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       discharge(world, tick, person, record, 'retirement age', [factor('old-age', 700)])
       return
     }
-    if (tick - record.enlistedAtTick >= MAX_CAREER_MONTHS) {
-      discharge(world, tick, person, record, 'thirty years served', [factor('term-ended', 800)])
+    const served = tick - record.enlistedAtTick
+    const ceiling = careerCeilingMonths(
+      BRANCH_GRADES[record.branch as ServiceBranch][record.rank] ?? 9,
+    )
+    if (served >= ceiling) {
+      discharge(
+        world, tick, person, record,
+        ceiling === RETIREMENT_ELIGIBLE_MONTHS ? 'twenty years served' : 'thirty years served',
+        [factor('term-ended', 800)],
+      )
       return
     }
   }
@@ -903,7 +971,12 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // for a month in grade like the soldier does.
     const gates = promotedThisMonth ? null : competitiveGates(specialty, rank)
     if (gates) {
-      const over = timeInGrade - gates.tigNeeded
+      // LIVE time in grade, not the value captured at the top of the month
+      // (review S4): a bust resets rankSinceTick, and the stale figure asked
+      // a just-demoted soldier to put in with credit they no longer had —
+      // then the answer's own re-check failed and recorded NOTHING. The
+      // board waits for a month in grade like the soldier does.
+      const over = tick - rankSinceTick - gates.tigNeeded
       const askedRecently = world.player.log.some(
         (entry) => entry.kind === 'promotion-board' && tick - entry.tick < 10,
       )
@@ -1029,11 +1102,19 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     return
   }
 
-  const retention = 380 + rank * 90
+  // Twenty years in, most people take the retirement — that is what makes
+  // "retired as a sergeant" the ordinary end of a career rather than a rare
+  // one (review S2). Before then, rank earned makes staying likelier.
+  const retirementEligible = tick - record.enlistedAtTick >= RETIREMENT_ELIGIBLE_MONTHS
+  const retention = retirementEligible ? 260 : 380 + rank * 90
   if (rng.chance(retention, 1_000)) {
     reenlist(world, tick, person)
   } else {
-    discharge(world, tick, person, world.service.get(person.id)!, 'end of term', [factor('term-ended', 600)])
+    discharge(
+      world, tick, person, world.service.get(person.id)!,
+      retirementEligible ? 'twenty years served' : 'end of term',
+      [factor('term-ended', 600)],
+    )
   }
 }
 

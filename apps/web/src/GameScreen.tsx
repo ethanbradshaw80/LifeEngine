@@ -50,6 +50,9 @@ import {
 } from '@life-engine/engine'
 import {
   boardStandingFor,
+  currentDeployment,
+  disciplinaryFileOf,
+  rotationAvailable,
   BRANCH_NAMES,
   crimeNewsSince,
   enlistmentBar,
@@ -886,7 +889,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dd>
                     {record.dischargedAtTick === null ? (
                       isDeployed(world, person.id) ? (
-                        <span className="bad">deployed</span>
+                        // A peacetime posting is duty, not danger — it does
+                        // not wear the war colour.
+                        currentDeployment(world, person.id)?.kind === 'rotation' ? (
+                          <span>on rotation abroad</span>
+                        ) : (
+                          <span className="bad">deployed</span>
+                        )
                       ) : (
                         `serving · ${record.termMonthsLeft} months left on the term`
                       )
@@ -896,6 +905,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       }`
                     )}
                   </dd>
+                  {(() => {
+                    // The file, which the soldier has always known and the
+                    // player never saw.
+                    const file = disciplinaryFileOf(world, person.id)
+                    if (!file || file.marks === 0) return null
+                    return (
+                      <>
+                        <dt>File</dt>
+                        <dd className={file.marks + 1 >= file.endsCareerAt ? 'bad' : undefined}>
+                          {file.marks} company punishment{file.marks === 1 ? '' : 's'} in the last{' '}
+                          {file.windowYears} years — {file.endsCareerAt} ends the career
+                        </dd>
+                      </>
+                    )
+                  })()}
                   <dt>Enlisted</dt>
                   <dd>{formatYear(record.enlistedAtTick)}</dd>
                   {record.unitId !== null && (
@@ -933,12 +957,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <>
                     <h3>Actions</h3>
                     <div className="svc-actions">
-                      {/* "Deployment", not "rotation" (owner, 2026-08-01):
-                          rotations are the peacetime posting to an ally's
-                          soil — a queued feature of its own. This button is
-                          the wartime one. */}
+                      {/* The button says what the world is actually
+                          offering this month: a war's rotation list, or —
+                          in peacetime — a posting with an ally (review S5,
+                          which caught this comment claiming rotations were
+                          still unbuilt). */}
                       <button type="button" className="apply" disabled={busy} onClick={onRequestDeploy}>
-                        🛫 Volunteer for deployment
+                        {rotationAvailable(world)
+                          ? '🛫 Volunteer for a rotation abroad'
+                          : '🛫 Volunteer for deployment'}
                       </button>
                       <button type="button" className="apply" disabled={busy} onClick={onFitnessTest}>
                         🏃 Train for the fitness test

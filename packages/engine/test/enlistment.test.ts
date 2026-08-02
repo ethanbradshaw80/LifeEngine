@@ -98,11 +98,14 @@ describe('service news', () => {
     // where a wall of them buried the things that matter.
     expect(world.events.some((e) => e.type === 'enlisted')).toBe(true)
     expect(news.some((n) => n.text.includes('enlisted in'))).toBe(false)
-    expect(news.some((n) => n.text.includes('came home from'))).toBe(false)
-    // A death in uniform is heavy enough that the town hears it.
+    // A peacetime homecoming is not news either; a WAR's is (review S6).
+    expect(news.some((n) => n.text.includes('came home from the service'))).toBe(false)
+    // What remains: the drives, a war's return leg, and a death in uniform.
     for (const item of news) {
       expect(
-        item.text.includes('recruiters set up') || item.text.includes('died in service'),
+        item.text.includes('recruiters set up') ||
+          item.text.includes('came home from the war') ||
+          item.text.includes('died in service'),
       ).toBe(true)
     }
   })

@@ -28,6 +28,14 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v30 — M-ARMY2, military review fixes. The rotation accident channel is
+ *      computed per ten thousand, so the trade's exposure survives the
+ *      integer arithmetic instead of flooring every specialty to the same
+ *      risk. A host that goes to war sends its guests home. Twenty years
+ *      is a retirement door, and the career ceiling rises with the grade
+ *      (E-5 twenty, above that thirty). Company punishments run about
+ *      twice as often, so the third-strike discharge is a path a career
+ *      can actually meet. The promotion board reads live time in grade.
  * v29 — M-ARMY2. Peacetime rotations (owner direction): between wars the
  *      army still goes places. Six-month postings with allies of the same
  *      bloc, issued as ORDERS (a smaller share of the force than a war
@@ -161,7 +169,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 29
+export const SIMULATION_VERSION = 30
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

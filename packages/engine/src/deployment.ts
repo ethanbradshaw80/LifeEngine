@@ -715,10 +715,20 @@ function resolveRotationMonth(
   const personId = person.id
   const record = world.service.get(personId)
 
-  // The Republic went to war while they were out. The posting ends; the
-  // orders system finds them at home next month like everyone else.
+  // The Republic went to war while they were out. The posting ends and the
+  // orders system takes it from there.
   if (homelandAtWar) {
     closeTour(world, tick, personId, deployment, false, 'recalled')
+    return
+  }
+
+  // THE PERMANENT RULE, every month, not just at issue (review M2): the
+  // host was at peace when the orders were cut, but nations decide their
+  // own quarrels. A country that has since gone to war is not a peacetime
+  // posting, and this resolver — which has no threat vector and no combat
+  // channel at all — must not keep pretending it is. They come home.
+  if (deployment.hostId !== null && isAtWar(world, deployment.hostId)) {
+    closeTour(world, tick, personId, deployment, false, 'host at war')
     return
   }
   if (tick >= deployment.endsAtTick || !record || record.dischargedAtTick !== null) {
@@ -755,20 +765,23 @@ function resolveRotationMonth(
   }
 
   // The one channel peace has. Crossed with what the trade does all day,
-  // exactly as a theatre's channels are.
-  const accidentPerMille = Math.max(1, Math.floor((ROTATION_TEMPO * exposure.accident) / 10_000))
-  if (!rng.chance(accidentPerMille, 1_000)) return
+  // exactly as a theatre's channels are — and computed per TEN THOUSAND,
+  // because per-mille integer-floored every trade to the same 1 and threw
+  // the cross away (review M1: personnel in the same place must not draw
+  // the same experience). Signals 6, a deckhand 18.
+  const accidentPerTenThousand = Math.floor((ROTATION_TEMPO * exposure.accident) / 1_000)
+  if (!rng.chanceInTenThousand(accidentPerTenThousand)) return
 
   const severity = rng.nextBellInt(250, 1000)
   const chain = [
-    factor('battlefield-accident', Math.max(1, Math.floor((ROTATION_TEMPO * exposure.accident) / 1_000))),
+    factor('battlefield-accident', accidentPerTenThousand),
     factor('under-orders', 400),
     factor('battlefield-chaos', severity),
   ]
 
-  // Rarely, and only at the far tail — but it is real, and it is the same
-  // death every other death uses.
-  if (severity >= 950 && rng.chance(1, 5)) {
+  // Rarely, and only at the tail — but it is real, and it is the same death
+  // every other death uses. A vehicle on a wet road, a range gone wrong.
+  if (severity >= 900 && rng.chance(1, 4)) {
     performDeath(world, tick, person, 'an accident on rotation', chain, Stream.CombatResolution)
     closeTour(world, tick, personId, currentDeployment(world, personId) ?? deployment, true)
     return
@@ -779,6 +792,18 @@ function resolveRotationMonth(
     type: 'was-injured',
     subjectId: personId,
     detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+  })
+  // The harm goes on the record with its causes (review S7): this injury can
+  // mark a body permanently and can carry a service pension, and Law 3 does
+  // not make an exception for the ones that happen away from a war.
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'deployment',
+    significance: severity >= 600 ? 'defining' : 'notable',
+    inputs: chain,
+    chosen: `was hurt on the rotation to ${host?.name ?? 'an allied country'}`,
+    rejected: [],
+    streamId: Stream.CombatResolution,
   })
   // Hurt badly enough and the posting is over — home, the same as a theatre.
   // No wound recognition: that decoration is for enemy action, and there is

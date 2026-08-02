@@ -63,6 +63,7 @@ export const GOOD_CONDUCT_PERFORMANCE = 400
 const HONOURABLE_TERM_ENDINGS: ReadonlySet<string> = new Set([
   'end of term',
   'high-year tenure',
+  'twenty years served',
   'thirty years served',
   'retirement age',
 ])

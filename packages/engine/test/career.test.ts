@@ -10,6 +10,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { Tick } from '@life-engine/shared'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { enlistmentBar, enlistPerson } from '../src/service.js'
+import { recordEvent } from '../src/records.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
 import { SPECIALTIES } from '../src/content.js'
@@ -81,12 +82,44 @@ describe('up-or-out stops at sergeant', () => {
   })
 })
 
-describe('thirty years is a career', () => {
-  it('the three-hundred-and-sixtieth month is the last', () => {
+describe('the career ceiling rises with the grade', () => {
+  it('a sergeant retires at twenty; a senior NCO can run to thirty', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    // E-5 at twenty years: the door the owner asked for ("a ton of people
+    // retire at SGT, SSG").
+    const sergeant = adultAged(world, 40, 50)
+    soldierWith(world, sergeant, {
+      rank: 5,
+      enlistedAtTick: (world.tick - 240) as Tick,
+      rankSinceTick: (world.tick - 12) as Tick,
+      termMonthsLeft: 20,
+      performance: 700,
+      termPerformanceSum: 700 * 28,
+    })
+    // E-7 at the same twenty years is NOT done — the ceiling is higher.
+    const senior = adultAged(world, 40, 50)
+    soldierWith(world, senior, {
+      rank: 7,
+      enlistedAtTick: (world.tick - 240) as Tick,
+      rankSinceTick: (world.tick - 12) as Tick,
+      termMonthsLeft: 20,
+      performance: 700,
+      termPerformanceSum: 700 * 28,
+    })
+
+    advanceTick(world)
+    expect(world.service.get(sergeant.id)?.dischargeReason).toBe('twenty years served')
+    expect(world.service.get(senior.id)?.dischargedAtTick).toBeNull()
+    // The medal a twenty-year career earns is not forfeited by the ending.
+    const awards = world.awards.get(sergeant.id) ?? []
+    expect(awards.some((a) => a.kind === 'good-conduct')).toBe(true)
+  })
+
+  it('the three-hundred-and-sixtieth month is the last, whatever the rank', () => {
     const world = createWorld(makeSeed(12345), 100)
     const lifer = adultAged(world, 45, 55)
     soldierWith(world, lifer, {
-      rank: 5,
+      rank: 7,
       enlistedAtTick: (world.tick - 360) as Tick,
       rankSinceTick: (world.tick - 12) as Tick,
       termMonthsLeft: 20,
@@ -116,6 +149,48 @@ describe('sixty-two is the last year in uniform', () => {
     const record = world.service.get(elder.id)
     expect(record?.dischargedAtTick).not.toBeNull()
     expect(record?.dischargeReason).toBe('retirement age')
+  })
+})
+
+describe('the third strike', () => {
+  it('ends the career, and the medal is refused', () => {
+    // Deterministic: plant two marks inside the window by hand, then run
+    // months until the third lands. Without this the career-ending branch
+    // shipped covered only by whatever a seed happened to produce.
+    const world = createWorld(makeSeed(4242), 100)
+    const careless = livingPeople(world)
+      .filter((p) => {
+        const age = ageAt(p.birthTick, world.tick)
+        return age >= 20 && age <= 30 && !world.service.has(p.id)
+      })
+      .sort((a, b) => a.traits.diligence - b.traits.diligence)[0]
+    if (!careless) throw new Error('no candidate')
+    soldierWith(world, careless, { performance: 200, termPerformanceSum: 200 * 12 })
+
+    for (let i = 0; i < 2; i++) {
+      recordEvent(world, world.tick, {
+        type: 'disciplined',
+        subjectId: careless.id,
+        detail: 'late off leave',
+      })
+    }
+
+    // Run until the third mark lands — the rate is real, so give it room.
+    let discharged = false
+    for (let month = 0; month < 240 && !discharged; month++) {
+      advanceTick(world)
+      const record = world.service.get(careless.id)
+      if (record?.dischargeReason === 'misconduct') discharged = true
+    }
+    expect(discharged).toBe(true)
+
+    const marks = world.events.filter(
+      (e) => e.type === 'disciplined' && e.subjectId === careless.id,
+    )
+    expect(marks.length).toBeGreaterThanOrEqual(3)
+    // A career ended at the orderly room earns no good-conduct medal.
+    const awards = world.awards.get(careless.id) ?? []
+    expect(awards.some((a) => a.kind === 'good-conduct')).toBe(false)
   })
 })
 

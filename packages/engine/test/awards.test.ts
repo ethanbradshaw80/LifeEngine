@@ -244,9 +244,13 @@ describe('a grown world decorates only from the record', () => {
             expect(
               qualifying.type === 'reenlisted' ||
                 (qualifying.type === 'discharged' &&
-                  ['end of term', 'high-year tenure', 'thirty years served', 'retirement age'].includes(
-                    qualifying.detail ?? '',
-                  )),
+                  [
+                    'end of term',
+                    'high-year tenure',
+                    'twenty years served',
+                    'thirty years served',
+                    'retirement age',
+                  ].includes(qualifying.detail ?? '')),
             ).toBe(true)
             break
           case 'qualification-badge':
