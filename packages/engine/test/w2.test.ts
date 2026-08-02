@@ -351,8 +351,20 @@ describe('the rulings, enforced rather than remembered', () => {
     // and seals are licensed and this project ships none. The spec has
     // nowhere to put artwork, and this test is here so it stays that way.
     for (const branch of HEARTLAND_SPEC.branches) {
+      // The officer ladder joined the shape when commissions landed. What
+      // this test is actually guarding is that NO ARTWORK ever does: the
+      // list is names and numbers, and every addition to it has to be one.
       expect(Object.keys(branch).sort()).toEqual(
-        ['competitiveFrom', 'grades', 'id', 'juniorTigMonths', 'name', 'ranks'].sort(),
+        [
+          'competitiveFrom',
+          'grades',
+          'id',
+          'juniorTigMonths',
+          'name',
+          'officerGrades',
+          'officerRanks',
+          'ranks',
+        ].sort(),
       )
     }
   })
@@ -397,7 +409,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = 'e5c963d6'
+const HEARTLAND_GOLDEN = 'bc943474'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

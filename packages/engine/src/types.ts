@@ -117,6 +117,16 @@ export interface ServiceBranchSpec {
   /** Pay grade (E-1..E-8) per ladder index. Pay reads the GRADE, not the
    *  index: two ranks can share a grade, exactly as in life. */
   readonly grades: readonly number[]
+  /**
+   * The officer ladder, junior to senior, and its O-grades. A separate
+   * ladder because an officer is not a senior enlisted person: they enter
+   * somewhere else and go somewhere else.
+   *
+   * Optional so a preset written before commissions existed still loads —
+   * a branch without one simply has no officers.
+   */
+  readonly officerRanks?: readonly string[]
+  readonly officerGrades?: readonly number[]
   /** First ladder index that takes a promotion board; below is time-in-grade. */
   readonly competitiveFrom: number
   /** Months in grade before the next JUNIOR promotion, by current rank. */
@@ -557,6 +567,14 @@ export interface ServiceRecord {
    * selection that can be failed; carries duty pay and a sharper war.
    * Survives discharge with the rest of the record.
    */
+  /**
+   * Commissioned. The rank index then reads the OFFICER ladder rather than
+   * the enlisted one, and so does the pay.
+   *
+   * Optional: a record written before commissions existed is enlisted, and
+   * that is the truth about it rather than a default.
+   */
+  readonly commissioned?: boolean
   readonly unitId: string | null
   /**
    * When they joined it. Months in the UNIT is not months enlisted — eight

@@ -212,6 +212,63 @@ export const BRANCH_GRADES: Readonly<Record<ServiceBranch, readonly number[]>> =
   'air-guard': [1, 2, 3, 4, 5, 6, 7],
 }
 
+/**
+ * THE OFFICER LADDER (owner, playing: "we have no officer roles and stuff
+ * for the military even tho we made stuff for those ranks and we even have
+ * a college pipeline").
+ *
+ * He is right, and it was a hole rather than a decision: the ladders above
+ * are enlisted from end to end — private to master sergeant, E-1 to E-8 —
+ * so a person with a degree joined as a private and the aviator trade,
+ * which REQUIRES a degree, put college graduates in the ranks with
+ * everybody else. Every army this is modelled on commissions them.
+ *
+ * A separate ladder, because that is what it is: an officer is not a senior
+ * enlisted person, they enter somewhere else and go somewhere else. The
+ * grades are O-1 upward and the pay reads them from their own table.
+ */
+export const BRANCH_OFFICER_RANKS: Readonly<Record<ServiceBranch, readonly string[]>> = {
+  'land-forces': ['2LT', '1LT', 'CPT', 'MAJ', 'LTC', 'COL'],
+  'naval-service': ['ENS', 'LTJG', 'LT', 'LCDR', 'CDR', 'CAPT'],
+  'air-guard': ['2d Lt', '1st Lt', 'Capt', 'Maj', 'Lt Col', 'Col'],
+}
+
+/** O-grade for each officer ladder index. */
+export const BRANCH_OFFICER_GRADES: Readonly<Record<ServiceBranch, readonly number[]>> = {
+  'land-forces': [1, 2, 3, 4, 5, 6],
+  'naval-service': [1, 2, 3, 4, 5, 6],
+  'air-guard': [1, 2, 3, 4, 5, 6],
+}
+
+/**
+ * Officer pay by O-grade, in cents a month.
+ *
+ * A new lieutenant out-earns a sergeant and is out-earned by a first
+ * sergeant's years — the ladders overlap, which is true and is what stops
+ * a commission being a straight upgrade.
+ */
+const OFFICER_PAY_BY_GRADE: readonly Money[] = [
+  // ON THIS WORLD'S SCALE, not a real pay chart. The first version used
+  // real-world dollars and a brand-new lieutenant out-earned a master
+  // sergeant with twenty years, which is backwards and which a test caught.
+  // The ladders overlap the way they actually do: a commission starts
+  // between a sergeant and a staff sergeant, and passes the top of the
+  // enlisted table at captain.
+  dollars(1_700), // O-1 — under a senior NCO, over a young sergeant
+  dollars(2_050), // O-2
+  dollars(2_500), // O-3 — now past the top enlisted grade
+  dollars(3_100), // O-4
+  dollars(3_800), // O-5
+  dollars(4_600), // O-6
+]
+
+export function officerPayOn(branch: ServiceBranchSpec, rank: number): Money {
+  const grades = branch.officerGrades ?? []
+  if (grades.length === 0) return dollars(1_700)
+  const grade = grades[Math.max(0, Math.min(grades.length - 1, rank))] ?? 1
+  return OFFICER_PAY_BY_GRADE[Math.max(0, Math.min(OFFICER_PAY_BY_GRADE.length - 1, grade - 1))] ?? dollars(1_700)
+}
+
 /** Monthly pay by pay grade, E-1 first. A pay table, not base+step. */
 const PAY_BY_GRADE: readonly number[] = [
   dollars(1_100), dollars(1_180), dollars(1_270), dollars(1_390),
@@ -252,6 +309,8 @@ export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
   name: BRANCH_NAMES[id],
   ranks: BRANCH_RANKS[id],
   grades: BRANCH_GRADES[id],
+  officerRanks: BRANCH_OFFICER_RANKS[id],
+  officerGrades: BRANCH_OFFICER_GRADES[id],
   competitiveFrom: COMPETITIVE_FROM[id],
   juniorTigMonths: JUNIOR_TIG_MONTHS[id],
 }))

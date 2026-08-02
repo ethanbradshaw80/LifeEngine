@@ -2376,13 +2376,13 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chose how to carry the ailment.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
-      const title = record ? rankTitle(world, record.branch, record.rank) : 'soldier'
+      const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
       return `Your term is up, ${title}. Sign for another four years?`
     }
     case 'deployment-order': {
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
       const record = world.service.get(pending.personId)
-      const title = record ? rankTitle(world, record.branch, record.rank) : 'soldier'
+      const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
       return `Orders, ${title}: you are going to ${enemy?.name ?? 'the front'}. What do you do?`
     }
     default: {
@@ -2686,7 +2686,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const record = world.service.get(pending.personId)
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank)}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank, record.commissioned === true)}, ${formatMoney(record.monthlyPay)} a month.`)
         lines.push(`Leaving keeps the record${specialtyFor(world, record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
       }
       break

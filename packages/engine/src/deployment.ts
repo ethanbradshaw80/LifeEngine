@@ -346,7 +346,7 @@ export function ordersSheetFor(
     controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
     issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
-    rank: `${rankTitle(world, record.branch, record.rank)} (E-${String(payGradeOf(branch, record.rank))})`,
+    rank: `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} (E-${String(payGradeOf(branch, record.rank))})`,
     specialty: specialty.title,
     unit: unit?.name ?? `${garrison} garrison`,
     assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,

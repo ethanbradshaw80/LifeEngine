@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v69 — OFFICERS EXIST (owner, playing: "we have no officer roles... and
+ *      we even have a college pipeline"). A separate ladder per branch,
+ *      O-grades with their own pay table, and a degree at the recruiting
+ *      office is a commission. Anybody with a degree who enlists from here
+ *      enters on a different ladder at different pay, so every seed with a
+ *      college graduate in uniform differs from v68.
  * v68 — A KILLING RECORDS WHAT KILLED SOMEBODY. A fatal hit used to write
  *      no wound at all — only survivable ones did — so the paper could say
  *      "wounds taken in action" and never what the wound was. It draws and
@@ -444,7 +450,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 68
+export const SIMULATION_VERSION = 69
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

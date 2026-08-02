@@ -657,7 +657,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <span className="stat-value">
-                    {rankTitle(world, record.branch, record.rank)} · {specialtyFor(world, record.specialtyId).title}
+                    {rankTitle(world, record.branch, record.rank, record.commissioned === true)} · {specialtyFor(world, record.specialtyId).title}
                   </span>
                   <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
@@ -1660,7 +1660,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dt>Branch</dt>
                   <dd>{branchName(world, record.branch)}</dd>
                   <dt>Rank</dt>
-                  <dd>{rankTitle(world, record.branch, record.rank)}</dd>
+                  <dd>{rankTitle(world, record.branch, record.rank, record.commissioned === true)}</dd>
                   <dt>Specialty</dt>
                   <dd>{specialtyFor(world, record.specialtyId).title}</dd>
                   {record.qualifications.length > 0 && (

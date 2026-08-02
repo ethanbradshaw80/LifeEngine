@@ -196,7 +196,7 @@ function deathInService(
 ): NewsArticle {
   const record = world.service.get(person.id)
   const age = ageAt(person.birthTick, item.tick)
-  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank)
+  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank, record.commissioned === true)
   const branch = record === undefined ? null : branchName(world, record.branch)
   const trade = record === undefined ? null : specialtyFor(world, record.specialtyId).title
   const cause = person.causeOfDeath ?? 'causes not stated'

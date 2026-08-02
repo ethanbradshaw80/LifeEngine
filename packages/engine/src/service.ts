@@ -62,6 +62,7 @@ import {
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_TERM_MONTHS,
   servicePayOn,
+  officerPayOn,
   offenceById,
   isFelony,
 } from './content.js'
@@ -164,8 +165,45 @@ export function branchName(world: World, branchId: string): string {
 }
 
 /** The branch's own title for a ladder index — 'PFC', 'PO2', 'SSgt'. */
-export function rankTitle(world: World, branch: string, rank: number): string {
-  const ladder = branchSpecFor(world, branch).ranks
+/**
+ * A rank's title on the ladder somebody is actually on.
+ *
+ * `commissioned` decides which ladder is read. It defaults to the enlisted
+ * one, so every existing caller keeps its meaning and a record written
+ * before commissions existed reads exactly as it did.
+ */
+/**
+ * What to call this person, reading their own record for which ladder they
+ * are on. Prefer this over rankTitle where a record exists — it is the one
+ * that cannot get an officer's title wrong.
+ */
+export function rankTitleOf(world: World, personId: EntityId): string {
+  const record = world.service.get(personId)
+  if (!record) return ''
+  return rankTitle(world, record.branch, record.rank, record.commissioned === true)
+}
+
+/**
+ * COMMISSIONING (owner: the college pipeline had nowhere to go).
+ *
+ * A degree at the recruiting office is a commission, which is how every
+ * army this is modelled on treats one. It is not a bonus: an officer
+ * starts at the bottom of a different ladder, with a longer obligation and
+ * a different job, and a sergeant with fifteen years out-earns a new
+ * lieutenant.
+ */
+export function commissionsOnEntry(world: World, personId: EntityId): boolean {
+  return (world.education.get(personId)?.level ?? 'none') === 'college'
+}
+
+export function rankTitle(
+  world: World,
+  branch: string,
+  rank: number,
+  commissioned = false,
+): string {
+  const spec = branchSpecFor(world, branch)
+  const ladder = commissioned ? (spec.officerRanks ?? []) : spec.ranks
   // An unresolvable branch has no ladder: say the index rather than inventing
   // a rank from someone else's.
   if (ladder.length === 0) return `#${String(rank)}`
@@ -825,11 +863,18 @@ export function enlistPerson(
     recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'enlisted' })
   }
 
+  // A DEGREE IS A COMMISSION (owner: the college pipeline had nowhere to
+  // go). Not a bonus — the officer starts at the bottom of a different
+  // ladder with a different job, and a sergeant with fifteen years still
+  // out-earns a new lieutenant.
+  const commissioned = commissionsOnEntry(world, person.id)
+
   world.service.set(person.id, {
     personId: person.id,
     branch: specialty.branch,
     specialtyId: specialty.id,
     unitSinceTick: null,
+    commissioned,
     rank: 0,
     rankSinceTick: tick,
     qualifications: [],
@@ -837,7 +882,9 @@ export function enlistPerson(
     specialtyChangedAtTick: null,
     enlistedAtTick: tick,
     baseId: base.id,
-    monthlyPay: servicePayOn(branchSpecFor(world, specialty.branch), 0),
+    monthlyPay: commissioned
+      ? officerPayOn(branchSpecFor(world, specialty.branch), 0)
+      : servicePayOn(branchSpecFor(world, specialty.branch), 0),
     performance: Math.floor((person.traits.diligence + 500) / 2),
     termMonthsLeft: SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
@@ -1621,7 +1668,10 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     fitnessScore,
     fitnessTestedAtTick,
     performance,
-    monthlyPay: servicePayOn(branchSpecFor(world, branch), rank),
+    // An officer's pay comes off the officer table (owner's officer gap).
+    monthlyPay: record.commissioned === true
+      ? officerPayOn(branchSpecFor(world, branch), rank)
+      : servicePayOn(branchSpecFor(world, branch), rank),
     termMonthsLeft,
     // The term's running ledger: good conduct is judged on the average of
     // every served month, not the last month's noise.
@@ -1709,7 +1759,7 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
   const reenlisted = recordEvent(world, tick, {
     type: 'reenlisted',
     subjectId: person.id,
-    detail: rankTitle(world, record.branch, record.rank),
+    detail: rankTitle(world, record.branch, record.rank, record.commissioned === true),
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
   grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
