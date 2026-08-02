@@ -42,7 +42,7 @@ import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
-import { answerDesperation, isJailed, resolveCourt } from './crime.js'
+import { answerDesperation, answerVictimMoment, isJailed, resolveCourt } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
@@ -1590,6 +1590,18 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'crime-victim': {
+      answerVictimMoment(
+        world,
+        pending.tick,
+        person,
+        pending.occupationId ?? 'theft',
+        pending.monthlyPay ?? 0,
+        choice === 'report',
+      )
+      break
+    }
+
     case 'unit-moment': {
       // NOT resolveMomentCasualty \u2014 that is the ENEMY CONTACT resolver and
       // it carries a firefight's fatal tail. These are commitment and
@@ -2241,6 +2253,11 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'unit-moment':
       return unitMomentById(momentIdOf(pending.occupationId))?.tell ?? 'The unit has something to say to you.'
 
+    case 'crime-victim': {
+      const taken = pending.monthlyPay ?? 0
+      return `You come home to a forced door and the savings short by ${formatMoney(taken as Money)}.`
+    }
+
     case 'combat-moment': {
       // THE TELL (owner's combat plan §2). The player is told how bad it
       // is BEFORE answering — that is what makes the matrix a read rather
@@ -2713,6 +2730,13 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push(
         'Retraining sends you back through the schoolhouse — no orders until it finishes. The record, the rank, and every trade already served stay yours.',
       )
+      break
+    }
+
+    case 'crime-victim': {
+      lines.push('Reporting it gives the constables something to work with — most burglaries are never solved, and a report is worth real odds rather than a certainty.')
+      lines.push('If they catch whoever did it, the court can order the money paid back.')
+      lines.push('Letting it go costs nothing and is on the record all the same.')
       break
     }
 

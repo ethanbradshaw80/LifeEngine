@@ -995,6 +995,7 @@ export type PendingKind =
    *  a choice that is genuinely theirs (M-HARM). */
   | 'combat-moment'
   | 'unit-moment'
+  | 'crime-victim'
   | 'deployment-order'
   /** P2. The foreman has noticed the work slipping — the modelled dismissal
    *  threshold gets a warning moment before the axe. Player-only; NPCs are

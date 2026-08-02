@@ -134,6 +134,12 @@ export function hasRecentConviction(world: World, personId: EntityId): boolean {
  * road by far — arrears alone is nine times this — but it is no longer the
  * only one.
  */
+/** C3 §5. Clean years the court wants before it will hear a petition. */
+const EXPUNGEMENT_CLEAN_YEARS = 7
+
+/** What the petition and the lawyer cost, in cents. */
+const EXPUNGEMENT_COST = 120_000
+
 const BASELINE_PRESSURE = 26
 
 /**
@@ -530,6 +536,26 @@ export function commitOffence(
         .filter((p): p is Person => p !== undefined && p.deathTick === null)
         .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
       victim = members[0]
+      // C3 §6. THE PLAYER'S OWN DOOR. Being robbed was already modelled -
+      // the money moved, the event landed - but it happened to them rather
+      // than asking them anything, which is the one thing a crime against
+      // you should do. Raised here, where the theft actually happens, so
+      // the moment names the month it belongs to.
+      const playerId = world.player.personId
+      if (playerId !== null && victimHousehold.memberIds.includes(playerId)) {
+        raisePending(world, {
+          tick,
+          kind: 'crime-victim',
+          personId: playerId,
+          otherId: null,
+          occupationId: offence.id,
+          workplaceId: null,
+          monthlyPay: taken as never,
+          placeId: null,
+          options: ['report', 'let-it-go'],
+        })
+      }
+
       for (const member of members) {
         // Adults carry the memory; but a house of only children still
         // lost the money, so its eldest carries it rather than the
@@ -1268,6 +1294,209 @@ export function sentenceInWords(months: number): string {
   if (yearPart === '') return monthPart
   if (monthPart === '') return yearPart
   return `${yearPart}, ${monthPart}`
+}
+
+/**
+ * C3 §6. The player answered the burglary.
+ *
+ * REPORTING IS NOT A FORMALITY. It raises the chance this specific theft is
+ * cleared — the constables have something to work with — and a cleared
+ * theft is a real person arrested, tried, and possibly ordered to pay the
+ * money back. That is a causal loop the player set in motion, which is the
+ * whole reason this is a moment and not a notification.
+ *
+ * Letting it go is recorded too. A choice that leaves no trace is not a
+ * choice, and the desperation moment settled that principle already.
+ */
+export function answerVictimMoment(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offenceId: string,
+  taken: number,
+  report: boolean,
+): void {
+  const offence = offenceById(offenceId)
+  if (!report) {
+    recordEvent(world, tick, {
+      type: 'declined-to-report',
+      subjectId: person.id,
+      detail: offenceId,
+    })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'crime',
+      significance: 'notable',
+      inputs: [factor('own-choice', 1000)],
+      chosen: 'let it go rather than report it',
+      rejected: ['to report it to the constable'],
+      streamId: Stream.Crime,
+    })
+    return
+  }
+
+  recordEvent(world, tick, { type: 'reported-crime', subjectId: person.id, detail: offenceId })
+  recordDecision(world, tick, {
+    subjectId: person.id,
+    decision: 'crime',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000)],
+    chosen: 'reported it to the constable',
+    rejected: ['to let it go'],
+    streamId: Stream.Crime,
+  })
+
+  // The thief, if the county can find them. A report is worth a real
+  // improvement on the odds and no more than that — most burglaries are
+  // never solved, and a report that guaranteed an arrest would make the
+  // choice a formality in the other direction.
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 8181)
+  const odds = Math.min(900, (offence?.clearance ?? 400) + 150 + clearanceBonusOf(world))
+  if (!rng.chance(odds, 1_000)) return
+
+  const thief = recentThiefOf(world, person.id, tick)
+  if (thief === undefined) return
+  recordEvent(world, tick, { type: 'was-arrested', subjectId: thief.id, detail: offence?.title ?? 'theft' })
+  if (isOnProbation(world, thief.id)) revokeProbation(world, tick, thief, offenceId)
+  resolveCourt(world, tick, thief, taken, rng, null, offence ?? null)
+
+  // C3 §6. RESTITUTION: the money comes back, where the court can find it.
+  const owed = Math.min(taken, 60_000)
+  if (owed > 0) {
+    recordEvent(world, tick, {
+      type: 'ordered-restitution',
+      subjectId: thief.id,
+      otherId: person.id,
+      detail: String(owed),
+    })
+    const thiefRecord = world.criminal.get(thief.id)
+    if (thiefRecord) {
+      world.criminal.set(thief.id, {
+        ...thiefRecord,
+        restitutionOwed: (thiefRecord.restitutionOwed ?? 0) + owed,
+      })
+    }
+  }
+}
+
+/** Who robbed this household most recently, if they are still about. */
+function recentThiefOf(world: World, victimId: EntityId, tick: Tick): Person | undefined {
+  for (let i = world.events.length - 1; i >= 0; i--) {
+    const event = world.events[i]
+    if (!event) continue
+    if (tick - event.tick > 2) break
+    if (event.type !== 'committed-theft') continue
+    if (event.otherId !== victimId) continue
+    const thief = world.people.get(event.subjectId)
+    if (thief && thief.deathTick === null) return thief
+  }
+  return undefined
+}
+
+/**
+ * C3 §5. Whether the court would hear a petition to seal this record, and
+ * why not when it would not — the `offenceBar` pattern, in plain words.
+ *
+ * NEVER FOR THE WORST OF IT. A capital offence and a violent felony are the
+ * two the fade already keeps hard for life, and sealing them would undo
+ * that by another door.
+ */
+export function expungementBar(world: World, personId: EntityId, tick: Tick): string | null {
+  const person = world.people.get(personId)
+  const record = world.criminal.get(personId)
+  if (!record || record.convictions.length === 0) return 'Nothing on the file to seal.'
+  if (record.jailedUntilTick !== null && tick < record.jailedUntilTick) {
+    return 'Not from a cell.'
+  }
+  const probationUntil = record.probationUntilTick ?? null
+  if (probationUntil !== null && tick < probationUntil) {
+    return 'Not while the court is still supervising you.'
+  }
+
+  const open = record.convictions.filter((c) => c.sealed !== true)
+  if (open.length === 0) return 'The file is already sealed.'
+
+  for (const conviction of open) {
+    const offence = offenceById(conviction.kind)
+    if (offence === undefined) continue
+    if (offence.grade === 'capital') return 'A capital conviction is never sealed.'
+    if (offence.violent === true && isFelony(offence.grade)) {
+      return 'A violent felony stays on the file where anybody can read it.'
+    }
+  }
+
+  // A CLEAN PERIOD, not merely a long one. The petition asks the court to
+  // agree the person is not who the record says, and a fresh conviction is
+  // the court's answer to that.
+  const newest = open.reduce((latest, c) => (c.tick > latest ? c.tick : latest), 0)
+  const yearsClean = Math.floor((tick - newest) / 12)
+  if (yearsClean < EXPUNGEMENT_CLEAN_YEARS) {
+    const wait = EXPUNGEMENT_CLEAN_YEARS - yearsClean
+    return `The court wants ${String(wait)} more clean year${wait === 1 ? '' : 's'} first.`
+  }
+  // The household's money, because that is whose money it is — the same
+  // ledger a fine comes out of.
+  const householdId = person?.householdId ?? null
+  const savings = householdId === null ? 0 : (world.households.get(householdId)?.savings ?? 0)
+  if (savings < EXPUNGEMENT_COST) {
+    return `A petition and a lawyer cost ${String(Math.floor(EXPUNGEMENT_COST / 100))} dollars, and the house does not have it.`
+  }
+  return null
+}
+
+/**
+ * C3 §5, Decision 2. Seal what can be sealed.
+ *
+ * SEALED, NOT DELETED, and that is the whole of the owner's Decision 2:
+ * every gate stops reading these convictions and the person's history still
+ * contains them. A descendant reading the life finds what happened; an
+ * employer does not. Erasing them would let a record rewrite history, and
+ * the engine rests on history being the thing that does not move.
+ */
+export function petitionForExpungement(
+  world: World,
+  personId: EntityId,
+  tick: Tick,
+): { sealed: number; reason: string } {
+  const bar = expungementBar(world, personId, tick)
+  if (bar !== null) return { sealed: 0, reason: bar }
+  const record = world.criminal.get(personId)
+  const person = world.people.get(personId)
+  if (!record || !person) return { sealed: 0, reason: 'Nobody to petition for.' }
+
+  if (person.householdId !== null) {
+    chargeHousehold(world, tick, person.householdId, EXPUNGEMENT_COST)
+  }
+
+  let sealed = 0
+  const convictions = record.convictions.map((conviction) => {
+    if (conviction.sealed === true) return conviction
+    const offence = offenceById(conviction.kind)
+    // The two that never seal, checked again here rather than trusted from
+    // the bar: a mixed file seals what it can and keeps the rest.
+    if (offence !== undefined && (offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade)))) {
+      return conviction
+    }
+    sealed += 1
+    return { ...conviction, sealed: true }
+  })
+  world.criminal.set(personId, { ...record, convictions })
+
+  recordEvent(world, tick, {
+    type: 'conviction-expunged',
+    subjectId: personId,
+    detail: String(sealed),
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'justice',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('clean-record', 900)],
+    chosen: `petitioned the court and had ${String(sealed)} conviction${sealed === 1 ? '' : 's'} sealed`,
+    rejected: ['to leave the record open'],
+    streamId: Stream.Crime,
+  })
+  return { sealed, reason: '' }
 }
 
 export function crimeNewsSince(world: World, sinceTick: Tick): NewsItem[] {

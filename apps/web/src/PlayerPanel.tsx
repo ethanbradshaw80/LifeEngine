@@ -254,6 +254,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     'call-the-evac': 'Call the evacuation',
   },
   'combat-moment': { 'lead-the-break': 'Lead the break', 'keep-heads-down': 'Keep down' },
+  'crime-victim': { report: 'Report it to the constable', 'let-it-go': 'Let it go' },
   'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
   retrain: { keep: 'Keep your trade' },
 }
