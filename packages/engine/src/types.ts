@@ -704,6 +704,10 @@ export interface Deployment {
    * — that is the whole truth of captivity, and closing it on schedule
    * would have them walk home on the day the orders said. It closes when
    * they are repatriated, or when they die held.
+   *
+   * The stamp is never cleared. A closed tour that was a captivity is a
+   * different tour from one that was not, and this field is the only place
+   * that difference survives.
    */
   readonly capturedAtTick: Tick | null
 }

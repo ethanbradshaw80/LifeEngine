@@ -32,6 +32,7 @@ import {
   WARNING_PERFORMANCE,
   enrolmentBar,
   decorationsOf,
+  badgesOf,
   deploymentsOf,
   describeAilment,
   describeTraits,
@@ -69,6 +70,8 @@ import {
   isJailed,
   healthOf,
   isDeployed,
+  isCaptive,
+  capturedSince,
   isServing,
   rankTitle,
   schoolOptionsFor,
@@ -344,6 +347,102 @@ function PersonLink({
     <button type="button" className="link" onClick={() => onInspect(id)}>
       {fullName(person)}
     </button>
+  )
+}
+
+/**
+ * THE RIBBON RACK (awards pack §9).
+ *
+ * Rendered from the player's REAL decorations — nothing on this rack that
+ * the record does not already hold, which is the owner's own rule: no award
+ * exists that cannot be earned, and none is displayed that was not.
+ *
+ * The colours are deliberately NOT the real ribbon designs. A ribbon's
+ * pattern is insignia, and the charter permits a real branch's NAME and
+ * never its insignia. So each bar is keyed to what the award is — valour, a
+ * wound, a campaign, a course — and reads at a glance without copying
+ * anything licensed.
+ */
+const RIBBON_LOOK: Record<string, { readonly css: string; readonly says: string }> = {
+  valor: { css: 'linear-gradient(90deg,#7b1020 0 30%,#c9a227 30% 70%,#7b1020 70%)', says: 'valour' },
+  'wound-recognition': { css: 'linear-gradient(90deg,#4a1d5e 0 35%,#e8d9a0 35% 65%,#4a1d5e 65%)', says: 'a wound' },
+  'combat-action': { css: 'linear-gradient(90deg,#1f3a5f 0 25%,#b0483a 25% 75%,#1f3a5f 75%)', says: 'ground combat' },
+  'combat-merit': { css: 'linear-gradient(90deg,#8a3b1a 0 40%,#d8b04a 40% 60%,#8a3b1a 60%)', says: 'merit in a combat zone' },
+  pow: { css: 'linear-gradient(90deg,#2b2b2b 0 45%,#8e8e8e 45% 55%,#2b2b2b 55%)', says: 'captivity' },
+  air: { css: 'linear-gradient(90deg,#1c4f78 0 33%,#d9c46a 33% 66%,#1c4f78 66%)', says: 'a mission flown' },
+  campaign: { css: 'linear-gradient(90deg,#3f5d3a 0 20%,#c2a86b 20% 80%,#3f5d3a 80%)', says: 'a campaign' },
+  'meritorious-service': { css: 'linear-gradient(90deg,#5a2f6e 0 50%,#c9a227 50%)', says: 'a meritorious term' },
+  commendation: { css: 'linear-gradient(90deg,#2f6e4f 0 50%,#dcd2a8 50%)', says: 'a commendable term' },
+  achievement: { css: 'linear-gradient(90deg,#3d5a80 0 50%,#98c1d9 50%)', says: 'an achievement' },
+  'good-conduct': { css: 'linear-gradient(90deg,#7a5230 0 100%)', says: 'an honourable term' },
+  'national-defense': { css: 'linear-gradient(90deg,#8c6f2f 0 50%,#5c4a1f 50%)', says: 'service in wartime' },
+  overseas: { css: 'linear-gradient(90deg,#2f4f4f 0 50%,#7fa8a8 50%)', says: 'a tour abroad' },
+  'nco-development': { css: 'linear-gradient(90deg,#4a4a6a 0 50%,#a8a8c0 50%)', says: 'the leaders course' },
+  'service-ribbon': { css: 'linear-gradient(90deg,#6b6b6b 0 50%,#cfcfcf 50%)', says: 'initial training' },
+  'long-service': { css: 'linear-gradient(90deg,#405a75 0 100%)', says: 'long service' },
+}
+
+/**
+ * Precedence — most senior first, the way a real rack is worn. Anything the
+ * table does not name sorts last rather than vanishing: a rack that silently
+ * drops an award is worse than one with an unranked bar on the end.
+ */
+const RACK_ORDER: readonly string[] = [
+  'valor',
+  'combat-merit',
+  'pow',
+  'wound-recognition',
+  'meritorious-service',
+  'air',
+  'commendation',
+  'achievement',
+  'combat-action',
+  'good-conduct',
+  'national-defense',
+  'campaign',
+  'overseas',
+  'nco-development',
+  'service-ribbon',
+  'long-service',
+]
+
+function RibbonRack({ world, personId }: { readonly world: World; readonly personId: EntityId }) {
+  const decorations = [...decorationsOf(world, personId)]
+    .filter((award) => award.kind !== 'qualification-badge')
+    .sort((a, b) => {
+      const rank = (kind: string) => {
+        const at = RACK_ORDER.indexOf(kind)
+        return at === -1 ? RACK_ORDER.length : at
+      }
+      return rank(a.kind) - rank(b.kind) || a.tick - b.tick
+    })
+  if (decorations.length === 0) return null
+  return (
+    <>
+      <ul className="rack">
+        {decorations.map((award) => (
+          <li
+            key={`${award.kind}:${award.title}`}
+            title={`${award.title}${award.count > 1 ? ` (×${String(award.count)})` : ''} — ${award.citation}`}
+            style={{ background: RIBBON_LOOK[award.kind]?.css ?? 'linear-gradient(90deg,#555 0 100%)' }}
+          >
+            {award.count > 1 && <span className="count">×{award.count}</span>}
+          </li>
+        ))}
+      </ul>
+      <ul className="rack-legend">
+        {decorations.map((award) => (
+          <li key={`legend:${award.kind}:${award.title}`}>
+            <span
+              className="swatch"
+              style={{ background: RIBBON_LOOK[award.kind]?.css ?? 'linear-gradient(90deg,#555 0 100%)' }}
+            />
+            {award.title}
+            {award.count > 1 && ` ×${award.count}`}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 
@@ -1462,7 +1561,18 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dt>Status</dt>
                   <dd>
                     {record.dischargedAtTick === null ? (
-                      isDeployed(world, person.id) ? (
+                      // HELD SAYS HELD. Without this the tab went on
+                      // claiming "deployed" for years while the player sat
+                      // in a cell, with the school and volunteer buttons
+                      // still live beside it — the one thing the character
+                      // certainly knows, and the only place that could not
+                      // learn it was the screen.
+                      isCaptive(world, person.id) ? (
+                        <span className="bad">
+                          held prisoner ·{' '}
+                          {String(world.tick - (capturedSince(world, person.id) ?? world.tick))} months
+                        </span>
+                      ) : isDeployed(world, person.id) ? (
                         // A peacetime posting is duty, not danger — it does
                         // not wear the war colour.
                         currentDeployment(world, person.id)?.kind === 'rotation' ? (
@@ -1715,14 +1825,27 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
+                  const badges = badgesOf(world, person.id)
                   if (decorations.length === 0) {
                     return <p className="muted small">Nothing on the rack yet.</p>
                   }
                   return (
                     <>
+                      <h3>The rack</h3>
+                      <RibbonRack world={world} personId={person.id} />
+                      {badges.length > 0 && (
+                        <>
+                          <h3>Badges</h3>
+                          <ul className="badge-chips">
+                            {badges.map((badge) => (
+                              <li key={badge}>{badge}</li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
                       <h3>Decorations</h3>
                       <ol className="timeline">
-                        {decorations.map((award) => (
+                        {decorations.filter((award) => award.kind !== 'qualification-badge').map((award) => (
                           <li key={`${award.kind}:${award.title}`}>
                             <div className="row">
                               <span className="year">{formatYear(world, award.tick)}</span>

@@ -39,7 +39,7 @@ import {
   volunteerForSupport,
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
-import { alliedWars, deployUnderOrders } from './deployment.js'
+import { alliedWars, deployUnderOrders, isCaptive } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
@@ -358,6 +358,7 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
   if (world.player.pending !== null) return { attended: false, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { attended: false, reason: 'Not serving.' }
+  if (isCaptive(world, person.id)) return { attended: false, reason: 'Held prisoner. None of this is yours to ask for.' }
   if (world.tick - record.enlistedAtTick <= 2 + specialtyFor(world, record.specialtyId).schoolMonths) {
     return { attended: false, reason: 'Finish the pipeline first.' }
   }
@@ -452,6 +453,7 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
   if (world.player.pending !== null) return { joined: false, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { joined: false, reason: 'Not serving.' }
+  if (isCaptive(world, person.id)) return { joined: false, reason: 'Held prisoner. None of this is yours to ask for.' }
   const unit = unitFor(world, unitId)
   if (!unit) return { joined: false, reason: 'No such unit.' }
   const option = unitOptionsFor(world, person.id).find((o) => o.id === unitId)
@@ -576,6 +578,7 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
   if (world.player.pending !== null) return { trained: false, score: 0, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { trained: false, score: 0, reason: 'Not serving.' }
+  if (isCaptive(world, person.id)) return { trained: false, score: 0, reason: 'Held prisoner. None of this is yours to ask for.' }
   if (world.player.log.some((entry) => entry.kind === 'fitness-test' && world.tick - entry.tick < 6)) {
     return { trained: false, score: record.fitnessScore, reason: 'The body needs the months between blocks of training.' }
   }

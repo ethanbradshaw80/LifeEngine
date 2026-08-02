@@ -17,6 +17,7 @@ import { decorationsOf } from '../src/awards.js'
 import { openStream, Stream } from '../src/rng.js'
 import { advanceTicks } from '../src/index.js'
 import { timelineFor } from '../src/story.js'
+import { homeland, relationKey } from '../src/geopolitics.js'
 import { livingPeople } from '../src/systems.js'
 import type { EntityId } from '@life-engine/shared'
 import type { World } from '../src/types.js'
@@ -139,5 +140,42 @@ describe('capture', () => {
     const notACapture = world.events.find((e) => e.type !== 'was-captured')
     expect(notACapture).toBeDefined()
     if (notACapture) expect(grantPow(world, world.tick, personId, notACapture)).toBe(null)
+  })
+
+  it('the wartime case — the one the game actually produces — is survivable', () => {
+    // The peace-time door is wide by design, so a test that only exercises
+    // it proves nothing about the case a player meets. This one puts a real
+    // war behind the captivity.
+    //
+    // MEASURED, and the numbers moved because of it: the first draft ran 40
+    // wartime captivities at 33% home, 67% dead, median 31 months — far
+    // outside the historical range for anything but the worst theatres. It
+    // now runs about 75% home, 25% dead, median 15 months held.
+    let home = 0
+    let died = 0
+    let stillHeld = 0
+    for (let s = 0; s < 30; s++) {
+      const world = createWorld(makeSeed(9000 + s), 40)
+      const ourNation = homeland(world)
+      const enemy = [...world.nations.values()].filter((n) => !n.isHomeland).sort((a, b) => a.id - b.id)[0]
+      if (!ourNation || !enemy) throw new Error('no war to have')
+      const key = relationKey(ourNation.id, enemy.id)
+      const relation = world.geoRelations.get(key)
+      if (!relation) throw new Error('no relation')
+      world.geoRelations.set(key, { ...relation, state: 'war', sinceTick: world.tick, warPhase: 'attrition' })
+
+      const personId = aDeployedSoldier(world)
+      capture(world, world.tick, personId, openStream(world.seed, Stream.CombatResolution, personId, world.tick))
+      advanceTicks(world, 400)
+      const out = world.events.filter(
+        (e) => e.subjectId === personId && (e.type === 'repatriated' || e.type === 'died-in-captivity'),
+      )
+      if (out.some((e) => e.type === 'repatriated')) home += 1
+      else if (out.some((e) => e.type === 'died-in-captivity')) died += 1
+      else stillHeld += 1
+    }
+    expect(stillHeld, 'nobody is held forever, war or no war').toBe(0)
+    expect(home, 'most prisoners come home').toBeGreaterThan(died * 2)
+    expect(died, 'and captivity is not survivable by everyone').toBeGreaterThan(0)
   })
 })

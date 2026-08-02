@@ -71,6 +71,7 @@ import { educationRank, meetsRequirement, RECORD_GATE_YEARS } from './content.js
 import { isDeployed } from './deployment.js'
 import { isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
+import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, Stream, type StreamId } from './rng.js'
@@ -1044,7 +1045,12 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 
   // Medical discharge: the body rules service in a way it does not rule a desk.
   const disability = world.health.get(person.id)?.disability ?? 0
-  if (disability >= MEDICAL_LIMIT) {
+  // NOT WHILE HELD. A board cannot separate a man it cannot examine, and
+  // without this a prisoner carrying an old wound left the army in enemy
+  // hands and was repatriated into a record saying he had been a civilian
+  // for a year. The same reasoning the career discharges below already use
+  // for a theatre: the boat home first.
+  if (disability >= MEDICAL_LIMIT && !isCaptive(world, person.id)) {
     discharge(world, tick, person, record, 'medical', [factor('medically-unfit', disability)])
     return
   }
@@ -1883,6 +1889,13 @@ export function runSchools(world: World, tick: Tick): void {
   const records = [...world.service.values()].sort((a, b) => a.personId - b.personId)
   for (const record of records) {
     if (record.schoolId === null || record.schoolStartsAtTick === null) continue
+    // NOBODY ATTENDS A COURSE FROM A CELL. Without this the schoolhouse ran
+    // for a prisoner exactly as for anyone else and handed him a
+    // qualification badge, the development ribbon and an achievement medal
+    // for months he spent held — an award for service that provably did not
+    // happen, which is the one thing the earnability rule exists to stop.
+    // The seat is kept, not lost: he is held, not out.
+    if (isCaptive(world, record.personId)) continue
     if (record.dischargedAtTick !== null) {
       // Out of the service is out of the class.
       world.service.set(record.personId, { ...record, schoolId: null, schoolStartsAtTick: null })

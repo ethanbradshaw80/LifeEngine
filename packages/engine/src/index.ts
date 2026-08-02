@@ -182,6 +182,8 @@ export {
   currentDeployment,
   deploymentsOf,
   isDeployed,
+  isCaptive,
+  capturedSince,
   rotationAvailable,
   supportDeploymentAvailable,
   threatVectorFor,

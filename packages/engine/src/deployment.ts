@@ -424,7 +424,10 @@ function deployablePeople(world: World): Person[] {
 function countDeployed(world: World): number {
   let deployed = 0
   for (const [personId] of world.deployments) {
-    if (isDeployed(world, personId)) deployed++
+    // A CAPTIVE DOES NOT HOLD A SLOT (ADR-0025 §2). He is not on the roster
+    // the war can spend, so counting him against the cap would let one
+    // prisoner permanently reduce how many others could be sent.
+    if (isDeployed(world, personId) && !isCaptive(world, personId)) deployed++
   }
   return deployed
 }
@@ -714,8 +717,7 @@ export function evacuateHome(world: World, tick: Tick, personId: EntityId): void
 
 /** Held right now — an open tour with a capture on it. */
 export function isCaptive(world: World, personId: EntityId): boolean {
-  return currentDeployment(world, personId)?.capturedAtTick !== null &&
-    currentDeployment(world, personId) !== undefined
+  return capturedSince(world, personId) !== null
 }
 
 /** When they were taken, or null. */
@@ -727,7 +729,7 @@ export function capturedSince(world: World, personId: EntityId): Tick | null {
  * Take somebody prisoner. Returns false when there is nothing to take them
  * from — no open tour, no enemy, or already held.
  */
-export function capture(world: World, tick: Tick, personId: EntityId, rng: ReturnType<typeof openStream>): boolean {
+export function capture(world: World, tick: Tick, personId: EntityId, _rng: ReturnType<typeof openStream>): boolean {
   const deployment = currentDeployment(world, personId)
   if (!deployment || deployment.capturedAtTick !== null || deployment.enemyId === null) return false
   const person = world.people.get(personId)
@@ -762,9 +764,6 @@ export function capture(world: World, tick: Tick, personId: EntityId, rng: Retur
     streamId: Stream.CombatResolution,
   })
   grantPow(world, tick, personId, captured)
-  // A captive is not on the roster the war can spend. Whatever the moment
-  // did to their body stays; the fighting stops for them here.
-  rng.nextInt(0, 1)
   return true
 }
 
@@ -788,10 +787,13 @@ function resolveCaptivityMonth(
 
   // Dying held. Rare per month, worse the longer it runs, and worse still
   // while the war gives nobody a reason to look after prisoners.
-  const mortality = Math.min(60, 6 + Math.floor(held / 2)) + (warOngoing ? 0 : -3)
+  // MEASURED, THEN TUNED. The first numbers made captivity more lethal than
+  // the historical range by a wide margin: 40 wartime captivities ran out at
+  // 33% home, 67% dead, median 31 months held. Most prisoners come home.
+  const mortality = Math.min(25, 3 + Math.floor(held / 6)) + (warOngoing ? 0 : -1)
   if (rng.chance(Math.max(1, mortality), 1_000)) {
     performDeath(
-      world, tick, person, 'died in captivity',
+      world, tick, person, 'hardship in captivity',
       [factor('battlefield-chaos', 700), factor('own-choice', 0)],
       Stream.CombatResolution,
     )
@@ -802,12 +804,28 @@ function resolveCaptivityMonth(
       detail: String(held),
     })
     closeTour(world, tick, person.id, deployment, true)
+    // The campaign is judged for him too. closeTour returns early on a dead
+    // man, so the grant is made here by hand — exactly as the in-theatre and
+    // combat death paths do it. A prisoner served the campaign; dying held
+    // waives the duration rule the same way dying in the field does, and
+    // leaving it out quietly gave his estate less than the man beside him.
+    if (deployment.enemyId !== null) {
+      const captor = world.nations.get(deployment.enemyId)
+      for (let i = world.events.length - 1; i >= 0; i--) {
+        const died = world.events[i]
+        if (!died || died.type !== 'died' || died.subjectId !== person.id) continue
+        if (captor !== undefined) {
+          grantCampaignMedal(world, tick, person.id, died, captor.name, tick - deployment.startedAtTick, true)
+        }
+        break
+      }
+    }
     return
   }
 
   // Home. The war's end opens the gate; before that it is escape, exchange
   // or a raid, and none of those is common.
-  const release = warOngoing ? 12 : 400
+  const release = warOngoing ? 35 : 400
   if (held >= 1 && rng.chance(release, 1_000)) {
     recordEvent(world, tick, {
       type: 'repatriated',
@@ -815,16 +833,11 @@ function resolveCaptivityMonth(
       ...(deployment.enemyId !== null ? { otherId: deployment.enemyId } : {}),
       detail: String(held),
     })
-    const tours = world.deployments.get(person.id) ?? []
-    world.deployments.set(
-      person.id,
-      tours.map((tour) =>
-        tour.returnedAtTick === null && tour.startedAtTick === deployment.startedAtTick
-          ? { ...tour, capturedAtTick: null }
-          : tour,
-      ),
-    )
-    closeTour(world, tick, person.id, currentDeployment(world, person.id) ?? deployment, true)
+    // The stamp STAYS. A closed tour that was a captivity is a different
+    // tour from one that was not, and the record is the only place that
+    // difference survives — clearing it on the way home made a repatriated
+    // man look like anybody who came back on schedule.
+    closeTour(world, tick, person.id, deployment, true)
     evacuateHome(world, tick, person.id)
   }
 }
@@ -848,6 +861,18 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // is still judged (the casualty waiver): the record does not leave
     // people "still there" forever (review).
     if (person.deathTick !== null) {
+      // He died held, of something the captivity resolver did not do to him
+      // — the town's own mortality, or an illness. The captivity still has
+      // to END somewhere: without this the record reads "was captured" and
+      // then nothing, forever.
+      if (deployment.capturedAtTick !== null) {
+        recordEvent(world, tick, {
+          type: 'died-in-captivity',
+          subjectId: personId,
+          ...(deployment.enemyId !== null ? { otherId: deployment.enemyId } : {}),
+          detail: String(tick - deployment.capturedAtTick),
+        })
+      }
       closeTour(world, tick, personId, deployment, true)
       for (let i = world.events.length - 1; i >= 0; i--) {
         const died = world.events[i]

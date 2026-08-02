@@ -1690,3 +1690,84 @@ ul.welcome-points li + li {
   background: var(--accent);
   border-color: var(--accent);
 }
+
+/* ---------------------------------------------------------------------------
+   THE RIBBON RACK (awards pack §9).
+
+   The colours here are DELIBERATELY NOT the real ribbon designs. A ribbon's
+   pattern is insignia, and the charter's line is that a real branch may be
+   named but its insignia never reproduced. So the rack is keyed on what the
+   award IS — valour, a wound, a campaign, a course — and reads at a glance
+   without copying anything licensed.
+--------------------------------------------------------------------------- */
+
+.rack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+
+.rack li {
+  position: relative;
+  width: 74px;
+  height: 22px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  box-shadow: inset 0 -6px 8px -6px rgba(0, 0, 0, 0.55);
+}
+
+.rack li .count {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9);
+}
+
+.rack-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.8rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.rack-legend .swatch {
+  display: inline-block;
+  width: 20px;
+  height: 9px;
+  margin-right: 0.35rem;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.badge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.badge-chips li {
+  padding: 0.15rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+@media (max-width: 480px) {
+  .rack li { width: 62px; height: 19px; }
+}
