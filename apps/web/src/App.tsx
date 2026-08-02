@@ -339,6 +339,11 @@ export function App() {
             ))}
           </select>
         </label>
+        {/* The preset's own words. For a real homeland this is the
+            alternate-history framing WORLD_MODES_PLAN.md requires. */}
+        <p className="preset-note muted small">
+          {PRESETS.find((preset) => preset.id === presetId)?.description ?? ''}
+        </p>
 
         {confirmingNewWorld ? (
           <span className="confirm">

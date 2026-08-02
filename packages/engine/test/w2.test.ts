@@ -10,7 +10,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { advanceTicks, createWorld } from '../src/index.js'
+import { advanceTicks, createWorld, worldHashHex } from '../src/index.js'
+import { GOLDEN_SEED } from './determinism.test.js'
 import { formatYear } from '../src/clock.js'
 import { CLASSIC_SPEC, PRESETS, branchSpecFor, specById } from '../src/worldspec.js'
 import { HEARTLAND_COUNTY, HEARTLAND_SPEC, HEARTLAND_STATE } from '../src/heartland.js'
@@ -62,25 +63,109 @@ describe('the preset is a world that runs', () => {
 })
 
 describe('the rulings, enforced rather than remembered', () => {
-  it('names no real town, street or business', () => {
+  it('names no real town, street or business — a canary, not a proof', () => {
     // The ruling: a real small town implies real residents, and a real
-    // business implies real employees — and this world bankrupts, injures
-    // and convicts the people in it. The county and state ARE real, and
-    // are the only real places here.
+    // business implies real employees, and this world bankrupts, injures
+    // and convicts the people in it. The county and the state ARE real and
+    // are the only real places in the gazetteer.
+    //
+    // BE HONEST ABOUT WHAT THIS TEST IS. It cannot prove a name is
+    // invented; it is a canary for the most likely slip, which is reaching
+    // for a place that is actually nearby. The list below is real towns in
+    // and around Vermillion County — if one of them ever appears as a
+    // neighbourhood or a workplace, someone has crossed the line by
+    // accident. The W2 review asked for exactly this, having pointed out
+    // that the first version would have passed with Terre Haute in it.
     const g = HEARTLAND_SPEC.gazetteer
     expect(HEARTLAND_STATE).toBe('Indiana')
     expect(HEARTLAND_COUNTY).toBe('Vermillion County')
     expect(g.townName).toBe('Ashcroft')
 
-    // Nothing in the town is named for the county or the state, which is
-    // the shape a real-place slip would take.
-    const invented = [...g.neighbourhoods, ...g.workplaces, ...g.civic, g.townName]
+    const realPlacesNearby = [
+      'Clinton',
+      'Cayuga',
+      'Newport',
+      'Dana',
+      'Perrysville',
+      'Universal',
+      'Terre Haute',
+      'Indianapolis',
+      'Vermillion',
+      'Indiana',
+    ]
+    const invented = [g.townName, ...g.neighbourhoods, ...g.workplaces, ...g.civic]
     for (const name of invented) {
-      expect(name.includes(HEARTLAND_STATE), `${name} borrows the state's name`).toBe(false)
+      for (const real of realPlacesNearby) {
+        expect(name.includes(real), `"${name}" contains the real place "${real}"`).toBe(false)
+      }
     }
-    // The school and the county courthouse may carry the county's name —
-    // civic institutions are named for their county in life.
+    // Civic institutions ARE named for their county in life, so the school
+    // and the courthouse are allowed the one real name they would carry.
     expect(g.schoolName).toContain('Vermillion County')
+  })
+
+  it('posts every service to its own installations', () => {
+    // The W2 review's must-fix. Under Classic, posting a sailor to Fort
+    // Calder was a harmless fiction about an invented place. With REAL
+    // names it is a false claim about a real one, written into a record
+    // the game shows to descendants and never rewrites.
+    const world = createWorld(makeSeed(12345), 200, HEARTLAND_SPEC)
+    advanceTicks(world, 900)
+
+    const byName = new Map(HEARTLAND_SPEC.gazetteer.bases.map((b) => [b.name, b.branches]))
+    const records = [...world.service.values()]
+    expect(records.length).toBeGreaterThan(0)
+
+    let checked = 0
+    for (const record of records) {
+      const base = world.places.get(record.baseId)
+      expect(base).toBeDefined()
+      const branches = byName.get(base?.name ?? '')
+      expect(branches, `${base?.name ?? '?'} is not one of this preset's installations`).toBeDefined()
+      if (branches && branches.length > 0) {
+        expect(branches, `${base?.name ?? '?'} does not post the ${record.branch}`).toContain(
+          record.branch,
+        )
+        checked++
+      }
+    }
+    expect(checked).toBeGreaterThan(0)
+
+    // And the same holds for every posting ever recorded, not just the
+    // current one: a transfer is the same rule.
+    for (const event of world.events) {
+      if (event.type !== 'changed-post' || event.placeId === null) continue
+      const base = world.places.get(event.placeId)
+      const branches = byName.get(base?.name ?? '')
+      const record = world.service.get(event.subjectId)
+      if (!branches || branches.length === 0 || !record) continue
+      expect(branches, `${base?.name ?? '?'} took a transfer from the ${record.branch}`).toContain(
+        record.branch,
+      )
+    }
+  })
+
+  it('gives every branch a name of its own, with no catch-all', () => {
+    const names = HEARTLAND_SPEC.branches.map((b) => b.name)
+    expect(new Set(names).size).toBe(names.length)
+    expect(names).toEqual([
+      'the United States Army',
+      'the United States Navy',
+      'the United States Air Force',
+    ])
+  })
+
+  it('says out loud that it is not history', () => {
+    // WORLD_MODES_PLAN.md makes explicit alternate-history framing a
+    // CONDITION of the homeland-real ruling, not a nicety: a 1975 headline
+    // reading "The United States is at war" in a world of invented enemies
+    // otherwise invites exactly one reading.
+    const words = HEARTLAND_SPEC.description.toLowerCase()
+    expect(words).toContain('alternate history')
+    expect(words).toContain('invented')
+    expect(HEARTLAND_SPEC.description).toContain('Indiana')
+    // Classic says what it is too, so the field is never decorative.
+    expect(CLASSIC_SPEC.description.length).toBeGreaterThan(20)
   })
 
   it('keeps every foreign nation fictional, exactly as Classic does', () => {
@@ -144,5 +229,37 @@ describe('the rulings, enforced rather than remembered', () => {
       expect(Object.isFrozen(branch.ranks)).toBe(true)
       expect(Object.isFrozen(branch.grades)).toBe(true)
     }
+  })
+})
+
+/**
+ * The preset's own golden fingerprint.
+ *
+ * WORLD_MODES_PLAN.md asks for one per preset, and DETERMINISM.md §8 says
+ * why: a preset is identified in a save by a STRING, and nothing binds that
+ * string to the content behind it. Two builds shipping 'american-heartland'
+ * with different streets satisfy every recorded input — same seed, same
+ * preset id, same simulation version — and produce different worlds with no
+ * warning. This hash is the binding.
+ *
+ * It moves ONLY when the preset's content deliberately changes, which
+ * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
+ * to make a test pass.
+ */
+const HEARTLAND_GOLDEN = '41ec53de'
+
+describe('the preset is pinned', () => {
+  it('reproduces its committed fingerprint', () => {
+    const world = createWorld(makeSeed(GOLDEN_SEED), 100, HEARTLAND_SPEC)
+    advanceTicks(world, 240)
+    expect(worldHashHex(world)).toBe(HEARTLAND_GOLDEN)
+  })
+
+  it('is a different world from Classic on the same seed', () => {
+    const classic = createWorld(makeSeed(GOLDEN_SEED), 100)
+    const heartland = createWorld(makeSeed(GOLDEN_SEED), 100, HEARTLAND_SPEC)
+    advanceTicks(classic, 240)
+    advanceTicks(heartland, 240)
+    expect(worldHashHex(heartland)).not.toBe(worldHashHex(classic))
   })
 })

@@ -113,6 +113,8 @@ function freezeSpec(spec: WorldSpec): WorldSpec {
 export const CLASSIC_SPEC: WorldSpec = freezeSpec({
   id: 'classic',
   name: 'Classic',
+  description:
+    'An invented country called the Republic, in an invented world. Nothing here is a claim about anywhere.',
   maleGiven: { names: MALE_GIVEN_NAMES, weights: MALE_GIVEN_WEIGHTS },
   femaleGiven: { names: FEMALE_GIVEN_NAMES, weights: FEMALE_GIVEN_WEIGHTS },
   family: { names: FAMILY_NAMES, weights: FAMILY_NAME_WEIGHTS },

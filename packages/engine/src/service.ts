@@ -56,7 +56,7 @@ import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, Stream, type StreamId } from './rng.js'
-import type { CausalFactor, Person, World } from './types.js'
+import type { CausalFactor, Person, Place, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -657,6 +657,29 @@ function canEnlist(world: World, person: Person, tick: Tick): boolean {
 // Enlistment
 // ---------------------------------------------------------------------------
 
+/**
+ * The installations a branch actually posts people to (W2 review must-fix).
+ *
+ * A base entry with no branches is joint-use and open to everyone, which is
+ * what Classic's two stations have always been — so Classic's postings do
+ * not move. A preset that names REAL installations tags each one, because
+ * posting a sailor to an army post is a false claim about a real place
+ * written into a record that is never rewritten.
+ *
+ * Falls back to every base rather than none: a branch with no installation
+ * of its own still has to put its people somewhere, and a soldier with no
+ * posting is a worse answer than a joint one.
+ */
+function basesFor(world: World, branchId: string): Place[] {
+  const all = placesOfKind(world, 'base')
+  const tagged = new Map(world.spec.gazetteer.bases.map((b) => [b.name, b.branches]))
+  const mine = all.filter((place) => {
+    const branches = tagged.get(place.name)
+    return branches === undefined || branches.length === 0 || branches.includes(branchId)
+  })
+  return mine.length > 0 ? mine : all
+}
+
 /** Shared by the player path and the NPC path: one door, one ledger entry. */
 export function enlistPerson(
   world: World,
@@ -665,7 +688,7 @@ export function enlistPerson(
   specialty: ServiceSpecialty,
   extraInputs: readonly CausalFactor[],
 ): void {
-  const bases = placesOfKind(world, 'base')
+  const bases = basesFor(world, specialty.branch)
   const base = bases[Math.abs(person.id) % Math.max(1, bases.length)]
   if (!base) return
 
@@ -1065,7 +1088,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   } else if (!deployed && monthsIn > schoolDone) {
     // PCS: a permanent change of station lands mid-term, then on a slow cycle.
     if (monthsIn % 36 === 30) {
-      const bases = placesOfKind(world, 'base')
+      // A transfer stays inside the service: the same rule as the first
+      // posting, for the same reason.
+      const bases = basesFor(world, record.branch)
       const next = bases.find((b) => b.id !== baseId)
       if (next) {
         baseId = next.id

@@ -192,7 +192,13 @@ describe('the homeland is named by the world, not by the sentence', () => {
     const files = await fs.readdir(srcDir)
     const offenders: string[] = []
     for (const file of files) {
-      if (!file.endsWith('.ts') || file === 'content.ts') continue
+      // The CONTENT modules are allowed to say it, because they are what
+      // says it: content.ts holds Classic's data and worldspec.ts assembles
+      // Classic's spec (including the sentence describing its world). The
+      // rule is about ENGINE PROSE — a sentence that would still say "the
+      // Republic" in a preset whose homeland is not.
+      const contentModules = ['content.ts', 'worldspec.ts']
+      if (!file.endsWith('.ts') || contentModules.includes(file)) continue
       const text = await fs.readFile(path.join(srcDir, file), 'utf8')
       for (const [i, line] of text.split('\n').entries()) {
         // Comments may still discuss the Republic; strings may not.
@@ -241,6 +247,7 @@ describe('the WorldSpec', () => {
     const spec: WorldSpec = {
       id: 'classic', // resolvable, so newborn naming still finds a pool
       name: 'Test',
+      description: 'A test world.',
       maleGiven: { names: ['Auberon'], weights: [1] },
       femaleGiven: { names: ['Isolde'], weights: [1] },
       family: { names: ['Vasquez-Nakamura'], weights: [1] },
@@ -250,7 +257,7 @@ describe('the WorldSpec', () => {
         neighbourhoods: ['Anvil Row', 'The Green'],
         workplaces: ['the cannery'],
         civic: ['the meeting hall'],
-        bases: ['Camp Ridge'],
+        bases: [{ name: 'Camp Ridge', branches: [] }],
         newsStation: 'KLCT',
       },
       startYear: 1985,
@@ -292,6 +299,7 @@ describe('a preset that is not Classic actually runs', () => {
     return {
       id: 'classic',
       name: 'Test',
+      description: 'A test world.',
       maleGiven: { names: ['Auberon', 'Corvin'], weights: [3, 1] },
       femaleGiven: { names: ['Isolde', 'Maud', 'Perpetua'], weights: [5, 2, 1] },
       family: { names: ['Vasquez-Nakamura', 'Oyelaran'], weights: [1, 1] },
@@ -301,7 +309,7 @@ describe('a preset that is not Classic actually runs', () => {
         neighbourhoods: ['Anvil Row', 'The Green', 'Saltmarsh'],
         workplaces: ['the cannery', 'the ropewalk'],
         civic: ['the meeting hall'],
-        bases: ['Camp Ridge'],
+        bases: [{ name: 'Camp Ridge', branches: [] }],
         newsStation: 'KLCT',
       },
       startYear: 1985,

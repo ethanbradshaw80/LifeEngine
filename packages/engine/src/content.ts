@@ -9,7 +9,7 @@
 
 import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
-import type { ServiceBranchSpec } from './types.js'
+import type { BaseSpec, ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
 import type {
   ExposureProfile,
@@ -71,9 +71,12 @@ export const MACHINES_BY_OCCUPATION: Readonly<Record<string, readonly string[]>>
  * MILITARY_AND_WAR_FOUNDATION §3). Chosen to sound like places without
  * sounding like any place in particular.
  */
-// All invented (foundation §3). 'Ashkelon' was here until L4-M5's review
-// caught it — a real city and a real conflict site, about to be minted onto
-// campaign medals. Names on the permanent record must never be real places.
+// All invented, and FOREIGN NATIONS ARE INVENTED IN EVERY PRESET (foundation
+// §3 as amended at W2): a homeland may be real, a theatre never may. 'Ashkelon'
+// was here until L4-M5's review caught it — a real city and a real conflict
+// site, about to be minted onto campaign medals. A real FOREIGN place must
+// never reach a permanent record; real domestic installations may, and do in
+// the American Heartland preset, but only ever as somewhere a person served.
 /**
  * The homeland's name, Classic's. It carries its own article because the
  * sentences that render it do not know whether the preset's homeland is
@@ -404,7 +407,12 @@ export const PENSION_THRESHOLD = 200
 /** Monthly cents per point of service-connected disability. */
 export const PENSION_CENTS_PER_POINT = 120
 
-export const BASE_NAMES: readonly string[] = ['Fort Calder', 'Redharbor Station']
+export const BASE_NAMES: readonly BaseSpec[] = [
+  // Joint use, as they have been since L4-M3: no branch tag, so every
+  // service posts here. Same names, same order — no place id moves.
+  { name: 'Fort Calder', branches: [] },
+  { name: 'Redharbor Station', branches: [] },
+]
 
 /**
  * The town's news station (owner-named). Every item in the News tab is

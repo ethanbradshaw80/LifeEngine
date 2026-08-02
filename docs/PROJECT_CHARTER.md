@@ -32,8 +32,15 @@ business, economic cycles, political change, military service, war, crime, healt
 migration, aging, death, and inheritance — across unlimited generations.
 
 Real geography and climate may be used. **All people, companies, brands, politicians,
-parties, media organizations, sports organizations, and military units are fictional.**
+parties, media organizations, sports organizations, and named military units are fictional.**
 No real private individuals, ever.
+
+**Branches are not units** (amended 2026-08-02 with milestone W2, as ADR-0020 §3
+pre-authorized; the same clarification is in `CLAUDE.md` §3 and
+`docs/MILITARY_AND_WAR_FOUNDATION.md` §3). A service BRANCH may carry its real
+name where the preset's homeland is real — nominative use in an expressive work —
+but never its insignia, emblems or seals, which are licensed. A named UNIT is
+fictional in every preset, permanently.
 
 Central philosophy: **Nothing exists in isolation.**
 

@@ -51,9 +51,14 @@ If danger is ever implemented as a lookup table keyed on country, the design has
 The scope of "fictional" narrowed from *all* countries to *foreign* ones; nothing
 else in this section changed, and nothing about foreign theatres has moved.**
 
-All **FOREIGN** countries, factions, alliances and conflicts, and all named military
-units and awards, are **fictional and generated**, in every preset, permanently. See
-`PROJECT_CHARTER.md` §5 and R-14.
+All countries **other than the homeland**, and all factions, alliances, conflicts,
+named military units and awards, are **fictional and generated**, in every preset,
+permanently. See `PROJECT_CHARTER.md` §2 and R-14.
+
+(The first draft of this amendment wrote "all FOREIGN countries, factions, alliances
+and conflicts", which let FOREIGN distribute across the whole list and quietly left a
+DOMESTIC faction or conflict uncovered. Nothing exploited the gap; the wording above
+is what ADR-0020 §3 actually authorized.)
 
 The HOMELAND is defined by the world's preset (ADR-0020): fictional in Classic ("the
 Republic"), the United States in American Heartland. Service BRANCHES follow the

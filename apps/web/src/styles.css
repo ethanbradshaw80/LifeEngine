@@ -1624,3 +1624,11 @@ ul.welcome-points li + li {
   border: 1px solid var(--line);
   border-radius: 6px;
 }
+
+/* The preset's own words — for a real homeland this is where the world says
+   it is not history. */
+.preset-note {
+  flex-basis: 100%;
+  margin: 0.2rem 0 0;
+  max-width: 46rem;
+}

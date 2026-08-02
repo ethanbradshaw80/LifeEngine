@@ -270,9 +270,9 @@ export function createWorld(
   // population for the same reason nations are (below): person ids seed trait
   // streams, and id-shifting reshuffles the whole town. Nothing during person
   // generation needs a base to exist.
-  for (const name of spec.gazetteer.bases) {
+  for (const base of spec.gazetteer.bases) {
     const id = allocateId(world)
-    world.places.set(id, { id, name, kind: 'base', desirability: 500 })
+    world.places.set(id, { id, name: base.name, kind: 'base', desirability: 500 })
     ;(world.town as { placeIds: readonly EntityId[] }).placeIds = [...world.town.placeIds, id]
   }
 

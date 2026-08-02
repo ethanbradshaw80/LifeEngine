@@ -64,19 +64,32 @@ export const HEARTLAND_COUNTY = 'Vermillion County'
  * NO INSIGNIA, EVER. Rank abbreviations are the vocabulary of a structure,
  * not artwork; emblems and seals are licensed and this project ships none.
  */
-const HEARTLAND_BRANCHES: readonly ServiceBranchSpec[] = CLASSIC_BRANCHES.map((branch) => ({
-  ...branch,
-  name:
-    branch.id === 'land-forces'
-      ? 'the United States Army'
-      : branch.id === 'naval-service'
-        ? 'the United States Navy'
-        : 'the United States Air Force',
-}))
+const HEARTLAND_BRANCH_NAMES: Readonly<Record<string, string>> = {
+  'land-forces': 'the United States Army',
+  'naval-service': 'the United States Navy',
+  'air-guard': 'the United States Air Force',
+}
+
+const HEARTLAND_BRANCHES: readonly ServiceBranchSpec[] = CLASSIC_BRANCHES.map((branch) => {
+  const name = HEARTLAND_BRANCH_NAMES[branch.id]
+  // No catch-all. The first draft fell through to "the United States Air
+  // Force", so adding a fourth branch to Classic — a legal additive change
+  // under DETERMINISM §8 — would have silently shipped a SECOND air force
+  // here (W2 review).
+  if (name === undefined) {
+    throw new Error(`American Heartland has no name for the branch '${branch.id}'`)
+  }
+  return { ...branch, name }
+})
 
 export const HEARTLAND_SPEC: WorldSpec = {
   id: 'american-heartland',
   name: 'American Heartland',
+  description:
+    'A town that does not exist, in Vermillion County, Indiana, which does. ' +
+    'ALTERNATE HISTORY: the United States is real here, but every foreign country, ' +
+    'every war and every enemy in this world is invented, and no event in it happened. ' +
+    'It starts in 1970 and goes its own way from there.',
   startYear: 1970,
 
   // Real ordinary names, no real individuals — the same model as Classic,
@@ -117,11 +130,37 @@ export const HEARTLAND_SPEC: WorldSpec = {
       'the courthouse',
     ],
     civic: ['the county courthouse', 'the Carnegie library'],
-    // Real installations, named as they stood in this preset's era. The
-    // 2023 renamings are not modelled: a world that starts in 1970 should
-    // use 1970's names, and renaming an installation mid-simulation is a
-    // history this engine does not have.
-    bases: ['Fort Benjamin Harrison', 'Grissom Air Force Base'],
+    // REAL INSTALLATIONS, from the owner's own reference list (2026-08-02),
+    // filtered two ways.
+    //
+    // FIRST, BY ERA. This preset starts in 1970, so every name here is one
+    // the installation actually carried then and carries again now: the
+    // nine 2023 renamings were reverted in 2025, and "Fort Bragg", "Fort
+    // Benning" and "Fort Hood" are correct at both ends of the run. Every
+    // "Joint Base ..." on the list is excluded — those names date from
+    // 2004-2010 and would be an anachronism for most of a century-long
+    // world. So is Vandenberg Space Force Base (2021). The engine does not
+    // model closures or renamings, and the preset does not pretend it
+    // does; see the note in WORLD_MODES_PLAN.md.
+    //
+    // SECOND, BY BRANCH. This is the W2 review's must-fix: with real names,
+    // posting a sailor to an army post stops being a harmless fiction and
+    // becomes a false claim about a real place, written into a record that
+    // is never rewritten. Every entry names the service that posts there.
+    //
+    // What is asserted about these places is only that people from this
+    // town served at them. Nothing invented — no scandal, no incident, no
+    // unit — is ever attached to one: the engine attaches misconduct to
+    // PEOPLE, and no article or citation names an installation.
+    bases: [
+      { name: 'Fort Bragg', branches: ['land-forces'] },
+      { name: 'Fort Campbell', branches: ['land-forces'] },
+      { name: 'Fort Riley', branches: ['land-forces'] },
+      { name: 'Naval Station Norfolk', branches: ['naval-service'] },
+      { name: 'Naval Base San Diego', branches: ['naval-service'] },
+      { name: 'Wright-Patterson Air Force Base', branches: ['air-guard'] },
+      { name: 'Nellis Air Force Base', branches: ['air-guard'] },
+    ],
     // A call sign in the American format for the region. Invented: a real
     // station is a real business with real employees.
     newsStation: 'WVCA',

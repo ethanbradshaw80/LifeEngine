@@ -85,8 +85,16 @@ export interface Gazetteer {
   readonly neighbourhoods: readonly string[]
   readonly workplaces: readonly string[]
   readonly civic: readonly string[]
-  /** Military installations. Allocated AFTER the population — see worldgen. */
-  readonly bases: readonly string[]
+  /**
+   * Military installations. Allocated AFTER the population — see worldgen.
+   *
+   * `branches` lists the service ids posted there; EMPTY MEANS ALL, which is
+   * what Classic's joint-use stations have always been. W2's review made
+   * this necessary: with real installation names, posting a sailor to an
+   * army fort stops being a harmless fiction and becomes a false claim
+   * about a real place, written into a permanent record.
+   */
+  readonly bases: readonly BaseSpec[]
   /** The town's news station, by call sign. A town fact wearing a masthead
    *  (W1 review) — WCJC is Haverlock's, not every town's. */
   readonly newsStation: string
@@ -182,11 +190,28 @@ export interface SpecialUnit {
   readonly exposureMultiplier: number
 }
 
+/** An installation, and which services post people there. */
+export interface BaseSpec {
+  readonly name: string
+  /** Service ids posted here. Empty = joint use, open to every branch. */
+  readonly branches: readonly string[]
+}
+
 export interface WorldSpec {
   /** Stable id, recorded in the save header. Never rendered to the player. */
   readonly id: string
   /** What the preset is called when a person reads it. */
   readonly name: string
+  /**
+   * One or two sentences shown wherever a world is chosen or described.
+   *
+   * For a preset whose homeland is REAL this is not decoration: it is where
+   * the world says it is not history. WORLD_MODES_PLAN.md made explicit
+   * alternate-history framing a condition of the homeland-real ruling,
+   * because a 1975 headline reading "The United States is at war" in a
+   * world of invented enemies otherwise invites exactly one reading.
+   */
+  readonly description: string
   readonly maleGiven: NamePool
   readonly femaleGiven: NamePool
   readonly family: NamePool

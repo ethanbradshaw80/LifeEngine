@@ -86,8 +86,10 @@ members, and this simulation kills, wounds and disgraces the people in it.
 World identity is becoming a **preset** (ADR-0020): Classic keeps today's
 fully fictional world; Real World Mode grounds the homeland in the real
 United States under the rulings in `docs/WORLD_MODES_PLAN.md` (foreign
-nations and named military units stay fictional in every preset; the two
-narrow amendments this paragraph needs land with milestone W2, not before).
+nations and named military units stay fictional in every preset). Both
+presets ship as of W2, 2026-08-02, and the three narrow amendments they
+needed — here, in the charter §2, and in the military foundation §3 — landed
+with them.
 
 The player begins as one person in a world of autonomous simulated people. The world
 continues through childhood, education, careers, friendship, romance, marriage,
