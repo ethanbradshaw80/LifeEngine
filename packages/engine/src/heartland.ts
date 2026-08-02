@@ -197,6 +197,7 @@ export const HEARTLAND_SPEC: WorldSpec = {
   foreignNations: REAL_NATIONS.map((nation) => ({
     name: nation.name,
     alignment: nation.alignment,
+    combatRating: nation.combatRating,
   })),
 
   branches: HEARTLAND_BRANCHES,

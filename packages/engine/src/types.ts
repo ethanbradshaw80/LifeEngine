@@ -203,6 +203,18 @@ export type Alignment = 'ally' | 'neutral' | 'rival'
 export interface NationSpec {
   readonly name: string
   readonly alignment: Alignment | null
+  /**
+   * Combat rating, 1-10 — how hard this country is to fight (owner spec,
+   * 2026-08-02). A GAMEPLAY BALANCE NUMBER AND NOTHING ELSE, in the owner's
+   * own words: "NOT a real-world stat — tune freely". It is not a ranking of
+   * anybody's armed forces and the game never displays it as one; it feeds
+   * the danger a deployed soldier faces and nothing more.
+   *
+   * Null means the preset has no opinion and the rating is derived from the
+   * nation's generated strength, which is what Classic does for its twelve
+   * invented countries.
+   */
+  readonly combatRating: number | null
 }
 
 /** An installation, and which services post people there. */
@@ -716,6 +728,20 @@ export interface Nation {
   /** Alliance bloc index, or null for the non-aligned. */
   readonly bloc: number | null
   /**
+   * Combat rating, 1-10. Set at generation from the preset, or derived from
+   * strength when the preset has no opinion. Fixed for the world's life —
+   * what CHANGES with a country's fighting is `warMonths` below.
+   */
+  readonly combatRating: number
+  /**
+   * Cumulative months this nation has spent at war, ever, across every war.
+   * Battle-hardened countries are harder to fight (owner spec): ten years of
+   * war is worth a point of effective strength, to a cap of three. Counted
+   * rather than drawn, so a country's toughness is a thing it earned and the
+   * record can explain it.
+   */
+  readonly warMonths: number
+  /**
    * War exhaustion: this nation starts no new escalation before this tick.
    * Set when a war it fought reaches ceasefire (10-20 years out, scaled by
    * how worn down the war left it); null for a nation that has never fought.
@@ -738,6 +764,17 @@ export interface GeoRelation {
   /** Aggregate war dead, per side — the entire foreign population model. */
   readonly casualtiesA: number
   readonly casualtiesB: number
+  /**
+   * How long this war was always going to run, in months, rolled when it
+   * broke out: 2 to 15 years, narrower at the ends when the two sides are
+   * badly mismatched or evenly matched (owner spec, 2026-08-02).
+   *
+   * It is a CEILING, not a schedule. Weariness can still end a war early —
+   * a bloodbath stops sooner than anyone planned — and the roll is what
+   * stops the other kind, the war that grinds on because no draw happened
+   * to land. Null on wars that predate the roll.
+   */
+  readonly plannedWarMonths: number | null
 }
 
 // ---------------------------------------------------------------------------

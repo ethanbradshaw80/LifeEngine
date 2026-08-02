@@ -634,7 +634,49 @@ const V20_TO_V21: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21]
+/**
+ * The war model gained length and difficulty (owner spec, 2026-08-02):
+ * nations carry a combat rating and the months they have spent at war, and a
+ * war carries the length it was rolled to run.
+ *
+ * An OLD save gets its ratings derived from the strength it already has —
+ * the same rule a preset-less nation uses at generation, so a migrated world
+ * rates its countries exactly as a fresh one would. War months start at zero
+ * rather than being reconstructed: the events are there but the tally never
+ * was, and inventing a country's war history is worse than starting its
+ * experience clock now. Wars already running have no rolled length and end
+ * the way they always did, on weariness.
+ */
+const V21_TO_V22: Migration = {
+  from: 21,
+  to: 22,
+  describe: 'give nations a combat rating and a war-months tally, and wars a rolled length',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+
+    const nations = (Array.isArray(world['nations']) ? world['nations'] : []).map((entry) => {
+      const nation = requireObject(entry, 'save.world.nations[]')
+      const strength = typeof nation['strength'] === 'number' ? nation['strength'] : 500
+      return {
+        ...nation,
+        combatRating: Math.max(1, Math.min(10, Math.round(strength / 95))),
+        warMonths: 0,
+      }
+    })
+    const geoRelations = (Array.isArray(world['geoRelations']) ? world['geoRelations'] : []).map(
+      (entry) => ({ ...requireObject(entry, 'save.world.geoRelations[]'), plannedWarMonths: null }),
+    )
+
+    const nextWorld: Record<string, unknown> = { ...world, nations, geoRelations }
+    return {
+      header: { ...header, schemaVersion: 22, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

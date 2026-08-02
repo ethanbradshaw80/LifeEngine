@@ -56,7 +56,7 @@ const CONTACT_FLAVORS: Readonly<Record<'direct-combat-exposure' | 'convoy-exposu
     'The siren, the shelter, the counting after',
   ],
 }
-import { activeWars, homeland, isAtWar, relationBetween } from './geopolitics.js'
+import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from './geopolitics.js'
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -134,7 +134,7 @@ export interface ThreatVector {
   readonly accident: number
 }
 
-export function threatVectorFor(war: GeoRelation, enemy: Nation): ThreatVector {
+export function threatVectorFor(war: GeoRelation, enemy: Nation, home?: Nation): ThreatVector {
   const phase = war.warPhase ?? 'attrition'
   // Phase shapes WHERE the danger lives, not only how much of it there is:
   // offensives sharpen the front, attrition grinds the roads, stalemates
@@ -144,11 +144,26 @@ export function threatVectorFor(war: GeoRelation, enemy: Nation): ThreatVector {
     phase === 'opening' ? 130 : phase === 'offensive' ? 150 : phase === 'attrition' ? 100 : 70
   const reach = 40 + Math.floor(enemy.strength / 2) // 40..540
 
+  // HOW BADLY THE ENEMY OUTCLASSES US (owner spec). Strength above is a
+  // country's current CAPACITY and it erodes as its wars grind on; combat
+  // power is what it is like to fight — its rating plus what its wars
+  // taught it. The difference between the two sides is what a month in
+  // theatre feels like, so it scales the whole vector: even against a
+  // stronger side, +/-12 lands between roughly half and double.
+  //
+  // Still a VECTOR, not a country lookup (foundation rule 1): this scales a
+  // threat that is computed from the war's own state, and no channel is
+  // ever read off a country's identity.
+  const delta = home === undefined ? 0 : combatPowerOf(enemy) - combatPowerOf(home)
+  const overmatch = Math.max(400, Math.min(2000, 1000 + delta * 90))
+  const scaled = (base: number): number => Math.floor((base * overmatch) / 1000)
+
   return {
-    directCombat: Math.floor((reach * intensity * (phase === 'offensive' ? 14 : 9)) / 1000),
-    convoy: Math.floor((reach * intensity * (phase === 'attrition' ? 13 : 8)) / 1000),
-    baseAttack: Math.floor((reach * intensity * (phase === 'stalemate' ? 12 : 6)) / 1000),
-    // Operational tempo hurts by itself: vehicles, weather, fatigue.
+    directCombat: scaled(Math.floor((reach * intensity * (phase === 'offensive' ? 14 : 9)) / 1000)),
+    convoy: scaled(Math.floor((reach * intensity * (phase === 'attrition' ? 13 : 8)) / 1000)),
+    baseAttack: scaled(Math.floor((reach * intensity * (phase === 'stalemate' ? 12 : 6)) / 1000)),
+    // Operational tempo hurts by itself: vehicles, weather, fatigue — and it
+    // does not care who is on the other side.
     accident: 25 + Math.floor(intensity / 3),
   }
 }
@@ -726,7 +741,9 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     const enemy = world.nations.get(enemyId)
     if (!enemy) continue
 
-    const threat = threatVectorFor(war, enemy)
+    // The homeland's own power is half the comparison: a war is as hard as
+    // the gap between the two sides, not as hard as the enemy alone.
+    const threat = threatVectorFor(war, enemy, homeland(world))
     const exposure = specialtyFor(world, record.specialtyId).exposure
     const rng = openStream(world.seed, Stream.CombatResolution, personId, tick + 7000)
 

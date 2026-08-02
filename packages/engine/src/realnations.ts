@@ -30,6 +30,23 @@ export type Alignment = 'ally' | 'neutral' | 'rival'
 export interface RealNation {
   readonly name: string
   readonly alignment: Alignment
+  /**
+   * 1-10, how hard this country is to fight. THE OWNER'S OWN TABLE
+   * (2026-08-02) and his own words about it: "A gameplay balance value, NOT
+   * a real-world stat — tune freely."
+   *
+   * That framing is carried here because it is the honest description of
+   * what the number is: an input to how dangerous a generated war feels,
+   * tuned for play. It is not an assessment of anybody's armed forces, the
+   * game never shows it as one, and nothing else in the engine reads it.
+   *
+   * NOT IMPLEMENTED, deliberately: the spec offered an optional attrition
+   * bonus for one named country on the grounds of terrain and insurgency.
+   * A balance number applied evenly is one thing; singling out a single
+   * real country for a mechanic about occupying it is another, and the
+   * engine models neither terrain nor insurgency to hang it on.
+   */
+  readonly combatRating: number
 }
 
 /**
@@ -42,27 +59,27 @@ export interface RealNation {
  * reorder.
  */
 export const REAL_NATIONS: readonly RealNation[] = [
-  { name: 'the United Kingdom', alignment: 'ally' },
-  { name: 'Canada', alignment: 'ally' },
-  { name: 'France', alignment: 'ally' },
-  { name: 'Germany', alignment: 'ally' },
-  { name: 'Japan', alignment: 'ally' },
-  { name: 'South Korea', alignment: 'ally' },
-  { name: 'Australia', alignment: 'ally' },
-  { name: 'India', alignment: 'neutral' },
-  { name: 'Mexico', alignment: 'neutral' },
-  { name: 'Russia', alignment: 'rival' },
-  { name: 'China', alignment: 'rival' },
-  { name: 'North Korea', alignment: 'rival' },
-  { name: 'Iran', alignment: 'rival' },
-  { name: 'Cuba', alignment: 'rival' },
-  { name: 'Venezuela', alignment: 'rival' },
-  { name: 'Syria', alignment: 'rival' },
-  { name: 'Belarus', alignment: 'rival' },
-  { name: 'Afghanistan', alignment: 'rival' },
-  { name: 'Nicaragua', alignment: 'rival' },
-  { name: 'Myanmar', alignment: 'rival' },
-  { name: 'Eritrea', alignment: 'rival' },
+  { name: 'the United Kingdom', alignment: 'ally', combatRating: 8 },
+  { name: 'Canada', alignment: 'ally', combatRating: 6 },
+  { name: 'France', alignment: 'ally', combatRating: 8 },
+  { name: 'Germany', alignment: 'ally', combatRating: 7 },
+  { name: 'Japan', alignment: 'ally', combatRating: 7 },
+  { name: 'South Korea', alignment: 'ally', combatRating: 6 },
+  { name: 'Australia', alignment: 'ally', combatRating: 6 },
+  { name: 'India', alignment: 'neutral', combatRating: 7 },
+  { name: 'Mexico', alignment: 'neutral', combatRating: 4 },
+  { name: 'Russia', alignment: 'rival', combatRating: 9 },
+  { name: 'China', alignment: 'rival', combatRating: 9 },
+  { name: 'North Korea', alignment: 'rival', combatRating: 6 },
+  { name: 'Iran', alignment: 'rival', combatRating: 6 },
+  { name: 'Cuba', alignment: 'rival', combatRating: 3 },
+  { name: 'Venezuela', alignment: 'rival', combatRating: 4 },
+  { name: 'Syria', alignment: 'rival', combatRating: 4 },
+  { name: 'Belarus', alignment: 'rival', combatRating: 4 },
+  { name: 'Afghanistan', alignment: 'rival', combatRating: 4 },
+  { name: 'Nicaragua', alignment: 'rival', combatRating: 2 },
+  { name: 'Myanmar', alignment: 'rival', combatRating: 3 },
+  { name: 'Eritrea', alignment: 'rival', combatRating: 3 },
 ]
 
 export const REAL_NATION_NAMES: readonly string[] = REAL_NATIONS.map((n) => n.name)

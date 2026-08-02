@@ -89,18 +89,18 @@ export const HOMELAND_NAME = 'the Republic'
 export const NATION_NAMES: readonly NationSpec[] = [
   // No alignment: Classic has no opinion about its own invented countries,
   // so the simulation decides where every pair starts, as it always has.
-  { name: 'Varenia', alignment: null },
-  { name: 'Costmara', alignment: null },
-  { name: 'Belgrave', alignment: null },
-  { name: 'Tyrene', alignment: null },
-  { name: 'Osmark', alignment: null },
-  { name: 'Halvia', alignment: null },
-  { name: 'Rondesia', alignment: null },
-  { name: 'Quillar', alignment: null },
-  { name: 'Verros', alignment: null },
-  { name: 'Nortavia', alignment: null },
-  { name: 'Sundermark', alignment: null },
-  { name: 'Veskarn', alignment: null },
+  { name: 'Varenia', alignment: null, combatRating: null },
+  { name: 'Costmara', alignment: null, combatRating: null },
+  { name: 'Belgrave', alignment: null, combatRating: null },
+  { name: 'Tyrene', alignment: null, combatRating: null },
+  { name: 'Osmark', alignment: null, combatRating: null },
+  { name: 'Halvia', alignment: null, combatRating: null },
+  { name: 'Rondesia', alignment: null, combatRating: null },
+  { name: 'Quillar', alignment: null, combatRating: null },
+  { name: 'Verros', alignment: null, combatRating: null },
+  { name: 'Nortavia', alignment: null, combatRating: null },
+  { name: 'Sundermark', alignment: null, combatRating: null },
+  { name: 'Veskarn', alignment: null, combatRating: null },
 ]
 
 export const SCHOOL_NAME = 'Fairview Consolidated School'

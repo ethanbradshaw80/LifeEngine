@@ -24,6 +24,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
+import type { Rng } from './rng.js'
 import type { GeoRelation, GeoState, Nation, World } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -38,6 +39,19 @@ import type { GeoRelation, GeoState, Nation, World } from './types.js'
 const MAX_FOREIGN_NATIONS = 32
 /** Alliance blocs. Membership dampens war within a bloc, feeds rivalry across. */
 const BLOC_COUNT = 3
+
+// --- War length and difficulty (owner spec, 2026-08-02) --------------------
+
+/** Shortest and longest a war is ever meant to run, in years. */
+const MIN_WAR_YEARS = 2
+const MAX_WAR_YEARS = 15
+/** Rating gap at or above which one side simply outclasses the other. */
+const MISMATCH_GAP = 5
+/** Rating gap at or below which the two are evenly matched. */
+const EVEN_GAP = 1
+/** Months of war that earn a point of hard-won experience, and its cap. */
+const MONTHS_PER_EXPERIENCE = 120
+const MAX_EXPERIENCE = 3
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -94,6 +108,8 @@ export function generateNations(world: World): void {
     economy: 850 + rng.nextInt(0, 120),
     stability: 800 + rng.nextInt(0, 150),
     bloc: 0,
+    combatRating: ratingFor(null, homeStrength),
+    warMonths: 0,
     exhaustedUntilTick: null,
   })
 
@@ -123,6 +139,8 @@ export function generateNations(world: World): void {
       // more than ADR-0021 §4 says an alignment may do. The review caught
       // it; the alignment now decides one thing only, in startingState.
       bloc: rng.chance(1, 4) ? null : rng.nextInt(0, BLOC_COUNT),
+      combatRating: ratingFor(entry?.combatRating ?? null, strength),
+      warMonths: 0,
       exhaustedUntilTick: null,
     })
   }
@@ -146,6 +164,7 @@ export function generateNations(world: World): void {
         warPhase: null,
         casualtiesA: 0,
         casualtiesB: 0,
+        plannedWarMonths: null,
       })
     }
   }
@@ -172,6 +191,49 @@ function startingState(world: World, a: Nation, b: Nation, grudge: boolean): Geo
   if (alignment === 'ally') return 'peace'
   if (alignment === 'rival') return 'tension'
   return drawn
+}
+
+
+/**
+ * A nation's combat rating, 1-10 (owner spec). The preset's number if it has
+ * one; otherwise derived from the strength this world generated, so an
+ * invented country is rated by the only thing that describes it.
+ */
+function ratingFor(fromSpec: number | null, strength: number): number {
+  if (fromSpec !== null) return Math.max(1, Math.min(10, Math.floor(fromSpec)))
+  // 150-900 generated strength maps across the 1-10 band.
+  return Math.max(1, Math.min(10, Math.round(strength / 95)))
+}
+
+/**
+ * What a country has learned from fighting: a point per decade of war, three
+ * at most (owner spec). Counted from months actually spent at war, so it is
+ * earned rather than assigned, and a record can explain it.
+ */
+export function warExperienceOf(nation: Nation): number {
+  return Math.min(MAX_EXPERIENCE, Math.floor(nation.warMonths / MONTHS_PER_EXPERIENCE))
+}
+
+/**
+ * How hard this country is to fight, all in: its rating plus what its wars
+ * taught it. 1-13. This is the number the danger model reads.
+ */
+export function combatPowerOf(nation: Nation): number {
+  return nation.combatRating + warExperienceOf(nation)
+}
+
+/**
+ * How long a war is going to run, rolled the month it breaks out.
+ *
+ * The shape is the owner's: mismatched sides finish quickly, evenly matched
+ * ones grind. It is a ceiling rather than a schedule — weariness still ends
+ * a bloodbath early, and a coalition can push a war past it.
+ */
+function rollWarMonths(a: Nation, b: Nation, rng: Rng): number {
+  const gap = Math.abs(combatPowerOf(a) - combatPowerOf(b))
+  const [low, high] =
+    gap >= MISMATCH_GAP ? [MIN_WAR_YEARS, 6] : gap <= EVEN_GAP ? [8, MAX_WAR_YEARS] : [MIN_WAR_YEARS, MAX_WAR_YEARS]
+  return rng.nextIntInclusive(low, high) * 12
 }
 
 function allocate(world: World): EntityId {
@@ -247,9 +309,13 @@ export function runGeopolitics(world: World, tick: Tick): void {
           factor('long-peace', Math.min(600, months)),
         ], `peace restored between ${a.name} and ${b.name}`)
       } else if (months < 10 && rng.chanceInTenThousand(25)) {
-        transition(world, tick, relation, 'war', [
-          factor('old-grudge', 700),
-        ], `fighting resumed between ${a.name} and ${b.name}`, 'opening')
+        transition(
+          world, tick, relation, 'war',
+          [factor('old-grudge', 700)],
+          `fighting resumed between ${a.name} and ${b.name}`,
+          'opening',
+          rollWarMonths(a, b, rng),
+        )
       }
       continue
     }
@@ -322,6 +388,7 @@ export function runGeopolitics(world: World, tick: Tick): void {
               ? `war broke out between ${a.name} and ${b.name}`
               : describeStep(next, a.name, b.name),
             next === 'war' ? 'opening' : null,
+            next === 'war' ? rollWarMonths(a, b, rng) : null,
           )
         }
       }
@@ -386,19 +453,33 @@ function resolveWarMonth(
     Math.floor(after / STRENGTH_PER_LOSS) - Math.floor(before / STRENGTH_PER_LOSS)
   const wornA = crossed(relation.casualtiesA, updated.casualtiesA)
   const wornB = crossed(relation.casualtiesB, updated.casualtiesB)
-  if (wornA > 0) {
-    world.nations.set(a.id, { ...a, strength: Math.max(WAR_STRENGTH_FLOOR, a.strength - wornA) })
-  }
-  if (wornB > 0) {
-    world.nations.set(b.id, { ...b, strength: Math.max(WAR_STRENGTH_FLOOR, b.strength - wornB) })
-  }
+  // ONE WRITE PER NATION. Time under arms is what a country learns from
+  // (owner spec) and it is counted for both sides every month, whoever is
+  // winning — but the erosion below writes the same records, and two
+  // separate `set` calls off the same stale object would have the second
+  // silently discard the first.
+  world.nations.set(a.id, {
+    ...a,
+    warMonths: a.warMonths + 1,
+    strength: wornA > 0 ? Math.max(WAR_STRENGTH_FLOOR, a.strength - wornA) : a.strength,
+  })
+  world.nations.set(b.id, {
+    ...b,
+    warMonths: b.warMonths + 1,
+    strength: wornB > 0 ? Math.max(WAR_STRENGTH_FLOOR, b.strength - wornB) : b.strength,
+  })
 
   // Wars end: weariness grows with duration and losses, and one-sided
   // punishment forces the issue sooner.
   const totalLosses = updated.casualtiesA + updated.casualtiesB
   const asymmetry = Math.abs(updated.casualtiesA - updated.casualtiesB)
   const weariness = months * 3 + Math.floor(totalLosses / 900) + Math.floor(asymmetry / 500)
-  if (months > 6 && rng.chance(Math.min(weariness, 900), 18_000)) {
+  // The rolled length is a CEILING (owner spec): a war that reaches the
+  // length it was always going to run stops, and weariness can still stop
+  // one sooner. Before this, a war ended only when a draw happened to land,
+  // which is why they all ran about twelve years whatever they were.
+  const ranItsCourse = updated.plannedWarMonths !== null && months >= updated.plannedWarMonths
+  if (months > 6 && (ranItsCourse || rng.chance(Math.min(weariness, 900), 18_000))) {
     transition(world, tick, updated, 'ceasefire', [
       factor('war-weariness', Math.min(1000, weariness)),
       factor('heavy-casualties', Math.min(1000, Math.floor(totalLosses / 120))),
@@ -408,8 +489,12 @@ function resolveWarMonth(
     // new escalation, longer the more worn down the war left them. No draw —
     // exhaustion follows from the recorded weariness, so it is explainable.
     const restUntil = (tick + 120 + Math.min(120, weariness)) as Tick
-    world.nations.set(a.id, { ...a, exhaustedUntilTick: restUntil })
-    world.nations.set(b.id, { ...b, exhaustedUntilTick: restUntil })
+    // Off the CURRENT record, not the one captured at the top of the month —
+    // this month's war service and erosion are already written.
+    const nowA = world.nations.get(a.id) ?? a
+    const nowB = world.nations.get(b.id) ?? b
+    world.nations.set(a.id, { ...nowA, exhaustedUntilTick: restUntil })
+    world.nations.set(b.id, { ...nowB, exhaustedUntilTick: restUntil })
   }
 }
 
@@ -445,7 +530,9 @@ function transition(
   inputs: ReturnType<typeof factor>[],
   headline: string,
   warPhase: GeoRelation['warPhase'] = null,
+  plannedWarMonths: number | null = null,
 ): void {
+  const startsWar = next === 'war' && relation.state !== 'war'
   world.geoRelations.set(relationKey(relation.a, relation.b), {
     ...relation,
     state: next,
@@ -453,8 +540,12 @@ function transition(
     warPhase,
     // Casualty counts persist through ceasefire into the record; a NEW war
     // starts its own count.
-    casualtiesA: next === 'war' && relation.state !== 'war' ? 0 : relation.casualtiesA,
-    casualtiesB: next === 'war' && relation.state !== 'war' ? 0 : relation.casualtiesB,
+    casualtiesA: startsWar ? 0 : relation.casualtiesA,
+    casualtiesB: startsWar ? 0 : relation.casualtiesB,
+    // How long this one was always going to run (owner spec). Rolled once,
+    // at the outbreak, and kept — a war's length is a fact about that war,
+    // not a die thrown every month until one comes up.
+    plannedWarMonths: startsWar ? plannedWarMonths : relation.plannedWarMonths,
   })
 
   recordEvent(world, tick, {

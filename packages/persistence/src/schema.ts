@@ -29,6 +29,12 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v22 — War length and difficulty. Nations carry a combat rating (1-10)
+ *       and the months they have spent at war; a war carries the length it
+ *       was rolled to run. Migrated saves derive ratings from strength and
+ *       start their war-months tally at zero — the events are there but the
+ *       tally never was, and a country's war history is not worth
+ *       inventing.
  * v21 — W1. The header names the WorldSpec preset that made the world.
  *       Every save that predates presets is 'classic', which is what they
  *       all are. The world BODY is untouched, so the checksum does not move.
@@ -79,7 +85,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 21
+export const SCHEMA_VERSION = 22
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1
