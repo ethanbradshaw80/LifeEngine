@@ -772,7 +772,44 @@ const V25_TO_V26: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26]
+const V26_TO_V27: Migration = {
+  from: 26,
+  to: 27,
+  describe: 'give criminal records probation, dispositions and restitution',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const criminal = (Array.isArray(world['criminal']) ? world['criminal'] : []).map((entry) => {
+      const record = requireObject(entry, 'save.world.criminal[]')
+      const convictions = Array.isArray(record['convictions']) ? record['convictions'] : []
+      return {
+        ...record,
+        // NOBODY IN AN OLD SAVE IS ON PROBATION, because no build before
+        // this one could put them there — the same honesty the capture
+        // migration used. Nothing is invented, and nothing is owed.
+        probationUntilTick: null,
+        suspendedMonths: 0,
+        restitutionOwed: 0,
+        convictions: convictions.map((c) => {
+          const conviction = requireObject(c, 'save.world.criminal[].convictions[]')
+          // THE DISPOSITION IT CAN BE READ AS HAVING HAD. The old court had
+          // two answers, and the record still says which one it gave: months
+          // is jail, money is a fine. That is not a guess — it is what the
+          // stored sentence already means.
+          const months = typeof conviction['sentenceMonths'] === 'number' ? conviction['sentenceMonths'] : 0
+          return { ...conviction, disposition: months > 0 ? 'jail' : 'fine' }
+        }),
+      }
+    })
+    const nextWorld: Record<string, unknown> = { ...world, criminal }
+    return {
+      header: { ...header, schemaVersion: 27, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

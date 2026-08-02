@@ -29,6 +29,12 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v5 — M-MONEY. `household.savings` (integer cents). Migrated households get
  *      four months of their own wages — computed from the save's employment
  *      records, not invented.
+ * v27 — C3. A criminal record carries probation: when supervision ends,
+ *      the term hanging over somebody, and what they still owe a victim.
+ *      Each conviction carries the disposition the court chose and whether
+ *      it has been sealed. Migrated records are not on probation, owe
+ *      nothing, and keep the disposition they can be read as having had —
+ *      a term or a fine, which is all the old court could hand down.
  * v26 — A service record carries `unitSinceTick`: when they joined their
  *      unit, which is not when they enlisted. Migrated records get null,
  *      meaning UNKNOWN — the clock starts at the first month after the load
@@ -99,7 +105,7 @@ import type { Seed, Tick } from '@life-engine/shared'
  * v6 — M-LEGACY. `player.lineage` — completed lives played, in order, so a
  *      save remembers the dynasty and not just the current life.
  */
-export const SCHEMA_VERSION = 26
+export const SCHEMA_VERSION = 27
 
 /** The oldest schema this build can still load. */
 export const MIN_SUPPORTED_SCHEMA_VERSION = 1
