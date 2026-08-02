@@ -65,9 +65,9 @@ Push normally with `git push`.
 
 ## START HERE (handoff, end of 2026-08-02)
 
-**STATE:** clean tree, everything pushed, HEAD `63d24bc`.
-SIMULATION_VERSION **39** · golden **e8656367** · SCHEMA_VERSION **20** ·
-**384 tests**, all green. 35 commits this session.
+**STATE:** clean tree, everything pushed, HEAD `b381d3a`.
+SIMULATION_VERSION **40** · golden **4930be31** · SCHEMA_VERSION **20** ·
+**397 tests**, all green.
 
 **THE ONE INSTRUCTION FROM THE OWNER FOR THIS WINDOW:** he has gone to
 sleep and wants work to continue without him. Keep going down the queue
@@ -77,39 +77,62 @@ sensible option, write down why, and keep moving.
 
 ### THE QUEUE, in order
 
-**1. P3 — THE SURFACES** (`docs/PLAYER_EXPERIENCE_AUDIT.md` §P3 is the
-spec). The largest remaining gap between what the simulation models and
-what the player can see. In the audit's own priority order:
-  - **Finances tab.** Ranked the SECOND-worst agency deficit and still
-    open. Full monthly ledger (wages, service pay, pension, survivor
-    share, rent, living, lifestyle, net), arrears history, the affordable
-    -streets browser. Every query already exists: `householdIncome`,
-    `householdCosts`, `discretionaryFor`, `monthlyNetOf`, `pensionOf`,
-    `survivorPensionOf`, `rentFor`, `canAfford`. This is a READ-side tab
-    over things that are already true — no engine work needed beyond
-    maybe one aggregate query.
-  - **Relationships tab.** People with strength/duration/compatibility
-    and the P2 verbs gathered in one place (they currently live scattered
-    on the Family tab). Queries exist: `relationshipsOf`, `compatibility`,
-    `partnerOf`, `friendsOf`, plus the bars (`courtshipBar`,
-    `proposalBar`).
-  - **Traits sheet in words** ("diligent, restless") so the Why? texts
-    land — the numbers are on `person.traits` and nothing renders them.
-  - **Stats tab** surfacing the D1 demographics in-game
-    (`yearlyDemographics`, `partneringFunnel`, `fertilityCohort` all
-    exist and are already rendered on the OBSERVER dashboard — this is
-    the same panel inside a played life).
-  - Education/skills view incl. visible job performance.
-
-**2. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
+**1. W ARC — WORLD PRESETS** (`docs/WORLD_MODES_PLAN.md`, ADR-0020).
 W1 extract a WorldSpec, W2 the American Heartland preset, W3 place depth.
 The largest remaining piece of the original vision. NOTE: W3 is where
 "families follow a PCS" and "branch-appropriate bases" become possible —
 both are deferred waiting on real geography, and both are recorded below.
 
-**3. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
+**2. C3 — JUSTICE DEPTH** (`docs/CRIME_PLAN.md`). Probation, sentencing
 variety, the constable as an occupation, town crime pressure as news,
 record-fade gates, the victim's side as player experience.
+
+### P3 — COMPLETE (the surfaces; reviewed, must-fix found and fixed)
+Commits bd08212 · bd2c671 · b7bc745 · 5554265 · ae7f60d · b381d3a.
+Every item on the audit's §P3 list shipped, all READ-side except one
+event field. SIMULATION_VERSION 40, golden 4930be31, schema UNCHANGED.
+  - **MONEY TAB.** `householdLedger()` decomposes the month into named
+    lines (wages / service pay / pension / survivor's share by person,
+    rent with the street, living costs with the mouths, lifestyle, net).
+    It is a DECOMPOSITION of householdIncome/householdCosts/
+    discretionaryFor, never a second implementation, and the test uses
+    those three as the oracle — so a change to the model breaks the
+    ledger loudly. Arrears spells, the spending stance and the streets
+    browser moved here; Home keeps the place and the household.
+  - **PEOPLE TAB.** Every tie with how long, how close (strength in
+    words + a bar), and how well matched. The verbs moved here and now
+    read the ENGINE's bars: `courtshipBar`/`proposalBar` decide whether
+    a button is live and supply the tooltip.
+  - **TEMPERAMENT IN WORDS.** `traitWords`/`describeTraits` in text.ts —
+    notable traits only, strongest first ("ambitious, private and hale").
+    A middling person gets NO adjectives. Under the name, and in
+    PersonDetail so you can read a friend before courting them.
+  - **TOWN TAB.** `TownStats.tsx` extracted so the observer dashboard and
+    the in-game tab are one component; in-game is bounded to the years
+    the player has lived.
+  - **STANDING & SCHOOLING** on the Jobs tab. The three performance
+    thresholds are now exported from systems.ts
+    (RAISE_MIN/WARNING/DISMISSAL_PERFORMANCE) and imported by the UI —
+    the rule is that a threshold which GATES behaviour is never retyped
+    in a component (docs/DOMAIN_MAP.md §6a, written this milestone).
+  - **THE REVIEW'S MUST-FIX WAS REAL:** arrearsHistoryOf read the
+    crossings by CURRENT household member, and crossings travel with a
+    person — a mover carried an unmatched fell-behind into their
+    partner's household, where it paired with that household's recovery
+    into a spell that happened to nobody. Crossing events now carry the
+    HOUSEHOLD id (that is the whole of SIMULATION_VERSION 40). Also
+    fixed: `moveBar()` so the streets browser stops offering buttons the
+    verb refuses; the Money tab's whole-log reads memoized; the ledger
+    itemizes on `!== 0`; the jail test built by hand after it turned out
+    seed 12345 has nobody in a cell at tick 720.
+  - **TWO THINGS A LIVE PLAYTHROUGH CAUGHT** that no test would have:
+    the balance line assumed a surplus ("-$1,214.45 a month is staying
+    put"), and founding couples read "married 0 months" because worldgen
+    stamps their wedding at tick 0 precisely BECAUSE it predates the
+    simulation. Pre-record ties now say so.
+  - KNOWN, LEFT: describeTraits can return four adjectives on a strongly
+    drawn person, which is a mouthful; the P3 audit's "Record view" item
+    was already delivered by C2's Record tab.
 
 ### RULES THAT KEEP BITING (read these before writing code)
 

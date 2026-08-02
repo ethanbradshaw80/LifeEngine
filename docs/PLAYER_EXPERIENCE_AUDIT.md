@@ -93,6 +93,10 @@ functions; every verb records own-choice:
 
 ### P3 — The surfaces (hold everything to the Service-tab standard)
 
+**DELIVERED 2026-08-02** (commits bd08212…b381d3a; SIMULATION_VERSION 40).
+Money tab, People tab, temperament in words, Town tab, standing and
+schooling on the Jobs tab. The Record view was already delivered by C2.
+
 - Relationships tab: people with strength/duration/compatibility + the P2
   verbs. (Queries exist: relationshipsOf, compatibility, partnerOf.)
 - Finances tab: full monthly ledger (wages, service pay, pension, rent,
