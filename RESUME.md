@@ -625,7 +625,58 @@ enlistments 2.3-3.1/decade (NPCs DO join — a VISIBILITY problem),
 serving-at-once 0-8, tours 1-10/120y, contacts 1-11/120y, wounded 0-2,
 died-serving 1 across 360 sim-years, combat deaths ZERO. Item 3 is a
 real rarity, not bad luck; item 4 is surfacing, not rates.
-1. PEACETIME ROTATIONS: deployments to ALLY countries while at peace —
+7. UNIT ROSTERS (owner round 4): "add unit info like who our squad members
+   are and our SGT etc like the rank structure of that unit." NEW
+   STRUCTURE: soldiers belong to a squad/platoon/company at their base;
+   the roster is other REAL simulated people with their real ranks; the
+   squad leader / platoon sergeant are whoever actually holds the rank.
+   Design notes: derive as much as possible (a Unit id on ServiceRecord +
+   read-side roster query beats storing rosters twice — DOMAIN_MAP §1);
+   people rotate in and out as they PCS, discharge, deploy and die, so the
+   roster is a query over "same base + same unit id + serving", sorted by
+   rank then seniority; squad members should appear in deployments and
+   combat moments by NAME (that is the point — "my SGT" means something
+   when he is a person who can be promoted, hurt, or killed). Feeds the
+   3-option combat popups (item 2) and the medic idea (item 8).
+8. WOUND DIAGRAM + FIRST-AID MOMENT (owner round 5, verbatim): "when we
+   get injured or wounded in combat... a pop up diagram of a body and
+   marking the injury that took place on the diagram and the severity of
+   the injury along with its after effects... like a little mini game like
+   'call out for help' 'apply first aid to self and wait' and whatever
+   else... that can either kill or save their life when they have life
+   threatening wounds... I also think for the medic this would be a good
+   little side thing if they were in combat they can get this and try
+   saving a fellow teammate."
+   WHAT ALREADY EXISTS (this is mostly a SURFACE on a model that is
+   already there): wounds.ts has InjuryKind × BodySite × severity ×
+   permanent marks in words — the diagram's data is already computed and
+   already on the HealthRecord (ailmentKind/ailmentSite/marks[]). What is
+   missing: (a) an SVG body diagram in apps/web keyed off BodySite, with
+   severity colour and the mark text as the "after effects"; (b) a
+   'first-aid' pending raised when a wound is serious enough (>=600?) —
+   options costed against the REAL severity, resolved through the same
+   health machinery (a choice must not become a discount on the wound:
+   the M-HARM combat-moment rule — both answers roll real danger); (c) the
+   MEDIC version: a medic specialty in a squad whose teammate is hit gets
+   the same moment aimed at someone else — which needs unit rosters
+   (item 7) to know who the teammate IS. Order: 7 then 8.
+   REVIEW GATES: military-scope-reviewer (tone — a wound is not a
+   minigame's score; asymmetric information; no glory language) and the
+   Law-3 rule that the outcome is recorded as a decision with the real
+   inputs. Not a QTE: no timers, no reflex tests — the world pauses for a
+   decision (Law 5) and the odds come from the model.
+1. PEACETIME ROTATIONS — DONE (SIMULATION_VERSION 29, golden 17e3b083,
+   schema v19; commit dab8efa). Six-month postings with same-bloc allies
+   at peace, issued as ORDERS (share cap 220/1000, call 110/10k) plus a
+   volunteer door; Deployment gained kind ('combat'|'rotation') + hostId
+   and the war fields went nullable. NO enemy ⇒ no combat/convoy/base
+   channel (the permanent rule), accident-only hazard crossed with the
+   trade, lower illness rate, exercise texture, NO campaign medal ever,
+   +25 performance on COMPLETION only, recall on homeland war. Measured:
+   556 rotations vs 28 combat tours per century (~1.1 per career).
+   ALSO DONE (owner): enlistments + homecomings OUT of the town news.
+   Original spec kept below for the record.
+   PEACETIME ROTATIONS: deployments to ALLY countries while at peace —
    the wartime button is now correctly labelled "Volunteer for
    deployment" (done in P2); rotations are the new thing. Points earned,
    pop-up situations, and real risk ("can still get hurt over there").
@@ -640,6 +691,19 @@ real rarity, not bad luck; item 4 is surfacing, not rates.
    you feel like your apart of a special unit" — distinct moment kinds
    / mission texture for Pathfinders/Ember, not just the exposure
    multipliers M-SPECOPS gave them.
+3b. SIMULTANEOUS WARS (owner round 4): "Wars should also to be happening
+   at the same time like we should be able to be at war with 3 other
+   countries and get sent to any of them." THE MACHINERY IS ALREADY
+   THERE — issueOrders picks a war per person from ALL homeland wars
+   (deployment.ts), so a three-front republic already sends people to any
+   of them. What is missing is the GEOPOLITICS: M-GAMEDEPTH deliberately
+   cooled escalation to 1-1.5 homeland wars per CENTURY, so two at once
+   is near-impossible. This is a tuning decision with a real trade
+   (ADR-0019 pacing vs the owner's ask): raise concurrent-war odds for
+   the homeland specifically — e.g. a war makes further escalation MORE
+   likely for a window (opportunistic rivals, bloc obligations) instead
+   of the current blanket damping. Measure per century before and after;
+   demographics will move (more service, more casualties).
 3. ARMY DEATHS: measured ~zero combat deaths ever. Wars are generational
    by design (M-GAMEDEPTH pacing) — decide deliberately: more contact
    lethality per tour when wars DO come + rotation risk filling the
