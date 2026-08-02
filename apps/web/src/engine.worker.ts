@@ -211,8 +211,10 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           post({ type: 'error', message: 'No world.' })
           return
         }
+        // Selection opens a cutscene now rather than answering at once,
+        // so an empty reason means "it began", not "it failed".
         const result = tryOutForUnit(world, request.unitId)
-        send(0, result.joined ? undefined : result.reason)
+        send(0, result.reason === '' ? undefined : result.reason)
         return
       }
 

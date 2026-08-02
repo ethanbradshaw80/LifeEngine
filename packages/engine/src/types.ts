@@ -908,6 +908,7 @@ export type PendingKind =
   /** A contact that became the player's own moment: the squad pinned, and
    *  a choice that is genuinely theirs (M-HARM). */
   | 'combat-moment'
+  | 'unit-moment'
   | 'deployment-order'
   /** P2. The foreman has noticed the work slipping — the modelled dismissal
    *  threshold gets a warning moment before the axe. Player-only; NPCs are
@@ -1050,6 +1051,7 @@ export type EventType =
   | 'turned-down'
   /** Selected for a special unit (M-SPECOPS). */
   | 'joined-unit'
+  | 'unit-moment'
   /** Went to selection and did not make it. On the record, without shame. */
   | 'dropped-selection'
   /** Scored the annual fitness test — promotion points for the body's work. */
@@ -1233,6 +1235,7 @@ export type FactorId =
   | 'battlefield-accident'
   | 'battlefield-chaos'
   | 'threat-level'
+  | 'unit-standard'
   | 'tour-complete'
 
 export interface CausalFactor {

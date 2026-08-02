@@ -143,9 +143,14 @@ describe('special units', () => {
       },
     ])
 
+    // Selection is a played moment now: asking opens the cutscene, and the
+    // answer to it is what gets rolled against the unit's denominator.
     let joined = false
     for (let i = 0; i < 2 && !joined; i++) {
-      joined = tryOutForUnit(world, 'pathfinders').joined
+      expect(tryOutForUnit(world, 'pathfinders').reason).toBe('')
+      expect(world.player.pending?.kind).toBe('unit-moment')
+      resolvePending(world, 'push')
+      joined = world.service.get(person.id)?.unitId === 'pathfinders'
     }
     if (joined) {
       expect(world.service.get(person.id)?.unitId).toBe('pathfinders')
@@ -158,6 +163,7 @@ describe('special units', () => {
       const third = tryOutForUnit(world, 'pathfinders')
       expect(third.joined).toBe(false)
       expect(third.reason).toContain('Two selections')
+      expect(world.player.pending).toBe(null)
     }
     expect(world.player.log.filter((entry) => entry.kind === 'unit-tryout').length).toBeGreaterThan(0)
   })

@@ -40,7 +40,7 @@ import {
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
 import { alliedWars, deployUnderOrders } from './deployment.js'
-import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById } from './scenes.js'
+import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import { answerDesperation, isJailed, resolveCourt } from './crime.js'
 import { GRADE_TITLES, offenceById } from './content.js'
@@ -425,6 +425,23 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
 }
 
 /**
+ * A unit moment's pending carries "moment-id" or "moment-id:unit-id" in
+ * occupationId, because PendingDecision has one string to spare and adding
+ * a field to it would touch every save.
+ */
+function momentIdOf(occupationId: string | null | undefined): string {
+  if (occupationId === null || occupationId === undefined) return ''
+  const cut = occupationId.indexOf(':')
+  return cut === -1 ? occupationId : occupationId.slice(0, cut)
+}
+
+function unitIdOf(occupationId: string | null | undefined): string {
+  if (occupationId === null || occupationId === undefined) return ''
+  const cut = occupationId.indexOf(':')
+  return cut === -1 ? '' : occupationId.slice(cut + 1)
+}
+
+/**
  * Put in for a special unit's selection, from the Service tab. The gates
  * are stated in unitOptionsFor; selection itself can be failed, the failure
  * is on the record without shame, and the file allows two tries.
@@ -449,36 +466,77 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
   })
   world.player.nextDecisionId += 1
 
-  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 7333)
-  const margin = Math.max(10, Math.min(400, record.performance - unit.minPerformance + 60))
+  // SELECTION IS PLAYED, NOT ROLLED. It used to resolve the instant the
+  // player asked for it, which made the hardest thing a soldier does a
+  // silent coin flip. It is a cutscene now and the answer moves the odds,
+  // but the roll below is the same roll off the same stream with the same
+  // margin, so nothing about who passes has quietly changed.
+  raisePending(world, {
+    kind: 'unit-moment',
+    tick: world.tick,
+    personId: person.id,
+    otherId: null,
+    occupationId: `selection-day:${unit.id}`,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: [...SCENE_OPTIONS],
+  })
+  return { joined: false, reason: '' }
+}
+
+/**
+ * Resolve a selection the player has just been through. `answer` is the
+ * cutscene's spectrum: emptying the tank passes more often and costs a
+ * body sometimes, pacing is the middle, nursing an injury rarely passes.
+ */
+function resolveSelectionDay(
+  world: World,
+  person: Person,
+  unitId: string,
+  answer: SceneChoice,
+  tick: Tick,
+): void {
+  const record = world.service.get(person.id)
+  const unit = unitFor(world, unitId)
+  if (!record || !unit) return
+
+  const rng = openStream(world.seed, Stream.Employment, person.id, tick + 7333)
+  const effort = answer === 'push' ? 120 : answer === 'hold' ? 0 : -140
+  const margin = Math.max(10, Math.min(400, record.performance - unit.minPerformance + 60 + effort))
   const selected = rng.chance(margin, unit.selectionDenominator)
+
+  // THE COURSE IS WHAT BEATS PEOPLE HERE, not an enemy: emptying the tank
+  // can cost a body, and it goes down as the field accident it is.
+  if (answer === 'push' && rng.chance(1, 7)) {
+    inflictWound(world, tick, person.id, 300 + rng.nextInt(0, 250), 'field-accident', rng)
+  }
 
   if (selected) {
     assignServiceUnit(world, person.id, unit.id)
-    recordEvent(world, world.tick, { type: 'joined-unit', subjectId: person.id, detail: unit.id })
-    recordDecision(world, world.tick, {
+    recordEvent(world, tick, { type: 'joined-unit', subjectId: person.id, detail: unit.id })
+    recordDecision(world, tick, {
       subjectId: person.id,
       decision: 'selection',
       significance: 'defining',
-      inputs: [factor('own-choice', 1000), factor('strong-performance', record.performance)],
+      inputs: [factor('own-choice', 1000), factor('unit-standard', unit.minPerformance)],
       chosen: `selected for ${unit.name}`,
       rejected: [],
       streamId: Stream.Employment,
     })
-    return { joined: true, reason: '' }
+    return
   }
 
-  recordEvent(world, world.tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.id })
-  recordDecision(world, world.tick, {
+  recordEvent(world, tick, { type: 'dropped-selection', subjectId: person.id, detail: unit.id })
+  recordDecision(world, tick, {
     subjectId: person.id,
     decision: 'selection',
     significance: 'notable',
-    inputs: [factor('own-choice', 1000), factor('strong-performance', record.performance)],
+    inputs: [factor('own-choice', 1000), factor('unit-standard', unit.minPerformance)],
     chosen: `went to ${unit.name} selection; came back without it`,
     rejected: [],
     streamId: Stream.Employment,
   })
-  return { joined: false, reason: `Selection said not this time. The trying is on the record.` }
 }
 
 /**
@@ -1444,6 +1502,45 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'unit-moment': {
+      // NOT resolveMomentCasualty \u2014 that is the ENEMY CONTACT resolver and
+      // it carries a firefight's fatal tail. These are commitment and
+      // aftermath: what they cost is a place in the unit, a body worn out
+      // on a course, or nothing at all but how somebody is remembered.
+      const momentId = momentIdOf(pending.occupationId)
+      const moment = unitMomentById(momentId)
+      const answer: SceneChoice =
+        choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+      const did = moment?.did[answer] ?? 'answered the unit'
+
+      recordEvent(world, pending.tick, {
+        type: 'unit-moment',
+        subjectId: person.id,
+        detail: `${momentId}:${answer}`,
+      })
+      recordDecision(world, pending.tick, {
+        subjectId: person.id,
+        decision: 'selection',
+        significance: moment?.id === 'selection-day' ? 'defining' : 'notable',
+        inputs: [factor('own-choice', 1000), factor('unit-standard', 700)],
+        chosen: did,
+        rejected: SCENE_OPTIONS.filter((option) => option !== answer).map(
+          (option) => moment?.did[option] ?? `to ${option}`,
+        ),
+        streamId: Stream.CombatResolution,
+      })
+
+      if (moment?.id === 'selection-day') {
+        resolveSelectionDay(world, person, unitIdOf(pending.occupationId), answer, pending.tick)
+      }
+      if (moment?.id === 'reporting-in') {
+        // How somebody comes in is how they are read for a while after.
+        const shift = answer === 'push' ? -20 : answer === 'hold' ? 40 : 0
+        if (shift !== 0) boostServicePerformance(world, person.id, shift)
+      }
+      break
+    }
+
     case 'combat-moment': {
       // THE THREE-OPTION SCENE (owner's combat plan §2). One spectrum —
       // push, hold, cover — and the outcome is the cell where the answer
@@ -1670,11 +1767,20 @@ export function resolvePending(world: World, choice: string): void {
 
   // A wound taken during the combat moment is still a wound somebody has
   // to work on — and only now is the pending slot free to ask (review S7).
-  if (pending.kind === 'combat-moment') {
+  if (pending.kind === 'combat-moment' || pending.kind === 'unit-moment') {
     const hurt = world.health.get(person.id)
     if (hurt && hurt.ailment !== null && person.deathTick === null) {
       offerFieldAid(world, pending.tick, person.id, hurt.severity)
     }
+  }
+
+  // Dropping a packet is a commitment, and a commitment has to arrive
+  // somewhere: 'push' puts the player in front of selection itself. Raised
+  // after commit for the same reason as everything else in this block —
+  // raisePending refuses while the answered pending still holds the slot.
+  if (pending.kind === 'unit-moment' && momentIdOf(pending.occupationId) === 'packet-drop' && choice === 'push') {
+    const unitId = unitIdOf(pending.occupationId)
+    if (unitId !== '') tryOutForUnit(world, unitId)
   }
 
   // Follow-up questions: an accepted enlistment immediately asks WHICH
@@ -1896,7 +2002,11 @@ function commit(world: World, pending: PendingDecision, choice: string): void {
     decisionId: pending.id,
     tick: pending.tick,
     kind: pending.kind,
-    choice,
+    // A unit moment logs WHICH cutscene it was ("losing-one:hold"), because
+    // "has this one already played" is asked every month and the log is the
+    // cheap place to ask it. The event ledger would answer too, and it grows
+    // without bound.
+    choice: pending.kind === 'unit-moment' ? `${momentIdOf(pending.occupationId)}:${choice}` : choice,
   })
   world.player.pending = null
 }
@@ -1992,6 +2102,9 @@ export function describePending(world: World, pending: PendingDecision): string 
       const where = record?.ailmentSite ?? null
       return `${casualty?.givenName ?? 'One of yours'} is down${where === null ? '' : ` — the ${where}`}, and you are the medic. What do you do?`
     }
+    case 'unit-moment':
+      return unitMomentById(momentIdOf(pending.occupationId))?.tell ?? 'The unit has something to say to you.'
+
     case 'combat-moment': {
       // THE TELL (owner's combat plan §2). The player is told how bad it
       // is BEFORE answering — that is what makes the matrix a read rather
@@ -2464,6 +2577,25 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       lines.push(
         'Retraining sends you back through the schoolhouse — no orders until it finishes. The record, the rank, and every trade already served stay yours.',
       )
+      break
+    }
+
+    case 'unit-moment': {
+      // NOBODY IS SHOOTING IN ANY OF THESE, and the player has to be told,
+      // because they have learned that push/hold/cover means a firefight.
+      // Here it means a place in the unit, a body, or nothing at all but
+      // how a thing is carried afterwards.
+      const moment = momentIdOf(pending.occupationId)
+      if (moment === 'selection-day') {
+        lines.push('The course is what beats people here \u2014 an injury or a quiet walk to the truck, not an enemy.')
+        lines.push('Emptying the tank passes more often and costs a body more often. Nursing an injury rarely passes.')
+      } else if (moment === 'packet-drop') {
+        lines.push('A packet is a commitment, not a casualty. The file allows two tries at selection.')
+      } else if (moment === 'losing-one') {
+        lines.push('Nothing here is dangerous. It is only hard.')
+      } else {
+        lines.push('What is being judged is the standard, not the risk.')
+      }
       break
     }
 

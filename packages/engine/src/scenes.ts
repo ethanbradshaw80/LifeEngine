@@ -486,3 +486,115 @@ export interface RaisedScene {
   readonly threat: Threat
   readonly enemyId: EntityId | null
 }
+
+// ---------------------------------------------------------------------------
+// UNIT MOMENTS (owner's combat plan §4a) — the shared cutscenes.
+//
+// THESE ARE NOT COMBAT SCENES, and that is the whole design call. A combat
+// scene ends in `resolveMomentCasualty`, which is the ENEMY CONTACT
+// resolver: it carries a firefight's fatal tail because a firefight is what
+// it models. Reusing it here would put a rifle round in a moment where
+// nobody is shooting — a man deciding whether to drop a packet, or standing
+// at a ramp ceremony for somebody he served with.
+//
+// So they share the three-option SHAPE (the player has one spectrum to
+// learn, not six) and nothing else. What each one costs is its own.
+// ---------------------------------------------------------------------------
+
+/** Which cutscene this is; the id travels on the pending. */
+export type UnitMomentId =
+  | 'packet-drop'
+  | 'selection-day'
+  | 'reporting-in'
+  | 'losing-one'
+  | 'the-old-hand'
+
+export interface UnitMoment {
+  readonly id: UnitMomentId
+  /** What the player is told. No threat level: these are not contacts. */
+  readonly tell: string
+  readonly labels: Readonly<Record<SceneChoice, string>>
+  readonly did: Readonly<Record<SceneChoice, string>>
+}
+
+export const UNIT_MOMENTS: readonly UnitMoment[] = [
+  {
+    id: 'packet-drop',
+    tell:
+      'The selection course opens next cycle, and your name would be taken seriously. Dropping a packet is a commitment before it is anything else.',
+    labels: {
+      push: 'Drop the packet now',
+      hold: 'Train one more cycle first',
+      cover: 'Stay in your line unit',
+    },
+    did: {
+      push: 'dropped a packet for selection',
+      hold: 'trained another cycle before putting a packet in',
+      cover: 'stayed in the line unit',
+    },
+  },
+  {
+    id: 'selection-day',
+    tell:
+      'Selection. Nobody is shooting at anybody here — the course is the thing that beats people, and most of the ones who leave walk out on their own.',
+    labels: {
+      push: 'Empty the tank',
+      hold: 'Pace yourself',
+      cover: 'Protect the injury',
+    },
+    did: {
+      push: 'emptied the tank at selection',
+      hold: 'paced themselves through selection',
+      cover: 'nursed an injury through selection',
+    },
+  },
+  {
+    id: 'reporting-in',
+    tell:
+      'First day in the team room. Nobody here is impressed by anything you did to get in, and they are all watching how you carry it.',
+    labels: {
+      push: 'Prove yourself loudly',
+      hold: 'Head down, learn the standard',
+      cover: 'Fall back on what worked before',
+    },
+    did: {
+      push: 'came in loud and made a point of it',
+      hold: 'kept their head down and learned the standard',
+      cover: 'stuck to what had worked before',
+    },
+  },
+  {
+    id: 'losing-one',
+    tell:
+      'One of the team is going home in an aircraft, and the ramp ceremony is this evening. Nobody will think less of you whatever you do with it.',
+    labels: {
+      push: 'Speak at the ramp ceremony',
+      hold: 'Carry it quietly',
+      cover: 'Ask for a stand-down',
+    },
+    did: {
+      push: 'spoke at the ramp ceremony',
+      hold: 'carried it quietly',
+      cover: 'took a stand-down after losing one of the team',
+    },
+  },
+  {
+    id: 'the-old-hand',
+    tell:
+      'You have been here long enough to be one of the ones they watch. A new selection class comes through next month.',
+    labels: {
+      push: 'Take the class yourself',
+      hold: 'Take one of them under your wing',
+      cover: 'Leave them to the cadre',
+    },
+    did: {
+      push: 'ran the new selection class',
+      hold: 'took one of the new arrivals under their wing',
+      cover: 'left the new class to the cadre',
+    },
+  },
+]
+
+export function unitMomentById(id: string): UnitMoment | undefined {
+  return UNIT_MOMENTS.find((moment) => moment.id === id)
+}

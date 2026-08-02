@@ -1362,6 +1362,50 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         options: ['attend', 'pass'],
       })
     }
+    // --- UNIT MOMENTS (owner's combat plan §4a). ------------------------
+    // Commitment and aftermath, not contact. Each plays ONCE, and the log
+    // is what remembers: a cutscene the player has already been through is
+    // not a cutscene the second time.
+    if (world.player.pending === null) {
+      const played = (id: string): boolean =>
+        world.player.log.some((entry) => entry.kind === 'unit-moment' && entry.choice.startsWith(`${id}:`))
+      const raiseMoment = (id: string, unitId: string | null): void => {
+        raisePending(world, {
+          tick,
+          kind: 'unit-moment',
+          personId: person.id,
+          otherId: null,
+          occupationId: unitId === null ? id : `${id}:${unitId}`,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: ['push', 'hold', 'cover'],
+        })
+      }
+
+      if (unitId === null) {
+        // The packet. Only offered when a door is actually open, so it is
+        // never an invitation to something the file would refuse.
+        const open = unitOptionsFor(world, person.id).find((option) => option.open)
+        if (open !== undefined && !played('packet-drop') && rng.chance(1, 30)) {
+          raiseMoment('packet-drop', open.id)
+        }
+      } else {
+        const unit = unitFor(world, unitId)
+        if (!played('reporting-in')) {
+          // First day in the team room, the month after selection said yes.
+          raiseMoment('reporting-in', unitId)
+        } else if (!played('losing-one') && unit !== undefined && rng.chance(1, 90)) {
+          // Somebody from the team goes home in an aircraft. Rare, and it
+          // costs nothing but how it is carried.
+          raiseMoment('losing-one', unitId)
+        } else if (!played('the-old-hand') && monthsIn >= 96 && rng.chance(1, 48)) {
+          // Long enough in to be one of the ones they watch.
+          raiseMoment('the-old-hand', unitId)
+        }
+      }
+    }
+
     // The rotation list, while the Republic fights. Orders can still come
     // regardless — volunteering just stops waiting for them.
     // The rotation list, while the Republic fights — asked twice as rarely

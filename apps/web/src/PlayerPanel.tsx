@@ -24,7 +24,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { decodeScene, sceneById } from '@life-engine/engine'
+import { decodeScene, sceneById, unitMomentById } from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import { Avatar } from './Avatar.js'
 import type { EntityId } from '@life-engine/shared'
@@ -281,6 +281,16 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
     const scene = sceneById(sceneId)
     if (scene && (option === 'push' || option === 'hold' || option === 'cover')) {
       return scene.labels[option]
+    }
+  }
+  // A unit moment names its three in its own words too — and it is NOT a
+  // firefight, so its labels are commitments and aftermath, never fire.
+  if (pending.kind === 'unit-moment') {
+    const raw = pending.occupationId ?? ''
+    const cut = raw.indexOf(':')
+    const moment = unitMomentById(cut === -1 ? raw : raw.slice(0, cut))
+    if (moment && (option === 'push' || option === 'hold' || option === 'cover')) {
+      return moment.labels[option]
     }
   }
   // Specialty ids become their titles (also fixes the long-standing raw-id
