@@ -651,10 +651,44 @@ the whole tail and the automatic roll is skipped; the stakes text
 described tradeoffs the model inverted; the casualty's death record said
 they chose it; the medic could be summoned to another front; the
 combat-moment field-aid call was dead code (pending still held).
-STILL OPEN (small, carried): DOMAIN_MAP §4 import-graph test unwritten;
-survivor benefits (a pension still ends at death — now more consequential
-with retirement pay); families on PCS; branch-appropriate bases; HYT on
-TIS; nation.strength never degrades across a long war (geopolitics).
+THE CARRIED LIST IS NOW CLOSED (commits 4d4448c, 8bb5cf6, 307620a,
++ this one). SIMULATION_VERSION 37, golden f60c641f, schema v20, 353 tests.
+  - RETIREMENT PAY (4d4448c): 2.5%/yr of final pay, 20-year minimum,
+    capped 75%, stacks with disability, refused to 'end of term' and
+    misconduct. Flows through pensionOf → householdIncome.
+  - SURVIVOR BENEFITS (8bb5cf6): a widow draws 55% for life. Derived from
+    the widowed edge (marriage ended ON the death tick) + the service
+    record — no schema change. Granted on the record at the death.
+  - WCJC (8bb5cf6): the town's news station, owner-named; the News tab
+    runs under its masthead.
+  - NATION STRENGTH ERODES (307620a): schema v20 adds baseStrength; war
+    grinds strength off CUMULATIVE losses (a month's toll floors to zero —
+    the first draft ground nobody down and the test caught it), peace
+    rebuilds toward the baseline, floor 120. An enemy ten years into a war
+    is now genuinely weaker to face.
+  - IMPORT-GRAPH TEST (this commit): DOMAIN_MAP §4 Rule 4, queued since
+    C1, finally enforceable. The engine has 12 real cycles and dissolving
+    them needs a command seam, so the test MEASURES the graph, holds them
+    in a named allowlist with the reason each exists, and fails on any NEW
+    one — a ratchet that cannot get worse. ELEVEN OF THE TWELVE RUN
+    THROUGH player.ts: every domain that can reach a choice point imports
+    raisePending and player imports it back to apply the answer. That is
+    the M-PLAY design, and the seam that would dissolve it is a command
+    queue between the domains and player. The twelfth
+    (finances⇄service⇄worldgen) has nothing to do with the player and is
+    the shallowest to break.
+STILL OPEN, with reasons:
+  - FAMILIES ON PCS: deferred, not skipped. The world is ONE town; both
+    bases sit in it, so a transfer between them does not require a family
+    to move house, and inventing a move would be inventing geography.
+    This becomes real at W3 (place depth), not before.
+  - BRANCH-APPROPRIATE BASES: bases are joint-use. Needs a third
+    installation, which shifts nation ids (bases are allocated before
+    nations) and moves the golden — cheap, but do it with the W-arc when
+    places are being touched anyway.
+  - HYT ON TIS: effectively answered by M-ARMY2's career shape — the
+    20/30-year ceilings ARE a time-in-service rule; high-year tenure stays
+    time-in-grade, which is what it models.
 NEXT ARC after this: P3 (the surfaces — relationships tab, finances tab,
 record view, traits in words, D1 stats in-game) then W1-W3 world presets,
 or C2 (player crime) — see PLAYER_EXPERIENCE_AUDIT.
