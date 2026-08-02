@@ -596,6 +596,44 @@ still owed its fact: when the window closes on an unmet plan, "the
 children never came" is recorded (settleFamilyPlans). Known simplification
 accepted: fecundity currently follows the woman only.
 
+## ADR-0023 — Real school names; units stay fictional
+
+**Status:** Accepted (owner override, 2026-08-02)
+**Date:** 2026-08-02
+**Amends:** MILITARY_AND_WAR_FOUNDATION §3, for SCHOOL names only.
+
+**Context.** The military and combat master plan
+(`docs/MILITARY_COMBAT_PLAN.md`) carries an explicit owner override: use the
+real names for the service schools — Airborne, Ranger, Sniper, Pathfinder,
+Military Freefall, SERE, EOD, the Special Forces Qualification Course and the
+rest — "even though §3 as written forbids it; this override takes
+precedence."
+
+Two of this repo's five reviews have renamed schools for being close to real
+ones (M-SPECOPS renamed two, and the decorations were reverted twice). This
+ADR is what stops that happening a third time by reflex.
+
+**Decision.**
+
+1. **Schools carry their real names.** The structure they hang on — badge
+   gates, failable selection, tiers, duty pay — is unchanged, which is the
+   part that was ever load-bearing.
+2. **UNITS STAY FICTIONAL, in every preset, permanently.** The owner's own
+   note draws the line: "real school names are low-risk and common in games.
+   Real unit names are the thing §3 chose to keep fictional... Default here
+   is real schools + fictional units; add unit names to the override line if
+   you want them real." He did not add them. ADR-0021 §2 and ADR-0022 stand
+   untouched.
+3. A future reviewer may NOT rename a school back for being real. It is here
+   by decision, and this is the record of it.
+
+**Rationale.** A school is a course of instruction; naming one asserts
+nothing about a person and carries no casualty history. A unit is a body of
+living people with a record of its own dead, which is why that line does not
+move even as this one does.
+
+---
+
 ## ADR-0022 — Coalitions: the call to arms, and who decides a nation's war
 
 **Status:** Accepted (owner spec + four answered decisions, 2026-08-02)

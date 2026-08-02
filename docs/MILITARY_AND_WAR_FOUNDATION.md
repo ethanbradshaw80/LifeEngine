@@ -61,6 +61,11 @@ awards are fictional in every preset, permanently** — a real unit has living m
 and a real casualty history — as are all factions and alliances. See
 `PROJECT_CHARTER.md` §2 and R-14.
 
+**SCHOOLS ARE NAMED FOR REAL, units are not** (amended 2026-08-02, ADR-0023, owner
+override). A school is a course of instruction and naming one asserts nothing about
+anybody; a unit is a body of living people with a record of its own dead. Do not
+rename a school back for being real — it is there by decision.
+
 A preset that names real nations owes the player unmissable alternate-history framing
 (ADR-0021 §3). The reason R-14 survives this at all is that its hazard was never the
 names: a death in service must be caused, traceable and explicable, and it is exactly
