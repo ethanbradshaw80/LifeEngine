@@ -251,6 +251,7 @@ describe('the WorldSpec', () => {
         bases: ['Camp Ridge'],
       },
       foreignNations: ['Aldaria', 'Brennisk', 'Cothery'],
+      branches: CLASSIC_SPEC.branches,
     }
     const world = createWorld(makeSeed(12345), 40, spec)
 

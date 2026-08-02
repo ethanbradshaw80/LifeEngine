@@ -169,8 +169,9 @@ describe('promotion points', () => {
   })
 
   it('cutoffs differ by trade, like the real monthly lists', () => {
-    const rifleman = competitiveGates(specialtyById('rifleman'), 3)
-    const medic = competitiveGates(specialtyById('medic'), 3)
+    const world = createWorld(makeSeed(12345), 100)
+    const rifleman = competitiveGates(world, specialtyById('rifleman'), 3)
+    const medic = competitiveGates(world, specialtyById('medic'), 3)
     expect(rifleman).not.toBeNull()
     expect(medic).not.toBeNull()
     if (!rifleman || !medic) return

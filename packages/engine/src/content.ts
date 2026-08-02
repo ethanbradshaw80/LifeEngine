@@ -9,6 +9,7 @@
 
 import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
+import type { ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
 
 /**
@@ -198,6 +199,22 @@ export const JUNIOR_TIG_MONTHS: Readonly<Record<ServiceBranch, readonly number[]
   'naval-service': [6, 6],
   'air-guard': [6, 6, 16],
 }
+
+/**
+ * Classic's services, as the spec wants them (W1 resistance 3). Assembled
+ * from the five tables above rather than retyped, so there is exactly one
+ * copy of Classic's ladders and this cannot drift from them.
+ */
+export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
+  ['land-forces', 'naval-service', 'air-guard'] as const
+).map((id) => ({
+  id,
+  name: BRANCH_NAMES[id],
+  ranks: BRANCH_RANKS[id],
+  grades: BRANCH_GRADES[id],
+  competitiveFrom: COMPETITIVE_FROM[id],
+  juniorTigMonths: JUNIOR_TIG_MONTHS[id],
+}))
 
 /**
  * How a specialty spends its days — which threats it is exposed to when a

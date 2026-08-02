@@ -25,8 +25,6 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
-import { BRANCH_NAMES } from './content.js'
-import type { ServiceBranch } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { Stream } from './rng.js'
 import type { AwardKind, AwardRecord, CausalFactor, World, WorldEvent } from './types.js'
@@ -332,7 +330,12 @@ function grant(world: World, tick: Tick, personId: EntityId, spec: GrantSpec): A
   // and a record survives discharge, so this only refuses the impossible.
   const service = world.service.get(personId)
   if (!service) return null
-  const issuedBy = BRANCH_NAMES[service.branch as ServiceBranch] ?? service.branch
+  // Read the branch's name off the world's spec INLINE rather than through
+  // service.branchName: awards is imported BY service, and the import
+  // ratchet (DOMAIN_MAP §4 Rule 4) caught the round trip the moment it was
+  // written. A three-line lookup is cheaper than a thirteenth known cycle.
+  const issuedBy =
+    world.spec.branches.find((b) => b.id === service.branch)?.name ?? service.branch
 
   const existing = world.awards.get(personId) ?? []
   const already = existing.find((a) => a.kind === spec.kind && a.title === spec.title)

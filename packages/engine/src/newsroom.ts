@@ -28,13 +28,12 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatDate, ageAt } from './clock.js'
-import { BRANCH_NAMES, GRADE_TITLES, NEWS_STATION, offenceById, specialtyById } from './content.js'
-import type { ServiceBranch } from './content.js'
+import { GRADE_TITLES, NEWS_STATION, offenceById, specialtyById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
 import { sentenceCase } from './text.js'
-import { lastUnitRosterOf, rankTitle } from './service.js'
+import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
 
 /** The homeland, named from the world rather than typed into the sentence
@@ -153,8 +152,8 @@ function deathInService(
 ): NewsArticle {
   const record = world.service.get(person.id)
   const age = ageAt(person.birthTick, item.tick)
-  const rank = record === undefined ? null : rankTitle(record.branch, record.rank)
-  const branch = record === undefined ? null : BRANCH_NAMES[record.branch as ServiceBranch] ?? null
+  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank)
+  const branch = record === undefined ? null : branchName(world, record.branch)
   const trade = record === undefined ? null : specialtyById(record.specialtyId).title
   const cause = person.causeOfDeath ?? 'causes not stated'
   const years =
@@ -313,7 +312,7 @@ function countServing(world: World): number {
 
 function cameHome(world: World, item: NewsItem, person: Person, dateline: string): NewsArticle {
   const record = world.service.get(person.id)
-  const rank = record === undefined ? null : rankTitle(record.branch, record.rank)
+  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank)
   const who = rank === null ? fullName(person) : `${rank} ${fullName(person)}`
   const tours = world.deployments.get(person.id) ?? []
   const tour = tours.find((t) => t.returnedAtTick === item.tick)

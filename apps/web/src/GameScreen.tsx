@@ -63,7 +63,7 @@ import {
   rotationAvailable,
   supportDeploymentAvailable,
   unitRosterOf,
-  BRANCH_NAMES,
+  branchName,
   crimeNewsSince,
   enlistmentBar,
   isJailed,
@@ -77,7 +77,7 @@ import {
   specialUnitById,
   unitOptionsFor,
 } from '@life-engine/engine'
-import type { EducationLevel, EventType, Person, Relationship, ServiceBranch, World } from '@life-engine/engine'
+import type { EducationLevel, EventType, Person, Relationship, World } from '@life-engine/engine'
 import {
   articleFor,
   criminalRecordOf,
@@ -444,7 +444,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <span className="stat-value">
-                    {rankTitle(record.branch, record.rank)} · {specialtyById(record.specialtyId).title}
+                    {rankTitle(world, record.branch, record.rank)} · {specialtyById(record.specialtyId).title}
                   </span>
                   <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
@@ -1392,9 +1392,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               <>
                 <dl className="facts">
                   <dt>Branch</dt>
-                  <dd>{BRANCH_NAMES[record.branch as ServiceBranch] ?? record.branch}</dd>
+                  <dd>{branchName(world, record.branch)}</dd>
                   <dt>Rank</dt>
-                  <dd>{rankTitle(record.branch, record.rank)}</dd>
+                  <dd>{rankTitle(world, record.branch, record.rank)}</dd>
                   <dt>Specialty</dt>
                   <dd>{specialtyById(record.specialtyId).title}</dd>
                   {record.qualifications.length > 0 && (

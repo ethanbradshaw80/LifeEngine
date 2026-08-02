@@ -29,12 +29,7 @@ import { ageAt } from './clock.js'
 import {
   BOARD_CUTOFF_BASE,
   BOARD_CUTOFF_STEP,
-  BRANCH_GRADES,
-  BRANCH_NAMES,
-  BRANCH_RANKS,
-  COMPETITIVE_FROM,
   HIGH_YEAR_TENURE_TIG,
-  JUNIOR_TIG_MONTHS,
   MAX_DECORATION_POINTS,
   MAX_FITNESS_POINTS,
   MAX_SENIORITY_POINTS,
@@ -66,7 +61,7 @@ import { hasAnswered, raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, Stream, type StreamId } from './rng.js'
-import type { CausalFactor, Person, World } from './types.js'
+import type { CausalFactor, Person, ServiceBranchSpec, World } from './types.js'
 import { placesOfKind } from './worldgen.js'
 
 const ENLIST_MIN_AGE = 18
@@ -146,9 +141,28 @@ export function servicePayOf(world: World, personId: EntityId): number {
   return record.monthlyPay + (unit?.dutyPay ?? 0)
 }
 
+/**
+ * The branch a record names, resolved against the WORLD's preset (W1
+ * resistance 3). Never undefined: a record naming a branch this preset does
+ * not have falls back to the first service rather than crashing a load, the
+ * same doctrine as specById. Records outlive content.
+ */
+export function branchSpecFor(world: World, branchId: string): ServiceBranchSpec {
+  const found = world.spec.branches.find((b) => b.id === branchId)
+  if (found) return found
+  const first = world.spec.branches[0]
+  if (!first) throw new Error('a world spec must ship at least one service branch')
+  return first
+}
+
+/** What a branch is called: "the Land Forces". */
+export function branchName(world: World, branchId: string): string {
+  return branchSpecFor(world, branchId).name
+}
+
 /** The branch's own title for a ladder index — 'PFC', 'PO2', 'SSgt'. */
-export function rankTitle(branch: string, rank: number): string {
-  const ladder = BRANCH_RANKS[branch as ServiceBranch] ?? BRANCH_RANKS['land-forces']
+export function rankTitle(world: World, branch: string, rank: number): string {
+  const ladder = branchSpecFor(world, branch).ranks
   return ladder[Math.max(0, Math.min(ladder.length - 1, rank))] ?? ladder[0] ?? 'PVT'
 }
 
@@ -156,15 +170,16 @@ export function rankTitle(branch: string, rank: number): string {
  *  junior (time-based) or the ladder is topped out. The cutoff is POINTS,
  *  per trade — the real monthly-cutoff-list shape (M-SPECOPS). */
 export function competitiveGates(
+  world: World,
   specialty: ServiceSpecialty,
   rank: number,
 ): { readonly targetRank: number; readonly tigNeeded: number; readonly cutoff: number } | null {
-  const branch = specialty.branch
-  const ladder = BRANCH_RANKS[branch]
-  const competitiveFrom = COMPETITIVE_FROM[branch]
+  const branch = branchSpecFor(world, specialty.branch)
+  const ladder = branch.ranks
+  const competitiveFrom = branch.competitiveFrom
   if (rank >= ladder.length - 1) return null
   if (rank + 1 < competitiveFrom) return null
-  const grades = BRANCH_GRADES[branch]
+  const grades = branch.grades
   const stepsUp = rank + 1 - competitiveFrom
   // A same-grade lateral (SPC→CPL) is an appointment, not a grade board —
   // quicker than a board, but it waits on a billet, not on the calendar
@@ -320,7 +335,7 @@ function rosterFrom(
     members.push({
       personId: other.personId,
       name: `${person.givenName} ${person.familyName}`,
-      rankTitle: rankTitle(other.branch, other.rank),
+      rankTitle: rankTitle(world, other.branch, other.rank),
       rank: other.rank,
       specialtyTitle: specialtyById(other.specialtyId).title,
       role: '',
@@ -343,7 +358,7 @@ function rosterFrom(
   return {
     unitName: `${mine.squad} Squad, ${mine.company} Company`,
     baseName: world.places.get(record.baseId)?.name ?? 'a home station',
-    branchName: BRANCH_NAMES[record.branch as ServiceBranch] ?? 'the service',
+    branchName: branchName(world, record.branch),
     members: withRoles,
   }
 }
@@ -377,13 +392,13 @@ export function schoolOptionsFor(
   return SERVICE_SCHOOLS.map((school) => {
     let reason = ''
     if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
-      reason = `${BRANCH_NAMES[specialty.branch]} does not send people here.`
+      reason = `${branchName(world, specialty.branch)} does not send people here.`
     } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
       reason = 'Not this trade.'
     } else if (badges.includes(school.badge)) {
       reason = 'Already earned.'
     } else if (record.rank < school.minRank) {
-      reason = `Opens at ${rankTitle(record.branch, school.minRank)}.`
+      reason = `Opens at ${rankTitle(world, record.branch, school.minRank)}.`
     } else if (record.performance < school.minPerformance) {
       reason = 'The work is not there yet.'
     }
@@ -408,11 +423,11 @@ export function unitOptionsFor(
     if (record.unitId === unit.id) {
       reason = 'Already wearing the tab.'
     } else if (!unit.branches.includes(specialty.branch)) {
-      reason = `${BRANCH_NAMES[specialty.branch]} does not feed this unit.`
+      reason = `${branchName(world, specialty.branch)} does not feed this unit.`
     } else if (unit.feederUnitId !== null && record.unitId !== unit.feederUnitId) {
       reason = `Selection draws from ${specialUnitById(unit.feederUnitId)?.name ?? 'the feeder unit'}.`
     } else if (record.rank < unit.minRank) {
-      reason = `Looks at ${rankTitle(record.branch, unit.minRank)} and above.`
+      reason = `Looks at ${rankTitle(world, record.branch, unit.minRank)} and above.`
     } else if (unit.requiredBadges.some((b) => !badges.includes(b))) {
       reason = `Wants ${unit.requiredBadges.filter((b) => !badges.includes(b)).join(', ')} first.`
     } else if (record.performance < unit.minPerformance) {
@@ -472,9 +487,9 @@ export function boardStandingFor(
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
   const specialty = specialtyById(record.specialtyId)
-  const gates = competitiveGates(specialty, record.rank)
+  const gates = competitiveGates(world, specialty, record.rank)
   if (!gates) return null
-  const targetTitle = rankTitle(record.branch, gates.targetRank)
+  const targetTitle = rankTitle(world, record.branch, gates.targetRank)
   return {
     targetTitle,
     targetRank: gates.targetRank,
@@ -714,7 +729,7 @@ export function enlistPerson(
     decision: 'enlistment',
     significance: 'defining',
     inputs: [...extraInputs, factor('steady-pay', Math.floor(servicePay(specialty.branch, 0) / 1000))],
-    chosen: `enlisted in ${BRANCH_NAMES[specialty.branch]} as a ${specialty.title}`,
+    chosen: `enlisted in ${branchName(world, specialty.branch)} as a ${specialty.title}`,
     rejected: ['civilian life'],
     streamId: Stream.Employment,
   })
@@ -930,7 +945,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
     const served = tick - record.enlistedAtTick
     const ceiling = careerCeilingMonths(
-      BRANCH_GRADES[record.branch as ServiceBranch][record.rank] ?? 9,
+      branchSpecFor(world, record.branch).grades[record.rank] ?? 9,
     )
     if (served >= ceiling) {
       discharge(
@@ -948,7 +963,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 
   const specialty = specialtyById(record.specialtyId)
   const branch = specialty.branch
-  const ladder = BRANCH_RANKS[branch]
+  const ladder = branchSpecFor(world, branch).ranks
   const monthsIn = tick - record.enlistedAtTick
   const schoolDone = 2 + specialty.schoolMonths // basic (~10 weeks) then the trade school
   const deployed = isDeployed(world, person.id)
@@ -981,10 +996,10 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 
   let promotedThisMonth = false
   if (rank < ladder.length - 1) {
-    const competitiveFrom = COMPETITIVE_FROM[branch]
+    const competitiveFrom = branchSpecFor(world, branch).competitiveFrom
     let promote = false
     if (rank + 1 < competitiveFrom) {
-      const due = JUNIOR_TIG_MONTHS[branch][rank] ?? 6
+      const due = branchSpecFor(world, branch).juniorTigMonths[rank] ?? 6
       promote = timeInGrade >= due && performance >= 300
     } else if (!isPlayer) {
       // The board ranks, NPC path: PROMOTION POINTS against the trade's
@@ -992,7 +1007,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // draw stands in for slot timing, not for merit. THE PLAYER never
       // promotes through this branch: their stripes come only through the
       // board question (M-SERVICE-PLAY) — put in for, not received.
-      const gates = competitiveGates(specialty, rank)
+      const gates = competitiveGates(world, specialty, rank)
       if (gates && timeInGrade >= gates.tigNeeded) {
         // Clearly over the cutoff = promoted; the draw lives only near the
         // line (the same rule the player's board follows).
@@ -1008,7 +1023,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       recordEvent(world, tick, {
         type: 'promoted',
         subjectId: person.id,
-        detail: rankTitle(branch, rank),
+        detail: rankTitle(world, branch, rank),
       })
       recordDecision(world, tick, {
         subjectId: person.id,
@@ -1019,7 +1034,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           factor('strong-performance', performance),
           ...(record.qualifications.length > 0 ? [factor('holds-qualification', 400)] : []),
         ],
-        chosen: `made ${rankTitle(branch, rank)}`,
+        chosen: `made ${rankTitle(world, branch, rank)}`,
         rejected: [],
         streamId: Stream.Employment,
       })
@@ -1194,7 +1209,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // grade — a same-tick second 'promotion' record hijacks the Why?, and
     // a put-in dies against its own fresh rankSinceTick. The board waits
     // for a month in grade like the soldier does.
-    const gates = promotedThisMonth ? null : competitiveGates(specialty, rank)
+    const gates = promotedThisMonth ? null : competitiveGates(world, specialty, rank)
     if (gates) {
       // LIVE time in grade, not the value captured at the top of the month
       // (review S4): a bust resets rankSinceTick, and the stale figure asked
@@ -1298,7 +1313,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // not offer another term — player and NPC alike, the army's decision,
   // not a question. The term was served in full, so good conduct is still
   // judged (the grant accepts this discharge).
-  const grade = BRANCH_GRADES[branch][rank] ?? 9
+  const grade = branchSpecFor(world, branch).grades[rank] ?? 9
   if (grade < HYT_BELOW_GRADE && tick - rankSinceTick >= HIGH_YEAR_TENURE_TIG) {
     discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
       factor('time-in-grade', 1000),
@@ -1363,7 +1378,7 @@ export function reenlist(world: World, tick: Tick, person: Person): void {
   const reenlisted = recordEvent(world, tick, {
     type: 'reenlisted',
     subjectId: person.id,
-    detail: rankTitle(record.branch, record.rank),
+    detail: rankTitle(world, record.branch, record.rank),
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
   grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
@@ -1615,7 +1630,7 @@ export function discharge(
     decision: 'enlistment',
     significance: 'major',
     inputs: [...inputs],
-    chosen: `left ${BRANCH_NAMES[specialtyById(record.specialtyId).branch]} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
+    chosen: `left ${branchName(world, specialtyById(record.specialtyId).branch)} after ${Math.max(1, Math.floor((tick - record.enlistedAtTick) / TICKS_PER_YEAR))} years' service`,
     rejected: ['to serve on'],
     streamId,
   })

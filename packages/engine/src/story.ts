@@ -19,8 +19,8 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
-import { BRANCH_NAMES, occupationById, offenceById, specialtyById, specialUnitById } from './content.js'
-import { rankTitle } from './service.js'
+import { occupationById, offenceById, specialtyById, specialUnitById } from './content.js'
+import { branchName, rankTitle } from './service.js'
 import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { spouseOf } from './relationships.js'
@@ -74,7 +74,7 @@ function rankWordsFor(world: World, event: WorldEvent): string {
   const rank = Number.parseInt(event.detail, 10)
   if (!Number.isInteger(rank) || String(rank) !== event.detail) return event.detail
   const record = world.service.get(event.subjectId)
-  return record ? rankTitle(record.branch, rank) : 'promotion'
+  return record ? rankTitle(world, record.branch, rank) : 'promotion'
 }
 
 function describeEvent(world: World, person: Person, event: WorldEvent): string | null {
@@ -605,14 +605,14 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
     case 'enlisted': {
       const record = world.service.get(event.subjectId)
       if (!record) return null
-      return `Signed on at ${String(at(event.tick))} as ${withArticle(specialtyById(record.specialtyId).title)}, ${BRANCH_NAMES[record.branch as never] ?? 'the service'}.`
+      return `Signed on at ${String(at(event.tick))} as ${withArticle(specialtyById(record.specialtyId).title)}, ${branchName(world, record.branch)}.`
     }
 
     case 'discharged': {
       const record = world.service.get(event.subjectId)
       if (!record || record.dischargedAtTick === null) return null
       const years = Math.max(1, Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR))
-      return `${String(years)} year${years === 1 ? '' : 's'} in uniform, finishing as ${rankTitle(record.branch, record.rank)}.`
+      return `${String(years)} year${years === 1 ? '' : 's'} in uniform, finishing as ${rankTitle(world, record.branch, record.rank)}.`
     }
 
     case 'granted-pension': {
@@ -838,7 +838,7 @@ export function personSummary(world: World, personId: EntityId): string {
   const service = world.service.get(personId)
   if (service && service.dischargedAtTick === null) {
     const trade = specialtyById(service.specialtyId).title
-    return `${fullName(person)}, ${age}, ${rankTitle(service.branch, service.rank)} — ${trade}${married}`
+    return `${fullName(person)}, ${age}, ${rankTitle(world, service.branch, service.rank)} — ${trade}${married}`
   }
   if (occupation) return `${fullName(person)}, ${age}, ${occupation}${married}`
   const education = world.education.get(personId)

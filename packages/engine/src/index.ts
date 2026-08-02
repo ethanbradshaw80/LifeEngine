@@ -108,6 +108,8 @@ export type { InjuryContext } from './wounds.js'
 export {
   badgesOf,
   boardStandingFor,
+  branchName,
+  branchSpecFor,
   disciplinaryFileOf,
   enlistmentBar,
   squadmatesOf,
@@ -159,7 +161,7 @@ export {
   grantQualificationBadge,
   grantWoundRecognition,
 } from './awards.js'
-export { BRANCH_NAMES, BRANCH_RANKS, SPECIALTIES, specialtyById } from './content.js'
+export { BRANCH_NAMES, BRANCH_RANKS, CLASSIC_BRANCHES, SPECIALTIES, specialtyById } from './content.js'
 export type { ExposureProfile, ServiceBranch, ServiceSpecialty } from './content.js'
 
 // Deployment (L4-M4)
@@ -269,6 +271,7 @@ export type {
   Town,
   Traits,
   Gazetteer,
+  ServiceBranchSpec,
   NamePool,
   WorldSpec,
   WarPhase,

@@ -89,6 +89,29 @@ export interface Gazetteer {
   readonly bases: readonly string[]
 }
 
+/**
+ * A service branch, as DATA (W1 resistance 3). It was a compile-time union
+ * — `type ServiceBranch = 'land-forces' | ...` — keying five separate
+ * Records in content.ts, which meant a preset could not name its own
+ * services without editing the engine's types. The five tables are one
+ * object now, and the branch a record holds is a plain string id resolved
+ * against the world's spec.
+ */
+export interface ServiceBranchSpec {
+  readonly id: string
+  /** What the branch is called: "the Land Forces". */
+  readonly name: string
+  /** Enlisted ladder, junior to senior. A record stores an INDEX into this. */
+  readonly ranks: readonly string[]
+  /** Pay grade (E-1..E-8) per ladder index. Pay reads the GRADE, not the
+   *  index: two ranks can share a grade, exactly as in life. */
+  readonly grades: readonly number[]
+  /** First ladder index that takes a promotion board; below is time-in-grade. */
+  readonly competitiveFrom: number
+  /** Months in grade before the next JUNIOR promotion, by current rank. */
+  readonly juniorTigMonths: readonly number[]
+}
+
 export interface WorldSpec {
   /** Stable id, recorded in the save header. Never rendered to the player. */
   readonly id: string
@@ -103,6 +126,9 @@ export interface WorldSpec {
    * geopolitics and is not in this list.
    */
   readonly foreignNations: readonly string[]
+  /** The services. Never empty — the engine falls back to the first entry
+   *  when a record names a branch this preset does not have. */
+  readonly branches: readonly ServiceBranchSpec[]
 }
 
 // ---------------------------------------------------------------------------

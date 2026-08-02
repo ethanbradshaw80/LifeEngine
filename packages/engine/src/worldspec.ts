@@ -27,6 +27,7 @@
 import {
   BASE_NAMES,
   CIVIC_NAMES,
+  CLASSIC_BRANCHES,
   NATION_NAMES,
   NEIGHBOURHOOD_NAMES,
   SCHOOL_NAME,
@@ -58,6 +59,7 @@ export const CLASSIC_SPEC: WorldSpec = {
     bases: BASE_NAMES,
   },
   foreignNations: NATION_NAMES,
+  branches: CLASSIC_BRANCHES,
 }
 
 /**

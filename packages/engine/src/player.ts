@@ -62,11 +62,11 @@ import {
   setServiceFitness,
   unitOptionsFor,
   veteranUnlocks,
+  branchName,
 } from './service.js'
 import { MAX_FITNESS_POINTS, schoolById, specialUnitById } from './content.js'
 import { placesOfKind } from './worldgen.js'
 import {
-  BRANCH_NAMES,
   meetsRequirement,
   SERVICE_TERM_MONTHS,
   servicePay,
@@ -1293,7 +1293,7 @@ export function resolvePending(world: World, choice: string): void {
             recordEvent(world, pending.tick, {
               type: 'promoted',
               subjectId: person.id,
-              detail: rankTitle(record.branch, newRank),
+              detail: rankTitle(world, record.branch, newRank),
             })
             recordDecision(world, pending.tick, {
               subjectId: person.id,
@@ -1304,7 +1304,7 @@ export function resolvePending(world: World, choice: string): void {
                 factor('strong-performance', record.performance),
                 factor('time-in-grade', Math.min(1000, standing.timeInGrade * 10)),
               ],
-              chosen: `made ${rankTitle(record.branch, newRank)}`,
+              chosen: `made ${rankTitle(world, record.branch, newRank)}`,
               rejected: [],
               streamId: Stream.Employment,
             })
@@ -1955,7 +1955,7 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chose how to carry the ailment.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
-      const title = record ? rankTitle(record.branch, record.rank) : 'soldier'
+      const title = record ? rankTitle(world, record.branch, record.rank) : 'soldier'
       return `Your term is up, ${title}. Sign for another four years?`
     }
     default: {
@@ -2227,7 +2227,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           sp.civilianUnlocks.length > 0
             ? ` — opens ${sp.civilianUnlocks.map((id) => occupationById(id).title).join(', ')} after the service`
             : ''
-        lines.push(`${sp.title} (${BRANCH_NAMES[sp.branch]}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${unlocks}.`)
+        lines.push(`${sp.title} (${branchName(world, sp.branch)}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${unlocks}.`)
       }
       break
     }
@@ -2236,7 +2236,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const record = world.service.get(pending.personId)
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(record.branch, record.rank)}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank)}, ${formatMoney(record.monthlyPay)} a month.`)
         lines.push(`Leaving keeps the record${specialtyById(record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying is four more years.`)
       }
       break
