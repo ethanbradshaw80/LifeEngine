@@ -25,7 +25,7 @@ import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
-import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
+import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance, creditHousehold } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
   answerSupportDeployment,
@@ -59,6 +59,12 @@ import type { Offence } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
+  termsOfferedTo,
+  optionsOffered,
+  encodeContract,
+  decodeContract,
+  bonusFor,
+  applyReenlistmentOption,
   addServiceQualification,
   applyBoardPromotion,
   assignServiceUnit,
@@ -1274,6 +1280,10 @@ export function resolvePending(world: World, choice: string): void {
   // raised after commit() with the pending slot free.
   let trialNext: string | null = null
   let trialOpens: { offence: Offence; taken: number } | null = null
+  let contractNext: {
+    kind: 'reenlist-term' | 'reenlist-option' | 'service-contract'
+    state: string
+  } | null = null
   if (!pending.options.includes(choice)) {
     throw new Error(`"${choice}" is not one of: ${pending.options.join(', ')}`)
   }
@@ -1613,6 +1623,44 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'reenlist-term': {
+      // §3 → §5. The chosen term decides the bonus, and the bonus decides
+      // whether there is an option worth asking about.
+      const state = decodeContract(pending.occupationId)
+      const years = Number(choice.replace('yr', '')) || state.termYears
+      const record = world.service.get(person.id)
+      const bonus = record === undefined ? 0 : bonusFor(world, record, pending.tick, years)
+      const options = optionsOffered(state.code, bonus)
+      contractNext =
+        options.length === 0
+          ? { kind: 'service-contract', state: encodeContract(state.code, years, 'none', bonus) }
+          : { kind: 'reenlist-option', state: encodeContract(state.code, years, 'none', bonus) }
+      break
+    }
+
+    case 'reenlist-option': {
+      const state = decodeContract(pending.occupationId)
+      contractNext = {
+        kind: 'service-contract',
+        state: encodeContract(state.code, state.termYears, choice, state.bonus),
+      }
+      break
+    }
+
+    case 'service-contract': {
+      // §6b. THE OATH IS WHAT EXECUTES IT. Everything before this was
+      // paperwork; this is the moment the contract becomes a fact.
+      const state = decodeContract(pending.occupationId)
+      if (state.code === 'enlist') break // the first term already began
+      reenlistService(world, pending.tick, person, state.termYears * 12)
+      applyReenlistmentOption(world, pending.tick, person, state.option)
+      // The money is moved here, where the ledger is reachable.
+      if (state.option === 'bonus' && state.bonus > 0 && person.householdId !== null) {
+        creditHousehold(world, pending.tick, person.householdId, state.bonus)
+      }
+      break
+    }
+
     case 'trial': {
       // The next scene is raised AFTER commit — raisePending refuses while
       // this one still holds the slot, which is the trap this file has now
@@ -1827,14 +1875,28 @@ export function resolvePending(world: World, choice: string): void {
     case 'reenlist': {
       const record = world.service.get(person.id)
       if (record && record.dischargedAtTick === null) {
-        if (choice === 'stay') {
-          reenlistService(world, pending.tick, person)
+        if (choice === 'reenlist' || choice === 'stay') {
+          // §1. THE ANSWER OPENS THE CONTRACT rather than signing it. Term,
+          // then option, then the oath — and the oath is what executes it.
+          const terms = termsOfferedTo(world, person, pending.tick)
+          contractNext =
+            terms.length === 0
+              ? null
+              : {
+                  kind: 'reenlist-term',
+                  state: encodeContract(
+                    pending.occupationId ?? 'RE-1',
+                    terms[terms.length - 1] ?? 4,
+                    'none',
+                    0,
+                  ),
+                }
           recordDecision(world, pending.tick, {
             subjectId: person.id,
             decision: 'enlistment',
             significance: 'major',
             inputs: [factor('own-choice', 1000), factor('steady-pay', Math.floor(record.monthlyPay / 1000))],
-            chosen: 'signed for another term',
+            chosen: 'agreed to sign again',
             rejected: ['to leave the service'],
             streamId: Stream.Employment,
           })
@@ -1962,6 +2024,31 @@ export function resolvePending(world: World, choice: string): void {
     openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
   }
 
+  // The reenlistment chain, with the slot free — term, then option, then
+  // the contract itself.
+  if (contractNext !== null) {
+    const options =
+      contractNext.kind === 'reenlist-term'
+        ? termsOfferedTo(world, person, pending.tick).map((y) => `${String(y)}yr`)
+        : contractNext.kind === 'reenlist-option'
+        ? optionsOffered(
+            decodeContract(contractNext.state).code,
+            decodeContract(contractNext.state).bonus,
+          )
+        : ['take-the-oath']
+    raisePending(world, {
+      tick: pending.tick,
+      kind: contractNext.kind,
+      personId: person.id,
+      otherId: null,
+      occupationId: contractNext.state,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: [...options],
+    })
+  }
+
   // The trial's next scene, with the slot free.
   if (trialNext !== null) {
     const showing = caseSceneOf(world, person.id, trialNext, pending.tick)
@@ -1999,7 +2086,11 @@ export function resolvePending(world: World, choice: string): void {
   }
   // P2: signing again asks the trade question too — keep the specialty, or
   // retrain into another the schooling admits.
-  if (pending.kind === 'reenlist' && choice === 'stay') {
+  // THE TRADE QUESTION COMES AFTER THE OATH, not after the intention. The
+  // contract chain sits between them now, and asking which trade somebody
+  // wants before they have chosen a term would be asking about a career
+  // they have not signed for yet.
+  if (pending.kind === 'service-contract' && decodeContract(pending.occupationId).code !== 'enlist') {
     askRetrain(world, pending.tick, person.id)
   }
 }
@@ -2310,6 +2401,27 @@ export function describePending(world: World, pending: PendingDecision): string 
     }
     case 'unit-moment':
       return unitMomentById(momentIdOf(pending.occupationId))?.tell ?? 'The unit has something to say to you.'
+
+    case 'reenlist-term': {
+      const state = decodeContract(pending.occupationId)
+      return state.code === 'RE-3'
+        ? 'The waiver came through. The service will write you two more years — that is the offer, and there is not another one.'
+        : 'How long do you want to sign for? A longer contract pays more and holds you longer.'
+    }
+
+    case 'reenlist-option': {
+      const state = decodeContract(pending.occupationId)
+      return state.bonus > 0
+        ? `Your trade is short, so there is money on the table — ${formatMoney(state.bonus as Money)} — or you can take something that is not money.`
+        : 'There is no bonus for your trade, but the service will still bargain: a school, or a promise about where you live.'
+    }
+
+    case 'service-contract': {
+      const state = decodeContract(pending.occupationId)
+      return state.code === 'enlist'
+        ? 'The contract is drawn. Raise your right hand.'
+        : `${String(state.termYears)} more years. The contract is drawn — raise your right hand.`
+    }
 
     case 'trial': {
       const showing = caseSceneOf(world, pending.personId, pending.occupationId, pending.tick)

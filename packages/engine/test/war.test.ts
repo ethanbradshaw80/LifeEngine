@@ -419,7 +419,7 @@ describe('orders, and the right to refuse them', () => {
         // 'accept' — that says yes to a volunteer tour, which is how this
         // test first found its soldier three deployments deep before the
         // order it was waiting for ever arrived.
-        const keepServing = options.find((o) => o === 'stay')
+        const keepServing = options.find((o) => o === 'reenlist' || o === 'stay')
         resolvePending(world, keepServing ?? options[options.length - 1] ?? 'decline')
         continue
       }

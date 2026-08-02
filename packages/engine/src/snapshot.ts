@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v71 — REENLISTMENT IS EARNED, CHOSEN AND PAID FOR. An eligibility code
+ *      the service decides (a barred file separates whatever the person
+ *      wants), a term the player picks, a bonus when the trade is short,
+ *      an option that is not always money, and indefinite service past
+ *      senior NCO. Terms are no longer a constant, so every career differs
+ *      from v70.
  * v70 — A KILLING WOUND HAS TO BE ONE THAT KILLS, and an officer is
  *      promoted at an officer's pace. The fatal draw used the whole injury
  *      catalogue, so people died of blown-out hearing; and the officer
@@ -456,7 +462,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 70
+export const SIMULATION_VERSION = 71
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

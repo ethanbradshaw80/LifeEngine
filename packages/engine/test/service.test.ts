@@ -295,7 +295,9 @@ describe('the player in uniform', () => {
     }
     expect(world.player.pending?.kind).toBe('reenlist')
 
-    resolvePending(world, 'leave')
+    // The window's answers are 'reenlist' or 'separate' now — the contract
+    // flow replaced stay/leave.
+    resolvePending(world, 'separate')
     expect(isServing(world, teen.id)).toBe(false)
     expect(isVeteran(world, teen.id)).toBe(true)
 

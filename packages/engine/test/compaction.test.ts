@@ -47,9 +47,17 @@ describe('compaction', () => {
     // THE TEXTURE GOES. Nobody dead a century still carries the month they
     // made a friend or took a pay rise.
     const oldest = longDead.filter((p) => world.tick - (p.deathTick ?? 0) > 1_200)
+    // A SHARED EVENT NEEDS BOTH PARTIES GONE, which is compaction's own
+    // rule and which this assertion did not honour: "became friends with"
+    // is on the friend's page too, and the friend may be alive or only
+    // recently dead. Only the events belonging to the long dead ALONE are
+    // the ones the texture rule covers.
+    const longGone = (id: number | null): boolean =>
+      id === null || oldest.some((p) => p.id === id) || world.people.get(id as never) === undefined
     const dropped = world.events.filter(
       (e) =>
         oldest.some((p) => p.id === e.subjectId) &&
+        longGone(e.otherId) &&
         (e.type === 'befriended' || e.type === 'got-raise' || e.type === 'friendship-lapsed'),
     )
     expect(dropped.length, 'the ordinary months of the long dead are still here').toBe(0)

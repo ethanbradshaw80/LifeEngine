@@ -22,7 +22,7 @@
  * and finances READ them.
  */
 
-import type { EntityId, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { eventsFor } from './eventindex.js'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import {
@@ -78,6 +78,14 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, Stream, type StreamId } from './rng.js'
 import type { CausalFactor, Person, Place, World } from './types.js'
+import {
+  optionsFor,
+  reenlistEligibility,
+  servesIndefinitely,
+  srbFor,
+  STABILITY_MONTHS,
+} from './reenlistment.js'
+import type { Eligibility, ReenlistmentOption } from './reenlistment.js'
 import { placesOfKind } from './worldgen.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -1724,17 +1732,50 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
 
   // Term's end. The player signs or leaves; an NPC's retention is a weighing
   // of the same things (rank earned, other doors), resolved by their own roll.
+  // §7. INDEFINITE. Past senior NCO the contract stops being a contract:
+  // they serve until retirement, high-year tenure or age, and asking a
+  // first sergeant every four years whether he would like to stay is the
+  // kind of prompt that teaches a player to stop reading them.
+  if (record.indefinite === true) {
+    world.service.set(person.id, {
+      ...record,
+      termMonthsLeft: record.termMonths ?? SERVICE_TERM_MONTHS,
+      termPerformanceSum: 0,
+    })
+    return
+  }
+
+  // §2. THE SERVICE DECIDES FIRST. Reenlistment is earned: a barred file
+  // separates at the end of term whatever the person wants, and that is
+  // not the player's choice to make.
+  const eligibility = eligibilityOf(world, person, record, tick)
+  if (eligibility.code === 'RE-4') {
+    recordEvent(world, tick, {
+      type: 'barred-from-reenlistment',
+      subjectId: person.id,
+      detail: eligibility.reason,
+    })
+    discharge(world, tick, person, record, 'end of term', [factor('time-in-grade', 600)])
+    return
+  }
+
   if (person.id === world.player.personId) {
     const landed = raisePending(world, {
       tick,
       kind: 'reenlist',
       personId: person.id,
       otherId: null,
-      occupationId: null,
+      // The RE code travels so the scene can say what the door is.
+      occupationId: eligibility.code,
       workplaceId: null,
       monthlyPay: servicePayOn(branchSpecFor(world, branch), rank),
       placeId: null,
-      options: ['stay', 'leave'],
+      // §8. At twenty years the fork is not stay-or-go, it is another term
+      // or a pension — and the player should be told that is what it is.
+      options:
+        Math.floor((tick - record.enlistedAtTick) / 12) >= 20
+          ? ['reenlist', 'retire']
+          : ['reenlist', 'separate'],
     })
     if (landed) {
       // The clock halts on the pending; the term is settled by the answer.
@@ -1766,15 +1807,153 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   }
 }
 
-export function reenlist(world: World, tick: Tick, person: Person): void {
+/**
+ * §2. What the service will do about another term, read from what the
+ * world already records: the evaluation, the orderly room, the courthouse
+ * and the clock.
+ */
+export function eligibilityOf(
+  world: World,
+  person: Person,
+  record: ServiceRecordT,
+  tick: Tick,
+): Eligibility {
+  const strikes = eventsFor(world, person.id).filter(
+    (e) => e.type === 'disciplined' && tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
+  ).length
+  const criminal = world.criminal.get(person.id)
+  const hasCriminalGate =
+    criminal !== undefined &&
+    criminal.convictions.some((c) => {
+      if (c.sealed === true) return false
+      const offence = offenceById(c.kind)
+      const years = Math.floor((tick - c.tick) / 12)
+      if (offence !== undefined && (offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade)))) {
+        return true
+      }
+      return years < (offence !== undefined && isFelony(offence.grade) ? 10 : 3)
+    })
+  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 1
+  return reenlistEligibility(record, {
+    strikes,
+    hasCriminalGate,
+    // High-year tenure: the up-or-out rule the career already models.
+    // The same up-or-out rule the career already models, asked here as
+    // the reason the service will not write another contract.
+    hitHighYearTenure: grade < HYT_BELOW_GRADE && tick - record.rankSinceTick >= HIGH_YEAR_TENURE_TIG,
+    age: ageAt(person.birthTick, tick),
+  })
+}
+
+/** What this reenlistment would pay, if anything. */
+export function bonusFor(world: World, record: ServiceRecordT, tick: Tick, termYears: number): Money {
+  const specialty = specialtyFor(world, record.specialtyId)
+  const years = Math.floor((tick - record.enlistedAtTick) / 12)
+  return srbFor(specialty, years, termYears, record.monthlyPay)
+}
+
+/**
+ * The contract's state, carried on the pendings that build it:
+ * "code|termYears|option|bonus".
+ */
+export function encodeContract(
+  code: string,
+  termYears: number,
+  option: string,
+  bonus: number,
+): string {
+  return `${code}|${String(termYears)}|${option}|${String(bonus)}`
+}
+
+export function decodeContract(encoded: string | null): {
+  code: string
+  termYears: number
+  option: ReenlistmentOption | 'none'
+  bonus: number
+} {
+  const parts = (encoded ?? '').split('|')
+  const option = parts[2] ?? 'none'
+  return {
+    code: parts[0] ?? 'RE-1',
+    termYears: Number(parts[1] ?? '4'),
+    option:
+      option === 'bonus' || option === 'school' || option === 'stability' ? option : 'none',
+    bonus: Number(parts[3] ?? '0'),
+  }
+}
+
+/** §3. The terms the service will write for this file. */
+export function termsOfferedTo(world: World, person: Person, tick: Tick): readonly number[] {
+  const record = world.service.get(person.id)
+  if (!record) return []
+  return eligibilityOf(world, person, record, tick).terms
+}
+
+/** §5. The options on this contract, given what it pays. */
+export function optionsOffered(code: string, bonus: number): readonly ReenlistmentOption[] {
+  return optionsFor(code === 'RE-3' ? 'RE-3' : 'RE-1', bonus as Money)
+}
+
+/**
+ * §5. Apply what they chose. The money moves through the household ledger
+ * like every other sum in this game; the school and the stabilization are
+ * promises the rest of the engine already knows how to keep.
+ */
+export function applyReenlistmentOption(
+  world: World,
+  tick: Tick,
+  person: Person,
+  option: ReenlistmentOption | 'none',
+): void {
+  const record = world.service.get(person.id)
+  if (!record) return
+  // THE MONEY IS THE CALLER'S TO MOVE. finances.ts already imports this
+  // module for service pay, so reaching back into it from here would close
+  // a cycle the import ratchet exists to prevent. The caller has the
+  // ledger; this function has the decision.
+  if (option === 'bonus') return
+  if (option === 'stability') {
+    // No involuntary orders for two years. The deployment system reads it.
+    world.service.set(person.id, {
+      ...record,
+      stabilizedUntilTick: (tick + STABILITY_MONTHS) as Tick,
+    })
+    return
+  }
+  if (option === 'school') {
+    // A guaranteed seat at the best school currently open to them — the
+    // thing they would otherwise have had to compete for.
+    const open = schoolOptionsFor(world, person.id).filter((o) => o.open)
+    const pick = open[open.length - 1]
+    if (pick !== undefined) {
+      const school = world.spec.schools.find((sc) => sc.id === pick.id)
+      if (school !== undefined) {
+        world.service.set(world.service.get(person.id)!.personId, {
+          ...world.service.get(person.id)!,
+          schoolId: school.id,
+          schoolStartsAtTick: nextClassTick(school, tick),
+        })
+      }
+    }
+  }
+}
+
+export function reenlist(world: World, tick: Tick, person: Person, termMonths?: number): void {
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return
   // Judge the closing term BEFORE the ledger resets for the next one.
   const termAverage = termAveragePerformance(record)
+  // §3. THE TERM IS CHOSEN, not a constant. A record without one ran the
+  // old fixed contract, and reading it as such is the truth about it.
+  const chosen = termMonths ?? record.termMonths ?? SERVICE_TERM_MONTHS
+  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 1
   world.service.set(person.id, {
     ...record,
-    termMonthsLeft: SERVICE_TERM_MONTHS,
+    termMonthsLeft: chosen,
+    termMonths: chosen,
     termPerformanceSum: 0,
+    // §7. Past this grade the question stops being asked at all.
+    indefinite: servesIndefinitely(grade),
   })
   const reenlisted = recordEvent(world, tick, {
     type: 'reenlisted',

@@ -616,7 +616,19 @@ describe('requestDischarge / retrain', () => {
       guard++
     }
     expect(world.player.pending?.kind).toBe('reenlist')
-    resolvePending(world, 'stay')
+    // C3-era reenlistment is a CHAIN: agree, choose a term, choose an
+    // option where one is offered, then take the oath. Driving it end to
+    // end is what a player does.
+    resolvePending(world, 'reenlist')
+    while (
+      world.player.pending !== null &&
+      (world.player.pending.kind === 'reenlist-term' ||
+        world.player.pending.kind === 'reenlist-option' ||
+        world.player.pending.kind === 'service-contract')
+    ) {
+      const options = world.player.pending.options
+      resolvePending(world, options[0] ?? 'take-the-oath')
+    }
 
     const followUp = world.player.pending
     if (followUp === null) {

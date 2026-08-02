@@ -575,6 +575,19 @@ export interface ServiceRecord {
    * that is the truth about it rather than a default.
    */
   readonly commissioned?: boolean
+  /**
+   * The CHOSEN length of the current contract, in months. A term used to be
+   * a constant, so every enlistment in every life was forty-eight months
+   * long; the owner's reenlistment spec makes it a decision.
+   *
+   * Optional: a record written before terms were chosen ran the constant,
+   * and reading it as such is the truth about it.
+   */
+  readonly termMonths?: number
+  /** No involuntary orders until this tick — the stability option. */
+  readonly stabilizedUntilTick?: Tick | null
+  /** Past this point the service stops asking: senior NCOs serve on. */
+  readonly indefinite?: boolean
   readonly unitId: string | null
   /**
    * When they joined it. Months in the UNIT is not months enlisted — eight
@@ -1014,6 +1027,9 @@ export type PendingKind =
   | 'combat-moment'
   | 'unit-moment'
   | 'crime-victim'
+  | 'reenlist-term'
+  | 'reenlist-option'
+  | 'service-contract'
   | 'trial'
   | 'deployment-order'
   /** P2. The foreman has noticed the work slipping — the modelled dismissal
@@ -1199,6 +1215,7 @@ export type EventType =
   | 'took-plea-deal'
   | 'was-assaulted'
   | 'escalated-charge'
+  | 'barred-from-reenlistment'
   | 'placed-on-probation'
   | 'completed-probation'
   | 'violated-probation'
