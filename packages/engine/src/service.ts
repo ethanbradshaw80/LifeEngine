@@ -444,9 +444,11 @@ export function lastUnitRosterOf(world: World, personId: EntityId): UnitRoster |
  * adjutant — and every one of these is a full simulated person who can
  * later be any of those.
  *
- * Empty for a brand-new recruit, who has no unit yet. That is the right
- * answer rather than a gap: the ceremony becomes personal only once you
- * have actually served beside somebody, which is how it works.
+ * Empty only where the posting genuinely holds nobody senior — a small town
+ * whose station has one soldier on it. A recruit is posted the day they
+ * sign, so in a working world they usually DO have somebody to choose, and
+ * that is right: you are sworn in by whoever is there, and the first name
+ * on your record is a person rather than a form.
  */
 export function oathAdministratorsFor(world: World, personId: EntityId): readonly RosterMember[] {
   const record = activeRecord(world, personId)

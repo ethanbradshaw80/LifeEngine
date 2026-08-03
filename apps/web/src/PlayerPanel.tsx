@@ -247,7 +247,16 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   enlist: { accept: 'Enlist', decline: 'Not for me' },
   // Not a medal glyph: a decoration is earned, and this is a job choice.
   commission: { officer: '📜 Take the commission', enlisted: '🪖 Sign as enlisted' },
-  reenlist: { stay: 'Sign again', leave: 'Come home' },
+  // The ids the ENGINE offers. These said 'stay'/'leave' long after the
+  // engine moved to reenlist/separate, so the buttons rendered as their raw
+  // ids — the player was reading "reenlist" and "separate" as labels.
+  reenlist: {
+    reenlist: '✍️ Sign on again',
+    separate: '🏠 Come home',
+    retire: '🎖️ Retire on the pension',
+    stay: '✍️ Sign again',
+    leave: '🏠 Come home',
+  },
   // ADR-0022 §5. The three answers to an order, in the order of what
   // they cost: nothing, a little, and a career.
   'deployment-order': {
@@ -376,6 +385,15 @@ interface PromptProps {
 }
 
 export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
+  // §6. WHO IS SWEARING YOU IN, once it has been picked.
+  //
+  // Found by playing: the contract named the drawn adjutant while the button
+  // the player pressed named a real sergeant, so the paper and the ceremony
+  // disagreed about who was standing there. The name is chosen FIRST now and
+  // the document is redrawn with it, which is also the right order — you
+  // sign in front of somebody, not before knowing who.
+  const [oathBy, setOathBy] = useState<number | null>(null)
+
   // The stakes come from the engine — the same facts the records will cite.
   const stakes = describeStakes(world, pending)
 
@@ -483,7 +501,12 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       pending.tick,
       pending.personId,
       state.code === 'enlist' ? 'enlistment' : 'reenlistment',
-      { termYears: state.termYears, option: state.option, bonus: state.bonus as Money },
+      {
+        termYears: state.termYears,
+        option: state.option,
+        bonus: state.bonus as Money,
+        administratorId: oathBy as EntityId | null,
+      },
     )
     if (contract) {
       // §6. THE CEREMONY. Where the unit has people senior to you, the
@@ -499,15 +522,33 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
                   Raise Your Right Hand — Take the Oath
                 </button>
               </div>
-            ) : (
+            ) : oathBy === null ? (
               <div className="contract-ceremony">
                 <p className="muted small">Who administers the oath?</p>
                 <div className="contract-actions">
                   {byPerson.map((option) => (
-                    <button key={option} type="button" onClick={() => onChoose(option)}>
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setOathBy(Number(option.slice(3)))}
+                    >
                       {oathLabel(world, option)}
                     </button>
                   ))}
+                </div>
+              </div>
+            ) : (
+              <div className="contract-ceremony">
+                <p className="muted small">
+                  {oathLabel(world, `by-${String(oathBy)}`)} will administer it.
+                </p>
+                <div className="contract-actions">
+                  <button type="button" onClick={() => onChoose(`by-${String(oathBy)}`)}>
+                    Raise Your Right Hand — Take the Oath
+                  </button>
+                  <button type="button" className="ghost" onClick={() => setOathBy(null)}>
+                    Someone else
+                  </button>
                 </div>
               </div>
             )}

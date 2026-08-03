@@ -438,12 +438,26 @@ footer {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
+  /* NOT align-items: center. The document dialogs — the contract, the
+     DD-214, the orders, the crime card — are as tall as they need to be and
+     are not `.sheet`, so centring them clipped the top AND the bottom with
+     nothing to scroll (owner: "UI at the bottom is cut off on some popups
+     from contracts and stuff"). Flex-start plus `margin: auto` on the child
+     centres anything that fits and lets anything that does not scroll. */
+  align-items: flex-start;
   justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1rem;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   backdrop-filter: blur(2px);
   z-index: 10;
+}
+
+/* Centres when there is room; sits at the top and scrolls when there is not. */
+.overlay > * {
+  margin: auto;
+  flex-shrink: 0;
 }
 
 .sheet {

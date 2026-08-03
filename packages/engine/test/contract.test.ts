@@ -243,14 +243,15 @@ describe('the contract document', () => {
     return other.id
   }
 
-  it('§6: a first enlistment has nobody to swear it, and a posting does', () => {
+  it('§6: an empty posting has nobody to swear it, and a manned one does', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
     resolvePending(world, walkIn.id)
 
-    // A recruit's posting holds nobody senior yet, so the ceremony is the
-    // plain button. That is the right answer rather than a gap: it becomes
-    // personal once there are people to choose between.
+    // This world's station holds nobody else, so the ceremony is the plain
+    // button — the honest answer when there is no one to choose between.
+    // (In a populated world a recruit usually DOES have someone: they are
+    // posted the day they sign. Playing it confirmed that.)
     expect(oathAdministratorsFor(world, personId)).toEqual([])
     expect(world.player.pending?.options).toEqual(['take-the-oath'])
     resolvePending(world, 'take-the-oath')
