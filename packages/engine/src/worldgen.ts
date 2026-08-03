@@ -21,7 +21,7 @@ import type {
   World,
 } from './types.js'
 import { relationshipKey } from './types.js'
-import { foundingSavings } from './finances.js'
+import { foundingSavings, seedFoundingAccounts } from './finances.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
 import { CLASSIC_SPEC } from './worldspec.js'
@@ -144,6 +144,7 @@ export function createWorld(
     places: new Map(),
     people: new Map(),
     households: new Map(),
+    accounts: new Map(),
     education: new Map(),
     employment: new Map(),
     health: new Map(),
@@ -259,11 +260,12 @@ export function createWorld(
   // Founding savings: unequal by design (Law 10). Employment has not started
   // yet, so this is the fallback range in foundingSavings — a family may
   // start with a few hundred dollars or a couple of thousand.
+  //
+  // M-ECON §1: it goes to the ADULTS, because that is where money lives now.
+  // The household itself starts square with the world and only goes negative
+  // if it fails to meet a month.
   for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
-    world.households.set(household.id, {
-      ...household,
-      savings: foundingSavings(world, household),
-    })
+    seedFoundingAccounts(world, household, foundingSavings(world, household))
   }
 
   // L4-M3: the Republic's installations — allocated AFTER the founding

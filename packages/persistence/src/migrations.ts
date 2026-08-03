@@ -809,7 +809,93 @@ const V26_TO_V27: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27]
+/**
+ * M-ECON §1. THE POT BECOMES PEOPLE'S MONEY.
+ *
+ * Every household held one balance and every wage went into it. Now each
+ * person holds their own accounts and the household keeps only its shared
+ * obligations, so an existing save has to be told whose money that was.
+ *
+ * A POSITIVE balance is SPLIT AMONG THE ADULTS who live there, evenly, with
+ * the remainder to the eldest — it was earned by the people under that roof
+ * and there is no record of who earned which part, so an even split is the
+ * one answer that invents nothing. A household of children keeps it as a
+ * shared balance rather than handing a bank account to a six-year-old.
+ *
+ * A NEGATIVE balance STAYS ON THE HOUSEHOLD, because that is exactly what
+ * the new field means: arrears are the roof's, not any one person's, and
+ * every consequence that reads them — the forced move, the marriage strain —
+ * keeps working untouched.
+ */
+const V27_TO_V28: Migration = {
+  from: 27,
+  to: 28,
+  describe: 'split the household pot into personal accounts',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const households = Array.isArray(world['households']) ? world['households'] : []
+    const people = Array.isArray(world['people']) ? world['people'] : []
+    const tick = typeof world['tick'] === 'number' ? world['tick'] : 0
+
+    const bornAt = new Map<number, number>()
+    for (const entry of people) {
+      const person = requireObject(entry, 'save.world.people[]')
+      const id = typeof person['id'] === 'number' ? person['id'] : -1
+      const birth = typeof person['birthTick'] === 'number' ? person['birthTick'] : 0
+      const dead = person['deathTick'] !== null && person['deathTick'] !== undefined
+      if (id >= 0 && !dead) bornAt.set(id, birth)
+    }
+
+    const accounts: Record<string, unknown>[] = []
+    const rewritten = households.map((entry) => {
+      const household = requireObject(entry, 'save.world.households[]')
+      const savings = typeof household['savings'] === 'number' ? household['savings'] : 0
+      const memberIds = Array.isArray(household['memberIds']) ? household['memberIds'] : []
+      if (savings <= 0) return household
+
+      // Adults only, ELDEST FIRST — the remainder goes to them, so the
+      // order has to be the one the comment claims. Birth tick, then id, so
+      // it is reproducible.
+      const adults = memberIds
+        .filter((id): id is number => typeof id === 'number')
+        .filter((id) => {
+          const birth = bornAt.get(id)
+          return birth !== undefined && Math.floor((tick - birth) / 12) >= 18
+        })
+        .sort((a, b) => (bornAt.get(a) ?? 0) - (bornAt.get(b) ?? 0) || a - b)
+      if (adults.length === 0) return household
+
+      const share = Math.floor(savings / adults.length)
+      let remainder = savings - share * adults.length
+      for (const id of adults) {
+        // The eldest is first in this order and carries the odd cents.
+        const extra = remainder
+        remainder = 0
+        accounts.push({
+          personId: id,
+          checking: share + extra,
+          savings: 0,
+          brokerage: 0,
+          retirement: 0,
+        })
+      }
+      return { ...household, savings: 0 }
+    })
+
+    // The world changed, so the checksum is recomputed over it — every
+    // migration that rewrites data does this, and the load path verifies it
+    // AFTER migrating.
+    const nextWorld = { ...world, households: rewritten, accounts }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 28, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

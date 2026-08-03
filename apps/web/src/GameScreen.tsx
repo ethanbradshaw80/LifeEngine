@@ -82,6 +82,7 @@ import {
   schoolOptionsFor,
   servicePayOf,
   annualPay,
+  netWorthOf,
   specialtyFor,
   specialtyTitleFor,
   unitFor,
@@ -694,8 +695,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {/* Money is household-level and nobody under 18 works; a child's
               chip says whose pot this actually is (owner feedback). */}
           <span className="stat-label">{age < 18 ? 'Family money' : 'Money'}</span>
+          {/* M-ECON §1: YOUR money, not the roof's. The household balance is
+              obligations now and only ever shows what is owed. */}
           <span className={household && household.savings < 0 ? 'stat-value bad' : 'stat-value'}>
-            {household ? formatMoney(household.savings) : '—'}
+            {formatMoney(netWorthOf(world, person.id))}
           </span>
           {household && (
             <span className={monthlyNet < 0 ? 'stat-sub bad' : 'stat-sub'}>

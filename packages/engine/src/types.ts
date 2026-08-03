@@ -353,6 +353,35 @@ export interface Town {
 // Households
 // ---------------------------------------------------------------------------
 
+/**
+ * ONE PERSON'S MONEY (M-ECON §1).
+ *
+ * Every person holds their own accounts. Pay lands in checking; what they
+ * choose to put by sits in savings; the two investment accounts arrive with
+ * the market and are zero until then.
+ *
+ * WHAT THIS REPLACES: a single pot per roof, into which every wage went and
+ * out of which everything was paid — so a working adult's money was not
+ * theirs, an inheritance came from a house rather than from a person, and
+ * there was nowhere for a personal surplus to exist. The household keeps
+ * its SHARED OBLIGATIONS (rent and living costs), funded from the people
+ * who live there; what is left over stays with whoever earned it.
+ *
+ * Integer cents throughout (ADR-0008). Absent from the map means zero: a
+ * newborn has no accounts until money reaches them, and reading is total.
+ */
+export interface Accounts {
+  readonly personId: EntityId
+  /** Pay lands here; the household's call on it is met from here. */
+  readonly checking: Money
+  /** What they have deliberately put by. Earns interest once rates exist. */
+  readonly savings: Money
+  /** M-ECON §5, zero until the market exists. */
+  readonly brokerage: Money
+  /** M-ECON §5, tax-advantaged, zero until the market exists. */
+  readonly retirement: Money
+}
+
 export interface Household {
   readonly id: EntityId
   readonly placeId: EntityId
@@ -361,10 +390,16 @@ export interface Household {
   /** Null while active. */
   readonly dissolvedTick: Tick | null
   /**
-   * The household's money, in integer cents (ADR-0008). One pot per roof:
-   * wages come in, rent and living costs go out, monthly, in the finances
-   * system — the single writer of this field. Negative means arrears, which
-   * has consequences; it is not clamped away.
+   * The household's SHARED OBLIGATIONS balance, in integer cents (ADR-0008).
+   *
+   * No longer the family pot (M-ECON §1). Rent and living costs are paid
+   * from here, and the people who live here fund it from their own checking
+   * in proportion to what they earn. In a month that is met it returns to
+   * zero; NEGATIVE MEANS ARREARS, which has consequences and is not clamped
+   * away. A surplus never accumulates here — it stays with whoever earned
+   * it, which is the whole point of the split.
+   *
+   * finances.ts remains the single writer.
    */
   readonly savings: Money
   /**
@@ -1463,6 +1498,8 @@ export interface World {
   readonly places: Map<EntityId, Place>
   readonly people: Map<EntityId, Person>
   readonly households: Map<EntityId, Household>
+  /** M-ECON §1: every person's own money. Absent means zero. */
+  readonly accounts: Map<EntityId, Accounts>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */

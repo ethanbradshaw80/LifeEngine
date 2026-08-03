@@ -9,6 +9,7 @@
 
 import { generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
 import type {
+  Accounts,
   AwardRecord,
   CausalRecord,
   CriminalRecord,
@@ -172,6 +173,11 @@ function hydrate(
   const households = new Map<EntityId, Household>()
   for (const household of body['households'] as Household[]) households.set(household.id, household)
 
+  const accounts = new Map<EntityId, Accounts>()
+  for (const record of (body['accounts'] as Accounts[] | undefined) ?? []) {
+    accounts.set(record.personId, record)
+  }
+
   const education = new Map<EntityId, EducationRecord>()
   for (const record of body['education'] as EducationRecord[]) education.set(record.personId, record)
 
@@ -231,6 +237,7 @@ function hydrate(
     places,
     people,
     households,
+    accounts,
     education,
     employment,
     relationships,

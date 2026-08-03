@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { criminalRecordOf, hasRecentConviction, isJailed, gateStrengthOf } from '../src/crime.js'
-import { transferBetweenHouseholds } from '../src/finances.js'
+import { householdWealth, transferBetweenHouseholds } from '../src/finances.js'
 import { advanceTicks, createWorld, enlistmentBar } from '../src/index.js'
 import { worldHashHex } from '../src/snapshot.js'
 import { livingPeople } from '../src/systems.js'
@@ -26,22 +26,25 @@ function grownWorld(ticks = 600): World {
 
 describe('the money', () => {
   it('moves to the cent, and never conjures', () => {
+    // M-ECON §1: a theft moves PEOPLE'S money, so conservation is checked
+    // across what the people under each roof hold.
     const world = createWorld(makeSeed(12345), 100)
-    const households = [...world.households.values()].filter((h) => h.savings > 50_000)
+    const households = [...world.households.values()].filter(
+      (h) => householdWealth(world, h) > 50_000,
+    )
     const [a, b] = households
     if (!a || !b) throw new Error('a poor town')
-    const totalBefore = a.savings + b.savings
+    const totalBefore = householdWealth(world, a) + householdWealth(world, b)
 
     const moved = transferBetweenHouseholds(world, world.tick, a.id, b.id, 30_000)
     expect(moved).toBe(30_000)
-    const a2 = world.households.get(a.id)
-    const b2 = world.households.get(b.id)
-    expect((a2?.savings ?? 0) + (b2?.savings ?? 0)).toBe(totalBefore)
+    expect(householdWealth(world, a) + householdWealth(world, b)).toBe(totalBefore)
 
-    // Clamped to what the source holds above zero: no negative theft.
+    // Clamped to what the source actually holds: no negative theft.
+    const left = householdWealth(world, a)
     const drained = transferBetweenHouseholds(world, world.tick, a.id, b.id, 99_999_999)
-    expect(drained).toBe(a2?.savings ?? 0)
-    expect(world.households.get(a.id)?.savings).toBe(0)
+    expect(drained).toBe(left)
+    expect(householdWealth(world, a)).toBe(0)
   })
 })
 

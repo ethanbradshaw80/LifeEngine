@@ -30,7 +30,7 @@ import {
   monthlyNetOf,
   rentFor,
 } from '../src/index.js'
-import { distributeEstate } from '../src/finances.js'
+import { distributeEstate, netWorthOf } from '../src/finances.js'
 import type { World } from '../src/types.js'
 
 function build(seedValue = 12345, ticks = 0): World {
@@ -40,17 +40,24 @@ function build(seedValue = 12345, ticks = 0): World {
 }
 
 describe('the ledger', () => {
-  it('gives every founding household a starting balance', () => {
+  // M-ECON §1: the money is the PEOPLE'S now. The household holds only what
+  // it owes, so these read the founders' own accounts.
+  it('gives the founding adults a starting balance', () => {
     const world = build()
-    for (const household of world.households.values()) {
-      expect(household.savings).toBeGreaterThan(0)
-      expect(Number.isInteger(household.savings)).toBe(true)
+    let withMoney = 0
+    for (const person of world.people.values()) {
+      const worth = netWorthOf(world, person.id)
+      expect(Number.isInteger(worth)).toBe(true)
+      if (worth > 0) withMoney++
     }
+    expect(withMoney).toBeGreaterThan(0)
   })
 
   it('starts households unequal, as Law 10 requires', () => {
     const world = build()
-    const balances = [...world.households.values()].map((h) => h.savings)
+    const balances = [...world.households.values()].map((h) =>
+      h.memberIds.reduce((sum, id) => sum + netWorthOf(world, id), 0),
+    )
     expect(new Set(balances).size).toBeGreaterThan(3)
   })
 
@@ -61,20 +68,17 @@ describe('the ledger', () => {
     }
   })
 
-  it('moves the balance by exactly income minus costs each month', () => {
-    const world = build()
-    // Pick a stable founding household and check one tick of arithmetic.
-    const household = [...world.households.values()].sort((a, b) => a.id - b.id)[0]
-    expect(household).toBeDefined()
-    if (!household) return
-
-    advanceTicks(world, 1)
-    const after = world.households.get(household.id)
-    if (!after || after.memberIds.length !== household.memberIds.length) return // a member moved/died; arithmetic untestable this tick
-
-    // Note: reads post-tick state; if employment changed this tick the
-    // equation would be off — accepted for a smoke check on tick 1.
-    expect(after.savings - household.savings).toBe(monthlyNetOf(world, after))
+  it('moves the household by exactly what it could not meet', () => {
+    // M-ECON §1. The household balance is OBLIGATIONS, not a pot: a met
+    // month leaves it at zero and an unmet one leaves it negative by the
+    // shortfall. A surplus never lands here — it stays with whoever earned
+    // it, which is the whole point of the split.
+    const world = build(12345, 6)
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null) continue
+      expect(household.savings).toBeLessThanOrEqual(0)
+      expect(Number.isInteger(household.savings)).toBe(true)
+    }
   })
 
   it('spends most of the surplus and saves the rest', () => {
@@ -113,10 +117,10 @@ describe('the ledger', () => {
     // absurdity. $3m still catches the runaway this test exists for — the
     // old bug would have blown straight through it.
     const world = build(12345, 720)
-    const active = [...world.households.values()].filter(
-      (h) => h.dissolvedTick === null && h.memberIds.length > 0,
-    )
-    const richest = Math.max(...active.map((h) => h.savings))
+    const worths = [...world.people.values()]
+      .filter((p) => p.deathTick === null)
+      .map((p) => netWorthOf(world, p.id))
+    const richest = Math.max(...worths)
     expect(richest).toBeLessThan(3_000_000_00)
     expect(richest).toBeGreaterThan(5_000_00)
   })
@@ -205,8 +209,16 @@ describe('inheritance', () => {
 
     const household = world.households.get(parent.householdId)
     if (!household) return
+    // M-ECON §1: the estate is the DECEASED'S money, not the roof's.
     const pot = 100_001 as Money // odd cent on purpose
-    world.households.set(household.id, { ...household, memberIds: [], savings: pot })
+    world.households.set(household.id, { ...household, memberIds: [], savings: 0 as Money })
+    world.accounts.set(parent.id, {
+      personId: parent.id,
+      checking: pot,
+      savings: 0 as Money,
+      brokerage: 0 as Money,
+      retirement: 0 as Money,
+    })
 
     const children = [...world.people.values()]
       .filter((c) => c.deathTick === null && c.parentIds.includes(parent.id) && c.householdId !== null)
@@ -230,18 +242,19 @@ describe('inheritance', () => {
       world.people.set(child.id, { ...child, householdId: newId })
     }
     const relocated = children.map((c) => world.people.get(c.id)!)
-    const balancesBefore = relocated.map((c) => world.households.get(c.householdId!)?.savings ?? 0)
+    const before = relocated.map((c) => netWorthOf(world, c.id))
 
     distributeEstate(world, world.tick, parent, world.households.get(household.id)!)
 
-    const balancesAfter = relocated.map((c) => world.households.get(c.householdId!)?.savings ?? 0)
-    const eldest = balancesAfter[0]! - balancesBefore[0]!
-    const younger = balancesAfter[1]! - balancesBefore[1]!
+    const after = relocated.map((c) => netWorthOf(world, c.id))
+    const eldest = after[0]! - before[0]!
+    const younger = after[1]! - before[1]!
 
     expect(eldest).toBe(50_001) // floor(100001/2) + remainder 1
     expect(younger).toBe(50_000)
     expect(eldest + younger).toBe(pot) // conservation, to the cent
-    expect(world.households.get(household.id)?.savings).toBe(0)
+    // And the deceased's own accounts are closed by the passing.
+    expect(netWorthOf(world, parent.id)).toBe(0)
 
     const inherited = world.events.filter((e) => e.type === 'inherited')
     expect(inherited.length).toBe(2)
@@ -316,7 +329,11 @@ describe('the town stays solvent', () => {
     // prices are wrong; none of them ever struggling means money is decoration.
     expect(share).toBeLessThan(0.5)
 
-    const richest = Math.max(...active.map((h) => h.savings))
+    // Wealth lives with PEOPLE now, so that is where "somebody has real
+    // savings" is checked. The household side only ever shows what it owes.
+    const richest = Math.max(
+      ...[...world.people.values()].filter((p) => p.deathTick === null).map((p) => netWorthOf(world, p.id)),
+    )
     expect(richest).toBeLessThan(3_000_000_00) // measured $540k-$1.62m across five seeds; see above
     expect(richest).toBeGreaterThan(0)
   })

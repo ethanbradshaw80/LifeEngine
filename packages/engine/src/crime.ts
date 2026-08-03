@@ -31,6 +31,7 @@ import { logVerb, raisePending } from './player.js'
 import { isDeployed } from './deployment.js'
 import {
   chargeHousehold,
+  householdWealth,
   creditHousehold,
   inArrears,
   transferBetweenHouseholds,
@@ -604,7 +605,7 @@ export function executeOffence(
     const wanted = Math.max(1, Math.floor((full * outcome.lootPerMille) / 1000))
     if (offence.takesFromHousehold && person.householdId !== null) {
       const candidates = [...world.households.values()]
-        .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && h.savings > 20_000)
+        .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && householdWealth(world, h) > 20_000)
         .sort((a, b) => a.id - b.id)
       // No house worth breaking into. The attempt simply came to nothing —
       // the scene already happened, so this is a night that went nowhere
@@ -1009,7 +1010,7 @@ function attemptTheft(
   // own. The victim is a HOUSEHOLD; the event lands on its eldest adult,
   // because a record needs a person to have happened to.
   const candidates = [...world.households.values()]
-    .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && h.savings > 20_000)
+    .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && householdWealth(world, h) > 20_000)
     .sort((a, b) => a.id - b.id)
   if (candidates.length === 0) return
   const victimHousehold = rng.pick(candidates)
@@ -1586,7 +1587,8 @@ export function expungementBar(world: World, personId: EntityId, tick: Tick): st
   // The household's money, because that is whose money it is — the same
   // ledger a fine comes out of.
   const householdId = person?.householdId ?? null
-  const savings = householdId === null ? 0 : (world.households.get(householdId)?.savings ?? 0)
+  const household = householdId === null ? undefined : world.households.get(householdId)
+  const savings = household === undefined ? 0 : householdWealth(world, household)
   if (savings < EXPUNGEMENT_COST) {
     return `A petition and a lawyer cost ${String(Math.floor(EXPUNGEMENT_COST / 100))} dollars, and the house does not have it.`
   }
@@ -2009,7 +2011,8 @@ export function answerCase(
     // get the benefit of having said it.
     if (chosen?.id === 'hire-attorney') {
       const householdId = person.householdId
-      const savings = householdId === null ? 0 : (world.households.get(householdId)?.savings ?? 0)
+      const payer = householdId === null ? undefined : world.households.get(householdId)
+      const savings = payer === undefined ? 0 : householdWealth(world, payer)
       if (householdId !== null && savings >= COUNSEL_COST) {
         chargeHousehold(world, tick, householdId, COUNSEL_COST)
       } else {

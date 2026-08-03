@@ -142,7 +142,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(26) // v1 through v27, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(27) // v1 through v28, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household
@@ -275,6 +275,57 @@ describe('encoding', () => {
 
   it('changes the checksum when any byte changes', () => {
     expect(checksumOf({ a: 1 })).not.toBe(checksumOf({ a: 2 }))
+  })
+})
+
+describe('the pot becomes people (M-ECON §1, schema v28)', () => {
+  it('hands a household balance to the adults who lived there, to the cent', () => {
+    // The money must not evaporate in the migration, and it must not land
+    // on a child. Built as a v27 save so only the one step under test runs.
+    const world = {
+      tick: 240,
+      people: [
+        { id: 1, birthTick: 0, deathTick: null },   // adult
+        { id: 2, birthTick: 12, deathTick: null },  // adult
+        { id: 3, birthTick: 228, deathTick: null }, // a one-year-old
+      ],
+      households: [{ id: 10, memberIds: [1, 2, 3], savings: 100_001 }],
+    }
+    const save = {
+      header: { schemaVersion: 27, checksum: checksumOf(world) },
+      world,
+    }
+
+    const migrated = migrate(save)
+    const out = migrated.save as { world: Record<string, unknown> }
+    const accounts = out.world['accounts'] as { personId: number; checking: number }[]
+    const households = out.world['households'] as { savings: number }[]
+
+    // Split between the two ADULTS, eldest carrying the odd cent.
+    expect(accounts.map((a) => a.personId).sort((a, b) => a - b)).toEqual([1, 2])
+    const total = accounts.reduce((sum, a) => sum + a.checking, 0)
+    expect(total).toBe(100_001)
+    expect(accounts.find((a) => a.personId === 1)?.checking).toBe(50_001)
+    expect(accounts.find((a) => a.personId === 2)?.checking).toBe(50_000)
+    // The household keeps nothing: it holds obligations now.
+    expect(households[0]?.savings).toBe(0)
+  })
+
+  it('leaves arrears on the household, because that is whose they are', () => {
+    const world = {
+      tick: 240,
+      people: [{ id: 1, birthTick: 0, deathTick: null }],
+      households: [{ id: 10, memberIds: [1], savings: -45_000 }],
+    }
+    const save = { header: { schemaVersion: 27, checksum: checksumOf(world) }, world }
+
+    const out = migrate(save).save as { world: Record<string, unknown> }
+    const households = out.world['households'] as { savings: number }[]
+    const accounts = out.world['accounts'] as unknown[]
+
+    // A debt is the roof's, and every consequence that reads it keeps working.
+    expect(households[0]?.savings).toBe(-45_000)
+    expect(accounts.length).toBe(0)
   })
 })
 

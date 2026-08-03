@@ -219,8 +219,12 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 
 // Finances
 export {
+  accountsOf,
   arrearsHistoryOf,
   canAfford,
+  householdWealth,
+  netWorthOf,
+  personalIncome,
   discretionaryFor,
   householdCosts,
   householdIncome,
@@ -256,6 +260,7 @@ export { friendshipKey, relationshipKey } from './types.js'
 
 // Types
 export type {
+  Accounts,
   AwardKind,
   AwardRecord,
   CausalFactor,

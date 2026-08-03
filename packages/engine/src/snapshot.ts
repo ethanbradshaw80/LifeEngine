@@ -28,7 +28,14 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
-' * v74 — M-ECON PHASE 0: PRICES ARE REAL. Salaries move to an annual
+' * v75 — M-ECON PHASE 1: THE POT IS SPLIT. Every person holds their own
+ *      checking and savings; the household keeps only its shared
+ *      obligations and goes negative when a month is not met. Pay lands
+ *      with the earner, obligations are funded pro rata from what each
+ *      brings in, a bad month is absorbed by what people have put by, and
+ *      an estate passes a PERSON's money rather than a building's. Theft
+ *      and fines reach into pockets. Every balance in every seed differs.
+ * v74 — M-ECON PHASE 0: PRICES ARE REAL. Salaries move to an annual
  *      scale ($30k labourer to $216k doctor), rents to $1,100-$1,950 a
  *      month, living costs with them. Pay is SHOWN yearly and still paid
  *      monthly. Every wage, rent and balance in every seed differs from v73.
@@ -466,7 +473,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 74
+export const SIMULATION_VERSION = 75
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -506,6 +513,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       places: [...world.places.values()].sort((a, b) => a.id - b.id),
       people: [...world.people.values()].sort((a, b) => a.id - b.id),
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
+      accounts: [...world.accounts.values()].sort((a, b) => a.personId - b.personId),
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
       health: [...world.health.values()].sort((a, b) => a.personId - b.personId),

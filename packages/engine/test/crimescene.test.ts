@@ -17,6 +17,7 @@ import { ageAt } from '../src/clock.js'
 import { OFFENCES, offenceById } from '../src/content.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { commitOffence } from '../src/crime.js'
+import { netWorthOf } from '../src/finances.js'
 import {
   CRIME_SCENE_OPTIONS,
   crimeOutcomeFor,
@@ -45,10 +46,9 @@ function playedAdult(seedValue = 12345): { world: World; id: EntityId } {
   return { world, id: person.id }
 }
 
+/** M-ECON §1: the take lands in the thief's OWN pocket, not the roof's. */
 function savingsOf(world: World, id: EntityId): number {
-  const householdId = world.people.get(id)?.householdId
-  if (householdId === null || householdId === undefined) return 0
-  return world.households.get(householdId)?.savings ?? 0
+  return netWorthOf(world, id)
 }
 
 describe('the scene comes first', () => {

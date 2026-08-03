@@ -28,7 +28,7 @@ import { ageAt } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import type { Household, Person, World } from './types.js'
+import type { Accounts, Household, Person, World } from './types.js'
 import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -41,6 +41,68 @@ const ADULT_COST_AGE = 16
 // ---------------------------------------------------------------------------
 // Queries — the read side other systems and the UI use
 // ---------------------------------------------------------------------------
+
+/**
+ * ONE PERSON'S ACCOUNTS. Absent means zero — reading is total, so nothing
+ * has to create an account before somebody is paid.
+ */
+export function accountsOf(world: World, personId: EntityId): Accounts {
+  return (
+    world.accounts.get(personId) ?? {
+      personId,
+      checking: 0 as Money,
+      savings: 0 as Money,
+      brokerage: 0 as Money,
+      retirement: 0 as Money,
+    }
+  )
+}
+
+/**
+ * What the people under one roof hold between them — what a burglar would
+ * find, and what a lawyer's fee can come out of. The household's own balance
+ * is obligations, not wealth, so this is the honest answer to "can this
+ * house afford it".
+ */
+export function householdWealth(world: World, household: Household): Money {
+  let total = 0
+  for (const memberId of household.memberIds) {
+    const member = world.people.get(memberId)
+    if (!member || member.deathTick !== null) continue
+    total += netWorthOf(world, memberId)
+  }
+  return total as Money
+}
+
+/** Everything a person holds in money. Property and debt join it later. */
+export function netWorthOf(world: World, personId: EntityId): Money {
+  const a = accountsOf(world, personId)
+  return (a.checking + a.savings + a.brokerage + a.retirement) as Money
+}
+
+/** finances is the single writer; this is the only door to that map. */
+function setAccounts(world: World, accounts: Accounts): void {
+  world.accounts.set(accounts.personId, accounts)
+}
+
+/** What this person earns in a month, from every source. */
+export function personalIncome(world: World, personId: EntityId): Money {
+  const job = world.employment.get(personId)
+  return ((job?.monthlyPay ?? 0) +
+    servicePayOf(world, personId) +
+    pensionOf(world, personId) +
+    survivorPensionOf(world, personId)) as Money
+}
+
+/**
+ * Move money into a person's checking, from a wage or anywhere else.
+ * Exported because pay is not the only thing that lands there.
+ */
+export function creditPerson(world: World, personId: EntityId, amount: Money): void {
+  if (amount === 0) return
+  const accounts = accountsOf(world, personId)
+  setAccounts(world, { ...accounts, checking: (accounts.checking + amount) as Money })
+}
 
 export function householdIncome(world: World, household: Household): Money {
   let total = 0
@@ -64,7 +126,7 @@ export function householdIncome(world: World, household: Household): Money {
  */
 export function transferBetweenHouseholds(
   world: World,
-  tick: Tick,
+  _tick: Tick,
   fromHouseholdId: EntityId,
   toHouseholdId: EntityId,
   cents: number,
@@ -73,12 +135,42 @@ export function transferBetweenHouseholds(
   const from = world.households.get(fromHouseholdId)
   const to = world.households.get(toHouseholdId)
   if (!from || !to || cents <= 0) return 0
-  const moved = Math.min(cents, Math.max(0, from.savings))
+  // M-ECON §1. A THEFT TAKES FROM PEOPLE. The pot is gone, so this walks
+  // the household's adults and takes from their savings first, then their
+  // checking — a burglar finds what a house holds, and what a house holds is
+  // what the people in it have put by. Eldest first, so it is reproducible.
+  const holders = from.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p): p is Person => p !== undefined && p.deathTick === null)
+    .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+
+  let moved = 0
+  for (const holder of holders) {
+    if (moved >= cents) break
+    const accounts = accountsOf(world, holder.id)
+    const fromSavings = Math.max(0, Math.min(cents - moved, accounts.savings))
+    const fromChecking = Math.max(
+      0,
+      Math.min(cents - moved - fromSavings, accounts.checking),
+    )
+    if (fromSavings + fromChecking <= 0) continue
+    setAccounts(world, {
+      ...accounts,
+      savings: (accounts.savings - fromSavings) as Money,
+      checking: (accounts.checking - fromChecking) as Money,
+    })
+    moved += fromSavings + fromChecking
+  }
   if (moved <= 0) return 0
-  world.households.set(from.id, { ...from, savings: (from.savings - moved) as Money })
-  world.households.set(to.id, { ...to, savings: (to.savings + moved) as Money })
-  noteArrearsCrossing(world, tick, from.id, from.savings)
-  noteArrearsCrossing(world, tick, to.id, to.savings)
+
+  // And it lands on the thief's side of town, in the pocket of whoever is
+  // eldest there — the same rule, from the other end.
+  const receivers = to.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p): p is Person => p !== undefined && p.deathTick === null)
+    .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+  const receiver = receivers[0]
+  if (receiver !== undefined) creditPerson(world, receiver.id, moved as Money)
   return moved
 }
 
@@ -90,7 +182,35 @@ export function transferBetweenHouseholds(
 export function chargeHousehold(world: World, tick: Tick, householdId: EntityId, cents: number): void {
   const household = world.households.get(householdId)
   if (!household || cents <= 0) return
-  world.households.set(household.id, { ...household, savings: (household.savings - cents) as Money })
+
+  // M-ECON §1. A FINE IS PAID BY PEOPLE. It used to come off the pot, which
+  // absorbed it; with the pot gone the household sits at exactly zero, so
+  // charging it there put the family into arrears and the monthly loop
+  // pulled them straight back out — a fell-behind and a caught-up in the
+  // same tick, for a parking fine. Taken from the adults instead, eldest
+  // first, checking then savings. Only what nobody could cover becomes
+  // arrears, which is what arrears is for.
+  let owing = cents
+  const adults = household.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p): p is Person => p !== undefined && p.deathTick === null)
+    .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+  for (const adult of adults) {
+    if (owing <= 0) break
+    const accounts = accountsOf(world, adult.id)
+    const fromChecking = Math.max(0, Math.min(owing, accounts.checking))
+    const fromSavings = Math.max(0, Math.min(owing - fromChecking, accounts.savings))
+    if (fromChecking + fromSavings <= 0) continue
+    setAccounts(world, {
+      ...accounts,
+      checking: (accounts.checking - fromChecking) as Money,
+      savings: (accounts.savings - fromSavings) as Money,
+    })
+    owing -= fromChecking + fromSavings
+  }
+  if (owing <= 0) return
+
+  world.households.set(household.id, { ...household, savings: (household.savings - owing) as Money })
   noteArrearsCrossing(world, tick, household.id, household.savings)
 }
 
@@ -427,8 +547,88 @@ export function runFinances(world: World, tick: Tick): void {
     if (household.memberIds.length === 0) continue
 
     const before = household.savings
-    const after = (before + monthlyNetOf(world, household)) as Money
 
+    // M-ECON §1. THE MONTH, IN THE ORDER IT ACTUALLY HAPPENS.
+    //
+    // 1. Every earner is PAID, into their own checking.
+    // 2. The household's obligations — rent, living costs, and what the
+    //    household spends on itself — are met from the earners in
+    //    PROPORTION to what each brings in. A person who earns nothing
+    //    contributes nothing; a person who earns most carries most.
+    // 3. Whatever an earner has left is THEIRS and stays in their checking.
+    //
+    // What the pot did instead was pool everything and pay out of the pool,
+    // so no one under the roof had any money of their own and a surplus
+    // belonged to a building.
+    const earners: { personId: EntityId; income: number }[] = []
+    let income = 0
+    for (const memberId of [...household.memberIds].sort((a, b) => a - b)) {
+      const member = world.people.get(memberId)
+      if (!member || member.deathTick !== null) continue
+      const earned = personalIncome(world, memberId)
+      if (earned <= 0) continue
+      creditPerson(world, memberId, earned)
+      earners.push({ personId: memberId, income: earned })
+      income += earned
+    }
+
+    const owed = (householdCosts(world, household) + discretionaryFor(world, household)) as Money
+
+    // Taken pro rata, in integer cents, with the rounding remainder on the
+    // largest earner so the shares always sum to exactly what is owed.
+    let collected = 0
+    if (income > 0 && owed > 0) {
+      earners.sort((a, b) => b.income - a.income || a.personId - b.personId)
+      let left: number = owed
+      for (let i = 0; i < earners.length; i++) {
+        const earner = earners[i]
+        if (earner === undefined) continue
+        const share =
+          i === earners.length - 1 ? left : Math.floor((owed * earner.income) / income)
+        const accounts = accountsOf(world, earner.personId)
+        // Never more than they have: a shortfall is the household's, which
+        // is what arrears means.
+        const taken = Math.max(0, Math.min(share, accounts.checking))
+        setAccounts(world, { ...accounts, checking: (accounts.checking - taken) as Money })
+        collected += taken
+        left -= share
+      }
+    }
+
+    // STILL SHORT? THE BUFFER IS PEOPLE'S SAVINGS.
+    //
+    // The pot used to absorb a bad month, and without something in its place
+    // a household went into arrears the first time anything went wrong — the
+    // first build of this collapsed a hundred-and-fifty-year town from 110
+    // people to 35, because every family was permanently behind. What
+    // actually absorbs a bad month is what the people in the house have put
+    // by, so that is what is drawn on: checking first, then savings, eldest
+    // first, before any of it becomes arrears.
+    let shortfall = owed - collected + Math.max(0, -before)
+    if (shortfall > 0) {
+      const members = [...household.memberIds]
+        .map((id) => world.people.get(id))
+        .filter((person): person is Person => person !== undefined && person.deathTick === null)
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+      for (const member of members) {
+        if (shortfall <= 0) break
+        const accounts = accountsOf(world, member.id)
+        const fromChecking = Math.max(0, Math.min(shortfall, accounts.checking))
+        const fromSavings = Math.max(0, Math.min(shortfall - fromChecking, accounts.savings))
+        if (fromChecking + fromSavings <= 0) continue
+        setAccounts(world, {
+          ...accounts,
+          checking: (accounts.checking - fromChecking) as Money,
+          savings: (accounts.savings - fromSavings) as Money,
+        })
+        collected += fromChecking + fromSavings
+        shortfall -= fromChecking + fromSavings
+      }
+    }
+
+    // What could not be met is arrears, and what could is square. A surplus
+    // never accumulates here — it is already sitting in people's checking.
+    const after = Math.min(0, before + collected - owed) as Money
     world.households.set(household.id, { ...household, savings: after })
 
     // The month it tips over is worth an event; every month it stays down is
@@ -546,7 +746,12 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
  * its children genuinely better off, and the record says where it came from.
  */
 export function distributeEstate(world: World, tick: Tick, deceased: Person, household: Household): void {
-  if (household.savings <= 0) return
+  // M-ECON §1. AN ESTATE IS A PERSON'S MONEY, not a building's. It used to
+  // be whatever the roof happened to hold, which meant a widow's savings
+  // passed as "the household's" and a lodger's did not exist at all.
+  const estate = accountsOf(world, deceased.id)
+  const passing = (estate.checking + estate.savings + estate.brokerage + estate.retirement) as Money
+  if (passing <= 0) return
 
   const heirs: Person[] = []
   for (const person of world.people.values()) {
@@ -556,24 +761,18 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
   if (heirs.length === 0) return
   heirs.sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
 
-  const share = Math.floor(household.savings / heirs.length)
-  let remainder = household.savings - share * heirs.length
+  const share = Math.floor(passing / heirs.length)
+  let remainder: number = passing - share * heirs.length
 
   for (const heir of heirs) {
     const amount = (share + remainder) as Money
     remainder = 0
     if (amount <= 0) continue
-    if (heir.householdId === null) continue
-    const heirHousehold = world.households.get(heir.householdId)
-    if (!heirHousehold) continue
 
-    world.households.set(heirHousehold.id, {
-      ...heirHousehold,
-      savings: (heirHousehold.savings + amount) as Money,
-    })
-    // An inheritance that lifts a household out of arrears is the recovery
-    // the timeline owes a reader (the crossing invariant above).
-    noteArrearsCrossing(world, tick, heirHousehold.id, heirHousehold.savings)
+    // Into the heir's OWN savings — an inheritance is money somebody has,
+    // not a credit against the rent of whatever house they sleep in.
+    const accounts = accountsOf(world, heir.id)
+    setAccounts(world, { ...accounts, savings: (accounts.savings + amount) as Money })
     recordEvent(world, tick, {
       type: 'inherited',
       subjectId: heir.id,
@@ -582,8 +781,16 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
     })
   }
 
-  // The estate has been passed on; the emptied household keeps nothing.
-  world.households.set(household.id, { ...household, savings: 0 as Money })
+  // The deceased's accounts are closed by the passing.
+  setAccounts(world, {
+    personId: deceased.id,
+    checking: 0 as Money,
+    savings: 0 as Money,
+    brokerage: 0 as Money,
+    retirement: 0 as Money,
+  })
+  // The household itself keeps only what it owes, which death does not clear.
+  void household
 }
 
 /** Deterministic starting savings for a founding household: some months of
@@ -594,4 +801,32 @@ export function foundingSavings(world: World, household: Household): Money {
   const months = rng.nextIntInclusive(1, 9)
   const base = income > 0 ? income * months : rng.nextIntInclusive(20_000, 220_000)
   return base as Money
+}
+
+/**
+ * The founding town's money, put where money now lives: in the SAVINGS of
+ * the adults who would have earned it. Split evenly, eldest carrying the odd
+ * cents — the same rule the save migration uses, for the same reason. There
+ * is no record of who earned which part of a household that has not been
+ * simulated yet, so an even split invents nothing.
+ */
+export function seedFoundingAccounts(world: World, household: Household, amount: Money): void {
+  if (amount <= 0) return
+  const adults = household.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p): p is Person => p !== undefined && p.deathTick === null)
+    .filter((p) => ageAt(p.birthTick, world.tick) >= ADULT_COST_AGE)
+    .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+  if (adults.length === 0) return
+
+  const share = Math.floor(amount / adults.length)
+  let remainder: number = amount - share * adults.length
+  for (const adult of adults) {
+    const accounts = accountsOf(world, adult.id)
+    setAccounts(world, {
+      ...accounts,
+      savings: (accounts.savings + share + remainder) as Money,
+    })
+    remainder = 0
+  }
 }
