@@ -70,6 +70,7 @@ import {
   assignServiceUnit,
   boardStandingFor,
   boostServicePerformance,
+  commissionsOnEntry,
   discharge as dischargeService,
   enlistPerson,
   enlistmentBar,
@@ -91,6 +92,8 @@ import {
   meetsRequirement,
   SERVICE_TERM_MONTHS,
   servicePayOn,
+  officerPayOn,
+  specialtyTitleFor,
   } from './content.js'
 import { rentFor } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -361,7 +364,7 @@ export function requestEnlistment(world: World): { asked: boolean; reason: strin
   })
   world.player.nextDecisionId += 1
 
-  askSpecialty(world, world.tick, person.id)
+  askEntryPath(world, world.tick, person.id)
   return { asked: true, reason: '' }
 }
 
@@ -1433,17 +1436,31 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'commission': {
+      // Answered by the specialty question raised behind it — nothing is
+      // written until the trade is chosen, because a record needs both.
+      break
+    }
+
     case 'specialty': {
       const specialty = world.spec.specialties.find((sp) => sp.id === choice)
       if (specialty) {
         // The circumstances an NPC's record names, on the player's too
         // (military review S4): both are public facts the character knows.
         const servedParent = person.parentIds.find((id) => world.service.has(id)) ?? null
-        enlistPerson(world, pending.tick, person, specialty, [
-          factor('own-choice', 1000),
-          ...(servedParent !== null ? [factor('service-tradition', 300, servedParent)] : []),
-          ...(recruitingDriveActive(world, pending.tick) ? [factor('recruiting-drive', 550)] : []),
-        ])
+        enlistPerson(
+          world,
+          pending.tick,
+          person,
+          specialty,
+          [
+            factor('own-choice', 1000),
+            ...(servedParent !== null ? [factor('service-tradition', 300, servedParent)] : []),
+            ...(recruitingDriveActive(world, pending.tick) ? [factor('recruiting-drive', 550)] : []),
+            ...(pending.occupationId === 'officer' ? [factor('holds-a-degree', 700)] : []),
+          ],
+          pending.occupationId === 'officer',
+        )
       }
       break
     }
@@ -2079,18 +2096,53 @@ export function resolvePending(world: World, choice: string): void {
   // Follow-up questions: an accepted enlistment immediately asks WHICH
   // uniform. Raised after commit so the pending slot is free again.
   if (pending.kind === 'enlist' && choice === 'accept') {
-    askSpecialty(world, pending.tick, person.id)
+    askEntryPath(world, pending.tick, person.id)
   }
   if (pending.kind === 'education' && choice === 'enlist') {
-    askSpecialty(world, pending.tick, person.id)
+    askEntryPath(world, pending.tick, person.id)
   }
-  // P2: signing again asks the trade question too — keep the specialty, or
-  // retrain into another the schooling admits.
-  // THE TRADE QUESTION COMES AFTER THE OATH, not after the intention. The
-  // contract chain sits between them now, and asking which trade somebody
-  // wants before they have chosen a term would be asking about a career
-  // they have not signed for yet.
-  if (pending.kind === 'service-contract' && decodeContract(pending.occupationId).code !== 'enlist') {
+  // And the commission's answer carries into the specialty menu behind it.
+  if (pending.kind === 'commission') {
+    askSpecialty(world, pending.tick, person.id, choice === 'officer')
+  }
+  // §6c. THE FIRST CONTRACT IS PAPER TOO. The record already exists by the
+  // time this raises — the trade choice wrote it — so the oath here executes
+  // nothing; it is the ceremony over a term that has begun. That asymmetry
+  // with reenlistment is deliberate: a first-termer signs at the office and
+  // swears at the station, and there is nothing to undo in between.
+  if (pending.kind === 'specialty' && isServing(world, person.id)) {
+    raisePending(world, {
+      tick: pending.tick,
+      kind: 'service-contract',
+      personId: person.id,
+      otherId: null,
+      // The term the RECORD was just written with — a commission's initial
+      // obligation is longer than an enlistment's, and the paper has to say
+      // the number the person is actually held to.
+      occupationId: encodeContract(
+        'enlist',
+        Math.floor(
+          (world.service.get(person.id)?.termMonths ?? SERVICE_TERM_MONTHS) / 12,
+        ),
+        'none',
+        0,
+      ),
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['take-the-oath'],
+    })
+  }
+  // THE TRADE QUESTION COMES AFTER THE OATH, and only when it was BOUGHT.
+  // It used to fire on every reenlistment, which made a specialty something
+  // you re-picked every four years for free (owner). Now it is one of the
+  // things the retention office puts on the table, and taking it costs you
+  // the bonus you would otherwise have taken.
+  if (
+    pending.kind === 'service-contract' &&
+    decodeContract(pending.occupationId).code !== 'enlist' &&
+    decodeContract(pending.occupationId).option === 'reclass'
+  ) {
     askRetrain(world, pending.tick, person.id)
   }
 }
@@ -2271,14 +2323,60 @@ function resolveFieldAid(
   })
 }
 
-/** The specialty menu: every branch role this person's schooling admits. */
-function askSpecialty(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
+/**
+ * The door, and which side of it you walk in on.
+ *
+ * A degree is a real fork at the recruiting office — the same person can
+ * sign as a private or take the commissioning course — so it is ASKED
+ * rather than assumed. Without one there is nothing to ask: the officer
+ * ladder is closed at entry, and the question would be a menu with a single
+ * item on it.
+ */
+function askEntryPath(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
+  const anyOfficers = world.spec.branches.some((b) => (b.officerRanks?.length ?? 0) > 0)
+  if (!anyOfficers || !commissionsOnEntry(world, personId)) {
+    askSpecialty(world, tick, personId, false)
+    return
+  }
+  raisePending(world, {
+    tick,
+    kind: 'commission',
+    personId,
+    otherId: null,
+    occupationId: null,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: ['officer', 'enlisted'],
+  })
+}
+
+/**
+ * The specialty menu: every branch role this person's schooling admits.
+ *
+ * `commissioned` rides on the pending's occupationId because it was decided
+ * one question ago and nothing else remembers it — the record is not written
+ * until the specialty comes back.
+ */
+function askSpecialty(
+  world: World,
+  tick: PendingDecision['tick'],
+  personId: EntityId,
+  commissioned: boolean,
+): void {
   const person = world.people.get(personId)
   if (!person) return
   const education = world.education.get(personId)
   const level = education?.level ?? 'none'
   const options = world.spec.specialties
     .filter((sp) => meetsRequirement(level, sp.requires))
+    // A commission needs a ladder to stand on: a branch with no officer
+    // corps cannot be joined as an officer, whatever the degree says.
+    .filter(
+      (sp) =>
+        !commissioned ||
+        (world.spec.branches.find((b) => b.id === sp.branch)?.officerRanks?.length ?? 0) > 0,
+    )
     .map((sp) => sp.id)
   if (options.length === 0) return
   raisePending(world, {
@@ -2286,7 +2384,7 @@ function askSpecialty(world: World, tick: PendingDecision['tick'], personId: Ent
     kind: 'specialty',
     personId,
     otherId: null,
-    occupationId: null,
+    occupationId: commissioned ? 'officer' : null,
     workplaceId: null,
     monthlyPay: null,
     placeId: null,
@@ -2366,8 +2464,16 @@ export function describePending(world: World, pending: PendingDecision): string 
     }
     case 'enlist':
       return `A recruiter for ${homelandName(world)} has your name. Enlist?`
+    case 'commission':
+      return (
+        'You hold a degree, and the office will take you either way: sign on ' +
+        'the enlisted side and start at the bottom of that ladder, or take the ' +
+        'commissioning course and enter as an officer.'
+      )
     case 'specialty':
-      return 'Which uniform? Your schooling opens these doors.'
+      return pending.occupationId === 'officer'
+        ? 'Which branch will you be commissioned into? Your degree opens these doors.'
+        : 'Which uniform? Your schooling opens these doors.'
     case 'promotion-board': {
       const standing = boardStandingFor(world, pending.personId)
       return `The ${standing?.targetTitle ?? 'promotion'} board meets. Put your name in?`
@@ -2765,9 +2871,18 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       // This world's first branch, not Classic's — the stakes screen must
       // not quote a pay table the player's preset does not use.
       const firstBranch = world.spec.branches[0]
+      // A GRADUATE IS ABOUT TO BE OFFERED A COMMISSION, so quoting them the
+      // E-1 figure one screen earlier is a wrong number, not a simplification
+      // (military review, should-fix 5).
+      const graduate = commissionsOnEntry(world, pending.personId)
       lines.push(
         `A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(firstBranch ? servicePayOn(firstBranch, 0) : (0 as Money))} a month, and rises with rank.`,
       )
+      if (graduate && firstBranch) {
+        lines.push(
+          `Your degree opens the officer route: a commission starts nearer ${formatMoney(officerPayOn(firstBranch, 0))} a month, on a longer obligation. You will be asked which.`,
+        )
+      }
       lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
       const wars = activeWars(world)
       const home = homeland(world)
@@ -2779,7 +2894,30 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       break
     }
 
+    case 'commission': {
+      // The facts the world already models, on the one decision the owner
+      // asked for. Every number here is read, not asserted.
+      const branch = world.spec.branches[0]
+      if (branch) {
+        const topEnlisted = branch.ranks.length - 1
+        const topOfficer = (branch.officerRanks ?? branch.ranks).length - 1
+        lines.push(
+          `Enlisted: starts at ${formatMoney(servicePayOn(branch, 0))} a month, first stripe in about six months, and ${branch.ranks[topEnlisted] ?? 'the top'} at ${formatMoney(servicePayOn(branch, topEnlisted))} is as far as it goes.`,
+        )
+        lines.push(
+          `Commissioned: starts at ${formatMoney(officerPayOn(branch, 0))}, but the first step takes two years — and the ladder runs to ${(branch.officerRanks ?? [])[topOfficer] ?? 'the top'} at ${formatMoney(officerPayOn(branch, topOfficer))}.`,
+        )
+      }
+      lines.push(
+        `The obligation is not the same either: ${String(SERVICE_TERM_MONTHS / 12)} years enlisted, six for a commission.`,
+      )
+      lines.push('A senior sergeant still out-earns a new lieutenant. The commission is the longer road, not the shortcut.')
+      break
+    }
+
     case 'specialty': {
+      // An officer does not go to basic, and their trade has its own name.
+      const asOfficer = pending.occupationId === 'officer'
       for (const id of pending.options) {
         const sp = world.spec.specialties.find((x) => x.id === id)
         if (!sp) continue
@@ -2789,7 +2927,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           sp.civilianUnlocks.length > 0
             ? ` — opens ${sp.civilianUnlocks.map((id) => occupationById(id).title).join(', ')} after the service`
             : ''
-        lines.push(`${sp.title} (${branchName(world, sp.branch)}): ${String(sp.schoolMonths)} months' school after basic${risky ? ' — the sharp end, if it ever comes to that' : ''}${unlocks}.`)
+        lines.push(`${specialtyTitleFor(sp, asOfficer)} (${branchName(world, sp.branch)}): ${String(sp.schoolMonths)} months' school after ${asOfficer ? 'the commissioning course' : 'basic'}${risky ? ' — the sharp end, if it ever comes to that' : ''}${unlocks}.`)
       }
       break
     }

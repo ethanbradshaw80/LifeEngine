@@ -66,6 +66,7 @@ import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import { specialtyTitleFor } from './content.js'
 import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
@@ -275,8 +276,16 @@ const SPELLED = [
  * both E-4 — so the index and the grade part company partway up, and the
  * sheet was printing an E-9 for a world whose ladder stops at eight.
  */
-function payGradeOf(branch: ReturnType<typeof branchSpecFor>, rank: number): number {
-  return branch.grades[rank] ?? rank + 1
+function payGradeOf(
+  branch: ReturnType<typeof branchSpecFor>,
+  rank: number,
+  commissioned: boolean,
+): string {
+  // AND FROM THE RIGHT TABLE (military review, must-fix 3). Both the letter
+  // and the number were enlisted-only, so the most-read document in the
+  // game printed "2LT (E-1)" on a new officer's first set of orders.
+  const grades = commissioned ? (branch.officerGrades ?? branch.grades) : branch.grades
+  return `${commissioned ? 'O' : 'E'}-${String(grades[rank] ?? rank + 1)}`
 }
 
 function stampDate(world: World, tick: Tick, monthsAhead: number, short: boolean): string {
@@ -346,8 +355,8 @@ export function ordersSheetFor(
     controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
     issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
-    rank: `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} (E-${String(payGradeOf(branch, record.rank))})`,
-    specialty: specialty.title,
+    rank: `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} (${payGradeOf(branch, record.rank, record.commissioned === true)})`,
+    specialty: specialtyTitleFor(specialty, record.commissioned === true),
     unit: unit?.name ?? `${garrison} garrison`,
     assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,
     enemy: enemy?.name ?? 'the enemy',

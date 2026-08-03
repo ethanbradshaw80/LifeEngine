@@ -11,7 +11,8 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
-import { BRANCH_RANKS, CLASSIC_BRANCHES, servicePayOn, specialtyById } from '../src/content.js'
+import { BRANCH_RANKS,
+  BRANCH_OFFICER_RANKS, CLASSIC_BRANCHES, servicePayOn, specialtyById } from '../src/content.js'
 import type { ServiceBranch } from '../src/content.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, resolvePending, setPlayer } from '../src/player.js'
@@ -43,12 +44,21 @@ describe('the peacetime career', () => {
     const promoted = world.events.filter((e) => e.type === 'promoted')
     expect(promoted.length).toBeGreaterThan(0)
 
-    const allTitles = new Set(Object.values(BRANCH_RANKS).flat())
+    // BOTH LADDERS ARE RANKS. Officers promote now — before the commission
+    // fork the officer half of every branch was unreachable, so this set
+    // only had to hold the enlisted titles.
+    const allTitles = new Set([
+      ...Object.values(BRANCH_RANKS).flat(),
+      ...Object.values(BRANCH_OFFICER_RANKS).flat(),
+    ])
     for (const event of promoted) {
       expect(allTitles.has(event.detail ?? ''), `${event.detail ?? ''} is not a rank`).toBe(true)
     }
     for (const record of world.service.values()) {
-      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
+      const ladder =
+        record.commissioned === true
+          ? BRANCH_OFFICER_RANKS[record.branch as ServiceBranch]
+          : BRANCH_RANKS[record.branch as ServiceBranch]
       expect(record.rank).toBeGreaterThanOrEqual(0)
       expect(record.rank).toBeLessThan(ladder.length)
     }
@@ -69,7 +79,13 @@ describe('the peacetime career', () => {
     for (const [personId, titles] of byPerson) {
       const record = world.service.get(personId as never)
       if (!record) continue
-      const ladder = BRANCH_RANKS[record.branch as ServiceBranch]
+      // The ladder this person is on — an officer's steps are not the
+      // enlisted ones, and reading the wrong list made every officer
+      // promotion look like a skipped rank.
+      const ladder =
+        record.commissioned === true
+          ? BRANCH_OFFICER_RANKS[record.branch as ServiceBranch]
+          : BRANCH_RANKS[record.branch as ServiceBranch]
       let previous = 0 // everyone starts at the bottom
       for (const title of titles) {
         const index = ladder.indexOf(title)
@@ -125,8 +141,12 @@ describe('the peacetime career', () => {
     for (const personId of enlistees) {
       const events = world.events.filter((e) => e.subjectId === personId)
       const began = events.filter((e) => e.type === 'began-training')
-      // Everyone reports to basic the day they enlist.
-      expect(began.some((e) => e.detail === 'basic training')).toBe(true)
+      // Everyone reports somewhere the day they sign — and WHICH somewhere
+      // is the ladder they signed onto. An officer does not go to basic.
+      const commissioned = world.service.get(personId)?.commissioned === true
+      expect(began.some((e) => e.detail === (commissioned ? 'the commissioning course' : 'basic training'))).toBe(
+        true,
+      )
     }
 
     // Across a fifty-year town, the texture of service exists: schools finish,

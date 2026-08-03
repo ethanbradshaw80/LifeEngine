@@ -149,6 +149,17 @@ export interface ExposureProfile {
 export interface ServiceSpecialty {
   readonly id: string
   readonly title: string
+  /**
+   * What the same trade is called by the person COMMISSIONED into it.
+   *
+   * An officer does not hold an enlisted job (military review, should-fix 4):
+   * the record used to read "commissioned into the United States Army as a
+   * rifleman", and the contract printed 2LT beside "Assigned Specialty:
+   * rifleman". Every trade keeps an officer's name for itself rather than
+   * some trades being closed, because closing them would leave the naval
+   * branch — which has exactly one specialty — with no officers at all.
+   */
+  readonly officerTitle?: string
   readonly branch: string
   readonly requires: EducationLevel
   /** Months of occupational school after basic training (AIT-equivalent). */
@@ -975,6 +986,7 @@ export type PendingKind =
   | 'convalesce'
   /** A recruiter's offer, or the fork at eighteen. */
   | 'enlist'
+  | 'commission'
   /** Which uniform: the specialty choice on enlistment. */
   | 'specialty'
   /** Term's end: sign again, or hang it up. */

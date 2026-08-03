@@ -325,25 +325,25 @@ export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
 
 export const SPECIALTIES: readonly ServiceSpecialty[] = [
   {
-    id: 'rifleman', title: 'rifleman', branch: 'land-forces', requires: 'none',
+    id: 'rifleman', title: 'rifleman', officerTitle: 'infantry officer', branch: 'land-forces', requires: 'none',
     schoolMonths: 2, qualification: 'expert marksman', boardCutoffOffset: -40,
     exposure: { directCombat: 850, convoy: 300, baseAttack: 300, accident: 300 },
     civilianUnlocks: [],
   },
   {
-    id: 'transport', title: 'transport driver', branch: 'land-forces', requires: 'primary',
+    id: 'transport', title: 'transport driver', officerTitle: 'transport officer', branch: 'land-forces', requires: 'primary',
     schoolMonths: 2, qualification: 'master driver', boardCutoffOffset: -20,
     exposure: { directCombat: 150, convoy: 850, baseAttack: 250, accident: 450 },
     civilianUnlocks: [],
   },
   {
-    id: 'mechanic', title: 'field mechanic', branch: 'land-forces', requires: 'primary',
+    id: 'mechanic', title: 'field mechanic', officerTitle: 'maintenance officer', branch: 'land-forces', requires: 'primary',
     schoolMonths: 4, qualification: 'master mechanic', boardCutoffOffset: 20,
     exposure: { directCombat: 80, convoy: 200, baseAttack: 350, accident: 400 },
     civilianUnlocks: ['machinist', 'electrician', 'carpenter'],
   },
   {
-    id: 'medic', title: 'medic', branch: 'land-forces', requires: 'secondary',
+    id: 'medic', title: 'medic', officerTitle: 'medical service officer', branch: 'land-forces', requires: 'secondary',
     schoolMonths: 4, qualification: 'field trauma certification', boardCutoffOffset: 30,
     exposure: { directCombat: 350, convoy: 400, baseAttack: 300, accident: 250 },
     civilianUnlocks: ['nurse'],
@@ -354,30 +354,39 @@ export const SPECIALTIES: readonly ServiceSpecialty[] = [
     // firefight and is never in a convoy, but the machine itself is the
     // hazard — accidents are the aviator's real killer, in this simulation
     // as in the world.
-    id: 'aviator', title: 'aviator', branch: 'air-guard', requires: 'college',
+    id: 'aviator', title: 'aviator', officerTitle: 'aviator', branch: 'air-guard', requires: 'college',
     schoolMonths: 12, qualification: 'aviator wings', boardCutoffOffset: 60,
     exposure: { directCombat: 220, convoy: 0, baseAttack: 300, accident: 700 },
     civilianUnlocks: ['engineer'],
   },
   {
-    id: 'aircrew', title: 'aircrew', branch: 'air-guard', requires: 'secondary',
+    id: 'aircrew', title: 'aircrew', officerTitle: 'air operations officer', branch: 'air-guard', requires: 'secondary',
     schoolMonths: 6, qualification: 'aircrew wings', boardCutoffOffset: 40,
     exposure: { directCombat: 260, convoy: 0, baseAttack: 320, accident: 620 },
     civilianUnlocks: ['machinist'],
   },
   {
-    id: 'signals', title: 'signals operator', branch: 'air-guard', requires: 'secondary',
+    id: 'signals', title: 'signals operator', officerTitle: 'signals officer', branch: 'air-guard', requires: 'secondary',
     schoolMonths: 4, qualification: 'senior signals rating', boardCutoffOffset: 40,
     exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
     civilianUnlocks: ['clerk'],
   },
   {
-    id: 'deckhand', title: 'deckhand', branch: 'naval-service', requires: 'none',
+    id: 'deckhand', title: 'deckhand', officerTitle: 'deck officer', branch: 'naval-service', requires: 'none',
     schoolMonths: 2, qualification: 'seamanship rating', boardCutoffOffset: 0,
     exposure: { directCombat: 120, convoy: 60, baseAttack: 500, accident: 550 },
     civilianUnlocks: ['millhand'],
   },
 ]
+
+/**
+ * What to call this trade for the person holding it. One resolver, so the
+ * contract, the orders, the record and the menu cannot disagree about what
+ * somebody's job is called.
+ */
+export function specialtyTitleFor(specialty: ServiceSpecialty, commissioned: boolean): string {
+  return commissioned ? (specialty.officerTitle ?? specialty.title) : specialty.title
+}
 
 export function specialtyById(id: string): ServiceSpecialty {
   const found = SPECIALTIES.find((sp) => sp.id === id)

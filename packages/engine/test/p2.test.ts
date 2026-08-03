@@ -619,7 +619,13 @@ describe('requestDischarge / retrain', () => {
     // C3-era reenlistment is a CHAIN: agree, choose a term, choose an
     // option where one is offered, then take the oath. Driving it end to
     // end is what a player does.
+    //
+    // AND THE TRADE QUESTION IS ONE OF THE OPTIONS (owner: "I don't think we
+    // should be able to change jobs every single time we reenlist"). It used
+    // to follow every oath for free; now it has to be bought with the slot
+    // the bonus would have taken, so this drive elects it deliberately.
     resolvePending(world, 'reenlist')
+    let sawOptions = false
     while (
       world.player.pending !== null &&
       (world.player.pending.kind === 'reenlist-term' ||
@@ -627,8 +633,15 @@ describe('requestDischarge / retrain', () => {
         world.player.pending.kind === 'service-contract')
     ) {
       const options = world.player.pending.options
+      if (world.player.pending.kind === 'reenlist-option') {
+        expect(options).toContain('reclass')
+        sawOptions = true
+        resolvePending(world, 'reclass')
+        continue
+      }
       resolvePending(world, options[0] ?? 'take-the-oath')
     }
+    expect(sawOptions).toBe(true)
 
     const followUp = world.player.pending
     if (followUp === null) {
@@ -665,6 +678,51 @@ describe('requestDischarge / retrain', () => {
         (r) => r.decision === 'training' && r.tick === retrainTick && r.subjectId === soldier.id,
       ),
     ).toBe(true)
+  })
+
+  it('and a term signed for anything else leaves the trade alone', () => {
+    const world = createWorld(makeSeed(2024), 100)
+    const soldier = [...world.people.values()].find((p) => {
+      if (p.deathTick !== null) return false
+      const age = ageAt(p.birthTick, world.tick)
+      return age >= 18 && age <= 24 && world.education.get(p.id)?.level === 'secondary'
+    })
+    if (!soldier) throw new Error('nobody to enlist')
+    setPlayer(world, soldier.id)
+    const specialty = SPECIALTIES.find((sp) => sp.requires === 'none')
+    if (!specialty) throw new Error('no walk-in specialty')
+    enlistPerson(world, world.tick, soldier, specialty, [])
+
+    const record = world.service.get(soldier.id)
+    if (!record) throw new Error('enlistment did not take')
+    world.service.set(soldier.id, { ...record, termMonthsLeft: 1 })
+    let guard = 0
+    while (world.player.pending?.kind !== 'reenlist' && guard < 24) {
+      if (world.player.pending !== null) resolveSafely(world)
+      advanceTick(world)
+      guard++
+    }
+    expect(world.player.pending?.kind).toBe('reenlist')
+
+    resolvePending(world, 'reenlist')
+    while (
+      world.player.pending !== null &&
+      (world.player.pending.kind === 'reenlist-term' ||
+        world.player.pending.kind === 'reenlist-option' ||
+        world.player.pending.kind === 'service-contract')
+    ) {
+      const options = world.player.pending.options
+      // Anything that is not reclassification — the school, the money, the
+      // station. A trade you can walk away from every four years for free is
+      // not a trade.
+      const pick = options.find((o) => o !== 'reclass') ?? 'take-the-oath'
+      resolvePending(world, pick)
+    }
+
+    expect(world.player.pending?.kind).not.toBe('retrain')
+    const after = world.service.get(soldier.id)
+    expect(after?.specialtyId).toBe(specialty.id)
+    expect(after?.specialtyChangedAtTick).toBeNull()
   })
 })
 

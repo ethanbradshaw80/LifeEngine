@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
 import { officerPayOn, servicePayOn } from '../src/content.js'
 import { rankTitle } from '../src/service.js'
@@ -36,6 +36,43 @@ describe('the officer ladder', () => {
     expect(enlisted).toBe('PVT')
     expect(officer).toBe('2LT')
     expect(enlisted).not.toBe(officer)
+  })
+
+  it('is a career, not two rungs — officers reach the middle of it', () => {
+    // MUST-FIX (military review): competitiveGates read the ENLISTED ladder
+    // for everybody, so a commissioned member at 1LT cleared neither the
+    // junior gate nor the board gate and stopped there forever. Six officer
+    // ranks, one reachable. A test that never advances the tick loop would
+    // not have caught it, so this one runs a town for eighty years.
+    const world = createWorld(makeSeed(4141), 100)
+    advanceTicks(world, 80 * 12)
+
+    const officers = [...world.service.values()].filter((r) => r.commissioned === true)
+    expect(officers.length, 'nobody was commissioned in eighty years').toBeGreaterThan(0)
+    const highest = Math.max(...officers.map((r) => r.rank))
+    expect(highest, 'the officer ladder still dead-ends').toBeGreaterThan(1)
+
+    // And the promotions are recorded under OFFICER titles, not enlisted
+    // ones — the record is permanent and used to read "made PV2" for a new
+    // first lieutenant.
+    const officerIds = new Set(officers.map((r) => r.personId))
+    const enlistedTitles = new Set(CLASSIC_SPEC.branches.flatMap((b) => b.ranks))
+    for (const event of world.events) {
+      if (event.type !== 'promoted' || !officerIds.has(event.subjectId)) continue
+      expect(enlistedTitles.has(event.detail ?? ''), `officer promoted to ${event.detail ?? ''}`).toBe(
+        false,
+      )
+    }
+  })
+
+  it('costs two more years than an enlistment, so it is not a free upgrade', () => {
+    // Otherwise the commission is +55% pay for the same commitment.
+    const world = createWorld(makeSeed(4141), 100)
+    advanceTicks(world, 60 * 12)
+    for (const record of world.service.values()) {
+      if (record.commissioned !== true) continue
+      expect(record.termMonths).toBe(72)
+    }
   })
 
   it('pays a commission on its own table, and does not make it a free upgrade', () => {

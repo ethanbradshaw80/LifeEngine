@@ -61,6 +61,7 @@ import {
   POINTS_PER_VALOR,
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_TERM_MONTHS,
+  specialtyTitleFor,
   servicePayOn,
   officerPayOn,
   offenceById,
@@ -225,19 +226,33 @@ export function competitiveGates(
   world: World,
   specialty: ServiceSpecialty,
   rank: number,
+  commissioned = false,
 ): { readonly targetRank: number; readonly tigNeeded: number; readonly cutoff: number } | null {
   const branch = branchSpecFor(world, specialty.branch)
-  const ladder = branch.ranks
-  const competitiveFrom = branch.competitiveFrom
+  // THE LADDER THIS PERSON IS ACTUALLY ON (military review, must-fix 1). This
+  // read the enlisted ladder for everybody, so a commissioned member at 1LT
+  // asked whether index 2 cleared an ENLISTED competitiveFrom of four — it
+  // does not — and fell out of both the junior path and the board path. The
+  // career stopped dead at O-2 while the pay table, the TIG table and six
+  // officer ranks sat there unreachable.
+  const ladder = commissioned ? (branch.officerRanks ?? branch.ranks) : branch.ranks
+  const grades = commissioned ? (branch.officerGrades ?? branch.grades) : branch.grades
+  const competitiveFrom = commissioned ? OFFICER_COMPETITIVE_FROM : branch.competitiveFrom
   if (rank >= ladder.length - 1) return null
   if (rank + 1 < competitiveFrom) return null
-  const grades = branch.grades
   const stepsUp = rank + 1 - competitiveFrom
   // A same-grade lateral (SPC→CPL) is an appointment, not a grade board —
   // quicker than a board, but it waits on a billet, not on the calendar
   // alone (owner: two mid-career promotions in a year reads wrong).
   const sameGrade = grades[rank + 1] === grades[rank]
-  const tigNeeded = sameGrade ? 12 : 12 + stepsUp * 6
+  // An officer's boards are FAR apart — four years in grade for major, five
+  // for lieutenant colonel — which is the same table the junior officer
+  // steps read, so the two halves of the ladder cannot drift.
+  const tigNeeded = commissioned
+    ? (OFFICER_TIG_MONTHS[rank] ?? 48)
+    : sameGrade
+      ? 12
+      : 12 + stepsUp * 6
   const cutoff = BOARD_CUTOFF_BASE + stepsUp * BOARD_CUTOFF_STEP + specialty.boardCutoffOffset
   return { targetRank: rank + 1, tigNeeded, cutoff }
 }
@@ -625,9 +640,10 @@ export function boardStandingFor(
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
   const specialty = specialtyFor(world, record.specialtyId)
-  const gates = competitiveGates(world, specialty, record.rank)
+  const commissioned = record.commissioned === true
+  const gates = competitiveGates(world, specialty, record.rank, commissioned)
   if (!gates) return null
-  const targetTitle = rankTitle(world, record.branch, gates.targetRank)
+  const targetTitle = rankTitle(world, record.branch, gates.targetRank, commissioned)
   return {
     targetTitle,
     targetRank: gates.targetRank,
@@ -860,6 +876,7 @@ export function enlistPerson(
   person: Person,
   specialty: ServiceSpecialty,
   extraInputs: readonly CausalFactor[],
+  commissionElected?: boolean,
 ): void {
   const bases = basesFor(world, specialty.branch)
   const base = bases[Math.abs(person.id) % Math.max(1, bases.length)]
@@ -875,7 +892,19 @@ export function enlistPerson(
   // go). Not a bonus — the officer starts at the bottom of a different
   // ladder with a different job, and a sergeant with fifteen years still
   // out-earns a new lieutenant.
-  const commissioned = commissionsOnEntry(world, person.id)
+  //
+  // AND IT IS A CHOICE, NOT A CONSEQUENCE (owner: there was no option to
+  // commission). A graduate can sign either way and real ones do — the
+  // player is asked, and the answer arrives here. NPCs have no one to ask,
+  // so the degree still speaks for them.
+  //
+  // AND ONLY WHERE THERE IS A LADDER TO COMMISSION ONTO. A preset may ship a
+  // service with no officer corps at all (w1's Ranger Corps does), and
+  // commissioning somebody into an empty ladder produced a record whose rank
+  // rendered as "#1" — a person with no rank at all.
+  const commissioned =
+    (commissionElected ?? commissionsOnEntry(world, person.id)) &&
+    (branchSpecFor(world, specialty.branch).officerRanks?.length ?? 0) > 0
 
   world.service.set(person.id, {
     personId: person.id,
@@ -894,7 +923,8 @@ export function enlistPerson(
       ? officerPayOn(branchSpecFor(world, specialty.branch), 0)
       : servicePayOn(branchSpecFor(world, specialty.branch), 0),
     performance: Math.floor((person.traits.diligence + 500) / 2),
-    termMonthsLeft: SERVICE_TERM_MONTHS,
+    termMonthsLeft: commissioned ? OFFICER_TERM_MONTHS : SERVICE_TERM_MONTHS,
+    termMonths: commissioned ? OFFICER_TERM_MONTHS : SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
     dischargeReason: null,
     termPerformanceSum: 0,
@@ -909,14 +939,14 @@ export function enlistPerson(
     type: 'enlisted',
     subjectId: person.id,
     placeId: base.id,
-    detail: specialty.title,
+    detail: specialtyTitleFor(specialty, commissioned),
   })
   // The first thing service is, is training: ten weeks of basic before the
   // trade. Part of the record from day one — a term is a lived four years.
   recordEvent(world, tick, {
     type: 'began-training',
     subjectId: person.id,
-    detail: 'basic training',
+    detail: commissioned ? 'the commissioning course' : 'basic training',
   })
   recordDecision(world, tick, {
     subjectId: person.id,
@@ -926,8 +956,12 @@ export function enlistPerson(
       ...extraInputs,
       factor('steady-pay', Math.floor(servicePayOn(branchSpecFor(world, specialty.branch), 0) / 1000)),
     ],
-    chosen: `enlisted in ${branchName(world, specialty.branch)} as a ${specialty.title}`,
-    rejected: ['civilian life'],
+    chosen: commissioned
+      ? `commissioned into ${branchName(world, specialty.branch)} as ${
+          'aeiou'.includes(specialtyTitleFor(specialty, true).charAt(0)) ? 'an' : 'a'
+        } ${specialtyTitleFor(specialty, true)}`
+      : `enlisted in ${branchName(world, specialty.branch)} as a ${specialty.title}`,
+    rejected: commissioned ? ['civilian life', 'signing as enlisted'] : ['civilian life'],
     streamId: Stream.Employment,
   })
 }
@@ -988,7 +1022,14 @@ export function runService(world: World, tick: Tick): void {
       // The drive knocks louder for the player too, and so does the family
       // that served — parity with the NPC terms below (review S3).
       const knock = (35 + (parentServed ? 10 : 0)) * (drive ? 3 : 1)
-      if (!world.employment.has(person.id) && rng.chance(knock, 1_000)) {
+      // A GRADUATE HEARS FROM THE OFFICE EVEN IN A GOOD JOB. The old gate
+      // was joblessness alone, which quietly closed the officer path: the
+      // people a recruiter calls hardest about a commission are exactly the
+      // ones who walked out of college into work. Softer, because it is a
+      // harder call to take — but it comes.
+      const employed = world.employment.has(person.id)
+      const reachable = !employed || commissionsOnEntry(world, person.id)
+      if (reachable && rng.chance(employed ? Math.floor(knock / 3) : knock, 1_000)) {
         raisePending(world, {
           tick,
           kind: 'enlist',
@@ -1162,6 +1203,24 @@ function livingSorted(world: World): Person[] {
  */
 const OFFICER_TIG_MONTHS: readonly number[] = [24, 24, 48, 60, 72, 84]
 
+/**
+ * The officer ladder's first BOARD step. Below it, promotion is time in
+ * grade; at and above it, a board sits. Second lieutenant to first is
+ * near-automatic for anyone who is not failing; captain is earned.
+ */
+const OFFICER_COMPETITIVE_FROM = 2
+
+/**
+ * A commission's initial obligation.
+ *
+ * SIX YEARS, not four (military review, should-fix 6). The comments claimed
+ * a longer obligation and the code wrote the enlisted term, which made the
+ * commission +55% pay for the same commitment — and once the ladder above
+ * O-2 works, that is a straight upgrade. The extra two years are what the
+ * commissioning course costs, and they are the reason to think about it.
+ */
+const OFFICER_TERM_MONTHS = 72
+
 function serveMonth(world: World, tick: Tick, person: Person, record: NonNullable<ReturnType<World['service']['get']>>): void {
   const rng = openStream(world.seed, Stream.Employment, person.id, tick + 4444)
 
@@ -1265,7 +1324,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // years to first lieutenant and four to captain is the real shape, and
     // it is why the enlisted table could not be reused: those are six
     // months apart.
-    const competitiveFrom = commissioned ? 2 : branchSpec.competitiveFrom
+    const competitiveFrom = commissioned ? OFFICER_COMPETITIVE_FROM : branchSpec.competitiveFrom
     let promote = false
     if (rank + 1 < competitiveFrom) {
       const due = commissioned ? OFFICER_TIG_MONTHS[rank] ?? 24 : branchSpec.juniorTigMonths[rank] ?? 6
@@ -1276,7 +1335,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // draw stands in for slot timing, not for merit. THE PLAYER never
       // promotes through this branch: their stripes come only through the
       // board question (M-SERVICE-PLAY) — put in for, not received.
-      const gates = competitiveGates(world, specialty, rank)
+      const gates = competitiveGates(world, specialty, rank, commissioned)
       if (gates && timeInGrade >= gates.tigNeeded) {
         // Clearly over the cutoff = promoted; the draw lives only near the
         // line (the same rule the player's board follows).
@@ -1292,7 +1351,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       recordEvent(world, tick, {
         type: 'promoted',
         subjectId: person.id,
-        detail: rankTitle(world, branch, rank),
+        detail: rankTitle(world, branch, rank, commissioned),
       })
       recordDecision(world, tick, {
         subjectId: person.id,
@@ -1303,7 +1362,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
           factor('strong-performance', performance),
           ...(record.qualifications.length > 0 ? [factor('holds-qualification', 400)] : []),
         ],
-        chosen: `made ${rankTitle(world, branch, rank)}`,
+        chosen: `made ${rankTitle(world, branch, rank, commissioned)}`,
         rejected: [],
         streamId: Stream.Employment,
       })
@@ -1877,7 +1936,9 @@ export function decodeContract(encoded: string | null): {
     code: parts[0] ?? 'RE-1',
     termYears: Number(parts[1] ?? '4'),
     option:
-      option === 'bonus' || option === 'school' || option === 'stability' ? option : 'none',
+      option === 'bonus' || option === 'school' || option === 'stability' || option === 'reclass'
+        ? option
+        : 'none',
     bonus: Number(parts[3] ?? '0'),
   }
 }
@@ -1912,6 +1973,10 @@ export function applyReenlistmentOption(
   // a cycle the import ratchet exists to prevent. The caller has the
   // ledger; this function has the decision.
   if (option === 'bonus') return
+  // Reclassification is a QUESTION, not an effect: which trade is the
+  // player's to answer, and the caller owns the pendings. Elected here,
+  // asked one prompt later.
+  if (option === 'reclass') return
   if (option === 'stability') {
     // No involuntary orders for two years. The deployment system reads it.
     world.service.set(person.id, {
@@ -2093,11 +2158,16 @@ export function applyBoardPromotion(world: World, tick: Tick, personId: EntityId
   const record = activeRecord(world, personId)
   if (!record) return null
   const newRank = record.rank + 1
+  const branch = branchSpecFor(world, record.branch)
   world.service.set(personId, {
     ...record,
     rank: newRank,
     rankSinceTick: tick,
-    monthlyPay: servicePayOn(branchSpecFor(world, record.branch), newRank),
+    // The table the member is paid from, not the one everybody used to be
+    // paid from — a promoted lieutenant's pay used to fall to the enlisted
+    // scale until serveMonth quietly corrected it a month later.
+    monthlyPay:
+      record.commissioned === true ? officerPayOn(branch, newRank) : servicePayOn(branch, newRank),
   })
   return newRank
 }

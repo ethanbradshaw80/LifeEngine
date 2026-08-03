@@ -156,7 +156,7 @@ export function srbFor(
 }
 
 /** What a reenlistment can offer instead of the cash. */
-export type ReenlistmentOption = 'bonus' | 'school' | 'stability'
+export type ReenlistmentOption = 'bonus' | 'school' | 'stability' | 'reclass'
 
 /**
  * Which options this contract carries.
@@ -164,10 +164,21 @@ export type ReenlistmentOption = 'bonus' | 'school' | 'stability'
  * A marginal file gets the term and nothing else — which is what a waiver
  * means. A clean file with no bonus still gets the choices that cost the
  * service nothing but a promise.
+ *
+ * RECLASSIFICATION IS ONE OF THEM (owner, playing: "I don't think we should
+ * be able to change jobs every single time we reenlist, it should be an
+ * option that the retention offer gives during the bonus process"). He is
+ * right, and it was the wrong shape twice over: a trade you can walk away
+ * from every four years is not a trade, and reclassification really is a
+ * retention TOOL — the thing the office offers the man it cannot pay. So it
+ * competes with the money now. You can have the bonus or you can have the
+ * new job; wanting both is what the choice is for.
  */
 export function optionsFor(code: ReCode, bonus: Money): readonly ReenlistmentOption[] {
   if (code !== 'RE-1') return []
-  return bonus > 0 ? ['bonus', 'school', 'stability'] : ['school', 'stability']
+  return bonus > 0
+    ? ['bonus', 'school', 'stability', 'reclass']
+    : ['school', 'stability', 'reclass']
 }
 
 /** Months of no involuntary orders bought by the stability option. */

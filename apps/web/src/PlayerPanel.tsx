@@ -24,11 +24,19 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { decodeScene, ordersSheetFor, sceneById, unitMomentById } from '@life-engine/engine'
+import {
+  contractFor,
+  decodeContract,
+  decodeScene,
+  ordersSheetFor,
+  sceneById,
+  unitMomentById,
+} from '@life-engine/engine'
 import type { PendingDecision, World } from '@life-engine/engine'
 import { OrdersSheetView } from './OrdersSheet.js'
+import { ServiceContractView } from './ServiceContract.js'
 import { Avatar } from './Avatar.js'
-import type { EntityId } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { CreateLifeSpec } from './engine.worker.js'
 
@@ -229,6 +237,8 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   separation: { stay: 'Stay and try again', separate: 'Separate' },
   convalesce: { rest: 'Rest and heal', 'push-on': 'Push on' },
   enlist: { accept: 'Enlist', decline: 'Not for me' },
+  // Not a medal glyph: a decoration is earned, and this is a job choice.
+  commission: { officer: '📜 Take the commission', enlisted: '🪖 Sign as enlisted' },
   reenlist: { stay: 'Sign again', leave: 'Come home' },
   // ADR-0022 §5. The three answers to an order, in the order of what
   // they cost: nothing, a little, and a career.
@@ -280,6 +290,16 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'foremans-warning': { 'knuckle-down': 'Knuckle down', shrug: 'Shrug it off' },
   retrain: { keep: 'Keep your trade' },
+  // The retention offer. Reclassification sits beside the money because it
+  // costs the service the same thing money does — it is what the office
+  // offers the person it cannot pay (owner).
+  'reenlist-option': {
+    bonus: '💵 Take the bonus',
+    school: '🎓 A guaranteed school seat',
+    stability: '🏠 Two years where you are',
+    reclass: '🔧 Retrain into another trade',
+  },
+  'service-contract': { 'take-the-oath': 'Raise your right hand' },
 }
 
 function optionLabel(world: World, pending: PendingDecision, option: string): string {
@@ -320,6 +340,10 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
   }
   // Specialty ids become their titles (also fixes the long-standing raw-id
   // labels on the enlistment specialty menu).
+  // "3yr" is the engine's id for a term; it is not a label.
+  if (pending.kind === 'reenlist-term' && option.endsWith('yr')) {
+    return `${option.replace('yr', '')} more years`
+  }
   if (pending.kind === 'specialty' || (pending.kind === 'retrain' && option !== 'keep')) {
     const specialty = world.spec.specialties.find((sp) => sp.id === option)
     if (specialty) return pending.kind === 'retrain' ? `Retrain as ${specialty.title}` : specialty.title
@@ -370,6 +394,33 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               ))}
             </div>
           </OrdersSheetView>
+        </div>
+      )
+    }
+  }
+
+  // §6b/§6c. A CONTRACT IS PAPER TOO, and for the same reason orders are:
+  // the oath is the largest moment in a service life that used to arrive in
+  // the same grey box as "move house?".
+  if (pending.kind === 'service-contract') {
+    const state = decodeContract(pending.occupationId)
+    const contract = contractFor(
+      world,
+      pending.tick,
+      pending.personId,
+      state.code === 'enlist' ? 'enlistment' : 'reenlistment',
+      { termYears: state.termYears, option: state.option, bonus: state.bonus as Money },
+    )
+    if (contract) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="A contract">
+          <ServiceContractView contract={contract}>
+            <div className="contract-actions">
+              <button type="button" onClick={() => onChoose(pending.options[0] ?? 'take-the-oath')}>
+                Raise Your Right Hand — Take the Oath
+              </button>
+            </div>
+          </ServiceContractView>
         </div>
       )
     }
