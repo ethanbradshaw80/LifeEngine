@@ -2297,6 +2297,30 @@ export function discharge(
     termMonthsLeft: 0,
   })
   const dischargedEvent = recordEvent(world, tick, { type: 'discharged', subjectId: person.id, detail: reason })
+
+  // THE PAPERWORK, at every separation and for every reason (owner's spec).
+  // Raised AFTER the record closes, because the DD-214 is a summary of a
+  // finished career and reads every field off the closed record — dates,
+  // total service, character of service. Rendering it from an open one
+  // would be a document about something that had not happened yet.
+  //
+  // Not for the dead: a person killed in service is not out-processing, and
+  // the pending resolver refuses a question for someone who cannot answer.
+  // Their record still closes and still holds everything the sheet would
+  // have said, which is what a family reads later.
+  if (person.id === world.player.personId && person.deathTick === null) {
+    raisePending(world, {
+      tick,
+      kind: 'separation',
+      personId: person.id,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['acknowledge'],
+    })
+  }
   // An end-of-term discharge closes a completed term; good conduct is
   // judged on the term's AVERAGE. A term cut short — medical or otherwise —
   // is refused by the grant itself, which reads the reason off the event.

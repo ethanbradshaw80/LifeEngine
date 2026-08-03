@@ -27,6 +27,8 @@ import {
 import {
   contractFor,
   decodeContract,
+  separationFor,
+  retirementCertificateFor,
   rankTitle,
   decodeScene,
   ordersSheetFor,
@@ -36,6 +38,7 @@ import {
 import type { PendingDecision, World } from '@life-engine/engine'
 import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
+import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
 import { Avatar } from './Avatar.js'
 import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -405,6 +408,43 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               ))}
             </div>
           </OrdersSheetView>
+        </div>
+      )
+    }
+  }
+
+  // THE LAST TWO DOCUMENTS. A career ends with paperwork, and the sheet is
+  // a summary of the whole of it — which is what makes it feel earned: it
+  // is literally everything they did.
+  if (pending.kind === 'separation') {
+    const sheet = separationFor(world, pending.personId)
+    if (sheet) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Separation record">
+          <SeparationSheetView sheet={sheet}>
+            <div className="dd-actions">
+              <button type="button" onClick={() => onChoose(pending.options[0] ?? 'acknowledge')}>
+                Acknowledge — Out-Process
+              </button>
+            </div>
+          </SeparationSheetView>
+        </div>
+      )
+    }
+  }
+
+  if (pending.kind === 'retirement-certificate') {
+    const certificate = retirementCertificateFor(world, pending.personId)
+    if (certificate) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Certificate of retirement">
+          <RetirementCertificateView certificate={certificate}>
+            <div className="retire-actions">
+              <button type="button" onClick={() => onChoose(pending.options[0] ?? 'accept')}>
+                Accept with Honor
+              </button>
+            </div>
+          </RetirementCertificateView>
         </div>
       )
     }

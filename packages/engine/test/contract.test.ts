@@ -13,7 +13,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import { ageAt, toDate } from '../src/clock.js'
+import { ageAt } from '../src/clock.js'
 import { contractFor } from '../src/contract.js'
 import { createWorld } from '../src/index.js'
 import { requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
@@ -113,16 +113,6 @@ describe('the commission fork', () => {
     expect(pending?.options).toEqual(['take-the-oath'])
   })
 })
-
-const MONTH_NAMES = [
-  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
-  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
-]
-
-function stampOf(world: World, tick: Tick): string {
-  const { year, month } = toDate(world, tick)
-  return `${MONTH_NAMES[month - 1] ?? 'JANUARY'} ${String(year)}`
-}
 
 describe('the contract document', () => {
   const found = SPECIALTIES.find((sp) => sp.requires === 'none')
@@ -323,41 +313,6 @@ describe('the contract document', () => {
       administratorId: seniorId,
     })
     expect(fallback?.administeredBy).not.toContain(them!.familyName.toUpperCase())
-  })
-
-  it('the far bookend: a certificate of service, once the record is closed', () => {
-    const { world, personId } = aWalkIn(4141, false)
-    requestEnlistment(world)
-    resolvePending(world, walkIn.id)
-    resolvePending(world, 'take-the-oath')
-
-    // While they serve there is no certificate — a document about a
-    // finished career must not exist for an unfinished one.
-    expect(contractFor(world, world.tick, personId, 'discharge', noTerms)).toBeUndefined()
-
-    const record = world.service.get(personId)!
-    const dischargedAt = (record.enlistedAtTick + 8 * 12) as Tick
-    world.service.set(personId, {
-      ...record,
-      dischargedAtTick: dischargedAt,
-      dischargeReason: 'completed the term',
-    })
-
-    // And now the contracts stop, because they are for somebody serving.
-    expect(contractFor(world, world.tick, personId, 'reenlistment', noTerms)).toBeUndefined()
-
-    const certificate = contractFor(world, world.tick, personId, 'discharge', noTerms)
-    if (!certificate) throw new Error('a closed record has a certificate')
-    expect(certificate.title).toBe('CERTIFICATE OF SERVICE')
-    expect(certificate.form).toBe('FORM RA-9')
-    expect(certificate.oathHeading).toBe('Character of Service')
-    expect(certificate.headline).toBe('COMPLETED THE TERM')
-    // It spans the WHOLE career, not a term.
-    expect(certificate.from).toBe(stampOf(world, record.enlistedAtTick))
-    expect(certificate.to).toBe(stampOf(world, dischargedAt))
-    expect(certificate.stamp).toBe('8-YEAR')
-    expect(certificate.oath).toContain('8 years')
-    expect(certificate.oath).toContain('completed the term')
   })
 
   it('has nothing to write for somebody not serving', () => {

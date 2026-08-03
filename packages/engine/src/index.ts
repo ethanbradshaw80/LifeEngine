@@ -306,4 +306,6 @@ export type {
 } from './types.js'
 export type { OrdersSheet, OrdersVariant } from './deployment.js'
 export { contractFor } from './contract.js'
+export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
+export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'
 export type { ServiceContract, ContractVariant } from './contract.js'

@@ -122,7 +122,19 @@ export function useWorld(initialSeed: number): WorldController {
       // forgive (R-03). Every world update is written down, debounced so a
       // burst of quick steps becomes one write. toSaveFile is pure and the
       // clone is read-only, so saving off the response is safe.
+      // NEVER AUTOSAVE A WORLD WITHOUT ITS LEDGER. This is not theoretical:
+      // during development a build briefly saved the ledger-less head the
+      // worker sends, a hot reload pushed it into a live session, and the
+      // autosave wrote a world with no history at all — which the loader
+      // then rightly refused, costing the save. The reassembly above is now
+      // the only source of these arrays, so the one cheap check that the
+      // result is whole belongs between it and the disk.
       const worldToSave = nextWorld
+      if (!Array.isArray(worldToSave.events) || !Array.isArray(worldToSave.causalRecords)) {
+        setSaveState('failed')
+        setMessage('The record did not come through whole; this month was not saved.')
+        return
+      }
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
       setSaveState('saving')
       autosaveTimer.current = window.setTimeout(() => {

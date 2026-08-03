@@ -2293,3 +2293,198 @@ ol.contract-body .em { font-weight: 700; }
 /* The certificate, opened inside the service record. */
 .certificate-link { margin-left: 0.5rem; }
 .certificate-cell { grid-column: 1 / -1; margin-top: 0.75rem; }
+
+/* ---------------------------------------------------------------------------
+   The separation documents. The DD-214 shares the orderly room's paper and
+   typewriter with the orders and the contract; the retirement certificate
+   deliberately does not — it is not a form, and it should not look like one.
+   --------------------------------------------------------------------------- */
+
+.dd { width: 100%; max-width: 640px; margin: 0 auto; }
+
+.dd-sheet {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 28px 20px;
+  color: #1b1a16;
+  background: #f4efe2;
+  border-radius: 3px;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  font-family: 'Courier New', ui-monospace, monospace;
+}
+
+.dd-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(0, 0, 0, 0.015) 28px);
+}
+
+.dd-crest { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+.dd-crest svg { width: 42px; height: 42px; }
+.dd-org { font-weight: 700; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+.dd-cmd { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: #6b6455; }
+
+hr.dd-rule { border: none; border-top: 2px solid #26221a; margin: 12px 0 4px; }
+
+.dd-titlebar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 8px 0 6px;
+}
+.dd-title { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+.dd-no { font-size: 10.5px; color: #6b6455; }
+
+table.dd-data { width: 100%; border-collapse: collapse; font-size: 11.5px; margin: 4px 0; }
+table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: top; }
+.dd-sheet .lbl {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 8.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #6b6455;
+}
+.dd-sheet .val { font-weight: 700; font-size: 12px; }
+
+.dd-block {
+  margin: 4px 0;
+  padding: 6px 8px;
+  border: 1px solid #cdc6b3;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.dd-list { display: block; }
+
+.dd-stamp {
+  position: absolute;
+  top: 92px;
+  right: 12px;
+  padding: 5px 10px;
+  border: 3px solid currentColor;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.8;
+  transform: rotate(-10deg);
+  max-width: 40%;
+  text-align: center;
+  line-height: 1.1;
+}
+
+/* The stamp is the one thing on the sheet that carries a judgement. */
+.dd-stamp.is-honorable { color: #2b4d7d; }
+.dd-stamp.is-general { color: #7a4a12; }
+.dd-stamp.is-adverse { color: #a4241f; }
+
+.dd-foot {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: #6b6455;
+}
+
+.dd-actions { display: flex; gap: 10px; margin-top: 16px; }
+.dd-actions button {
+  flex: 1;
+  padding: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #e7ecf3;
+  background: #1f2733;
+  border: 1px solid #34404f;
+  border-radius: 8px;
+}
+
+/* --- the retirement certificate ---------------------------------------- */
+
+.retire { width: 100%; max-width: 640px; margin: 0 auto; }
+
+.retire-cert {
+  position: relative;
+  padding: 30px;
+  color: #211d14;
+  background: #f7f2e6;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.6);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.retire-frame {
+  position: relative;
+  padding: 28px 26px 24px;
+  border: 2px solid #b28e35;
+  outline: 1px solid #b28e35;
+  outline-offset: 4px;
+  text-align: center;
+}
+
+.retire-frame::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(178, 142, 53, 0.4);
+  pointer-events: none;
+}
+
+.retire-seal { width: 56px; height: 56px; margin: 0 auto 8px; display: block; }
+.retire-org { font-size: 11.5px; letter-spacing: 3px; text-transform: uppercase; color: #8a6d22; font-weight: 700; }
+.retire-frame h1 { font-size: 28px; letter-spacing: 1px; margin: 8px 0 2px; font-weight: 700; }
+.retire-sub { font-size: 11.5px; letter-spacing: 2px; text-transform: uppercase; color: #6b6455; margin-bottom: 16px; }
+.retire-pre { font-size: 13px; color: #6b6455; font-style: italic; margin-bottom: 6px; }
+
+.retire-name {
+  display: inline-block;
+  margin: 4px 0;
+  padding: 0 24px 6px;
+  border-bottom: 1px solid #b28e35;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.retire-body { max-width: 90%; margin: 14px auto 6px; font-size: 14px; line-height: 1.7; }
+.retire-flourish { color: #b28e35; font-size: 19px; margin: 12px 0 4px; letter-spacing: 6px; }
+
+.retire-sigs { display: flex; justify-content: space-between; gap: 24px; margin-top: 24px; }
+.retire-sigs .sigblk { flex: 1; text-align: center; }
+.retire-sigs .sigline {
+  margin: 24px 10px 0;
+  padding-top: 4px;
+  border-top: 1px solid #211d14;
+  font-size: 10.5px;
+  color: #6b6455;
+  letter-spacing: 0.5px;
+}
+.retire-sigs .signame { font-weight: 700; font-size: 12.5px; }
+
+.retire-actions { margin-top: 16px; }
+.retire-actions button {
+  width: 100%;
+  padding: 13px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: #8a6d22;
+  border: 1px solid #8a6d22;
+  border-radius: 8px;
+}
+
+@media (max-width: 480px) {
+  .dd-sheet { padding: 20px 14px 16px; }
+  .dd-stamp { top: 84px; right: 6px; font-size: 10px; padding: 4px 6px; }
+  .dd-titlebar { flex-direction: column; gap: 2px; }
+  .retire-cert { padding: 16px; }
+  .retire-frame { padding: 20px 14px 18px; }
+  .retire-frame h1 { font-size: 22px; }
+  .retire-name { font-size: 19px; padding: 0 10px 6px; }
+  .retire-sigs { flex-direction: column; gap: 6px; }
+}

@@ -97,6 +97,7 @@ import {
   specialtyTitleFor,
   } from './content.js'
 import { rentFor } from './content.js'
+import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
 import {
@@ -1443,6 +1444,16 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'separation': {
+      // The record already closed; this is the out-processing. The
+      // retirement certificate, where the years earned one, is raised after
+      // commit like every other follow-up.
+      break
+    }
+
+    case 'retirement-certificate':
+      break
+
     case 'specialty': {
       const specialty = world.spec.specialties.find((sp) => sp.id === choice)
       if (specialty) {
@@ -2113,6 +2124,49 @@ export function resolvePending(world: World, choice: string): void {
   if (pending.kind === 'commission') {
     askSpecialty(world, pending.tick, person.id, choice === 'officer')
   }
+  // THE SHEET, WHEN THE ANSWER ITSELF ENDED THE CAREER. `discharge()` raises
+  // it for every tick-driven separation, but answering "come home" runs the
+  // discharge INSIDE this resolution — while the answered pending still holds
+  // the slot, so raisePending refuses it and the paperwork silently vanishes.
+  // The same trap the trial and the contract chain fell into. Raised here,
+  // with the slot free.
+  const closed = world.service.get(person.id)
+  if (
+    closed !== undefined &&
+    closed.dischargedAtTick === pending.tick &&
+    person.deathTick === null &&
+    person.id === world.player.personId &&
+    pending.kind !== 'separation'
+  ) {
+    raisePending(world, {
+      tick: pending.tick,
+      kind: 'separation',
+      personId: person.id,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['acknowledge'],
+    })
+  }
+
+  // Twenty years earns the second document, alongside the first. Raised
+  // after commit, with the pending slot free.
+  if (pending.kind === 'separation' && (separationFor(world, person.id)?.retirementEligible ?? false)) {
+    raisePending(world, {
+      tick: pending.tick,
+      kind: 'retirement-certificate',
+      personId: person.id,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['accept'],
+    })
+  }
+
   // §6c. THE FIRST CONTRACT IS PAPER TOO. The record already exists by the
   // time this raises — the trade choice wrote it — so the oath here executes
   // nothing; it is the ceremony over a term that has begun. That asymmetry
@@ -2489,6 +2543,15 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'separation': {
+      const sheet = separationFor(world, pending.personId)
+      return sheet === undefined
+        ? 'Your service is at an end.'
+        : `${sheet.totalService} in ${sheet.branch}. This is your discharge record — everything the service will say about you from here.`
+    }
+    case 'retirement-certificate':
+      // The country is the PRESET'S, never a name typed into engine prose.
+      return `Twenty years. ${sentenceCase(homelandName(world))} has something to say about that.`
     case 'specialty':
       return pending.occupationId === 'officer'
         ? 'Which branch will you be commissioned into? Your degree opens these doors.'
