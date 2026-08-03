@@ -93,6 +93,7 @@ import { placesOfKind } from './worldgen.js'
 import {
   meetsRequirement,
   SERVICE_TERM_MONTHS,
+  annualPay,
   servicePayOn,
   officerPayOn,
   specialtyTitleFor,
@@ -2858,10 +2859,10 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const current = world.employment.get(person.id)
         if (current) {
           const diff = pending.monthlyPay - current.monthlyPay
-          lines.push(`You earn ${formatMoney(current.monthlyPay)} a month now; this pays ${formatMoney(pending.monthlyPay)}.`)
+          lines.push(`You earn ${formatMoney(annualPay(current.monthlyPay))} a year now; this pays ${formatMoney(annualPay(pending.monthlyPay))}.`)
           if (diff < 0) lines.push('That is a pay cut.')
         } else {
-          lines.push(`It pays ${formatMoney(pending.monthlyPay)} a month. You have no wages today.`)
+          lines.push(`It pays ${formatMoney(annualPay(pending.monthlyPay))} a year. You have no wages today.`)
         }
       }
       const household = person.householdId === null ? undefined : world.households.get(person.householdId)
@@ -2884,7 +2885,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const target = pending.placeId === null ? undefined : world.places.get(pending.placeId)
       const job = world.employment.get(person.id)
       if (target && job) {
-        lines.push(`Rent in ${target.name} is ${formatMoney(rentFor(target.desirability))} a month against your ${formatMoney(job.monthlyPay)}.`)
+        lines.push(`Rent in ${target.name} is ${formatMoney(rentFor(target.desirability))} a month against your ${formatMoney(annualPay(job.monthlyPay))} a year.`)
       }
       break
     }
@@ -2981,7 +2982,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'retirement': {
       const job = world.employment.get(person.id)
       if (job) {
-        lines.push(`Retiring ends your ${formatMoney(job.monthlyPay)} a month.`)
+        lines.push(`Retiring ends your ${formatMoney(annualPay(job.monthlyPay))} a year.`)
         const started = job.startedAtTick
         const years = Math.floor((pending.tick - started) / TICKS_PER_YEAR)
         if (years >= 1) lines.push(`You have held this job ${String(years)} year${years === 1 ? '' : 's'}.`)
@@ -3053,11 +3054,11 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       // (military review, should-fix 5).
       const graduate = commissionsOnEntry(world, pending.personId)
       lines.push(
-        `A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(firstBranch ? servicePayOn(firstBranch, 0) : (0 as Money))} a month, and rises with rank.`,
+        `A term is ${String(SERVICE_TERM_MONTHS / 12)} years. Pay starts around ${formatMoney(annualPay(firstBranch ? servicePayOn(firstBranch, 0) : (0 as Money)))} a year, and rises with rank.`,
       )
       if (graduate && firstBranch) {
         lines.push(
-          `Your degree opens the officer route: a commission starts nearer ${formatMoney(officerPayOn(firstBranch, 0))} a month, on a longer obligation. You will be asked which.`,
+          `Your degree opens the officer route: a commission starts nearer ${formatMoney(annualPay(officerPayOn(firstBranch, 0)))} a year, on a longer obligation. You will be asked which.`,
         )
       }
       lines.push('Service ends any civilian job; a specialty can open doors when you come home.')
@@ -3079,10 +3080,10 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         const topEnlisted = branch.ranks.length - 1
         const topOfficer = (branch.officerRanks ?? branch.ranks).length - 1
         lines.push(
-          `Enlisted: starts at ${formatMoney(servicePayOn(branch, 0))} a month, first stripe in about six months, and ${branch.ranks[topEnlisted] ?? 'the top'} at ${formatMoney(servicePayOn(branch, topEnlisted))} is as far as it goes.`,
+          `Enlisted: starts at ${formatMoney(annualPay(servicePayOn(branch, 0)))} a year, first stripe in about six months, and ${branch.ranks[topEnlisted] ?? 'the top'} at ${formatMoney(annualPay(servicePayOn(branch, topEnlisted)))} is as far as it goes.`,
         )
         lines.push(
-          `Commissioned: starts at ${formatMoney(officerPayOn(branch, 0))}, but the first step takes two years — and the ladder runs to ${(branch.officerRanks ?? [])[topOfficer] ?? 'the top'} at ${formatMoney(officerPayOn(branch, topOfficer))}.`,
+          `Commissioned: starts at ${formatMoney(annualPay(officerPayOn(branch, 0)))}, but the first step takes two years — and the ladder runs to ${(branch.officerRanks ?? [])[topOfficer] ?? 'the top'} at ${formatMoney(annualPay(officerPayOn(branch, topOfficer)))}.`,
         )
       }
       lines.push(
@@ -3113,7 +3114,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const record = world.service.get(pending.personId)
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank, record.commissioned === true)}, ${formatMoney(record.monthlyPay)} a month.`)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank, record.commissioned === true)}, ${formatMoney(annualPay(record.monthlyPay))} a year.`)
         lines.push(
           `Leaving keeps the record${specialtyFor(world, record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying means choosing a new term next.`,
         )
@@ -3181,7 +3182,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
             ? 'The work is at the edge of what the foreman will carry.'
             : 'The work has slipped low enough to be noticed.',
         )
-        lines.push(`The job pays ${formatMoney(job.monthlyPay)} a month.`)
+        lines.push(`The job pays ${formatMoney(annualPay(job.monthlyPay))} a year.`)
       }
       lines.push('Knuckling down is a real effort with a real cost in sweat; shrugging changes nothing.')
       lines.push('Either way, keep sliding and the job will not keep itself. This warning comes once.')

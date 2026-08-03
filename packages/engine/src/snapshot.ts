@@ -28,6 +28,10 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+' * v74 — M-ECON PHASE 0: PRICES ARE REAL. Salaries move to an annual
+ *      scale ($30k labourer to $216k doctor), rents to $1,100-$1,950 a
+ *      month, living costs with them. Pay is SHOWN yearly and still paid
+ *      monthly. Every wage, rent and balance in every seed differs from v73.
  * v71 — REENLISTMENT IS EARNED, CHOSEN AND PAID FOR. An eligibility code
  *      the service decides (a barred file separates whatever the person
  *      wants), a term the player picks, a bonus when the trade is short,
@@ -462,7 +466,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 73
+export const SIMULATION_VERSION = 74
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

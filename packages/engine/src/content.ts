@@ -114,31 +114,51 @@ export const TOWN_NAME = 'Haverlock'
  * Pay is monthly, in the simulation's own economy. There is no inflation model
  * in Milestone 1, so these figures are stable for the whole run.
  */
+/**
+ * The town's trades, priced on a REAL ANNUAL SCALE (M-ECON §7).
+ *
+ * These were monthly figures that read as a 1950s pay packet — a doctor on
+ * $3,600 a month against a $500 rent. Everything downstream was calibrated
+ * against that, so the whole ladder moves together here and the rents and
+ * living costs below move with it.
+ *
+ * Stored MONTHLY in integer cents, because that is how the world pays and
+ * accounts (ADR-0008). The annual figure in each comment is what the screen
+ * shows — `annualPay` is the one place that multiplication happens.
+ */
 export const OCCUPATIONS: readonly Occupation[] = [
-  { id: 'labourer', title: 'labourer', requires: 'none', minMonthlyPay: dollars(900), maxMonthlyPay: dollars(1500) },
-  { id: 'shop-clerk', title: 'shop clerk', requires: 'primary', minMonthlyPay: dollars(1100), maxMonthlyPay: dollars(1700) },
-  { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(1300), maxMonthlyPay: dollars(2100) },
-  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(1600), maxMonthlyPay: dollars(2400) },
-  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(2000), maxMonthlyPay: dollars(3200) },
-  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(2200), maxMonthlyPay: dollars(3600) },
-  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(2300), maxMonthlyPay: dollars(3400) },
-  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(2400), maxMonthlyPay: dollars(3800) },
-  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(3000), maxMonthlyPay: dollars(5200) },
-  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(2800), maxMonthlyPay: dollars(4600) },
-  // M-DEPTH2: a town needs more ways to earn a living than ten.
-  { id: 'cook', title: 'cook', requires: 'none', minMonthlyPay: dollars(950), maxMonthlyPay: dollars(1600) },
-  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(1500), maxMonthlyPay: dollars(2300) },
-  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(2100), maxMonthlyPay: dollars(3400) },
-  { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(2000), maxMonthlyPay: dollars(3000) },
-  // C3 §3. LAW ENFORCEMENT AS A JOB, not a fixed dice value behind the
-  // scenes. A town with no constables is easy pickings; a town with several
-  // clears more of what happens in it, and that is the lever that makes the
-  // crime-pressure index respond to something the player can see and even
-  // take a hand in.
-  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(1900), maxMonthlyPay: dollars(2900) },
-  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(2900), maxMonthlyPay: dollars(4400) },
-  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(3600), maxMonthlyPay: dollars(6000) },
+  // Working class — $30k to $50k.
+  { id: 'labourer', title: 'labourer', requires: 'none', minMonthlyPay: dollars(2_500), maxMonthlyPay: dollars(3_500) },
+  { id: 'cook', title: 'cook', requires: 'none', minMonthlyPay: dollars(2_600), maxMonthlyPay: dollars(3_600) },
+  { id: 'shop-clerk', title: 'shop clerk', requires: 'primary', minMonthlyPay: dollars(2_800), maxMonthlyPay: dollars(3_900) },
+  { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(3_000), maxMonthlyPay: dollars(4_200) },
+  // Lower-middle — $50k to $70k.
+  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(4_200), maxMonthlyPay: dollars(5_400) },
+  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(4_300), maxMonthlyPay: dollars(5_600) },
+  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(4_400), maxMonthlyPay: dollars(5_800) },
+  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(4_500), maxMonthlyPay: dollars(5_900) },
+  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(4_600), maxMonthlyPay: dollars(5_900) },
+  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(4_800), maxMonthlyPay: dollars(6_000) },
+  // Middle — $70k to $100k.
+  { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(5_900), maxMonthlyPay: dollars(7_400) },
+  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(6_000), maxMonthlyPay: dollars(7_800) },
+  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(6_100), maxMonthlyPay: dollars(8_000) },
+  // Upper-middle — $100k to $150k.
+  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(8_500), maxMonthlyPay: dollars(11_500) },
+  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(9_000), maxMonthlyPay: dollars(12_000) },
+  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(9_200), maxMonthlyPay: dollars(12_500) },
+  // Professional — $150k and up.
+  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(13_000), maxMonthlyPay: dollars(18_000) },
 ]
+
+/**
+ * SHOW PAY YEARLY, PAY IT MONTHLY (M-ECON §7). One helper, so no screen
+ * invents its own multiplication and no accounting ever sees a yearly
+ * figure.
+ */
+export function annualPay(monthly: Money): Money {
+  return (monthly * 12) as Money
+}
 
 // ---------------------------------------------------------------------------
 // Prices
@@ -150,19 +170,22 @@ export const OCCUPATIONS: readonly Occupation[] = [
 // ---------------------------------------------------------------------------
 
 /** Cheapest conceivable monthly rent, for the least desirable street. */
-export const RENT_FLOOR = dollars(160)
+export const RENT_FLOOR = dollars(950)
 /** Added rent per point of neighbourhood desirability (0-1000 scale). */
-const RENT_PER_DESIRABILITY_CENTS = 55
+const RENT_PER_DESIRABILITY_CENTS = 105
 
 /** Monthly cost of keeping an adult fed, clothed and warm. */
-export const LIVING_COST_ADULT = dollars(210)
+export const LIVING_COST_ADULT = dollars(950)
 /** Children cost less per head. School is public and free. */
-export const LIVING_COST_CHILD = dollars(120)
+export const LIVING_COST_CHILD = dollars(520)
 
 /**
- * Monthly rent for a neighbourhood. Desirability 150 → ~$242; 950 → ~$682.
- * Against wages of $900-$5,200 a month, a single labourer can afford the
- * bottom of town and a college couple the top, which is the intended shape.
+ * Monthly rent for a neighbourhood. Desirability 150 → ~$1,108; 950 → ~$1,948.
+ *
+ * Scaled with the salary ladder (M-ECON §7). What matters is the RATIO: a
+ * labourer on $2,500 a month can still take the bottom of town and a
+ * two-earner college household the top, which is the shape the moving and
+ * arrears systems were built against.
  */
 export function rentFor(desirability: number): Money {
   return (RENT_FLOOR + desirability * RENT_PER_DESIRABILITY_CENTS) as Money

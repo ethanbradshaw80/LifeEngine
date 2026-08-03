@@ -162,8 +162,13 @@ describe('arrears', () => {
 
 describe('affordability', () => {
   it('canAfford means rent plus a living margin', () => {
+    // Read from the CONSTANT, not from a figure typed once against the
+    // price level of the day: the salary and rent scale moved wholesale at
+    // M-ECON §7, and a hard-coded margin turns a rescaling into a failure
+    // that says nothing about affordability.
     expect(canAfford(rentFor(500), 500)).toBe(false) // rent alone is not enough
-    expect(canAfford((rentFor(500) + 25_000) as Money, 500)).toBe(true)
+    expect(canAfford((rentFor(500) + LIVING_COST_ADULT) as Money, 500)).toBe(true)
+    expect(canAfford((rentFor(500) + LIVING_COST_ADULT - 1) as Money, 500)).toBe(false)
   })
 
   it('nobody moves out to a street their wage cannot carry', () => {

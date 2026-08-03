@@ -14,6 +14,7 @@ import {
   fullName,
   householdCosts,
   householdIncome,
+  annualPay,
   occupationById,
   other,
   relationshipsOf,
@@ -105,7 +106,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
           <>
             <dt>Work</dt>
             <dd>
-              {occupationById(job.occupationId).title} · {formatMoney(job.monthlyPay)} a month
+              {occupationById(job.occupationId).title} · {formatMoney(annualPay(job.monthlyPay))} a year
             </dd>
           </>
         )}

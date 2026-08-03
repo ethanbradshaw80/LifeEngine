@@ -81,6 +81,7 @@ import {
   rankTitle,
   schoolOptionsFor,
   servicePayOf,
+  annualPay,
   specialtyFor,
   specialtyTitleFor,
   unitFor,
@@ -1347,7 +1348,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               <dl className="facts">
                 <dt>{occupationById(job.occupationId).title}</dt>
                 <dd>
-                  {formatMoney(job.monthlyPay)} a month
+                  {formatMoney(annualPay(job.monthlyPay))} a year
                   {world.places.get(job.workplaceId) && (
                     <span className="muted small"> · at {world.places.get(job.workplaceId)?.name}</span>
                   )}
@@ -1776,7 +1777,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </dd>
                       <dt>Pay</dt>
                       <dd>
-                        {formatMoney(servicePayOf(world, person.id) as never)} a month
+                        {formatMoney(annualPay(servicePayOf(world, person.id) as never))} a year
                         {record.unitId !== null && <span className="muted small"> incl. special-duty pay</span>}
                       </dd>
                     </>
