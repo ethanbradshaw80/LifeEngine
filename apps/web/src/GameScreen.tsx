@@ -82,6 +82,7 @@ import {
   schoolOptionsFor,
   servicePayOf,
   specialtyFor,
+  specialtyTitleFor,
   unitFor,
   unitOptionsFor,
   isOnProbation,
@@ -658,7 +659,14 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <span className="stat-value">
-                    {rankTitle(world, record.branch, record.rank, record.commissioned === true)} · {specialtyFor(world, record.specialtyId).title}
+                    {/* The trade under the name THEY hold it by: the header
+                        read "2LT · rifleman", which is the right rank beside
+                        an enlisted job title. */}
+                    {rankTitle(world, record.branch, record.rank, record.commissioned === true)} ·{' '}
+                    {specialtyTitleFor(
+                      specialtyFor(world, record.specialtyId),
+                      record.commissioned === true,
+                    )}
                   </span>
                   <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
@@ -1663,7 +1671,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dt>Rank</dt>
                   <dd>{rankTitle(world, record.branch, record.rank, record.commissioned === true)}</dd>
                   <dt>Specialty</dt>
-                  <dd>{specialtyFor(world, record.specialtyId).title}</dd>
+                  <dd>
+                    {specialtyTitleFor(
+                      specialtyFor(world, record.specialtyId),
+                      record.commissioned === true,
+                    )}
+                  </dd>
                   {record.qualifications.length > 0 && (
                     <>
                       <dt>Qualifications</dt>

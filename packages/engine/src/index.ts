@@ -141,7 +141,7 @@ export {
   unitOptionsFor,
   veteranUnlocks,
 } from './service.js'
-export { specialUnitById } from './content.js'
+export { specialUnitById, specialtyTitleFor } from './content.js'
 
 // Crime & justice (C1)
 export {

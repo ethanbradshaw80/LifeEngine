@@ -27,6 +27,7 @@ import {
 import {
   contractFor,
   crimeSceneFor,
+  specialtyTitleFor,
   decodeContract,
   decodeCrimeScene,
   offenceById,
@@ -363,7 +364,17 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
   }
   if (pending.kind === 'specialty' || (pending.kind === 'retrain' && option !== 'keep')) {
     const specialty = world.spec.specialties.find((sp) => sp.id === option)
-    if (specialty) return pending.kind === 'retrain' ? `Retrain as ${specialty.title}` : specialty.title
+    if (specialty) {
+      // THE SAME NAME THE STAKES USED. The stakes listed "infantry officer"
+      // and the button under it said "rifleman" — one dialog naming one
+      // trade two ways, on the screen where the player picks it.
+      const commissioned =
+        pending.kind === 'specialty'
+          ? pending.occupationId === 'officer'
+          : world.service.get(pending.personId)?.commissioned === true
+      const title = specialtyTitleFor(specialty, commissioned)
+      return pending.kind === 'retrain' ? `Retrain as ${title}` : title
+    }
   }
   return OPTION_LABELS[pending.kind]?.[option] ?? option
 }

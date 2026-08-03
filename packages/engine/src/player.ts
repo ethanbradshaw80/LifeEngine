@@ -3086,7 +3086,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         )
       }
       lines.push(
-        `The obligation is not the same either: ${String(SERVICE_TERM_MONTHS / 12)} years enlisted, six for a commission.`,
+        `The obligation is not the same either: ${String(SERVICE_TERM_MONTHS / 12)} years enlisted, 6 for a commission.`,
       )
       lines.push('A senior sergeant still out-earns a new lieutenant. The commission is the longer road, not the shortcut.')
       break
