@@ -11,7 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { seed as makeSeed } from '@life-engine/shared'
+import { formatMoney, seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { contractFor } from '../src/contract.js'
@@ -170,7 +170,10 @@ describe('the contract document', () => {
       bonus: 480_000 as Money,
     })
     expect(paid?.option).not.toBeNull()
+    // CENTS, and the document must render them as such — a raw print put a
+    // $1,123,200 bonus on a sergeant's contract in play.
     expect(paid?.bonus).toBe(480_000)
+    expect(formatMoney(paid!.bonus)).toBe('$4,800.00')
     expect(paid?.termText).toBe('six (6) years')
     expect(paid?.form).toBe('FORM RA-2') // this member is commissioned
     expect(paid?.stamp).toBe('6-YEAR')

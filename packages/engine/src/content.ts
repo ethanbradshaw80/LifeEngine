@@ -203,6 +203,46 @@ export const BRANCH_RANKS: Readonly<Record<ServiceBranch, readonly string[]>> = 
 }
 
 /**
+ * The same ranks, SPELLED OUT — for the one document that is not a form.
+ *
+ * A certificate of retirement reading "SSG Debra Spencer" looks like
+ * paperwork, which is exactly what it is not: it is the thanks at the end
+ * of twenty years, and it says the whole rank the way it would be read
+ * aloud. Everywhere else keeps the abbreviation, because everywhere else IS
+ * a form.
+ *
+ * Same order and length as BRANCH_RANKS; a preset without one falls back to
+ * the abbreviation rather than inventing a title for somebody's rank.
+ */
+export const BRANCH_RANKS_SPELLED: Readonly<Record<ServiceBranch, readonly string[]>> = {
+  'land-forces': [
+    'Private', 'Private Second Class', 'Private First Class', 'Specialist', 'Corporal',
+    'Sergeant', 'Staff Sergeant', 'Sergeant First Class', 'Master Sergeant',
+  ],
+  'naval-service': [
+    'Seaman Recruit', 'Seaman Apprentice', 'Seaman', 'Petty Officer Third Class',
+    'Petty Officer Second Class', 'Petty Officer First Class', 'Chief Petty Officer',
+  ],
+  'air-guard': [
+    'Airman Basic', 'Airman', 'Airman First Class', 'Senior Airman', 'Staff Sergeant',
+    'Technical Sergeant', 'Master Sergeant',
+  ],
+}
+
+export const BRANCH_OFFICER_RANKS_SPELLED: Readonly<Record<ServiceBranch, readonly string[]>> = {
+  'land-forces': [
+    'Second Lieutenant', 'First Lieutenant', 'Captain', 'Major', 'Lieutenant Colonel', 'Colonel',
+  ],
+  'naval-service': [
+    'Ensign', 'Lieutenant Junior Grade', 'Lieutenant', 'Lieutenant Commander', 'Commander',
+    'Captain',
+  ],
+  'air-guard': [
+    'Second Lieutenant', 'First Lieutenant', 'Captain', 'Major', 'Lieutenant Colonel', 'Colonel',
+  ],
+}
+
+/**
  * Pay grade (E-1..E-8) for each ladder index. Pay reads the GRADE, not the
  * index: SPC and CPL are both E-4, exactly as in life.
  */

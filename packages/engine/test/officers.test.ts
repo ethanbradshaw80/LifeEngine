@@ -13,7 +13,12 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
-import { officerPayOn, servicePayOn } from '../src/content.js'
+import {
+  BRANCH_OFFICER_RANKS_SPELLED,
+  BRANCH_RANKS_SPELLED,
+  officerPayOn,
+  servicePayOn,
+} from '../src/content.js'
 import { rankTitle } from '../src/service.js'
 
 describe('the officer ladder', () => {
@@ -26,6 +31,22 @@ describe('the officer ladder', () => {
         expect(branch.ranks, `${rank} is on both ladders`).not.toContain(rank)
       }
       expect((branch.officerGrades ?? []).length).toBe(officers.length)
+    }
+  })
+
+  it('has a spelled name for every rank on every ladder', () => {
+    // The certificate reads the spelled list by index. A list that is
+    // shorter than its ladder silently falls back to the abbreviation for
+    // exactly the senior ranks a certificate is most likely to name.
+    for (const branch of CLASSIC_SPEC.branches) {
+      const id = branch.id as keyof typeof BRANCH_RANKS_SPELLED
+      expect(BRANCH_RANKS_SPELLED[id]?.length, `${branch.id} enlisted`).toBe(branch.ranks.length)
+      expect(BRANCH_OFFICER_RANKS_SPELLED[id]?.length, `${branch.id} officer`).toBe(
+        (branch.officerRanks ?? []).length,
+      )
+      for (const name of [...BRANCH_RANKS_SPELLED[id], ...BRANCH_OFFICER_RANKS_SPELLED[id]]) {
+        expect(name.length, `${name} is not spelled out`).toBeGreaterThan(4)
+      }
     }
   })
 

@@ -24,7 +24,7 @@ import { toDate } from './clock.js'
 import { eventsFor } from './eventindex.js'
 import { openStream, Stream } from './rng.js'
 import type { World } from './types.js'
-import { specialtyTitleCased } from './content.js'
+import { BRANCH_OFFICER_RANKS_SPELLED, BRANCH_RANKS_SPELLED, specialtyTitleCased } from './content.js'
 import { branchSpecFor, specialtyFor } from './worldspec.js'
 
 /**
@@ -308,6 +308,14 @@ export function retirementCertificateFor(
   const commissioned = record.commissioned === true
   const ladder = commissioned ? (branch.officerRanks ?? branch.ranks) : branch.ranks
   const index = Math.max(0, Math.min(ladder.length - 1, record.rank))
+  // SPELLED, not abbreviated. This is the one document that is not a form,
+  // and "SSG Debra Spencer" reads like one. Falls back to the abbreviation
+  // for a preset that ships no spelled list — better a short rank than an
+  // invented one.
+  const spelledLadder = commissioned
+    ? BRANCH_OFFICER_RANKS_SPELLED[record.branch as keyof typeof BRANCH_OFFICER_RANKS_SPELLED]
+    : BRANCH_RANKS_SPELLED[record.branch as keyof typeof BRANCH_RANKS_SPELLED]
+  const rankWords = spelledLadder?.[index] ?? ladder[index] ?? ''
 
   const rng = openStream(world.seed, Stream.Employment, personId, record.dischargedAtTick + 9800)
   const names = [...world.spec.family.names]
@@ -321,7 +329,7 @@ export function retirementCertificateFor(
   // than invented as a date the simulation does not have.
   return {
     command: branch.name,
-    name: `${ladder[index] ?? ''} ${person.givenName} ${person.familyName}`.trim(),
+    name: `${rankWords} ${person.givenName} ${person.familyName}`.trim(),
     branch: branch.name,
     date: `the ${ORDINAL_DAYS[1] ?? 'first'} of ${MONTHS[month - 1] ?? 'January'}, ${String(year)}`,
     years: `${spelled(Math.floor(months / 12))} years`,

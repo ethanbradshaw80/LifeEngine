@@ -176,6 +176,10 @@ describe('the retirement certificate', () => {
     if (!certificate) throw new Error('twenty years earns a certificate')
     // Spelled, because a certificate does not print a numeral.
     expect(certificate.years).toBe('twenty years')
+    // SPELLED, not abbreviated: "SSG Debra Spencer" on a ceremonial
+    // certificate reads like a form, which is the one thing it is not.
+    expect(certificate.name).not.toMatch(/^[A-Z]{2,4} /)
+    expect(certificate.name).toMatch(/^[A-Z][a-z]/)
     expect(certificate.name).toContain(world.people.get(personId)!.familyName)
     expect(certificate.date).toMatch(/^the [a-z]+ of [A-Z][a-z]+, \d{4}$/)
   })

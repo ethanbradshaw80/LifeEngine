@@ -12,11 +12,11 @@
  */
 
 import type { JSX } from 'react'
+import { formatMoney } from '@life-engine/shared'
+import type { Money } from '@life-engine/shared'
 import type { ServiceContract } from '@life-engine/engine'
 
-function money(cents: number): string {
-  return `$${cents.toLocaleString('en-US')}`
-}
+
 
 export function ServiceContractView({
   contract,
@@ -102,8 +102,12 @@ export function ServiceContractView({
           )}
           {contract.bonus > 0 && (
             <li>
-              Bonus: <span className="contract-money">{money(contract.bonus)}</span>, paid on execution
-              of this contract.
+              {/* MONEY IS INTEGER CENTS (ADR-0008). Printing the raw number
+                  put a $1,123,200 reenlistment bonus on a sergeant's
+                  contract — a hundred times the $11,232 it actually was,
+                  and the option screen one prompt earlier had it right. */}
+              Bonus: <span className="contract-money">{formatMoney(contract.bonus as Money)}</span>,
+              paid on execution of this contract.
             </li>
           )}
           <li>
