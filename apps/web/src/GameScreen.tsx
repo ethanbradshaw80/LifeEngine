@@ -560,7 +560,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // the town's own service news too — neighbors enlisting, drives on the
   // square — so the uniforms are visible (owner direction).
   const feedItems = useMemo(() => {
-    const news = [...newsSince(world, person.birthTick), ...serviceNewsSince(world, person.birthTick)]
+    // The service feed is asked WHOSE story this is, so a recruiting season
+    // reaches the people it could be about rather than everyone alive.
+    const news = [
+      ...newsSince(world, person.birthTick),
+      ...serviceNewsSince(world, person.birthTick, person.id),
+    ]
     const merged: (
       | { kind: 'life'; tick: number; entry: (typeof entries)[number] }
       | { kind: 'news'; tick: number; text: string; nearby: boolean }
@@ -569,7 +574,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     for (const item of news) merged.push({ kind: 'news', tick: item.tick, text: item.text, nearby: item.nearby })
     merged.sort((x, y) => x.tick - y.tick)
     return merged
-  }, [world, person.birthTick, entries])
+  }, [world, person.birthTick, person.id, entries])
 
   // The feed follows the life: new events scroll into view as years pass.
   useEffect(() => {

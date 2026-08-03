@@ -114,6 +114,50 @@ describe('service news', () => {
   })
 })
 
+describe('a recruiting drive is news to whoever it could be about', () => {
+  it('stays off a young child timeline, and reaches somebody of age', () => {
+    // OWNER, reading a life back: the drive turned up at three, eight,
+    // eleven and twelve. The town feed is merged into every personal story,
+    // so a notice aimed at people old enough to sign was being filed as an
+    // event in a child's life.
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 40 * 12)
+
+    const drives = world.events.filter((e) => e.type === 'recruiting-drive')
+    expect(drives.length, 'no drive ever ran').toBeGreaterThan(0)
+
+    let checkedChild = 0
+    let checkedAdult = 0
+    for (const person of livingPeople(world)) {
+      const mine = serviceNewsSince(world, person.birthTick, person.id).filter(
+        (n) => n.kind === 'recruiting-drive',
+      )
+      const age = ageAt(person.birthTick, world.tick)
+      for (const item of mine) {
+        // Every notice a person is shown happened when it could be theirs.
+        const at = ageAt(person.birthTick, item.tick as never)
+        expect(at, `${String(at)} is too young for a recruiting notice`).toBeGreaterThanOrEqual(16)
+        expect(at).toBeLessThanOrEqual(38)
+      }
+      if (age < 10) {
+        expect(mine.length, 'a child was shown a recruiting drive').toBe(0)
+        checkedChild++
+      }
+      if (age >= 18 && age <= 30 && !world.service.has(person.id) && mine.length > 0) {
+        checkedAdult++
+      }
+    }
+    expect(checkedChild, 'no children in a forty-year town').toBeGreaterThan(0)
+    expect(checkedAdult, 'nobody of age was told about a drive at all').toBeGreaterThan(0)
+
+    // And the TOWN's own paper still carries every one of them.
+    const townFeed = serviceNewsSince(world, 0 as Tick).filter(
+      (n) => n.kind === 'recruiting-drive',
+    )
+    expect(townFeed.length).toBe(drives.length)
+  })
+})
+
 describe('death in uniform', () => {
   it('closes the record, and the quota stops counting the dead', () => {
     const world = createWorld(makeSeed(12345), 100)

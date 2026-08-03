@@ -1292,14 +1292,38 @@ export function runService(world: World, tick: Tick): void {
  * war's return leg is deliberate: recruiting notices and funerals with
  * nothing between them is not a neutral picture of service either.
  */
+/**
+ * A recruiting season is news TO SOMEBODY IT COULD BE ABOUT.
+ *
+ * OWNER, reading a life back: the drive turned up on a three-year-old's
+ * timeline, and again at eight, eleven and twelve. The town-wide feed is
+ * merged into every personal story, so a notice aimed at people old enough
+ * to sign was being filed as an event in a child's life. It is not — for
+ * them it is a thing that happened to the square.
+ *
+ * From a couple of years out, and until the office stops taking volunteers.
+ * Not for anyone already in uniform or already out of it: the recruiters
+ * are not there for them either.
+ */
+function driveConcernsPerson(world: World, person: Person, tick: Tick): boolean {
+  const age = ageAt(person.birthTick, tick)
+  if (age < ENLIST_MIN_AGE - 2 || age > ENLIST_MAX_AGE) return false
+  return !world.service.has(person.id)
+}
+
 export function serviceNewsSince(
   world: World,
   since: Tick,
+  /** Whose story this feed is for. Omitted is the town's own paper, which
+   *  carries the notice whoever is reading it. */
+  forPersonId?: EntityId,
 ): NewsItem[] {
+  const reader = forPersonId === undefined ? undefined : world.people.get(forPersonId)
   const items: NewsItem[] = []
   for (const event of world.events) {
     if (event.tick < since) continue
     if (event.type === 'recruiting-drive') {
+      if (reader !== undefined && !driveConcernsPerson(world, reader, event.tick)) continue
       items.push({
         tick: event.tick,
         // Not 'nearby': the red rule is for what lands ON the town — a war
