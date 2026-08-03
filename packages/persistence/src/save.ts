@@ -238,6 +238,7 @@ function hydrate(
     people,
     households,
     accounts,
+    economy: body['economy'] as World['economy'],
     education,
     employment,
     relationships,

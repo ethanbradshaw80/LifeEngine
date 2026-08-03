@@ -22,6 +22,7 @@ import type {
 } from './types.js'
 import { relationshipKey } from './types.js'
 import { foundingSavings, seedFoundingAccounts } from './finances.js'
+import { freshEconomy } from './economy.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
 import { CLASSIC_SPEC } from './worldspec.js'
@@ -145,6 +146,7 @@ export function createWorld(
     people: new Map(),
     households: new Map(),
     accounts: new Map(),
+    economy: freshEconomy(),
     education: new Map(),
     employment: new Map(),
     health: new Map(),

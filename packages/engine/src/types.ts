@@ -390,6 +390,28 @@ export interface Accounts {
   readonly withheldYtd: Money
 }
 
+/**
+ * THE WEATHER (M-ECON §4). Where the economy is, and what it is doing.
+ * All integer: rates and growth in per-mille, the index in basis points.
+ */
+export type EconomyPhase = 'expansion' | 'peak' | 'recession' | 'depression' | 'recovery'
+
+export interface EconomyState {
+  readonly phase: EconomyPhase
+  readonly phaseSinceTick: Tick
+  /** Annualised, per-mille. Negative in a downturn. */
+  readonly growthPerMille: number
+  readonly inflationPerMille: number
+  /** Share of those who want work and have none, per-mille. */
+  readonly unemploymentPerMille: number
+  /** The central bank's rate: what savings earn and what loans cost. */
+  readonly ratePerMille: number
+  /** Basis points from a 10,000 start. */
+  readonly marketIndex: number
+  /** Compounded price drift since the world began; 1000 is the start. */
+  readonly priceLevelPerMille: number
+}
+
 export interface Household {
   readonly id: EntityId
   readonly placeId: EntityId
@@ -1402,6 +1424,7 @@ export type FactorId =
   | 'wanted-family'
   | 'own-choice'
   | 'in-arrears'
+  | 'economy-turned'
   | 'cheaper-rent'
   | 'bloc-rivalry'
   | 'resource-competition'
@@ -1509,6 +1532,8 @@ export interface World {
   readonly households: Map<EntityId, Household>
   /** M-ECON §1: every person's own money. Absent means zero. */
   readonly accounts: Map<EntityId, Accounts>
+  /** M-ECON §4: the weather everybody lives in. */
+  readonly economy: EconomyState
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */

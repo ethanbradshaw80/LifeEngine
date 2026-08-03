@@ -160,6 +160,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'left-job':
       if (event.detail === 'retired') return `${year} — Retired at ${age}.`
       if (event.detail === 'let go') return `${year} — Lost the job.`
+      if (event.detail === 'laid off') return `${year} — Laid off; the work dried up.`
       if (event.detail === 'jailed') return `${year} — The job did not wait out the sentence.`
       if (event.detail === 'quit') return `${year} — Quit the job.`
       return null // job-change departures read better as the arrival line alone
@@ -429,6 +430,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'wanted-family': '{they} wanted a family',
   'own-choice': 'they chose it themselves',
   'in-arrears': 'the household had fallen behind',
+  'economy-turned': 'the economy had turned',
   'cheaper-rent': 'the rent was cheaper there',
   'bloc-rivalry': 'of rivalry between the powers',
   'resource-competition': 'of competition over resources',

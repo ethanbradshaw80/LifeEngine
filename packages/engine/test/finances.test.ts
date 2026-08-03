@@ -31,6 +31,7 @@ import {
   rentFor,
 } from '../src/index.js'
 import { distributeEstate, netWorthOf } from '../src/finances.js'
+import { atTodaysPrices } from '../src/economy.js'
 import type { World } from '../src/types.js'
 
 function build(seedValue = 12345, ticks = 0): World {
@@ -298,10 +299,14 @@ describe('careers progress', () => {
       expect(pay).toBeGreaterThan(0)
     }
 
-    // Nobody's pay ever exceeds their occupation's ceiling.
+    // Nobody's pay ever exceeds their occupation's ceiling — AT TODAY'S
+    // PRICES (M-ECON §4). The bands in content are base-year; a wage set
+    // after decades of inflation is judged against the band expressed in
+    // the money of the day, not against a figure that stopped meaning
+    // anything. Both ends move together, so the claim is unchanged.
     for (const record of world.employment.values()) {
       const occupation = occupationById(record.occupationId)
-      expect(record.monthlyPay).toBeLessThanOrEqual(occupation.maxMonthlyPay)
+      expect(record.monthlyPay).toBeLessThanOrEqual(atTodaysPrices(world, occupation.maxMonthlyPay))
       expect(record.monthlyPay).toBeGreaterThanOrEqual(occupation.minMonthlyPay)
     }
   })
@@ -371,9 +376,13 @@ describe('the itemized ledger (P3)', () => {
       expect(ledger.costs).toBe(householdCosts(world, household))
       // Not a tautology only because rent is in `costs` too: this pins the
       // adult/child SPLIT against the total the tick loop actually charges.
-      expect(ledger.rent + ledger.adults * LIVING_COST_ADULT + ledger.children * LIVING_COST_CHILD).toBe(
-        householdCosts(world, household),
-      )
+      // AT TODAY'S PRICES (M-ECON §4) — the constants are base-year and the
+      // charge is what a month costs now.
+      expect(
+        ledger.rent +
+          ledger.adults * atTodaysPrices(world, LIVING_COST_ADULT) +
+          ledger.children * atTodaysPrices(world, LIVING_COST_CHILD),
+      ).toBe(householdCosts(world, household))
 
       expect(ledger.lifestyle).toBe(discretionaryFor(world, household))
       expect(ledger.net).toBe(monthlyNetOf(world, household))
@@ -432,7 +441,11 @@ describe('the itemized ledger (P3)', () => {
     expect(after.adults + after.children).toBe(before.adults + before.children - 1)
     // One mouth fewer at this table, and the ledger still agrees with the
     // function the tick loop charges.
-    expect(after.livingCosts).toBe(before.livingCosts - (grown ? LIVING_COST_ADULT : LIVING_COST_CHILD))
+    // At today's prices, like every other charge (M-ECON §4).
+    expect(after.livingCosts).toBe(
+      before.livingCosts -
+        atTodaysPrices(world, grown ? LIVING_COST_ADULT : LIVING_COST_CHILD),
+    )
     expect(after.rent + after.livingCosts).toBe(householdCosts(world, household))
     expect(after.costs).toBe(householdCosts(world, household))
   })

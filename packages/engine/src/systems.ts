@@ -19,6 +19,7 @@ import {
   typicalPay,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
 import type { Rng } from './rng.js'
 import type {
@@ -383,7 +384,13 @@ export function runEmployment(world: World, tick: Tick): void {
     const weights = eligible.map((o) => 1 + Math.floor(typicalPay(o) / 10_000))
     const chosen = rng.pickWeighted(eligible, weights)
     const workplace = rng.pick(workplaces)
-    const pay = rng.nextIntInclusive(chosen.minMonthlyPay, chosen.maxMonthlyPay) as Money
+    // M-ECON §4. THE BAND IS BASE-YEAR; a wage is offered at TODAY'S prices.
+    // Without this, rent inflates over a century and pay does not, and every
+    // household in the world ends up permanently behind.
+    const pay = atTodaysPrices(
+      world,
+      rng.nextIntInclusive(chosen.minMonthlyPay, chosen.maxMonthlyPay),
+    ) as Money
 
     // The roll decided an opportunity exists this month. For the player it
     // becomes an offer they can refuse; refused, it is gone (Law 5).
@@ -549,14 +556,41 @@ function annualReview(world: World, tick: Tick, person: Person): void {
   if (monthsIn < TICKS_PER_YEAR || monthsIn % TICKS_PER_YEAR !== 0) return
 
   const occupation = occupationById(job.occupationId)
-  const headroom = occupation.maxMonthlyPay - job.monthlyPay
-  if (headroom <= 0 || job.performance < RAISE_MIN_PERFORMANCE) return
+  // M-ECON §4. THE BAND MOVES WITH PRICES, so a wage set in 1970 is judged
+  // against 1970's ceiling expressed in today's money, not against a figure
+  // that stopped meaning anything decades ago.
+  const ceiling = atTodaysPrices(world, occupation.maxMonthlyPay)
+  const headroom = ceiling - job.monthlyPay
+
+  // COST OF LIVING FIRST, and it is not merit — it is the year catching up
+  // with the wage. Good times pass it on; a downturn does not, which is
+  // what "freezes in bad times" means and why a recession quietly costs a
+  // household ground even when nobody is laid off.
+  const inflation = world.economy.inflationPerMille
+  const passedOn = inflation > 0 && world.economy.growthPerMille > 0 ? inflation : 0
+  const cola = Math.floor((job.monthlyPay * passedOn) / 1000)
+
+  if (headroom <= 0 || job.performance < RAISE_MIN_PERFORMANCE) {
+    // No merit raise, but the cost of living still moves for anyone whose
+    // pay has fallen behind the band's floor.
+    if (cola > 0 && job.monthlyPay < ceiling) {
+      world.employment.set(person.id, {
+        ...job,
+        monthlyPay: Math.min(job.monthlyPay + cola, ceiling) as Money,
+      })
+    }
+    return
+  }
 
   // Top performance closes ~15% of the remaining gap a year; adequate ~5%.
-  const raise = Math.floor((headroom * job.performance) / 6500)
+  const raise = Math.floor((headroom * job.performance) / 6500) + cola
   if (raise < Math.floor(job.monthlyPay / 100)) return // under 1%: not worth an event
 
-  const newPay = (job.monthlyPay + raise) as Money
+  // Never above the band's ceiling. The ceiling itself rises with prices,
+  // so somebody already at the top still keeps pace with the cost of living
+  // — the raise simply arrives as the band moving under them.
+  const newPay = Math.min(job.monthlyPay + raise, ceiling) as Money
+  if (newPay <= job.monthlyPay) return
   world.employment.set(person.id, { ...job, monthlyPay: newPay })
   recordEvent(world, tick, {
     type: 'got-raise',
@@ -624,6 +658,43 @@ function considerBetterJob(
     }
   }
 
+  // M-ECON §4. THE ECONOMY TAKES JOBS.
+  //
+  // Until now a job could only be lost by being bad at it — so a recession
+  // was a number nobody felt, and the single largest thing an economy does
+  // to a life did not happen. A downturn lays people off, and it does not
+  // ask whether they were any good: it leans on the weak, but it reaches
+  // everyone.
+  //
+  // Scaled off unemployment, which the cycle already moves — expansion sits
+  // near 40 per-mille and a depression near 190, so this is roughly five
+  // times as likely at the bottom as at the top.
+  const slack = world.economy.unemploymentPerMille
+  if (slack > 55) {
+    // A weak file goes first, which is what "last in, first out" really
+    // looks like from inside — but a good one is not safe.
+    const exposure = job.performance < DISMISSAL_PERFORMANCE ? 3 : 1
+    if (rng.chanceInTenThousand(Math.min(400, (slack - 55) * exposure))) {
+      world.employment.delete(person.id)
+      recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'laid off' })
+      recordDecision(world, tick, {
+        subjectId: person.id,
+        decision: 'employment-change',
+        significance: 'major',
+        inputs: [
+          factor('economy-turned', Math.min(1000, slack * 5)),
+          ...(job.performance < DISMISSAL_PERFORMANCE
+            ? [factor('poor-performance', 1000 - job.performance)]
+            : []),
+        ],
+        chosen: 'was laid off',
+        rejected: ['to keep the job'],
+        streamId: Stream.Economy,
+      })
+      return
+    }
+  }
+
   // Poor performers can lose the job.
   if (job.performance < DISMISSAL_PERFORMANCE && rng.chanceInTenThousand(400)) {
     world.employment.delete(person.id)
@@ -650,7 +721,10 @@ function considerBetterJob(
   if (better.length === 0) return
 
   const target = rng.pick(better)
-  const pay = rng.nextIntInclusive(target.minMonthlyPay, target.maxMonthlyPay) as Money
+  const pay = atTodaysPrices(
+    world,
+    rng.nextIntInclusive(target.minMonthlyPay, target.maxMonthlyPay),
+  ) as Money
   if (pay <= job.monthlyPay) return
 
   const workplaces = placesOfKind(world, 'workplace')

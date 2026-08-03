@@ -23,7 +23,9 @@ import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
-import { runGeopolitics } from './geopolitics.js'
+import { stepEconomy } from './economy.js'
+import type { EconomyState } from './types.js'
+import { activeWars, homeland, runGeopolitics } from './geopolitics.js'
 import { runSchools, runWartimeService } from './service.js'
 import { runCallsToArms } from './coalition.js'
 import { runHealth } from './health.js'
@@ -58,6 +60,14 @@ export function advanceTick(world: World): World {
   // loop is the orchestrator, which is what the import ratchet was telling
   // us when it failed.
   runCallsToArms(world, next)
+
+  // M-ECON §4. THE WEATHER FIRST, because everything below lives in it:
+  // hiring and layoffs read the phase, prices read the drift, savings read
+  // the rate. A month's economy is settled before anybody acts in it.
+  const home = homeland(world)
+  const atWar =
+    home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
+  ;(world as { economy: EconomyState }).economy = stepEconomy(world, next, atWar)
 
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

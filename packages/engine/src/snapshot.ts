@@ -28,7 +28,15 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
-' * v76 — M-ECON PHASE 2: TAX AND INTEREST. Pay is withheld at source on a
+' * v77 — M-ECON PHASE 3: THE ECONOMY IS WEATHER. A seeded state machine
+ *      drifts expansion → peak → recession → depression → recovery over
+ *      years; a central bank moves the rate savings earn; prices compound
+ *      with inflation and wages move with them; and a downturn LAYS PEOPLE
+ *      OFF, which is the first time a job could be lost to anything but
+ *      being bad at it. Measured across four centuries: six to nine
+ *      recessions and none to two depressions each, market drawdowns of
+ *      14-31%, prices four to eight times the base by year 100.
+ * v76 — M-ECON PHASE 2: TAX AND INTEREST. Pay is withheld at source on a
  *      progressive schedule, savings earn monthly, spending carries sales
  *      tax, an estate above the exemption is taxed, and every January
  *      settles a return into a refund or a bill. Household income now means
@@ -480,7 +488,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 76
+export const SIMULATION_VERSION = 77
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -521,6 +529,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       people: [...world.people.values()].sort((a, b) => a.id - b.id),
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
       accounts: [...world.accounts.values()].sort((a, b) => a.personId - b.personId),
+      economy: world.economy,
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
       health: [...world.health.values()].sort((a, b) => a.personId - b.personId),

@@ -923,7 +923,44 @@ const V28_TO_V29: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29]
+/**
+ * M-ECON §4. The weather arrives.
+ *
+ * An existing save has no economy because no build before this one had one.
+ * It starts in EXPANSION at the base price level — which is the honest
+ * reading: the prices in that save ARE its price level, so declaring today
+ * "1000" makes every figure in it mean exactly what it already meant. The
+ * cycle starts drifting from the month it is loaded.
+ */
+const V29_TO_V30: Migration = {
+  from: 29,
+  to: 30,
+  describe: 'give the world an economy',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const nextWorld = {
+      ...world,
+      economy: {
+        phase: 'expansion',
+        phaseSinceTick: typeof world['tick'] === 'number' ? world['tick'] : 0,
+        growthPerMille: 25,
+        inflationPerMille: 20,
+        unemploymentPerMille: 45,
+        ratePerMille: 35,
+        marketIndex: 10_000,
+        priceLevelPerMille: 1000,
+      },
+    }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 30, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

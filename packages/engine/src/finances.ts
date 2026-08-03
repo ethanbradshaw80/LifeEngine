@@ -27,6 +27,7 @@ import { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
 import {
   BASE_SAVINGS_RATE_PER_MILLE,
@@ -286,9 +287,25 @@ function noteArrearsCrossing(world: World, tick: Tick, householdId: EntityId, be
   })
 }
 
+/**
+ * M-ECON §4. A price, at TODAY'S prices.
+ *
+ * Rent and living costs are static content — the ratio the whole economy is
+ * calibrated against — and inflation is the drift on top. One helper, so a
+ * 2062 dollar and a 2090 dollar differ everywhere at once and nothing
+ * invents its own inflation.
+ */
+export function rentAt(world: World, desirability: number): Money {
+  return atTodaysPrices(world, rentFor(desirability)) as Money
+}
+
+export function livingCostAt(world: World, base: number): Money {
+  return atTodaysPrices(world, base) as Money
+}
+
 export function householdCosts(world: World, household: Household): Money {
   const place = world.places.get(household.placeId)
-  let total = place ? rentFor(place.desirability) : 0
+  let total = place ? rentAt(world, place.desirability) : 0
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
@@ -299,7 +316,10 @@ export function householdCosts(world: World, household: Household): Money {
     if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
       continue
     }
-    total += ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE ? LIVING_COST_ADULT : LIVING_COST_CHILD
+    total +=
+      ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
+        ? livingCostAt(world, LIVING_COST_ADULT)
+        : livingCostAt(world, LIVING_COST_CHILD)
   }
   return total as Money
 }
@@ -452,9 +472,15 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     if (survivor !== 0) survivorPay.push({ personId: memberId, amount: survivor as Money })
   }
 
+  // Exactly the rows above, added up: what the household EARNS before tax.
+  const grossTotal = [...wages, ...servicePay, ...pensions, ...survivorPay].reduce(
+    (sum, entry) => sum + entry.amount,
+    0,
+  )
+
   // Same iteration as householdCosts, including the jail exemption.
   const place = world.places.get(household.placeId)
-  const rent = (place ? rentFor(place.desirability) : 0) as Money
+  const rent = (place ? rentAt(world, place.desirability) : 0) as Money
   let adults = 0
   let children = 0
   let jailed = 0
@@ -469,7 +495,8 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults++
     else children++
   }
-  const livingCosts = (adults * LIVING_COST_ADULT + children * LIVING_COST_CHILD) as Money
+  const livingCosts = (adults * livingCostAt(world, LIVING_COST_ADULT) +
+    children * livingCostAt(world, LIVING_COST_CHILD)) as Money
 
   return {
     wages,
@@ -480,10 +507,12 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     // M-ECON §3. The rows above are what people EARN; the income line is
     // what arrives. This is the difference, on its own line, the way a
     // payslip shows it — without it the itemisation stopped summing.
-    taxWithheld: household.memberIds.reduce(
-      (total, memberId) => total + withholdingFor(personalIncome(world, memberId)),
-      0,
-    ) as Money,
+    //
+    // Derived from the SAME two numbers the rows and the total come from,
+    // rather than recomputed from a third source: the first version summed
+    // withholding independently and drifted from the rows whenever the two
+    // walked the members differently.
+    taxWithheld: (grossTotal - householdIncome(world, household)) as Money,
     rent,
     adults,
     children,
@@ -560,6 +589,10 @@ export function inArrears(world: World, householdId: EntityId | null): boolean {
  * nature, and deliberately a little forgiving.
  */
 export function canAfford(income: Money, desirability: number): boolean {
+  // Deliberately at BASE prices, not today's: this is the affordability rule
+  // of thumb the moving system uses, and both sides of the comparison drift
+  // together, so applying inflation here would cancel out and only add a
+  // way for the two readings to disagree.
   return income >= rentFor(desirability) + LIVING_COST_ADULT
 }
 
@@ -709,10 +742,12 @@ function payInterest(world: World): void {
   }
 }
 
-/** The economy's savings rate. A constant until the central bank exists. */
+/**
+ * The economy's savings rate — the central bank's, once it exists (§4).
+ * Falls back to the base only for a world built before the cycle did.
+ */
 export function savingsRateOf(world: World): number {
-  void world
-  return BASE_SAVINGS_RATE_PER_MILLE
+  return world.economy?.ratePerMille ?? BASE_SAVINGS_RATE_PER_MILLE
 }
 
 /**
