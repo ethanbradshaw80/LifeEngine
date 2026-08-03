@@ -24,6 +24,7 @@ import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
 import { runFinances } from './finances.js'
 import { stepEconomy } from './economy.js'
+import { stepSectors } from './market.js'
 import type { EconomyState } from './types.js'
 import { activeWars, homeland, runGeopolitics } from './geopolitics.js'
 import { runSchools, runWartimeService } from './service.js'
@@ -68,6 +69,12 @@ export function advanceTick(world: World): World {
   const atWar =
     home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
   ;(world as { economy: EconomyState }).economy = stepEconomy(world, next, atWar)
+  ;(world as { sectorPrices: Readonly<Record<string, number>> }).sectorPrices = stepSectors(
+    world,
+    next,
+    world.economy,
+    atWar,
+  )
 
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

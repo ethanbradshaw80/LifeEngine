@@ -67,7 +67,12 @@ export {
   describePending,
   describeStakes,
   endCourtship,
+  bankTransfer,
+  borrowPlayer,
+  buyHomePlayer,
+  divestPlayer,
   heirsOf,
+  investPlayer,
   lookForPlace,
   moveBar,
   motherCandidates,
@@ -220,6 +225,14 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 // Finances
 export {
   accountsOf,
+  buyHome,
+  buyInvestment,
+  applyMoneyShock,
+  creditOf,
+  homeValueOf,
+  moveBetweenOwnAccounts,
+  sellInvestment,
+  takeLoan,
   arrearsHistoryOf,
   canAfford,
   householdWealth,
@@ -313,6 +326,25 @@ export type {
   WorldEvent,
 } from './types.js'
 export type { OrdersSheet, OrdersVariant } from './deployment.js'
+export { SECTORS, holdingValue, marketLevel, portfolioValue, sectorById } from './market.js'
+export type { Sector } from './market.js'
+export { economyPhaseWords, atTodaysPrices } from './economy.js'
+export { incomeTaxFor, marginalRatePerMille, withholdingFor, capitalGainsTaxOn } from './tax.js'
+export type { EconomyPhase, EconomyState, Holding } from './types.js'
+export {
+  CREDIT_MAX,
+  CREDIT_MIN,
+  LOAN_TERMS,
+  creditWords,
+  depositFor,
+  homeEquityOf,
+  homePriceFor,
+  loanBar,
+  loanTermsFor,
+  offeredRatePerMille,
+  totalDebtOf,
+} from './credit.js'
+export type { Loan, LoanKind } from './types.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

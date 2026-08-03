@@ -258,6 +258,31 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Enlisted as a ${event.detail ?? 'recruit'} at ${age}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'money-shock': {
+      const [what, amount] = (event.detail ?? ':').split(':')
+      const sum = formatMoney(Number(amount ?? 0) as never)
+      if (what === 'scam') return `${year} — Money went out of the account that ${they.toLowerCase()} never sent: ${sum}.`
+      if (what === 'repairs') return `${year} — The house needed ${sum} of work that would not wait.`
+      return `${year} — A hospital bill for ${sum}.`
+    }
+    case 'took-loan': {
+      const [kind, amount] = (event.detail ?? ':').split(':')
+      return `${year} — Took out ${kind === 'mortgage' ? 'a mortgage' : kind === 'auto' ? 'a car loan' : 'a loan'} of ${formatMoney(Number(amount ?? 0) as never)}.`
+    }
+    case 'paid-off-loan':
+      return `${year} — Paid off ${event.detail === 'mortgage' ? 'the mortgage' : 'the loan'}.`
+    case 'defaulted':
+      return `${year} — Defaulted; the debt went to the file.`
+    case 'bought-home':
+      return `${year} — Bought a home in ${placeName(world, event.placeId)}.`
+    case 'lost-home':
+      return `${year} — Lost the house.`
+    case 'bought-investment':
+      return null // a portfolio is a balance, not a life event
+    case 'sold-investment':
+      return null
+    case 'filed-taxes':
+      return null
     case 'reenlisted':
       // §6: named where the oath was administered by somebody from the unit.
       return event.otherId === null

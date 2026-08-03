@@ -239,6 +239,7 @@ function hydrate(
     households,
     accounts,
     economy: body['economy'] as World['economy'],
+    sectorPrices: body['sectorPrices'] as World['sectorPrices'],
     education,
     employment,
     relationships,

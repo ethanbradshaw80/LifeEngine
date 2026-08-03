@@ -99,6 +99,18 @@ import {
   specialtyTitleFor,
   } from './content.js'
 import { rentFor } from './content.js'
+import {
+  accountsOf,
+  applyMoneyShock,
+  buyHome,
+  buyInvestment,
+  creditOf,
+  moveBetweenOwnAccounts,
+  sellInvestment,
+  takeLoan,
+} from './finances.js'
+import { loanBar } from './credit.js'
+import type { LoanKind } from './types.js'
 import { crimeOutcomeFor, decodeCrimeScene } from './crimescene.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
@@ -354,6 +366,89 @@ export function applyForJob(world: World, occupationId: string): { hired: boolea
  * which-uniform question follows immediately; barred, the reason comes back
  * in plain words instead of a silent dead end.
  */
+/**
+ * M-ECON §9. THE BANK'S VERBS.
+ *
+ * Every one is a player INPUT — logged before it acts, refused honestly,
+ * and routed through finances, which remains the single writer of money.
+ * The screen computes nothing; it asks.
+ */
+export function bankTransfer(
+  world: World,
+  cents: number,
+  toSavings: boolean,
+): { moved: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { moved: false, reason: 'Nobody is being played.' }
+  if (cents <= 0) return { moved: false, reason: 'Nothing to move.' }
+  const moved = moveBetweenOwnAccounts(world, person.id, cents as Money, toSavings)
+  return moved > 0
+    ? { moved: true, reason: '' }
+    : { moved: false, reason: 'That account does not hold it.' }
+}
+
+export function investPlayer(
+  world: World,
+  sectorId: string,
+  cents: number,
+  retirement: boolean,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const spent = buyInvestment(world, world.tick, person.id, sectorId, cents as Money, retirement)
+  if (spent <= 0) return { done: false, reason: 'Not enough in savings to buy in.' }
+  logVerb(world, 'invest', sectorId)
+  return { done: true, reason: '' }
+}
+
+export function divestPlayer(
+  world: World,
+  sectorId: string,
+  retirement: boolean,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const got = sellInvestment(world, world.tick, person.id, sectorId, retirement)
+  if (got <= 0) return { done: false, reason: 'You hold none of that.' }
+  logVerb(world, 'divest', sectorId)
+  return { done: true, reason: '' }
+}
+
+export function borrowPlayer(
+  world: World,
+  kind: LoanKind,
+  cents: number,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const accounts = accountsOf(world, person.id)
+  const bar = loanBar(
+    world,
+    kind,
+    creditOf(world, person.id),
+    accounts.loans,
+    (accounts.savings + accounts.checking) as Money,
+    cents as Money,
+  )
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'borrow', kind)
+  return takeLoan(world, world.tick, person.id, kind, cents as Money)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The bank would not write it.' }
+}
+
+export function buyHomePlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  if (person.householdId === null) return { done: false, reason: 'You have no address to buy.' }
+  const household = world.households.get(person.householdId)
+  if (!household) return { done: false, reason: 'You have no address to buy.' }
+  logVerb(world, 'buy-home', String(household.placeId))
+  return buyHome(world, world.tick, person.id, household.placeId)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The purchase did not go through.' }
+}
+
 export function requestEnlistment(world: World): { asked: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { asked: false, reason: 'Nobody is being played.' }
@@ -1464,6 +1559,20 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'money-shock': {
+      // §8. The bill happens either way; what the player chooses is whether
+      // it comes out of what they have or is carried as debt.
+      applyMoneyShock(
+        world,
+        pending.tick,
+        person.id,
+        pending.occupationId ?? 'medical',
+        (pending.monthlyPay ?? 0) as Money,
+        choice === 'pay-over-time',
+      )
+      break
+    }
+
     case 'commission': {
       // Answered by the specialty question raised behind it — nothing is
       // written until the trade is chosen, because a record needs both.
@@ -1921,6 +2030,10 @@ export function resolvePending(world: World, choice: string): void {
 
     case 'job-application':
     case 'walk-in-enlist':
+    case 'invest':
+    case 'divest':
+    case 'borrow':
+    case 'buy-home':
     case 'school-request':
     case 'unit-tryout':
     case 'fitness-test':
@@ -2614,6 +2727,18 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'money-shock': {
+      const bill = formatMoney((pending.monthlyPay ?? 0) as Money)
+      switch (pending.occupationId) {
+        case 'scam':
+          return `Money has gone out of your account that you did not send. ${bill}, and the bank is not going to help.`
+        case 'repairs':
+          return `The roof has been leaking for weeks and now the ceiling is down. ${bill} to put it right.`
+        default:
+          return `A hospital bill arrives for ${bill}. Nobody warned you it would be this much.`
+      }
+    }
+
     case 'crime-scene': {
       // The scene component draws the room; this is the fallback line.
       const state = decodeCrimeScene(pending.occupationId)
@@ -2727,6 +2852,14 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Asked after work.' // log-only
     case 'walk-in-enlist':
       return 'Walked into the recruiting office.' // log-only
+    case 'invest':
+      return 'Bought into the market.' // log-only
+    case 'divest':
+      return 'Sold out of the market.' // log-only
+    case 'borrow':
+      return 'Took on a debt.' // log-only
+    case 'buy-home':
+      return 'Bought a home.' // log-only
     case 'school-request':
       return 'Asked for a school slot.' // log-only
     case 'unit-tryout':

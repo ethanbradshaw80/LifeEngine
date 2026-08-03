@@ -221,6 +221,13 @@ describe('inheritance', () => {
       retirement: 0 as Money,
       taxableYtd: 0 as Money,
       withheldYtd: 0 as Money,
+      holdings: [],
+      retirementHoldings: [],
+      loans: [],
+      homePlaceId: null,
+      homePurchasePrice: 0 as Money,
+      monthsPaid: 0,
+      defaults: 0,
     })
 
     const children = [...world.people.values()]

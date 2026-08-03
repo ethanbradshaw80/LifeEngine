@@ -23,6 +23,11 @@ import {
   advanceTicks,
   applyForJob,
   askForRaise,
+  bankTransfer,
+  borrowPlayer,
+  buyHomePlayer,
+  divestPlayer,
+  investPlayer,
   chooseSpendStance,
   courtFriend,
   createCustomLife,
@@ -88,6 +93,12 @@ export type VerbRequest =
   | { readonly verb: 'request-discharge' }
   | { readonly verb: 'commit-offence'; readonly offenceId: string }
   | { readonly verb: 'petition-expungement' }
+  | { readonly verb: 'bank-deposit'; readonly cents: number }
+  | { readonly verb: 'bank-withdraw'; readonly cents: number }
+  | { readonly verb: 'invest'; readonly sectorId: string; readonly cents: number; readonly retirement: boolean }
+  | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
+  | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
+  | { readonly verb: 'buy-home' }
 
 export type WorkerRequest =
   | {
@@ -373,6 +384,36 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
               ok: r.sealed > 0,
               reason: r.reason === '' ? 'The court sealed nothing.' : r.reason,
             }
+            break
+          }
+          case 'bank-deposit': {
+            const r = bankTransfer(world, a.cents, true)
+            outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
+          case 'bank-withdraw': {
+            const r = bankTransfer(world, a.cents, false)
+            outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
+          case 'invest': {
+            const r = investPlayer(world, a.sectorId, a.cents, a.retirement)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'divest': {
+            const r = divestPlayer(world, a.sectorId, a.retirement)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'borrow': {
+            const r = borrowPlayer(world, a.kind, a.cents)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'buy-home': {
+            const r = buyHomePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'commit-offence': {

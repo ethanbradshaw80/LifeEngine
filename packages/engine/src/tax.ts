@@ -112,6 +112,19 @@ export function estateTaxOn(estate: Money): Money {
 }
 
 /**
+ * CAPITAL GAINS, on what a sale actually made.
+ *
+ * Flatter and lower than income tax, which is both how these are usually
+ * written and what makes the risk worth taking at all.
+ */
+export const CAPITAL_GAINS_PER_MILLE = 180
+
+export function capitalGainsTaxOn(gain: Money): Money {
+  if (gain <= 0) return 0 as Money
+  return Math.floor((gain * CAPITAL_GAINS_PER_MILLE) / 1000) as Money
+}
+
+/**
  * SAVINGS INTEREST, monthly, at an annual rate given in per-mille.
  *
  * The rate is the economy's, and the central bank moves it (§4). Until that

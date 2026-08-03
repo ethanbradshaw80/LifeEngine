@@ -28,6 +28,18 @@ import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
+import {
+  creditScoreOf,
+  depositFor,
+  homePriceFor,
+  loanBar,
+  loanTermsFor,
+  maturityOf,
+  monthlyPaymentFor,
+  offeredRatePerMille,
+  totalDebtOf,
+} from './credit.js'
+import { SECTORS, dividendOn, holdingValue, portfolioValue, unitsFor } from './market.js'
 import { openStream, Stream } from './rng.js'
 import {
   BASE_SAVINGS_RATE_PER_MILLE,
@@ -36,8 +48,9 @@ import {
   monthlyInterestOn,
   salesTaxOn,
   withholdingFor,
+  capitalGainsTaxOn,
 } from './tax.js'
-import type { Accounts, Household, Person, World } from './types.js'
+import type { Accounts, Holding, Household, Loan, LoanKind, Person, World } from './types.js'
 import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -65,6 +78,13 @@ export function accountsOf(world: World, personId: EntityId): Accounts {
       retirement: 0 as Money,
       taxableYtd: 0 as Money,
       withheldYtd: 0 as Money,
+      holdings: [],
+      retirementHoldings: [],
+      loans: [],
+      homePlaceId: null,
+      homePurchasePrice: 0 as Money,
+      monthsPaid: 0,
+      defaults: 0,
     }
   )
 }
@@ -88,8 +108,212 @@ export function householdWealth(world: World, household: Household): Money {
 /** Everything a person holds in money. Property and debt join it later. */
 export function netWorthOf(world: World, personId: EntityId): Money {
   const a = accountsOf(world, personId)
-  return (a.checking + a.savings + a.brokerage + a.retirement) as Money
+  return (a.checking +
+    a.savings +
+    a.brokerage +
+    a.retirement +
+    portfolioValue(world, a.holdings) +
+    portfolioValue(world, a.retirementHoldings) +
+    homeValueOf(world, personId) -
+    totalDebtOf(a.loans)) as Money
 }
+
+/**
+ * M-ECON §6. What their home is worth TODAY — the purchase price carried
+ * forward at the price level, so a house bought in 1975 is worth 1975's
+ * money in today's terms rather than a figure frozen at the closing.
+ */
+export function homeValueOf(world: World, personId: EntityId): Money {
+  const accounts = accountsOf(world, personId)
+  if (accounts.homePlaceId === null) return 0 as Money
+  const place = world.places.get(accounts.homePlaceId)
+  if (!place) return 0 as Money
+  return homePriceFor(rentAt(world, place.desirability))
+}
+
+/** The score, read from the history rather than stored beside it. */
+export function creditOf(world: World, personId: EntityId): number {
+  const a = accountsOf(world, personId)
+  return creditScoreOf(world, a.loans, a.defaults, a.monthsPaid)
+}
+
+/**
+ * M-ECON §6. TAKE A LOAN. The money lands in savings, the debt lands on the
+ * file, and the rate is fixed at the month it was signed.
+ */
+export function takeLoan(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  kind: LoanKind,
+  principal: Money,
+): boolean {
+  if (principal <= 0) return false
+  const accounts = accountsOf(world, personId)
+  if (accounts.loans.some((l) => l.kind === kind)) return false
+  const rate = offeredRatePerMille(world, creditOf(world, personId), kind)
+  const months = loanTermsFor(kind)?.months ?? 48
+  const loan: Loan = {
+    kind,
+    principal,
+    balance: principal,
+    ratePerMille: rate,
+    monthlyPayment: monthlyPaymentFor(principal, rate, months),
+    takenAtTick: tick,
+    maturesAtTick: maturityOf(tick, kind),
+    missedMonths: 0,
+  }
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings + principal) as Money,
+    loans: [...accounts.loans, loan],
+  })
+  recordEvent(world, tick, {
+    type: 'took-loan',
+    subjectId: personId,
+    detail: kind + ':' + String(principal),
+  })
+  return true
+}
+
+/**
+ * BUY A HOME. The deposit and the mortgage together, because one without
+ * the other is not a purchase. Returns false when it cannot be done, which
+ * the caller reports rather than pretending.
+ */
+export function buyHome(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  placeId: EntityId,
+): boolean {
+  const place = world.places.get(placeId)
+  if (!place) return false
+  const accounts = accountsOf(world, personId)
+  if (accounts.homePlaceId !== null) return false
+  const price = homePriceFor(rentAt(world, place.desirability))
+  const deposit = depositFor(price)
+  const cash = (accounts.savings + accounts.checking) as Money
+  if (loanBar(world, 'mortgage', creditOf(world, personId), accounts.loans, cash, price) !== null) {
+    return false
+  }
+
+  // The deposit comes out of savings first, then checking.
+  const fromSavings = Math.min(deposit, accounts.savings)
+  const fromChecking = deposit - fromSavings
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings - fromSavings) as Money,
+    checking: (accounts.checking - fromChecking) as Money,
+    homePlaceId: placeId,
+    homePurchasePrice: price,
+  })
+  const borrowed = (price - deposit) as Money
+  takeLoan(world, tick, personId, 'mortgage', borrowed)
+  // takeLoan credits savings with the principal; a mortgage never touches
+  // the buyer's hands, so it goes straight back out to the seller.
+  const after = accountsOf(world, personId)
+  setAccounts(world, { ...after, savings: (after.savings - borrowed) as Money })
+
+  recordEvent(world, tick, {
+    type: 'bought-home',
+    subjectId: personId,
+    placeId,
+    detail: String(price),
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'move',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: 'bought a home in ' + place.name,
+    rejected: ['renting'],
+    streamId: Stream.Economy,
+  })
+  return true
+}
+
+/**
+ * M-ECON §6. THE MONTH'S DEBT SERVICE.
+ *
+ * Paid from checking, then savings. A month that cannot be met is MISSED,
+ * and three consecutive misses is a default: the balance is written off
+ * against the security where there is any — the house goes — and the file
+ * carries it for years afterwards through the score.
+ */
+function serviceDebts(world: World, tick: Tick): void {
+  for (const personId of [...world.accounts.keys()].sort((a, b) => a - b)) {
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+    const accounts = accountsOf(world, personId)
+    if (accounts.loans.length === 0) continue
+
+    let checking = accounts.checking as number
+    let savings = accounts.savings as number
+    let monthsPaid = accounts.monthsPaid
+    let defaults = accounts.defaults
+    let homePlaceId = accounts.homePlaceId
+    let homePurchasePrice = accounts.homePurchasePrice
+    const remaining: Loan[] = []
+
+    for (const loan of accounts.loans) {
+      const interest = Math.floor((loan.balance * loan.ratePerMille) / 12_000)
+      const due = Math.min(loan.monthlyPayment, (loan.balance + interest) as Money)
+      const fromChecking = Math.max(0, Math.min(due, checking))
+      const fromSavings = Math.max(0, Math.min(due - fromChecking, savings))
+      const paid = fromChecking + fromSavings
+
+      if (paid < due) {
+        // Missed. Interest still accrues — that is what makes falling
+        // behind compound rather than pause.
+        const missed = loan.missedMonths + 1
+        if (missed >= 3) {
+          defaults += 1
+          recordEvent(world, tick, {
+            type: 'defaulted',
+            subjectId: personId,
+            detail: loan.kind + ':' + String(loan.balance),
+          })
+          if (loan.kind === 'mortgage' && homePlaceId !== null) {
+            recordEvent(world, tick, { type: 'lost-home', subjectId: personId, placeId: homePlaceId })
+            homePlaceId = null
+            homePurchasePrice = 0 as Money
+          }
+          continue // the debt is closed by the default; the record carries it
+        }
+        remaining.push({
+          ...loan,
+          balance: (loan.balance + interest) as Money,
+          missedMonths: missed,
+        })
+        continue
+      }
+
+      checking -= fromChecking
+      savings -= fromSavings
+      monthsPaid += 1
+      const balance = (loan.balance + interest - paid) as Money
+      if (balance <= 0) {
+        recordEvent(world, tick, { type: 'paid-off-loan', subjectId: personId, detail: loan.kind })
+        continue
+      }
+      remaining.push({ ...loan, balance, missedMonths: 0 })
+    }
+
+    setAccounts(world, {
+      ...accounts,
+      checking: checking as Money,
+      savings: savings as Money,
+      loans: remaining,
+      monthsPaid,
+      defaults,
+      homePlaceId,
+      homePurchasePrice,
+    })
+  }
+}
+
+
 
 /** finances is the single writer; this is the only door to that map. */
 function setAccounts(world: World, accounts: Accounts): void {
@@ -602,6 +826,10 @@ export function canAfford(income: Money, desirability: number): boolean {
 
 export function runFinances(world: World, tick: Tick): void {
   payInterest(world)
+  runMoneyShocks(world, tick)
+  serviceDebts(world, tick)
+  payDividends(world)
+  runNpcInvesting(world, tick)
   runTaxSeason(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
@@ -740,6 +968,271 @@ function payInterest(world: World): void {
       taxableYtd: (accounts.taxableYtd + interest) as Money,
     })
   }
+}
+
+/**
+ * M-ECON §1. Between a person's OWN two accounts. Clamped to what the
+ * source holds, and returns what actually moved.
+ */
+export function moveBetweenOwnAccounts(
+  world: World,
+  personId: EntityId,
+  cents: Money,
+  toSavings: boolean,
+): Money {
+  const accounts = accountsOf(world, personId)
+  const from = toSavings ? accounts.checking : accounts.savings
+  const moved = Math.max(0, Math.min(cents, from)) as Money
+  if (moved <= 0) return 0 as Money
+  setAccounts(world, {
+    ...accounts,
+    checking: (accounts.checking + (toSavings ? -moved : moved)) as Money,
+    savings: (accounts.savings + (toSavings ? moved : -moved)) as Money,
+  })
+  return moved
+}
+
+/**
+ * M-ECON §5. BUY. Cash out of savings, units in, at today's price.
+ *
+ * The cost basis is what was actually paid, because that is the only thing
+ * that makes a later sale a GAIN rather than a number. Returns the cents
+ * that moved — zero if they could not afford it, which is a refusal and not
+ * an error.
+ */
+export function buyInvestment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  sectorId: string,
+  cents: Money,
+  intoRetirement = false,
+): Money {
+  const accounts = accountsOf(world, personId)
+  const affordable = Math.min(cents, accounts.savings) as Money
+  if (affordable <= 0) return 0 as Money
+  const units = unitsFor(world, sectorId, affordable)
+  if (units <= 0) return 0 as Money
+  // Only what the units actually cost leaves the account; the rounding
+  // remainder stays as savings rather than vanishing.
+  const spent = Math.floor((units * (world.sectorPrices[sectorId] ?? 10_000)) / 10_000) as Money
+
+  const which = intoRetirement ? accounts.retirementHoldings : accounts.holdings
+  const existing = which.find((h) => h.sectorId === sectorId)
+  const merged: Holding = {
+    sectorId,
+    units: (existing?.units ?? 0) + units,
+    costBasis: ((existing?.costBasis ?? 0) + spent) as Money,
+  }
+  const rest = which.filter((h) => h.sectorId !== sectorId)
+  const updated = [...rest, merged].sort((a, b) => (a.sectorId < b.sectorId ? -1 : 1))
+
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings - spent) as Money,
+    holdings: intoRetirement ? accounts.holdings : updated,
+    retirementHoldings: intoRetirement ? updated : accounts.retirementHoldings,
+  })
+  recordEvent(world, tick, {
+    type: 'bought-investment',
+    subjectId: personId,
+    detail: sectorId + ':' + String(spent),
+  })
+  return spent
+}
+
+/**
+ * SELL, at today's price. The gain over the cost basis is REALIZED, and a
+ * realized gain is taxed (§3) — which is exactly why the retirement account
+ * is worth having: the same sale inside it is not.
+ */
+export function sellInvestment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  sectorId: string,
+  fromRetirement = false,
+): Money {
+  const accounts = accountsOf(world, personId)
+  const which = fromRetirement ? accounts.retirementHoldings : accounts.holdings
+  const holding = which.find((h) => h.sectorId === sectorId)
+  if (!holding || holding.units <= 0) return 0 as Money
+
+  const proceeds = holdingValue(world, holding)
+  const gain = Math.max(0, proceeds - holding.costBasis)
+  // Capital gains, on what was actually made, and never inside retirement.
+  const tax = fromRetirement ? 0 : capitalGainsTaxOn(gain as Money)
+  const net = (proceeds - tax) as Money
+  const rest = which.filter((h) => h.sectorId !== sectorId)
+
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings + (fromRetirement ? 0 : net)) as Money,
+    retirement: (accounts.retirement + (fromRetirement ? net : 0)) as Money,
+    holdings: fromRetirement ? accounts.holdings : rest,
+    retirementHoldings: fromRetirement ? rest : accounts.retirementHoldings,
+  })
+  recordEvent(world, tick, {
+    type: 'sold-investment',
+    subjectId: personId,
+    detail: sectorId + ':' + String(proceeds) + ':' + String(gain),
+  })
+  return net
+}
+
+/**
+ * M-ECON §5. DIVIDENDS, monthly, on everything held.
+ *
+ * Into savings for a brokerage holding — it is income, and it is taxed like
+ * income on the return. Inside retirement it compounds untaxed, which is
+ * the account's entire purpose over lives this long.
+ */
+function payDividends(world: World): void {
+  for (const personId of [...world.accounts.keys()].sort((a, b) => a - b)) {
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+    const accounts = accountsOf(world, personId)
+    let taxable = 0
+    let sheltered = 0
+    for (const holding of accounts.holdings) taxable += dividendOn(world, holding)
+    for (const holding of accounts.retirementHoldings) sheltered += dividendOn(world, holding)
+    if (taxable <= 0 && sheltered <= 0) continue
+    setAccounts(world, {
+      ...accounts,
+      savings: (accounts.savings + taxable) as Money,
+      retirement: (accounts.retirement + sheltered) as Money,
+      taxableYtd: (accounts.taxableYtd + taxable) as Money,
+    })
+  }
+}
+
+/**
+ * NPC PARITY (Part F): the town invests too, silently, on the same maths.
+ *
+ * A person with savings well beyond a year of living puts a slice into the
+ * market — deterministically, by who they are rather than by a draw, so the
+ * same person in the same world always does the same thing. Without this
+ * the market would exist and nobody would be in it.
+ */
+function runNpcInvesting(world: World, tick: Tick): void {
+  if (tick % 12 !== 6) return // once a year, in the same month
+  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+    if (person.deathTick !== null) continue
+    if (person.id === world.player.personId) continue
+    if (ageAt(person.birthTick, tick) < 22) continue
+    const accounts = accountsOf(world, person.id)
+    const spare = accounts.savings - LIVING_COST_ADULT * 12
+    if (spare <= 0) continue
+    // The ambitious put more in, and everybody keeps a year's living by.
+    const share = 150 + Math.floor(person.traits.ambition / 5)
+    const stake = Math.floor((spare * share) / 1000) as Money
+    if (stake <= 0) continue
+    const sector = SECTORS[person.id % SECTORS.length]
+    if (sector === undefined) continue
+    // A third of it into the retirement account, which is what it is for.
+    buyInvestment(world, tick, person.id, sector.id, Math.floor(stake / 3) as Money, true)
+    buyInvestment(world, tick, person.id, sector.id, Math.floor((stake * 2) / 3) as Money, false)
+  }
+}
+
+/**
+ * M-ECON §8. THE MONTHS MONEY GOES WRONG.
+ *
+ * A medical bill, a scam, a market crash somebody actually feels. These are
+ * not the cycle — the cycle is weather and happens to everyone — these are
+ * the individual shocks that make a balance sheet a story.
+ *
+ * The player is ASKED where there is a real choice (pay it now, or carry
+ * it); NPCs are simply charged, on the same numbers, which is the parity
+ * rule. Nothing here is a punishment for playing badly: a bill arrives
+ * because bodies and banks exist.
+ */
+const SHOCK_KINDS = ['medical', 'scam', 'repairs'] as const
+
+function runMoneyShocks(world: World, tick: Tick): void {
+  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+    if (person.deathTick !== null) continue
+    if (ageAt(person.birthTick, tick) < 20) continue
+    const accounts = accountsOf(world, person.id)
+    const worth = (accounts.checking + accounts.savings) as Money
+    if (worth <= 0) continue
+
+    const rng = openStream(world.seed, Stream.Economy, person.id, tick + 61_000)
+    // RARE, and measured. At four per thousand a month this fired roughly
+    // every twenty years per person and, at the size below, quietly cost a
+    // hundred-and-fifty-year town a tenth of its people — which is a tax
+    // wearing a shock's clothes. Halved, so it lands perhaps twice in a
+    // long life and is remembered when it does.
+    if (!rng.chance(2, 1000)) continue
+
+    const kind = SHOCK_KINDS[rng.nextIntInclusive(0, SHOCK_KINDS.length - 1)] ?? 'medical'
+    // Sized against what they HAVE, so it stings without being a wipe-out:
+    // a fifth to two thirds of liquid money.
+    // A fifth to a third of liquid money: enough to hurt and to be worth a
+    // decision, never enough to end a life on its own (Law 7).
+    const bill = Math.max(
+      5_000,
+      Math.floor((worth * rng.nextIntInclusive(200, 340)) / 1000),
+    ) as Money
+
+    if (person.id === world.player.personId) {
+      const raised = raisePending(world, {
+        tick,
+        kind: 'money-shock',
+        personId: person.id,
+        otherId: null,
+        occupationId: kind,
+        workplaceId: null,
+        monthlyPay: bill,
+        placeId: null,
+        options: ['pay-now', 'pay-over-time'],
+      })
+      if (raised) continue
+    }
+
+    // NPCs, and a player whose slot was full: it simply happens.
+    applyMoneyShock(world, tick, person.id, kind, bill, false)
+  }
+}
+
+/**
+ * The shock itself. Paying now takes it out of what they hold; carrying it
+ * writes a personal loan instead — the same debt machinery everything else
+ * uses, at whatever rate their file earns them.
+ */
+export function applyMoneyShock(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  kind: string,
+  bill: Money,
+  overTime: boolean,
+): void {
+  if (overTime) {
+    takeLoan(world, tick, personId, 'personal', bill)
+  }
+  const accounts = accountsOf(world, personId)
+  const fromChecking = Math.max(0, Math.min(bill, accounts.checking))
+  const fromSavings = Math.max(0, Math.min(bill - fromChecking, accounts.savings))
+  setAccounts(world, {
+    ...accounts,
+    checking: (accounts.checking - fromChecking) as Money,
+    savings: (accounts.savings - fromSavings) as Money,
+  })
+  recordEvent(world, tick, {
+    type: 'money-shock',
+    subjectId: personId,
+    detail: kind + ':' + String(bill),
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'spending',
+    significance: 'notable',
+    inputs: [factor('own-choice', overTime ? 1000 : 400)],
+    chosen: overTime ? 'carried the bill' : 'paid the bill',
+    rejected: overTime ? ['paying it outright'] : ['spreading it out'],
+    streamId: Stream.Economy,
+  })
 }
 
 /**
@@ -944,6 +1437,13 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
     retirement: 0 as Money,
     taxableYtd: 0 as Money,
     withheldYtd: 0 as Money,
+    holdings: [],
+    retirementHoldings: [],
+    loans: [],
+    homePlaceId: null,
+    homePurchasePrice: 0 as Money,
+    monthsPaid: 0,
+    defaults: 0,
   })
   // The household itself keeps only what it owes, which death does not clear.
   void household

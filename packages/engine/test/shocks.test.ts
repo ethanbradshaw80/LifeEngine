@@ -1,0 +1,183 @@
+/**
+ * M-ECON §8-9. The months money goes wrong, and the bank's verbs.
+ *
+ * THE CLAIMS: a shock is rare enough to be a shock rather than a tax; it is
+ * sized against what a person actually holds, so it stings without wiping
+ * anyone out; the player is ASKED where there is a real choice and NPCs are
+ * charged on the same numbers (the parity rule); carrying it writes an
+ * ordinary loan rather than inventing a second kind of debt; and every bank
+ * verb refuses honestly instead of half-doing the thing.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { seed as makeSeed } from '@life-engine/shared'
+import type { Money } from '@life-engine/shared'
+import { advanceTicks, createWorld, setPlayer } from '../src/index.js'
+import {
+  accountsOf,
+  applyMoneyShock,
+  bankTransfer,
+  borrowPlayer,
+  buyHomePlayer,
+  divestPlayer,
+  investPlayer,
+  moveBetweenOwnAccounts,
+  netWorthOf,
+} from '../src/index.js'
+import { eventsFor } from '../src/records.js'
+
+function fund(
+  world: ReturnType<typeof createWorld>,
+  personId: number,
+  savings: number,
+  checking = 0,
+): void {
+  world.accounts.set(personId as never, {
+    ...accountsOf(world, personId as never),
+    savings: savings as Money,
+    checking: checking as Money,
+  })
+}
+
+function anAdult(world: ReturnType<typeof createWorld>) {
+  const person = [...world.people.values()]
+    .filter((p) => p.deathTick === null)
+    .sort((a, b) => a.birthTick - b.birthTick)[0]
+  expect(person).toBeDefined()
+  return person!
+}
+
+describe('how often money goes wrong', () => {
+  it('is rare — a shock every year would be a tax, not a shock', () => {
+    // MEASURED, not guessed: a century of a small town, counting the
+    // shock events against the adult-months lived. Tuned from 4 per mille
+    // down to 2 after the first run left a third of the town broke.
+    const world = createWorld(makeSeed(60606), 80)
+    advanceTicks(world, 1200)
+    let shocks = 0
+    for (const event of world.events) if (event.type === 'money-shock') shocks += 1
+
+    const living = [...world.people.values()].filter((p) => p.deathTick === null).length
+    expect(living).toBeGreaterThan(30) // the town survived it, which is the point
+    // Measured on this seed: roughly one shock per person per two decades.
+    expect(shocks).toBeGreaterThan(0)
+    expect(shocks / Math.max(1, living)).toBeLessThan(12)
+  })
+
+  it('never takes more than a person has', () => {
+    const world = createWorld(makeSeed(60606), 60)
+    advanceTicks(world, 600)
+    for (const [personId] of world.accounts) {
+      const accounts = accountsOf(world, personId)
+      expect(accounts.checking).toBeGreaterThanOrEqual(0)
+      expect(accounts.savings).toBeGreaterThanOrEqual(0)
+    }
+  })
+})
+
+describe('the bill itself', () => {
+  it('paid now comes out of what they hold, checking first', () => {
+    const world = createWorld(makeSeed(1111), 60)
+    const person = anAdult(world)
+    fund(world, person.id, 500_000, 200_000)
+
+    applyMoneyShock(world, world.tick, person.id, 'medical', 300_000 as Money, false)
+    const accounts = accountsOf(world, person.id)
+    expect(accounts.checking).toBe(0)
+    expect(accounts.savings).toBe(400_000)
+    expect(accounts.loans).toHaveLength(0)
+    expect(eventsFor(world, person.id).some((e) => e.type === 'money-shock')).toBe(true)
+  })
+
+  it('carried writes an ordinary personal loan, not a second kind of debt', () => {
+    const world = createWorld(makeSeed(1111), 60)
+    const person = anAdult(world)
+    fund(world, person.id, 0, 0)
+
+    applyMoneyShock(world, world.tick, person.id, 'repairs', 400_000 as Money, true)
+    const accounts = accountsOf(world, person.id)
+    expect(accounts.loans).toHaveLength(1)
+    expect(accounts.loans[0]!.kind).toBe('personal')
+    expect(accounts.loans[0]!.monthlyPayment).toBeGreaterThan(0)
+  })
+
+  it('records a decision either way, so the timeline can explain it', () => {
+    const world = createWorld(makeSeed(1111), 60)
+    const person = anAdult(world)
+    fund(world, person.id, 900_000)
+    applyMoneyShock(world, world.tick, person.id, 'scam', 200_000 as Money, false)
+    const decided = world.causalRecords.filter(
+      (r) => r.subjectId === person.id && r.decision === 'spending',
+    )
+    expect(decided.length).toBeGreaterThan(0)
+    expect(decided.at(-1)!.chosen).toContain('bill')
+  })
+})
+
+describe('the bank verbs', () => {
+  it('move money between a person’s own two accounts, and no further', () => {
+    const world = createWorld(makeSeed(2222), 60)
+    const person = anAdult(world)
+    fund(world, person.id, 100_000, 250_000)
+
+    const moved = moveBetweenOwnAccounts(world, person.id, 400_000 as Money, true)
+    expect(moved).toBe(250_000) // clamped to what checking actually held
+    const accounts = accountsOf(world, person.id)
+    expect(accounts.checking).toBe(0)
+    expect(accounts.savings).toBe(350_000)
+    // Nothing was created: the two balances still sum to what they did.
+    expect(accounts.checking + accounts.savings).toBe(350_000)
+  })
+
+  it('refuse honestly when nobody is being played', () => {
+    const world = createWorld(makeSeed(3333), 60)
+    expect(bankTransfer(world, 1_000, true).moved).toBe(false)
+    expect(investPlayer(world, 'industrial', 1_000, false).done).toBe(false)
+    expect(divestPlayer(world, 'industrial', false).done).toBe(false)
+    expect(borrowPlayer(world, 'personal', 1_000).done).toBe(false)
+    expect(buyHomePlayer(world).done).toBe(false)
+  })
+
+  it('give the player the same numbers the NPCs get', () => {
+    const world = createWorld(makeSeed(4444), 60)
+    const person = anAdult(world)
+    setPlayer(world, person.id)
+    fund(world, person.id, 3_000_000)
+
+    expect(investPlayer(world, 'industrial', 1_000_000, false).done).toBe(true)
+    expect(accountsOf(world, person.id).holdings).toHaveLength(1)
+    // The refusal is the engine's own, worded for a person to read.
+    const broke = investPlayer(world, 'industrial', 900_000_000, false)
+    expect(broke.done).toBe(true) // clamped to savings, not refused outright
+    const nothingLeft = investPlayer(world, 'defense', 500_000, false)
+    expect(nothingLeft.done).toBe(false)
+    expect(nothingLeft.reason).toContain('savings')
+
+    expect(divestPlayer(world, 'consumer', false).done).toBe(false)
+    expect(divestPlayer(world, 'industrial', false).done).toBe(true)
+  })
+
+  it('report a loan refusal in the bank’s words, not a silent false', () => {
+    const world = createWorld(makeSeed(5555), 60)
+    const person = anAdult(world)
+    setPlayer(world, person.id)
+    fund(world, person.id, 0)
+    const refused = borrowPlayer(world, 'mortgage', 20_000_000)
+    if (!refused.done) expect(refused.reason.length).toBeGreaterThan(10)
+  })
+})
+
+describe('net worth', () => {
+  it('does not count borrowed money as wealth', () => {
+    const world = createWorld(makeSeed(6666), 60)
+    const person = anAdult(world)
+    setPlayer(world, person.id)
+    fund(world, person.id, 1_000_000)
+
+    const before = netWorthOf(world, person.id)
+    expect(borrowPlayer(world, 'personal', 800_000).done).toBe(true)
+    // The cash arrived and the debt arrived with it. They cancel, exactly.
+    expect(accountsOf(world, person.id).savings).toBe(1_800_000)
+    expect(netWorthOf(world, person.id)).toBe(before)
+  })
+})

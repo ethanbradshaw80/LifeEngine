@@ -28,7 +28,14 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
-' * v77 — M-ECON PHASE 3: THE ECONOMY IS WEATHER. A seeded state machine
+ * v78 — M-ECON PHASES 4-6: A MARKET, DEBT, AND MONTHS THAT GO WRONG. Four
+ *      fictional sectors with their own volatility and war-sensitivity; a
+ *      brokerage and a tax-advantaged retirement account; dividends and
+ *      realized capital gains. Loans, a derived credit score, home
+ *      ownership with a mortgage and equity, and default that takes the
+ *      house. Financial shocks — a medical bill, a scam, a roof — which the
+ *      player answers and NPCs simply meet. Every seed's balances differ.
+ * v77 — M-ECON PHASE 3: THE ECONOMY IS WEATHER. A seeded state machine
  *      drifts expansion → peak → recession → depression → recovery over
  *      years; a central bank moves the rate savings earn; prices compound
  *      with inflation and wages move with them; and a downturn LAYS PEOPLE
@@ -488,7 +495,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 77
+export const SIMULATION_VERSION = 78
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -530,6 +537,7 @@ export function toSnapshot(world: World): WorldSnapshot {
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
       accounts: [...world.accounts.values()].sort((a, b) => a.personId - b.personId),
       economy: world.economy,
+      sectorPrices: world.sectorPrices,
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),
       employment: [...world.employment.values()].sort((a, b) => a.personId - b.personId),
       health: [...world.health.values()].sort((a, b) => a.personId - b.personId),

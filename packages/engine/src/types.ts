@@ -378,8 +378,26 @@ export interface Accounts {
   readonly savings: Money
   /** M-ECON §5, zero until the market exists. */
   readonly brokerage: Money
-  /** M-ECON §5, tax-advantaged, zero until the market exists. */
+  /**
+   * M-ECON §5, tax-advantaged. Cash in the retirement account; its holdings
+   * ride the market like any other but pay no capital-gains tax, which is
+   * the whole point of it over a life this long.
+   */
   readonly retirement: Money
+  /** What the brokerage actually owns. */
+  readonly holdings: readonly Holding[]
+  /** What the retirement account owns. */
+  readonly retirementHoldings: readonly Holding[]
+  /** M-ECON §6: what they owe, and to what. */
+  readonly loans: readonly Loan[]
+  /** The place they OWN, if they bought one. Null means they rent. */
+  readonly homePlaceId: EntityId | null
+  /** What the home cost. Its value today drifts with prices. */
+  readonly homePurchasePrice: Money
+  /** Months of loan payments met. The thing a score is built from. */
+  readonly monthsPaid: number
+  /** Defaults on the record. The thing that breaks it. */
+  readonly defaults: number
   /**
    * THE TAX YEAR SO FAR (M-ECON §3). Gross income and the tax already
    * withheld from it, both reset when the return is filed. The return
@@ -410,6 +428,36 @@ export interface EconomyState {
   readonly marketIndex: number
   /** Compounded price drift since the world began; 1000 is the start. */
   readonly priceLevelPerMille: number
+}
+
+/**
+ * A stake in one sector (M-ECON §5). Units, and what they cost — the cost
+ * basis is what makes a capital GAIN a gain rather than a sale price.
+ */
+export interface Holding {
+  readonly sectorId: string
+  readonly units: number
+  readonly costBasis: Money
+}
+
+export type LoanKind = 'personal' | 'auto' | 'mortgage'
+
+/**
+ * MONEY OWED (M-ECON §6). One debt, its rate fixed at signing — a loan does
+ * not re-price when the central bank moves, which is the whole reason the
+ * month you sign matters.
+ */
+export interface Loan {
+  readonly kind: LoanKind
+  readonly principal: Money
+  readonly balance: Money
+  /** Fixed at signing, per-mille, annual. */
+  readonly ratePerMille: number
+  readonly monthlyPayment: Money
+  readonly takenAtTick: Tick
+  readonly maturesAtTick: Tick
+  /** Consecutive months missed. Three is a default. */
+  readonly missedMonths: number
 }
 
 export interface Household {
@@ -1091,6 +1139,10 @@ export type PendingKind =
   | 'job-application'
   /** LOG-ONLY: the player walked into the recruiting office themselves. */
   | 'walk-in-enlist'
+  | 'invest'
+  | 'divest'
+  | 'borrow'
+  | 'buy-home'
   /** LOG-ONLY: asked for a school slot from the Service tab. */
   | 'school-request'
   /** LOG-ONLY: put in for a special unit's selection. */
@@ -1107,6 +1159,7 @@ export type PendingKind =
   | 'unit-moment'
   | 'crime-victim'
   | 'crime-scene'
+  | 'money-shock'
   | 'reenlist-term'
   | 'reenlist-option'
   | 'service-contract'
@@ -1276,6 +1329,14 @@ export type EventType =
   | 'warned-at-work'
   | 'changed-spending'
   | 'filed-taxes'
+  | 'bought-investment'
+  | 'sold-investment'
+  | 'took-loan'
+  | 'paid-off-loan'
+  | 'defaulted'
+  | 'bought-home'
+  | 'lost-home'
+  | 'money-shock'
   /** Crime & justice (C1). The thief's own timeline knows what they did. */
   | 'committed-theft'
   | 'committed-offence'
@@ -1534,6 +1595,8 @@ export interface World {
   readonly accounts: Map<EntityId, Accounts>
   /** M-ECON §4: the weather everybody lives in. */
   readonly economy: EconomyState
+  /** M-ECON §5: what each fictional sector costs today, in basis points. */
+  readonly sectorPrices: Readonly<Record<string, number>>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */

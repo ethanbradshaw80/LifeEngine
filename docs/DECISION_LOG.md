@@ -963,3 +963,71 @@ unlock against the occupation list, and it immediately caught a second one.
 Separately, the lifetime-savings ceiling turned out to be tuned to a single
 draw; it was measured across five seeds ($540k–$1.62m) before being widened,
 rather than moved to get a green result.
+
+---
+
+## ADR-0027 — M-ECON: money belongs to people, and the economy is weather
+
+**Date.** 2026-08-03. **Status.** Accepted.
+
+**Context.** Before this module the whole simulation held one number for
+money: a household balance. Nobody owned anything, nothing was taxed, prices
+never moved, and a recession was a word the news could not use because there
+was no recession to have. Six phases, built together, replace it.
+
+**Decision.**
+
+1. **Money is personal, not architectural.** Every person has checking,
+   savings and a retirement account (`Accounts`, keyed by person). The
+   household balance survives as what the roof costs and what the roof has,
+   because rent is genuinely a household fact — but a wage lands in a
+   person's account and leaves with them. `finances.ts` remains the single
+   writer; nothing else in the engine may move a cent.
+
+2. **Tax is withheld monthly and settled in January.** Progressive brackets
+   in `tax.ts`, a sales tax on discretionary spending, capital gains on
+   realized brokerage gains only, and an estate tax at inheritance. A refund
+   or a bill arrives every January, which is the point: it is a month that
+   feels different from the other eleven.
+
+3. **The economy is a seeded state machine**, built like the conflict
+   machine in geopolitics — expansion, peak, recession, depression,
+   recovery, drifting over years. A downturn takes jobs; a central bank
+   moves the rate savings earn and loans are priced from; prices compound
+   with inflation and wages move with them through `atTodaysPrices`.
+
+4. **Four fictional sectors**, with their own volatility, beta and war
+   sensitivity, one of which moves against the others in a war. A brokerage
+   account is taxed on the way out; a retirement account never is, which
+   over lives this long is the entire reason it exists.
+
+5. **A credit score is DERIVED, never stored** — read from months paid,
+   defaults, and what is owed right now, so it cannot drift from the
+   history that justifies it (Law 3). It follows the criminal-record rule
+   (C3 §5): a score is a DOOR, and a shut door can be walked back through.
+   A poor file makes borrowing dear before it makes it impossible.
+
+6. **A level loan payment is SEARCHED FOR, not solved.** The textbook
+   formula needs `Math.pow`, whose precision ECMAScript leaves
+   implementation-defined — the same mortgage could amortise differently in
+   two browsers. `monthlyPaymentFor` bisects over an integer simulation of
+   the loan instead, and `purity.test.ts` keeps `Math.pow` out.
+
+7. **Shocks are asked, not inflicted.** A medical bill, a scam, a roof.
+   The player chooses to pay it or carry it; carrying it writes an ordinary
+   personal loan rather than a second kind of debt. NPCs meet the same bill
+   on the same numbers, which is the parity rule.
+
+**Consequences.** SIMULATION_VERSION 78 and SCHEMA_VERSION 32, with five
+migrations (28→32). Every seed's lives differ from v76 in what they earn,
+keep, owe and own. The Money tab gains a second view — the BANK — beside the
+existing household ledger, because "where did it go" and "what do I have"
+are different questions.
+
+**Three things measured rather than guessed.** Phase 1 collapsed a town from
+110 people to 35: the household balance clamped at zero with nothing
+absorbing a bad month. Phase 2 left a median net worth of $463 because
+spending was drawn against gross income while the money arriving was net.
+Phase 3 collapsed a town again — prices inflated sixfold over a century
+while wages stayed flat. Each was found by printing the number first, and
+each band in the tests carries the measurement that set it.

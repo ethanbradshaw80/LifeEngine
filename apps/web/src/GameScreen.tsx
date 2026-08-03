@@ -102,6 +102,7 @@ import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
+import { Bank } from './Bank.js'
 import type { VerbRequest } from './engine.worker.js'
 
 /** One glyph per event type. Emoji: zero assets, universally shipped. */
@@ -536,6 +537,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // id of their own because they are derived from events, not stored.
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
+  const [moneyView, setMoneyView] = useState<'month' | 'bank'>('month')
   const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
   const [crimeTab, setCrimeTab] = useState<CrimeTab>('acts')
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
@@ -895,7 +897,28 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       {tab === 'money' && (
         <div className="panel" aria-label="Money">
-          {!household ? (
+          {/* M-ECON §9. Two ways of looking at the same money: the MONTH
+              (where it went, household-level) and the BANK (what is held,
+              personal). They are different questions, so they are different
+              screens rather than one long scroll. */}
+          <div className="money-switch">
+            {([
+              ['month', 'The month'],
+              ['bank', 'The bank'],
+            ] as const).map(([view, label]) => (
+              <button
+                key={view}
+                type="button"
+                className={moneyView === view ? 'money-switch-tab active' : 'money-switch-tab'}
+                onClick={() => setMoneyView(view)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {moneyView === 'bank' ? (
+            <Bank world={world} person={person} onAct={onAct} />
+          ) : !household ? (
             <p className="feed-empty">No household yet.</p>
           ) : (
             (() => {
