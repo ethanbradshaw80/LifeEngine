@@ -9,7 +9,6 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
   accountsOf,

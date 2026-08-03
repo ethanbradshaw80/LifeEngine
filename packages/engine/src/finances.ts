@@ -24,10 +24,18 @@
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
-import { ageAt } from './clock.js'
+import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import {
+  BASE_SAVINGS_RATE_PER_MILLE,
+  estateTaxOn,
+  incomeTaxFor,
+  monthlyInterestOn,
+  salesTaxOn,
+  withholdingFor,
+} from './tax.js'
 import type { Accounts, Household, Person, World } from './types.js'
 import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
 import { placesOfKind } from './worldgen.js'
@@ -54,6 +62,8 @@ export function accountsOf(world: World, personId: EntityId): Accounts {
       savings: 0 as Money,
       brokerage: 0 as Money,
       retirement: 0 as Money,
+      taxableYtd: 0 as Money,
+      withheldYtd: 0 as Money,
     }
   )
 }
@@ -104,17 +114,27 @@ export function creditPerson(world: World, personId: EntityId, amount: Money): v
   setAccounts(world, { ...accounts, checking: (accounts.checking + amount) as Money })
 }
 
+/**
+ * What actually reaches the kitchen table in a month — NET of withholding.
+ *
+ * MEASURED, and it matters: this used to be gross, while the money that
+ * arrives is net. Everything downstream — what a household spends on
+ * itself, whether it can afford a street, what it has left — was therefore
+ * computed against income nobody ever received. With tax withheld at source
+ * the error stopped being cosmetic: spending ninety per cent of a GROSS
+ * surplus plus sales tax consumed the whole net one, and a forty-year town
+ * ended with a median adult net worth of $463 and a third of its adults
+ * holding nothing at all.
+ *
+ * Service pay reaches the same table (L4-M3), and so does the disability
+ * pension a veteran's service left them owed (L4-M5) — and what a dead
+ * spouse's service still pays the household they left.
+ */
 export function householdIncome(world: World, household: Household): Money {
   let total = 0
   for (const memberId of household.memberIds) {
-    const job = world.employment.get(memberId)
-    if (job) total += job.monthlyPay
-    // Service pay reaches the same kitchen table (L4-M3), and so does the
-    // disability pension a veteran's service left them owed (L4-M5).
-    total += servicePayOf(world, memberId)
-    total += pensionOf(world, memberId)
-    // And what a dead spouse's service still pays the household they left.
-    total += survivorPensionOf(world, memberId)
+    const gross = personalIncome(world, memberId)
+    total += gross - withholdingFor(gross)
   }
   return total as Money
 }
@@ -395,6 +415,8 @@ export interface HouseholdLedger {
   readonly pensions: readonly LedgerEntry[]
   readonly survivorPay: readonly LedgerEntry[]
   readonly income: Money
+  /** M-ECON §3: earned minus arrived. The rows above are gross. */
+  readonly taxWithheld: Money
   /** Costs. `rent` + `livingCosts` === `costs`, always. */
   readonly rent: Money
   readonly adults: number
@@ -455,6 +477,13 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     pensions,
     survivorPay,
     income: householdIncome(world, household),
+    // M-ECON §3. The rows above are what people EARN; the income line is
+    // what arrives. This is the difference, on its own line, the way a
+    // payslip shows it — without it the itemisation stopped summing.
+    taxWithheld: household.memberIds.reduce(
+      (total, memberId) => total + withholdingFor(personalIncome(world, memberId)),
+      0,
+    ) as Money,
     rent,
     adults,
     children,
@@ -539,6 +568,9 @@ export function canAfford(income: Money, desirability: number): boolean {
 // ---------------------------------------------------------------------------
 
 export function runFinances(world: World, tick: Tick): void {
+  payInterest(world)
+  runTaxSeason(world, tick)
+
   // Ascending id order, as everywhere: processing order must be reproducible.
   const households = [...world.households.values()].sort((a, b) => a.id - b.id)
 
@@ -565,14 +597,28 @@ export function runFinances(world: World, tick: Tick): void {
     for (const memberId of [...household.memberIds].sort((a, b) => a - b)) {
       const member = world.people.get(memberId)
       if (!member || member.deathTick !== null) continue
-      const earned = personalIncome(world, memberId)
-      if (earned <= 0) continue
-      creditPerson(world, memberId, earned)
+      const gross = personalIncome(world, memberId)
+      if (gross <= 0) continue
+      // M-ECON §3. WITHHELD AT SOURCE, because that is what a wage feels
+      // like: the money that arrives is what is left. The yearly return
+      // settles the difference, which is the only moment tax is a decision.
+      const withheld = withholdingFor(gross)
+      const earned = (gross - withheld) as Money
+      const accounts = accountsOf(world, memberId)
+      setAccounts(world, {
+        ...accounts,
+        checking: (accounts.checking + earned) as Money,
+        taxableYtd: (accounts.taxableYtd + gross) as Money,
+        withheldYtd: (accounts.withheldYtd + withheld) as Money,
+      })
       earners.push({ personId: memberId, income: earned })
       income += earned
     }
 
-    const owed = (householdCosts(world, household) + discretionaryFor(world, household)) as Money
+    // M-ECON §3. SALES TAX rides on what the household spends on ITSELF —
+    // not on the rent or the food-and-warmth it cannot choose not to buy.
+    const spending = discretionaryFor(world, household)
+    const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
 
     // Taken pro rata, in integer cents, with the rounding remainder on the
     // largest earner so the shares always sum to exactly what is owed.
@@ -637,6 +683,74 @@ export function runFinances(world: World, tick: Tick): void {
   }
 
   pushArrearsHouseholdsToCheaperRent(world, tick)
+}
+
+/**
+ * M-ECON §2. SAVINGS EARN. Monthly, on what is actually put by, at the
+ * economy's rate — which the central bank will move once it exists (§4).
+ * Floored, so a balance too small to earn a cent earns nothing rather than
+ * rounding one into existence.
+ */
+function payInterest(world: World): void {
+  for (const personId of [...world.accounts.keys()].sort((a, b) => a - b)) {
+    const accounts = accountsOf(world, personId)
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+    const interest = monthlyInterestOn(accounts.savings, savingsRateOf(world))
+    if (interest <= 0) continue
+    setAccounts(world, {
+      ...accounts,
+      savings: (accounts.savings + interest) as Money,
+      // Interest is income and is taxed like it, but nothing is withheld
+      // from a bank — it lands on the return, which is where a saver meets
+      // it in life too.
+      taxableYtd: (accounts.taxableYtd + interest) as Money,
+    })
+  }
+}
+
+/** The economy's savings rate. A constant until the central bank exists. */
+export function savingsRateOf(world: World): number {
+  void world
+  return BASE_SAVINGS_RATE_PER_MILLE
+}
+
+/**
+ * M-ECON §3. THE RETURN, once a year, in January.
+ *
+ * Withholding is a table's guess at a steady year. A year with a raise in
+ * it, or a spell out of work, or a first year of interest, is not steady —
+ * so the return settles the difference and the difference is real money:
+ * a refund into checking, or a bill out of it.
+ *
+ * NPCs file silently. The player is shown it (§3), which the caller raises.
+ */
+function runTaxSeason(world: World, tick: Tick): void {
+  if (toDate(world, tick).month !== 1) return
+
+  for (const personId of [...world.accounts.keys()].sort((a, b) => a - b)) {
+    const accounts = accountsOf(world, personId)
+    if (accounts.taxableYtd <= 0 && accounts.withheldYtd <= 0) continue
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+
+    const owed = incomeTaxFor(accounts.taxableYtd)
+    const settled = (accounts.withheldYtd - owed) as Money
+
+    // A refund is money back; a bill comes out of checking and may overdraw
+    // it, which is exactly what an unexpected tax bill does.
+    setAccounts(world, {
+      ...accounts,
+      checking: (accounts.checking + settled) as Money,
+      taxableYtd: 0 as Money,
+      withheldYtd: 0 as Money,
+    })
+    recordEvent(world, tick, {
+      type: 'filed-taxes',
+      subjectId: personId,
+      detail: String(settled),
+    })
+  }
 }
 
 function eldestMember(world: World, household: Household): Person | undefined {
@@ -750,7 +864,12 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
   // be whatever the roof happened to hold, which meant a widow's savings
   // passed as "the household's" and a lodger's did not exist at all.
   const estate = accountsOf(world, deceased.id)
-  const passing = (estate.checking + estate.savings + estate.brokerage + estate.retirement) as Money
+  const gross = (estate.checking + estate.savings + estate.brokerage + estate.retirement) as Money
+  if (gross <= 0) return
+  // M-ECON §3. THE ESTATE IS TAXED before it is divided — an exemption
+  // large enough that an ordinary life passes whole, so this is felt by a
+  // fortune and not by a family.
+  const passing = (gross - estateTaxOn(gross)) as Money
   if (passing <= 0) return
 
   const heirs: Person[] = []
@@ -788,6 +907,8 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
     savings: 0 as Money,
     brokerage: 0 as Money,
     retirement: 0 as Money,
+    taxableYtd: 0 as Money,
+    withheldYtd: 0 as Money,
   })
   // The household itself keeps only what it owes, which death does not clear.
   void household

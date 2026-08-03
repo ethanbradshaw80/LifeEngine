@@ -380,6 +380,14 @@ export interface Accounts {
   readonly brokerage: Money
   /** M-ECON §5, tax-advantaged, zero until the market exists. */
   readonly retirement: Money
+  /**
+   * THE TAX YEAR SO FAR (M-ECON §3). Gross income and the tax already
+   * withheld from it, both reset when the return is filed. The return
+   * settles the difference between what was withheld and what is actually
+   * owed — which is the refund, or the bill.
+   */
+  readonly taxableYtd: Money
+  readonly withheldYtd: Money
 }
 
 export interface Household {
@@ -1245,6 +1253,7 @@ export type EventType =
   | 'spent-time'
   | 'warned-at-work'
   | 'changed-spending'
+  | 'filed-taxes'
   /** Crime & justice (C1). The thief's own timeline knows what they did. */
   | 'committed-theft'
   | 'committed-offence'

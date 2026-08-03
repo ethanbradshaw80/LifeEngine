@@ -218,6 +218,8 @@ describe('inheritance', () => {
       savings: 0 as Money,
       brokerage: 0 as Money,
       retirement: 0 as Money,
+      taxableYtd: 0 as Money,
+      withheldYtd: 0 as Money,
     })
 
     const children = [...world.people.values()]
@@ -358,8 +360,12 @@ describe('the itemized ledger (P3)', () => {
         ...ledger.pensions,
         ...ledger.survivorPay,
       ].reduce((sum, entry) => sum + entry.amount, 0)
-      expect(parts).toBe(householdIncome(world, household))
+      // M-ECON §3: the rows are GROSS and the income line is what arrives,
+      // so the itemisation sums through the withholding line the way a
+      // payslip does. Without that line it silently stopped adding up.
+      expect(parts - ledger.taxWithheld).toBe(householdIncome(world, household))
       expect(ledger.income).toBe(householdIncome(world, household))
+      expect(ledger.taxWithheld).toBeGreaterThanOrEqual(0)
 
       expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
       expect(ledger.costs).toBe(householdCosts(world, household))

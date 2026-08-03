@@ -28,7 +28,14 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
-' * v75 — M-ECON PHASE 1: THE POT IS SPLIT. Every person holds their own
+' * v76 — M-ECON PHASE 2: TAX AND INTEREST. Pay is withheld at source on a
+ *      progressive schedule, savings earn monthly, spending carries sales
+ *      tax, an estate above the exemption is taxed, and every January
+ *      settles a return into a refund or a bill. Household income now means
+ *      what ARRIVES rather than what is earned — the old reading spent
+ *      ninety per cent of a gross surplus and left a forty-year town with a
+ *      median adult net worth of $463.
+ * v75 — M-ECON PHASE 1: THE POT IS SPLIT. Every person holds their own
  *      checking and savings; the household keeps only its shared
  *      obligations and goes negative when a month is not met. Pay lands
  *      with the earner, obligations are funded pro rata from what each
@@ -473,7 +480,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 75
+export const SIMULATION_VERSION = 76
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
