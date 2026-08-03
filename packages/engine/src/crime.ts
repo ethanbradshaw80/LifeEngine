@@ -20,6 +20,13 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { GRADE_TITLES, isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
 import type { Offence } from './content.js'
+import {
+  CRIME_SCENE_OPTIONS,
+  crimeOutcomeFor,
+  dangerFor,
+  encodeCrimeScene,
+} from './crimescene.js'
+import type { CrimeOutcome } from './crimescene.js'
 import { logVerb, raisePending } from './player.js'
 import { isDeployed } from './deployment.js'
 import {
@@ -528,20 +535,81 @@ export function commitOffence(
   }
   logVerb(world, 'offence', offenceId)
 
-  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 5252)
+  // THE MONEY DOES NOT MOVE YET (owner: "the screen blanks and money is
+  // added... there's no scene"). The room is rolled, the player is shown a
+  // tell they can read, and everything below happens only once they have
+  // answered it. Nothing is taken, no record is written and no court opens
+  // until executeOffence runs.
+  const sceneRng = openStream(world.seed, Stream.Crime, person.id, tick + 5252)
+  const danger = dangerFor(offence, sceneRng)
+  const opened = raisePending(world, {
+    tick,
+    kind: 'crime-scene',
+    personId: person.id,
+    otherId: null,
+    occupationId: encodeCrimeScene(offence.id, danger),
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: [...CRIME_SCENE_OPTIONS],
+  })
+  if (opened) return { done: true, reason: '' }
+  // No slot for the scene — resolve it the way an unattended crime goes,
+  // rather than silently doing nothing with a verb the player just spent.
+  executeOffence(world, tick, person, offence, crimeOutcomeFor(danger, 'cool', offence))
+  return { done: true, reason: '' }
+}
+
+/**
+ * The crime itself, once the scene has been answered.
+ *
+ * Everything that used to happen inside commitOffence lives here: the
+ * money, the victim, the record, the clearance roll and the courthouse.
+ * What the outcome changes is how much was taken and how likely the
+ * constable is to close it — not whether any of it is written down.
+ */
+export function executeOffence(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offence: Offence,
+  outcome: CrimeOutcome,
+): void {
+  // Backing out is not a crime. It is a decision, and it is recorded as one
+  // — a life that turned around in a dark house should be able to say so.
+  if (outcome.kind === 'bailed') {
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'crime',
+      significance: 'notable',
+      inputs: [factor('own-choice', 1000)],
+      chosen: `backed out of ${offence.title}`,
+      rejected: [`going through with it`],
+      streamId: Stream.Crime,
+    })
+    return
+  }
+
+  const rng = openStream(world.seed, Stream.Crime, person.id, tick + 5253)
 
   // What it puts in a pocket. Where a household is robbed the money MOVES
   // — finances owns the transfer, and a victim who loses nothing is a
   // crime that did not happen.
   let taken = 0
   let victim: Person | undefined
-  if (offence.gainMax > 0) {
-    const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
+  if (offence.gainMax > 0 && outcome.lootPerMille > 0) {
+    const full = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
+    // What this attempt actually came away with. Pressing on in an empty
+    // house gets the safe; slipping out with what is by the door does not.
+    const wanted = Math.max(1, Math.floor((full * outcome.lootPerMille) / 1000))
     if (offence.takesFromHousehold && person.householdId !== null) {
       const candidates = [...world.households.values()]
         .filter((h) => h.id !== person.householdId && h.dissolvedTick === null && h.savings > 20_000)
         .sort((a, b) => a.id - b.id)
-      if (candidates.length === 0) return { done: false, reason: 'No house in town worth the risk.' }
+      // No house worth breaking into. The attempt simply came to nothing —
+      // the scene already happened, so this is a night that went nowhere
+      // rather than a refusal.
+      if (candidates.length === 0) return
       const victimHousehold = rng.pick(candidates)
       taken = transferBetweenHouseholds(world, tick, victimHousehold.id, person.householdId, wanted)
       const members = victimHousehold.memberIds
@@ -619,8 +687,15 @@ export function commitOffence(
   // Cleared, or not. An uncleared offence stays on the offender's own
   // timeline and nowhere else — which is exactly how getting away with it
   // works, and why the record is the only witness.
-  if (!rng.chance(offence.clearance, 1_000)) {
-    return { done: true, reason: '' }
+  // HOW IT WENT DECIDES WHETHER IT IS SOLVED. A quiet job is genuinely
+  // hard to close; being seen is most of the way to a charge; being caught
+  // in the act is not a question at all.
+  const clearance = Math.min(
+    1_000,
+    Math.floor((offence.clearance * outcome.clearancePerMille) / 1_000),
+  )
+  if (outcome.kind !== 'caught' && outcome.kind !== 'wounded' && !rng.chance(clearance, 1_000)) {
+    return
   }
   recordEvent(world, tick, { type: 'was-arrested', subjectId: person.id, detail: offence.title })
 
@@ -647,7 +722,6 @@ export function commitOffence(
         : ['take-plea-deal', 'plead-guilty', 'stand-trial'],
   })
   if (!landed) resolveCourt(world, tick, person, taken, rng, null, offence)
-  return { done: true, reason: '' }
 }
 
 /**

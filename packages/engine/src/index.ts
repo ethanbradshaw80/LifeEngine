@@ -160,6 +160,8 @@ export {
   isOnProbation,
 } from './crime.js'
 export { GRADE_TITLES, isFelony, OFFENCES, offenceById } from './content.js'
+export { crimeSceneFor, crimeOutcomeFor, decodeCrimeScene, CRIME_SCENE_OPTIONS } from './crimescene.js'
+export type { CrimeScene, CrimeDanger, CrimeChoice, CrimeOutcome } from './crimescene.js'
 export type { Offence, OffenceGrade } from './content.js'
 export type { CourtOutcome } from './crime.js'
 

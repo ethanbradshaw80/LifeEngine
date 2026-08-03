@@ -1041,6 +1041,7 @@ export type PendingKind =
   | 'combat-moment'
   | 'unit-moment'
   | 'crime-victim'
+  | 'crime-scene'
   | 'reenlist-term'
   | 'reenlist-option'
   | 'service-contract'

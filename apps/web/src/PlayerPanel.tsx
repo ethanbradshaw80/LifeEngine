@@ -26,7 +26,10 @@ import {
 } from '@life-engine/engine'
 import {
   contractFor,
+  crimeSceneFor,
   decodeContract,
+  decodeCrimeScene,
+  offenceById,
   separationFor,
   retirementCertificateFor,
   rankTitle,
@@ -38,6 +41,7 @@ import {
 import type { PendingDecision, World } from '@life-engine/engine'
 import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
+import { CrimeSceneView } from './CrimeScene.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
 import { Avatar } from './Avatar.js'
 import type { EntityId, Money } from '@life-engine/shared'
@@ -408,6 +412,25 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               ))}
             </div>
           </OrdersSheetView>
+        </div>
+      )
+    }
+  }
+
+  // THE CRIME, AS IT HAPPENS. The room is already rolled; this is the
+  // player reading it. Nothing has moved yet — the answer is what does it.
+  if (pending.kind === 'crime-scene') {
+    const state = decodeCrimeScene(pending.occupationId)
+    const offence = offenceById(state.offenceId)
+    if (offence) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="A crime">
+          <CrimeSceneView
+            scene={crimeSceneFor(offence, state.danger)}
+            offence={offence}
+            title={offence.title}
+            onChoose={onChoose}
+          />
         </div>
       )
     }

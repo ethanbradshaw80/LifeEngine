@@ -45,6 +45,7 @@ import type { SceneChoice } from './scenes.js'
 import {
   answerDesperation,
   answerCase,
+  executeOffence,
   caseSceneOf,
   openCase,
   answerVictimMoment,
@@ -97,6 +98,8 @@ import {
   specialtyTitleFor,
   } from './content.js'
 import { rentFor } from './content.js'
+import { crimeOutcomeFor, decodeCrimeScene } from './crimescene.js'
+import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
@@ -1289,6 +1292,8 @@ export function resolvePending(world: World, choice: string): void {
     kind: 'reenlist-term' | 'reenlist-option' | 'service-contract'
     state: string
   } | null = null
+  // The crime, run after commit() so the courthouse it may open can land.
+  let crimeNext: { offenceId: string; danger: CrimeDanger; choice: CrimeChoice } | null = null
   if (!pending.options.includes(choice)) {
     throw new Error(`"${choice}" is not one of: ${pending.options.join(', ')}`)
   }
@@ -1435,6 +1440,26 @@ export function resolvePending(world: World, choice: string): void {
     case 'enlist': {
       // Accepting the door does not put on the uniform yet: the SPECIALTY
       // choice follows, raised after this one commits (see below).
+      break
+    }
+
+    case 'crime-scene': {
+      // THE ANSWER IS WHAT DOES IT. Nothing has moved yet — no money, no
+      // record, no courthouse.
+      //
+      // DEFERRED PAST commit(), because the crime can end at the courthouse
+      // and the courthouse is another pending: running it here would have
+      // raisePending refuse while this answered scene still holds the slot,
+      // and the arrest would vanish. The same trap the trial, the contract
+      // chain and the separation sheet each fell into.
+      const state = decodeCrimeScene(pending.occupationId)
+      if (offenceById(state.offenceId) !== undefined) {
+        crimeNext = {
+          offenceId: state.offenceId,
+          danger: state.danger,
+          choice: choice === 'press' || choice === 'cool' ? choice : 'bail',
+        }
+      }
       break
     }
 
@@ -2065,6 +2090,30 @@ export function resolvePending(world: World, choice: string): void {
     openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
   }
 
+  // The crime itself, with the slot free.
+  if (crimeNext !== null) {
+    const offence = offenceById(crimeNext.offenceId)
+    if (offence !== undefined) {
+      const outcome = crimeOutcomeFor(crimeNext.danger, crimeNext.choice, offence)
+      executeOffence(world, pending.tick, person, offence, outcome)
+      // The armed resident, through the same health system every other
+      // wound uses. A shotgun in a hallway is not a special case, and it
+      // can kill — which is the whole weight of pressing on in a room that
+      // already told you what was in it.
+      if (outcome.kind === 'wounded') {
+        const rng = openStream(world.seed, Stream.Crime, person.id, pending.tick + 5254)
+        inflictWound(
+          world,
+          pending.tick,
+          person.id,
+          rng.nextIntInclusive(520, 900),
+          'direct-combat',
+          rng,
+        )
+      }
+    }
+  }
+
   // The reenlistment chain, with the slot free — term, then option, then
   // the contract itself.
   if (contractNext !== null) {
@@ -2556,6 +2605,12 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'crime-scene': {
+      // The scene component draws the room; this is the fallback line.
+      const state = decodeCrimeScene(pending.occupationId)
+      return `${offenceById(state.offenceId)?.title ?? 'The job'} — you are in it now.`
+    }
+
     case 'separation-record': {
       const sheet = separationFor(world, pending.personId)
       return sheet === undefined

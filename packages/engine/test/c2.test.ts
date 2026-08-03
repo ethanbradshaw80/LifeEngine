@@ -22,7 +22,7 @@ import {
 import { applyForJob, resolvePending, setPlayer } from '../src/player.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
-import type { World } from '../src/types.js'
+import type { Person, World } from '../src/types.js'
 
 function playedAdult(seedValue = 12345): { world: World; id: EntityId } {
   const world = createWorld(makeSeed(seedValue), 100)
@@ -33,6 +33,26 @@ function playedAdult(seedValue = 12345): { world: World; id: EntityId } {
   if (!person) throw new Error('no adult')
   setPlayer(world, person.id)
   return { world, id: person.id }
+}
+
+/**
+ * Commit a crime the way a player now does: the verb opens the SCENE, and
+ * the answer to it is what actually moves money and opens the courthouse.
+ * 'press' is the answer that always goes through with it, which is what
+ * these tests are about.
+ */
+function commitAndGoThrough(
+  world: World,
+  tick: Tick,
+  person: Person,
+  offenceId: string,
+  choice: 'press' | 'cool' | 'bail' = 'press',
+): { done: boolean; reason: string } {
+  const result = commitOffence(world, tick, person, offenceId)
+  if (result.done && world.player.pending?.kind === 'crime-scene') {
+    resolvePending(world, choice)
+  }
+  return result
 }
 
 describe('the charge sheet', () => {
@@ -87,7 +107,7 @@ describe('committing an offence', () => {
       const { world, id } = playedAdult(seedValue)
       const person = world.people.get(id)
       if (!person) continue
-      const result = commitOffence(world, world.tick, person, 'shoplifting')
+      const result = commitAndGoThrough(world, world.tick, person, 'shoplifting')
       if (!result.done) continue
       expect(
         world.events.some((e) => e.type === 'committed-theft' && e.subjectId === id),
@@ -105,7 +125,11 @@ describe('committing an offence', () => {
       const { world, id } = playedAdult(seedValue)
       const person = world.people.get(id)
       if (!person) continue
-      commitOffence(world, world.tick, person, 'burglary')
+      // 'cool' rather than 'press': this test is about CUSTODY, and a
+      // burglar who presses on into a hot room gets shot by the resident,
+      // so the job refusal reads "too hurt" before it reads "not from a
+      // cell". Both are true; only one is what is being tested.
+      commitAndGoThrough(world, world.tick, person, 'burglary', 'cool')
       const pending = world.player.pending
       if (!pending || pending.kind !== 'plea') continue
       tested++
@@ -140,7 +164,7 @@ describe('committing an offence', () => {
       const { world, id } = playedAdult(seedValue)
       const person = world.people.get(id)
       if (!person) continue
-      commitOffence(world, world.tick, person, 'grand-theft')
+      commitAndGoThrough(world, world.tick, person, 'grand-theft')
       if (world.player.pending?.kind === 'plea') resolvePending(world, 'stand-trial')
       const conviction = world.criminal.get(id)?.convictions[0]
       if (!conviction) continue
@@ -161,7 +185,7 @@ describe('the verdict, read back', () => {
       // A month with no case at all answers null.
       expect(courtOutcomeOf(world, id, world.tick)).toBeNull()
 
-      commitOffence(world, world.tick, person, 'burglary')
+      commitAndGoThrough(world, world.tick, person, 'burglary')
       if (world.player.pending?.kind !== 'plea') continue
       const tick = world.tick
       resolvePending(world, 'plead-guilty')
@@ -260,7 +284,7 @@ describe('the review must-fixes', () => {
       const person = world.people.get(id)
       if (!person || person.householdId === null) continue
       const before = world.households.get(person.householdId)?.savings ?? 0
-      const result = commitOffence(world, world.tick, person, 'shoplifting')
+      const result = commitAndGoThrough(world, world.tick, person, 'shoplifting')
       if (!result.done) continue
       checked++
       const after = world.households.get(person.householdId)?.savings ?? 0
@@ -280,7 +304,7 @@ describe('the review must-fixes', () => {
     const person = world.people.get(id)
     if (!person) throw new Error('no player')
 
-    const first = commitOffence(world, world.tick, person, 'vandalism')
+    const first = commitAndGoThrough(world, world.tick, person, 'vandalism')
     expect(first.done).toBe(true)
     // It is in the replay log — a crime is a player input.
     expect(world.player.log.some((e) => e.kind === 'offence' && e.choice === 'vandalism')).toBe(true)
@@ -307,7 +331,7 @@ describe('the review must-fixes', () => {
       const { world, id } = playedAdult(seedValue)
       const person = world.people.get(id)
       if (!person) continue
-      commitOffence(world, world.tick, person, 'disorderly-conduct')
+      commitAndGoThrough(world, world.tick, person, 'disorderly-conduct')
       if (world.player.pending?.kind === 'plea') resolvePending(world, 'stand-trial')
       for (const conviction of world.criminal.get(id)?.convictions ?? []) {
         expect(
