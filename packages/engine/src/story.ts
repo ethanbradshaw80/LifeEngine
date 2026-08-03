@@ -438,6 +438,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'steady-pay': 'the pay was steady',
   'way-out-of-town': 'it was a way out of town',
   'service-tradition': 'the family had served before',
+  'holds-a-degree': 'the degree opened the officer route',
   'recruiting-drive': 'the recruiters were in town that season',
   'term-ended': 'the term was up',
   'medically-unfit': 'the body would not carry it further',

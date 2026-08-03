@@ -8,10 +8,15 @@
  * DOM, no `window`, and no React, so an engine that touched any of them could
  * not run here at all. The purity rule paid for itself again.
  *
- * AUTHORITY: this worker owns the world. The main thread receives a structured
- * clone for rendering and must treat it as read-only. There are not two copies
- * of the truth — there is one authority and one render snapshot, and only
- * messages sent back here can change anything.
+ * AUTHORITY: this worker owns the world. The main thread holds a read-only
+ * RECONSTRUCTION of it — everything but the ledger arrives whole on every
+ * message, and the ledger is accumulated across messages because re-sending
+ * all of history to report a handful of new rows was most of what advancing
+ * a month cost (see ledgerdelta.ts). There are still not two copies of the
+ * truth: only messages sent back here change anything, and the tracker in
+ * ledgerdelta.ts is what makes the reconstruction equal to the original —
+ * checked on arrival rather than argued for, because a mistake there is
+ * written into the autosave and becomes the permanent record.
  */
 
 import {
@@ -47,6 +52,8 @@ import {
   walkOut,
 } from '@life-engine/engine'
 import type { World } from '@life-engine/engine'
+import { createLedgerTracker } from './ledgerdelta.js'
+import type { LedgerDelta } from './ledgerdelta.js'
 import { fromSaveFile } from '@life-engine/persistence'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
@@ -101,12 +108,19 @@ export type WorkerRequest =
   | { readonly type: 'try-unit'; readonly unitId: string }
   | { readonly type: 'request-deploy' }
   | { readonly type: 'fitness-test' }
+  /** The main thread's ledger does not match; send the whole thing again. */
+  | { readonly type: 'resync' }
   | { readonly type: 'verb'; readonly action: VerbRequest }
+
+/** The world without its ledger — everything else the UI renders from. */
+export type WorldHead = Omit<World, 'events' | 'causalRecords'>
 
 export type WorkerResponse =
   | {
       readonly type: 'world'
-      readonly world: World
+      readonly world: WorldHead
+      /** Only what the main thread has not been sent — see ledgerdelta.ts. */
+      readonly ledger: LedgerDelta
       /** Milliseconds the simulation itself took, for the performance budget. */
       readonly elapsedMs: number
       readonly notice?: string
@@ -114,6 +128,13 @@ export type WorkerResponse =
   | { readonly type: 'error'; readonly message: string }
 
 let world: World | null = null
+
+/** What this main thread has been sent, so only the tail crosses the wire. */
+const ledger = createLedgerTracker()
+
+function resetLedgerTracking(): void {
+  ledger.reset()
+}
 
 function post(response: WorkerResponse): void {
   self.postMessage(response)
@@ -125,8 +146,15 @@ function send(elapsedMs: number, notice?: string): void {
     return
   }
   // A World is structured-cloneable: Maps, arrays, plain objects, numbers and
-  // strings. No serialization step is needed to cross this boundary.
-  post(notice === undefined ? { type: 'world', world, elapsedMs } : { type: 'world', world, elapsedMs, notice })
+  // strings. No serialization step is needed to cross this boundary — but the
+  // ledger is not re-sent, only extended. It was 81% of this clone.
+  const delta = ledger.since(world)
+  const { events: _events, causalRecords: _records, ...head } = world
+  post(
+    notice === undefined
+      ? { type: 'world', world: head, ledger: delta, elapsedMs }
+      : { type: 'world', world: head, ledger: delta, elapsedMs, notice },
+  )
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
@@ -139,7 +167,20 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         // specById is total, so an unknown preset makes a Classic world
         // rather than a dead worker (WORLD_MODES_PLAN resistance 2).
         world = createWorld(makeSeed(request.seed), undefined, specById(request.presetId))
+        // A different world entirely: whatever ledger the main thread holds
+        // belongs to a town that no longer exists.
+        resetLedgerTracking()
         send(performance.now() - started)
+        return
+      }
+
+      case 'resync': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to resynchronise.' })
+          return
+        }
+        ledger.reset()
+        send(0)
         return
       }
 
@@ -371,6 +412,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const started = performance.now()
         const result = fromSaveFile(request.save, SIMULATION_VERSION)
         world = result.world
+        resetLedgerTracking()
 
         // Both of these are told to the player rather than hidden. A migrated
         // save and a simulation-version change can both alter future results,
@@ -400,6 +442,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   } catch (error) {
     // A failed load must leave the previous world untouched and the stored save
     // exactly where it was. Reporting beats crashing the worker.
+    //
+    // AND THE LEDGER BOOKKEEPING IS ABANDONED. `since()` marks entries as
+    // sent before `post` delivers them, so a throw anywhere after that point
+    // — a DataCloneError being the realistic one — would leave the tracker
+    // believing the main thread holds rows it never received. Every later
+    // append would then come from the wrong offset, and the gap is invisible
+    // to the prefix check because the tracker's own bookkeeping stays
+    // self-consistent. Forgetting what was sent costs one full ledger on the
+    // next message and cannot be wrong.
+    ledger.reset()
     post({
       type: 'error',
       message: error instanceof Error ? error.message : 'Something went wrong in the simulation.',

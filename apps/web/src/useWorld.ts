@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { World } from '@life-engine/engine'
+import { applyLedgerDelta } from './ledgerdelta.js'
+import type { HeldLedger } from './ledgerdelta.js'
 import { toSaveFile } from '@life-engine/persistence'
 import type { CreateLifeSpec, VerbRequest, WorkerRequest, WorkerResponse } from './engine.worker.js'
 import { deleteSave, readSave, writeSave } from './storage.js'
@@ -64,6 +66,13 @@ export function useWorld(initialSeed: number): WorldController {
   const [lastElapsedMs, setLastElapsedMs] = useState<number | null>(null)
   const [saveState, setSaveState] = useState<'unsaved' | 'saving' | 'saved' | 'failed'>('unsaved')
   const autosaveTimer = useRef<number | null>(null)
+  // THE LEDGER LIVES HERE BETWEEN MESSAGES. The worker sends only what it
+  // appended (see `ledgerSince` there — the whole ledger was 81% of a
+  // per-tick clone that the owner could feel), so this side keeps the
+  // running copy and hands the reassembled world to React. It is still one
+  // authority and one read-only snapshot; the snapshot is now built in two
+  // pieces instead of shipped whole.
+  const ledgerRef = useRef<HeldLedger>({ events: [], causalRecords: [] })
 
   useEffect(() => {
     const worker = new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' })
@@ -76,7 +85,34 @@ export function useWorld(initialSeed: number): WorldController {
         setMessage(response.message)
         return
       }
-      setWorld(response.world)
+      // 'append' extends what we hold; anything else replaces it (a new
+      // world, a load, or a compaction that rewrote history). Fresh arrays
+      // either way, so nothing downstream can hold a stale reference to the
+      // ledger it was given.
+      const applied = applyLedgerDelta(ledgerRef.current, response.ledger)
+
+      // A LEDGER THAT DOES NOT ADD UP IS NEVER RENDERED AND NEVER SAVED.
+      // The autosave below is built from THIS world, not the worker's, so a
+      // desync would be written to IndexedDB within 600ms and become the
+      // permanent record. Ask for the whole thing again instead; the cost is
+      // one full clone and the alternative is somebody's history quietly
+      // going missing.
+      if (!applied.intact) {
+        ledgerRef.current = { events: [], causalRecords: [] }
+        setMessage('Resynchronising the record…')
+        workerRef.current?.postMessage({ type: 'resync' } satisfies WorkerRequest)
+        return
+      }
+
+      // Committed BEFORE setWorld, deliberately: if anything below throws,
+      // what we hold is still correct and only the screen is stale.
+      ledgerRef.current = applied.held
+      const nextWorld: World = {
+        ...response.world,
+        events: applied.held.events,
+        causalRecords: applied.held.causalRecords,
+      }
+      setWorld(nextWorld)
       setLastElapsedMs(response.elapsedMs)
       setStatus('idle')
       setMessage(response.notice ?? null)
@@ -86,7 +122,7 @@ export function useWorld(initialSeed: number): WorldController {
       // forgive (R-03). Every world update is written down, debounced so a
       // burst of quick steps becomes one write. toSaveFile is pure and the
       // clone is read-only, so saving off the response is safe.
-      const worldToSave = response.world
+      const worldToSave = nextWorld
       if (autosaveTimer.current !== null) window.clearTimeout(autosaveTimer.current)
       setSaveState('saving')
       autosaveTimer.current = window.setTimeout(() => {

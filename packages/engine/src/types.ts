@@ -1370,6 +1370,7 @@ export type FactorId =
   | 'steady-pay'
   | 'way-out-of-town'
   | 'service-tradition'
+  | 'holds-a-degree'
   /** M-ARMY2. The recruiters were in town — the season people walk in. */
   | 'recruiting-drive'
   | 'term-ended'

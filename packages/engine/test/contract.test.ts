@@ -42,7 +42,9 @@ function aWalkIn(seed: number, degree: boolean): { world: World; personId: Entit
     personId: person.id,
     level: degree ? 'college' : 'secondary',
     enrolledIn: null,
-    enrolledUntilTick: null,
+    enrolledAtTick: null,
+    completesAtTick: null,
+    attainment: 600,
   })
   return { world, personId: person.id }
 }
@@ -112,8 +114,9 @@ describe('the commission fork', () => {
 })
 
 describe('the contract document', () => {
-  const walkIn = SPECIALTIES.find((sp) => sp.requires === 'none')
-  if (!walkIn) throw new Error('no walk-in specialty')
+  const found = SPECIALTIES.find((sp) => sp.requires === 'none')
+  if (!found) throw new Error('no walk-in specialty')
+  const walkIn = found
 
   function aSignedGraduate(): { world: World; personId: EntityId } {
     const { world, personId } = aWalkIn(4141, true)

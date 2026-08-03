@@ -1,0 +1,145 @@
+/**
+ * THE LEDGER, SENT ONCE AND THEN EXTENDED.
+ *
+ * MEASURED (packages/engine/bench/clone.bench.ts): at 150 simulated years a
+ * structured clone of the whole world costs 58.7 ms, of which the two ledger
+ * arrays are 47.2 ms — 81% — against a tick that costs 3.7 ms. The owner
+ * felt exactly that: "when I age up a year it takes a pretty long time to
+ * actually respond". The world was being copied entire so the main thread
+ * could learn that a few rows had been appended to the end of two arrays.
+ *
+ * The ledger is append-only in normal running, so the worker sends the tail
+ * and the main thread keeps the rest. The ONE thing that rewrites it is
+ * compaction (Law 6), which drops entries from the middle — caught by
+ * checking that the last entry the main thread was sent is still sitting
+ * where it was. If it is not, the whole ledger goes again.
+ *
+ * This lives outside the worker because a mistake here loses somebody's
+ * history silently, and code inside a Worker's onmessage cannot be tested.
+ */
+
+import type { CausalRecord, World, WorldEvent } from '@life-engine/engine'
+
+export interface LedgerDelta {
+  /** 'append' extends what the main thread holds; anything else replaces it. */
+  readonly mode: 'full' | 'append'
+  readonly events: readonly WorldEvent[]
+  readonly causalRecords: readonly CausalRecord[]
+  /**
+   * How long each list should be once this delta is applied.
+   *
+   * The invariant that used to be free — "the snapshot is whatever the
+   * worker had, by construction" — is something this code now has to earn,
+   * so it is checked rather than argued. A desync here would be written
+   * into the autosave within 600ms and become the permanent record, which
+   * makes "detectable" worth more than any of the reasoning above it.
+   */
+  readonly expectedEvents: number
+  readonly expectedRecords: number
+}
+
+/**
+ * The running copy the main thread keeps between messages.
+ *
+ * The arrays are typed mutable because that is what a World holds and this
+ * is spread straight into one. Nothing here ever writes to them: every
+ * update below produces NEW arrays, so a reference handed out with one
+ * snapshot cannot change underneath its holder.
+ */
+export interface HeldLedger {
+  readonly events: WorldEvent[]
+  readonly causalRecords: CausalRecord[]
+}
+
+export interface LedgerTracker {
+  /** What the main thread is missing, and what to do with it. */
+  since: (world: World) => LedgerDelta
+  /** A different world entirely — a new town, or a loaded save. */
+  reset: () => void
+}
+
+/**
+ * Tracks what one main thread has been sent. One per worker; the state is
+ * deliberately private, because two callers sharing a tracker would each
+ * think the other's sends were their own.
+ */
+export function createLedgerTracker(): LedgerTracker {
+  let sentEvents = 0
+  let sentRecords = 0
+  let lastEventId: number | null = null
+  let lastRecordId: number | null = null
+  // Whether this main thread has been sent a ledger AT ALL. Without it the
+  // first send after a reset says 'append' — which happens to be harmless
+  // onto an empty ledger and is catastrophic onto a previous town's, since
+  // the old world's history would be prepended to the new one's.
+  let primed = false
+
+  return {
+    reset() {
+      sentEvents = 0
+      sentRecords = 0
+      lastEventId = null
+      lastRecordId = null
+      primed = false
+    },
+
+    since(world: World): LedgerDelta {
+      const eventsIntact =
+        primed && (sentEvents === 0 || world.events[sentEvents - 1]?.id === lastEventId)
+      const recordsIntact =
+        primed && (sentRecords === 0 || world.causalRecords[sentRecords - 1]?.id === lastRecordId)
+      // Either list being rewritten resends both: they are compacted
+      // together, and two independent modes is a second thing to get wrong
+      // for no gain.
+      const full = !eventsIntact || !recordsIntact
+
+      const delta: LedgerDelta = {
+        mode: full ? 'full' : 'append',
+        events: full ? world.events : world.events.slice(sentEvents),
+        causalRecords: full ? world.causalRecords : world.causalRecords.slice(sentRecords),
+        expectedEvents: world.events.length,
+        expectedRecords: world.causalRecords.length,
+      }
+
+      sentEvents = world.events.length
+      sentRecords = world.causalRecords.length
+      lastEventId = world.events[sentEvents - 1]?.id ?? null
+      lastRecordId = world.causalRecords[sentRecords - 1]?.id ?? null
+      primed = true
+      return delta
+    },
+  }
+}
+
+export interface AppliedLedger {
+  readonly held: HeldLedger
+  /**
+   * False when the result does not match what the worker says it should be.
+   * The caller must not render or SAVE this — it should ask for a resync.
+   */
+  readonly intact: boolean
+}
+
+/**
+ * The receiving half. Fresh arrays either way, so nothing downstream can
+ * hold a reference to a ledger that is about to grow underneath it.
+ *
+ * ONLY AN EXPLICIT 'append' APPENDS. A worker message is cast, not
+ * validated (R-23), so a corrupt or missing mode must fall to the branch
+ * that costs one wasted clone rather than the branch that silently
+ * duplicates somebody's history.
+ */
+export function applyLedgerDelta(held: HeldLedger, delta: LedgerDelta): AppliedLedger {
+  const next: HeldLedger =
+    delta.mode === 'append'
+      ? {
+          events: held.events.concat(delta.events),
+          causalRecords: held.causalRecords.concat(delta.causalRecords),
+        }
+      : { events: [...delta.events], causalRecords: [...delta.causalRecords] }
+
+  const intact =
+    next.events.length === delta.expectedEvents &&
+    next.causalRecords.length === delta.expectedRecords
+  return { held: next, intact }
+}

@@ -149,6 +149,65 @@ const BROWSER_SPOT_CHECK = {
   pageHeapMB: 11.3,
 } as const
 
+/**
+ * WHAT THE INTERFACE PAYS TO RECEIVE A WORLD.
+ *
+ * The worker owns the world and the main thread renders a structured clone
+ * of it (ADR-0003). That clone is not free, it is not part of the tick, and
+ * it grows with the ledger rather than with the population — so it is the
+ * one cost that gets worse the longer a save is played. The owner felt it:
+ * "when I age up a year it takes a pretty long time to actually respond".
+ *
+ * Measures the whole-world clone against the head-plus-tail the seam
+ * actually sends now (apps/web/src/ledgerdelta.ts), at three save depths.
+ */
+function measureRenderSnapshot(
+  years: readonly number[],
+): { years: number; events: number; records: number; wholeMs: number; deltaMs: number }[] {
+  const median = (fn: () => void, runs = 5): number => {
+    fn()
+    const times: number[] = []
+    for (let i = 0; i < runs; i++) {
+      const start = performance.now()
+      fn()
+      times.push(performance.now() - start)
+    }
+    times.sort((a, b) => a - b)
+    return times[Math.floor(times.length / 2)] ?? 0
+  }
+
+  const world = createWorld(makeSeed(12345), 100)
+  const rows: { years: number; events: number; records: number; wholeMs: number; deltaMs: number }[] =
+    []
+  for (const year of years) {
+    advanceTicks(world, year * 12 - world.tick)
+    const wholeMs = median(() => void structuredClone(world))
+
+    // One month's tail, measured rather than assumed small.
+    const fromEvent = world.events.length
+    const fromRecord = world.causalRecords.length
+    advanceTicks(world, 1)
+    const tail = {
+      events: world.events.slice(fromEvent),
+      causalRecords: world.causalRecords.slice(fromRecord),
+    }
+    const { events: _events, causalRecords: _records, ...head } = world
+    const deltaMs = median(() => {
+      structuredClone(head)
+      structuredClone(tail)
+    })
+
+    rows.push({
+      years: year,
+      events: world.events.length,
+      records: world.causalRecords.length,
+      wholeMs,
+      deltaMs,
+    })
+  }
+  return rows
+}
+
 function kb(bytes: number): string {
   return `${(bytes / 1024).toFixed(1)} KB`
 }
@@ -171,6 +230,7 @@ describe('performance baseline', () => {
 
       const spread = measureTickSpread(1_000, 24)
       const growth = measureGrowth(100, 10)
+      const snapshot = measureRenderSnapshot([25, 75, 150])
 
       const first = scales[0]
       const second = scales[1]
@@ -352,6 +412,39 @@ describe('performance baseline', () => {
       push('  the tick loop should be reviewed by `performance-reviewer`.')
       push()
 
+      push('## Render snapshot cost (the engine/UI seam)')
+      push()
+      push('The worker owns the world; the main thread renders a structured clone')
+      push('of it. That clone is not part of the tick and grows with the LEDGER, so')
+      push('it is the one cost that worsens the longer a single save is played.')
+      push()
+      push('| Simulated years | Events | Records | Whole world | Head + one month | Saving |')
+      push('|---|---|---|---|---|---|')
+      for (const row of snapshot) {
+        push(
+          `| ${String(row.years)} | ${String(row.events)} | ${String(row.records)} | ` +
+            `${row.wholeMs.toFixed(1)} ms | **${row.deltaMs.toFixed(1)} ms** | ` +
+            `${(row.wholeMs / Math.max(row.deltaMs, 0.001)).toFixed(1)}x |`,
+        )
+      }
+      push()
+      const deepest = snapshot[snapshot.length - 1]
+      if (deepest) {
+        push(
+          `At ${String(deepest.years)} simulated years the whole-world clone costs ` +
+            `${deepest.wholeMs.toFixed(1)} ms — against a tick of ${first.msPerTick.toFixed(2)} ms at this`,
+        )
+        push('population. The ledger was the overwhelming majority of it, and the')
+        push('ledger is append-only, so the seam sends the world without its ledger')
+        push('plus only the entries the main thread has not seen')
+        push('(`apps/web/src/ledgerdelta.ts`). Compaction, which rewrites history from')
+        push('the middle, forces a full resend and is detected in O(1).')
+        push()
+        push('Re-measure after any change to the worker message, the ledger shape, or')
+        push('compaction.')
+        push()
+      }
+
       push('## Browser spot check')
       push()
       push('The numbers above are Node. The game runs in a browser (ADR-0010), so')
@@ -384,7 +477,14 @@ describe('performance baseline', () => {
       push('```json')
       push(
         JSON.stringify(
-          { scales, spreadMs: spread, growth, gcAvailable, browserSpotCheck: BROWSER_SPOT_CHECK },
+          {
+            scales,
+            spreadMs: spread,
+            growth,
+            renderSnapshot: snapshot,
+            gcAvailable,
+            browserSpotCheck: BROWSER_SPOT_CHECK,
+          },
           null,
           2,
         ),
