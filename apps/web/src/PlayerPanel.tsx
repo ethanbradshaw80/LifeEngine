@@ -416,7 +416,7 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
   // THE LAST TWO DOCUMENTS. A career ends with paperwork, and the sheet is
   // a summary of the whole of it — which is what makes it feel earned: it
   // is literally everything they did.
-  if (pending.kind === 'separation') {
+  if (pending.kind === 'separation-record') {
     const sheet = separationFor(world, pending.personId)
     if (sheet) {
       return (

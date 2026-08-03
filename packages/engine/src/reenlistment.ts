@@ -67,7 +67,17 @@ export function reenlistEligibility(
   record: ServiceRecord,
   args: {
     readonly strikes: number
-    readonly hasCriminalGate: boolean
+    /** Strikes that end a career outright — the discipline system's own
+     *  number, so the two gates cannot drift apart. */
+    readonly endsCareerAt: number
+    /**
+     * What the courthouse says, GRADED.
+     *
+     * 'bar' is a serious conviction the service will not carry. 'waiver' is
+     * a lesser one it will, on its terms. Not the same question the
+     * RECRUITING office asks — see reenlistEligibility.
+     */
+    readonly criminalGate: 'none' | 'waiver' | 'bar'
     readonly hitHighYearTenure: boolean
     readonly age: number
   },
@@ -82,10 +92,18 @@ export function reenlistEligibility(
   if (args.age >= 60) {
     return { code: 'RE-4', reason: 'Past the age the service contracts to.', terms: [] }
   }
-  // THE SERVICE DECLINES, and the player does not get a vote. A criminal
-  // conviction the courthouse still gates on, or a discipline history, is
-  // the file being closed from the other side.
-  if (args.hasCriminalGate) {
+  // THE SERVICE DECLINES, and the player does not get a vote — but only for
+  // a conviction it will genuinely not carry.
+  //
+  // KEEPING SOMEBODY IS NOT THE SAME QUESTION AS TAKING THEM ON. This reused
+  // the RECRUITING office's gate verbatim, and measurement showed the cost:
+  // every barred soldier across five towns was barred by the courthouse, and
+  // they averaged 540 performance with four decorations at thirty-five. A
+  // service that has already trained you, decorated you and knows you does
+  // not discard you over a misdemeanour the way it would decline a stranger
+  // holding one at the door. A serious conviction still ends it; a lesser
+  // one is a waiver, and the choice stays yours.
+  if (args.criminalGate === 'bar') {
     return {
       code: 'RE-4',
       reason: 'The record at the courthouse bars another term.',
@@ -95,9 +113,21 @@ export function reenlistEligibility(
   // CONDUCT BARS, A MEDIOCRE EVALUATION DOES NOT. The first version barred
   // on performance alone and shut the door on ordinary soldiers who had
   // simply never been outstanding — which is not how a service that needs
-  // people behaves. Two strikes in the window is a conduct history; a low
-  // evaluation on a clean file is a waiver, not a refusal.
-  if (args.strikes >= 2) {
+  // people behaves.
+  //
+  // AND THE DOOR MUST NOT BE STRICTER THAN THE ORDERLY ROOM (owner, playing:
+  // "I literally just got kicked out the army after having a great career
+  // and I didn't even get the choice"). It barred at TWO strikes while the
+  // discipline system itself only ends a career at three — so a soldier the
+  // orderly room considered salvageable was quietly refused at the retention
+  // desk instead, with no question asked. Measured across five towns: the
+  // barred averaged 530 performance and four decorations, which is a better
+  // soldier than the average one who leaves normally.
+  //
+  // The bar is now the same number the discipline system uses. Below it, a
+  // conduct history is a WAIVER — the service will still have you, on its
+  // terms, and the choice stays yours.
+  if (args.strikes >= args.endsCareerAt) {
     return {
       code: 'RE-4',
       reason: 'A discipline history the service has decided against.',
@@ -111,7 +141,11 @@ export function reenlistEligibility(
       terms: [2],
     }
   }
-  if (args.strikes === 1 || record.performance < MARGINAL_PERFORMANCE) {
+  if (
+    args.criminalGate === 'waiver' ||
+    args.strikes >= 1 ||
+    record.performance < MARGINAL_PERFORMANCE
+  ) {
     return {
       code: 'RE-3',
       reason: 'A marginal file: another term is allowed, on a waiver. No bonus, and two years only.',

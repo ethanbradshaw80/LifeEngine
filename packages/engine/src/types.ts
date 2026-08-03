@@ -987,7 +987,7 @@ export type PendingKind =
   /** A recruiter's offer, or the fork at eighteen. */
   | 'enlist'
   | 'commission'
-  | 'separation'
+  | 'separation-record'
   | 'retirement-certificate'
   /** Which uniform: the specialty choice on enlistment. */
   | 'specialty'

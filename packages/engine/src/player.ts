@@ -1444,7 +1444,7 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
-    case 'separation': {
+    case 'separation-record': {
       // The record already closed; this is the out-processing. The
       // retirement certificate, where the years earned one, is raised after
       // commit like every other follow-up.
@@ -1937,7 +1937,12 @@ export function resolvePending(world: World, choice: string): void {
             streamId: Stream.Employment,
           })
         } else {
-          dischargeService(world, pending.tick, person, record, 'end of term', [
+          // ANSWERING "RETIRE" IS A RETIREMENT. Both answers used to fall
+          // here under 'end of term', which excluded the pension, printed
+          // "completion of required service" on the sheet, and still issued
+          // a certificate saying the member had retired — three documents
+          // and a ledger disagreeing about one month.
+          dischargeService(world, pending.tick, person, record, choice === 'retire' ? 'twenty years served' : 'end of term', [
             factor('own-choice', 1000),
             factor('term-ended', 600),
           ])
@@ -2136,11 +2141,16 @@ export function resolvePending(world: World, choice: string): void {
     closed.dischargedAtTick === pending.tick &&
     person.deathTick === null &&
     person.id === world.player.personId &&
-    pending.kind !== 'separation'
+    // NEITHER document may re-raise the other. The certificate carries the
+    // same tick as the sheet, so excluding only the sheet left acknowledge →
+    // certificate → acknowledge → sheet running forever: the twenty-year
+    // career, the most earned moment in the arc, could never be left.
+    pending.kind !== 'separation-record' &&
+    pending.kind !== 'retirement-certificate'
   ) {
     raisePending(world, {
       tick: pending.tick,
-      kind: 'separation',
+      kind: 'separation-record',
       personId: person.id,
       otherId: null,
       occupationId: null,
@@ -2153,7 +2163,10 @@ export function resolvePending(world: World, choice: string): void {
 
   // Twenty years earns the second document, alongside the first. Raised
   // after commit, with the pending slot free.
-  if (pending.kind === 'separation' && (separationFor(world, person.id)?.retirementEligible ?? false)) {
+  if (
+    pending.kind === 'separation-record' &&
+    (separationFor(world, person.id)?.retirementEligible ?? false)
+  ) {
     raisePending(world, {
       tick: pending.tick,
       kind: 'retirement-certificate',
@@ -2543,7 +2556,7 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
-    case 'separation': {
+    case 'separation-record': {
       const sheet = separationFor(world, pending.personId)
       return sheet === undefined
         ? 'Your service is at an end.'

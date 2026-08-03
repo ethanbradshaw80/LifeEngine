@@ -18,7 +18,7 @@
  * rather than a line saying it happened.
  */
 
-import type { EntityId, Money, Tick } from '@life-engine/shared'
+import type { EntityId, Tick } from '@life-engine/shared'
 import { decorationsOf } from './awards.js'
 import { toDate } from './clock.js'
 import { eventsFor } from './eventindex.js'
@@ -77,7 +77,6 @@ export interface RetirementCertificate {
   readonly years: string
   readonly signedBy: string
   readonly adjutant: string
-  readonly monthlyPension: Money
 }
 
 const MONTHS = [
@@ -296,6 +295,13 @@ export function retirementCertificateFor(
   if (!person || !record || record.dischargedAtTick === null) return undefined
   const months = record.dischargedAtTick - record.enlistedAtTick
   if (months < 240) return undefined
+  // AND NOT FOR A CAREER THAT ENDED BADLY. Twenty years is the threshold,
+  // not the qualification: a member put out for misconduct was being handed
+  // a certificate thanking them for "honor, courage and unfailing devotion"
+  // in the same month their DD-214 was stamped UNDER OTHER THAN HONORABLE.
+  // An honour that length of service alone can buy is not an honour.
+  const terms = separationTermsFor(record.dischargeReason ?? 'end of term', Math.floor(months / 12))
+  if (terms.character !== 'HONORABLE') return undefined
 
   const branch = branchSpecFor(world, record.branch)
   const commissioned = record.commissioned === true
@@ -320,6 +326,5 @@ export function retirementCertificateFor(
     years: `${spelled(Math.floor(months / 12))} years`,
     signedBy: `${general} · GEN`,
     adjutant: `${adjutant} · COL`,
-    monthlyPension: record.monthlyPay,
   }
 }

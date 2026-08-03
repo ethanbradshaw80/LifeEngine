@@ -12,7 +12,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
-import { requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
+import { raisePending, requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
 import {
   retirementCertificateFor,
   separationFor,
@@ -195,7 +195,7 @@ describe('out-processing', () => {
     world.service.set(personId, { ...record, termMonthsLeft: 1, performance: 200 })
 
     let guard = 0
-    while (world.player.pending?.kind !== 'separation' && guard < 60) {
+    while (world.player.pending?.kind !== 'separation-record' && guard < 60) {
       if (world.player.pending !== null) {
         const options = world.player.pending.options
         // Take the door out when offered — this test is about leaving.
@@ -207,13 +207,49 @@ describe('out-processing', () => {
       guard++
     }
 
-    expect(world.player.pending?.kind, 'no separation sheet was ever raised').toBe('separation')
+    expect(world.player.pending?.kind, 'no separation sheet was ever raised').toBe('separation-record')
     expect(world.player.pending?.options).toEqual(['acknowledge'])
     expect(separationFor(world, personId)).toBeDefined()
 
     // And acknowledging it does not chain a certificate on a short career.
     resolvePending(world, 'acknowledge')
     expect(world.player.pending?.kind).not.toBe('retirement-certificate')
+  })
+
+  it('lets a twenty-year career out of the paperwork', () => {
+    // THE SOFTLOCK (military review): the sheet raised the certificate, and
+    // the certificate — carrying the same tick — re-raised the sheet. The
+    // most earned moment in the whole arc could never be left. A short
+    // career never reaches it, which is why nothing caught it.
+    const { world, personId } = aServingPlayer()
+    separate(world, personId, 'twenty years served', 22)
+
+    expect(world.service.get(personId)?.dischargedAtTick).not.toBeNull()
+
+    // Open the out-processing exactly as discharge() does.
+    raisePending(world, {
+      tick: world.tick,
+      kind: 'separation-record',
+      personId,
+      otherId: null,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['acknowledge'],
+    })
+
+    const seen: string[] = []
+    let guard = 0
+    while (world.player.pending !== null && guard < 12) {
+      seen.push(world.player.pending.kind)
+      resolvePending(world, world.player.pending.options[0] ?? 'acknowledge')
+      guard++
+    }
+    expect(guard, `paperwork looped: ${seen.join(' → ')}`).toBeLessThan(12)
+    expect(seen).toContain('separation-record')
+    expect(seen).toContain('retirement-certificate')
+    expect(world.player.pending).toBeNull()
   })
 
   it('does not ask the dead to out-process', () => {
@@ -230,6 +266,6 @@ describe('out-processing', () => {
     advanceTicks(world, 2)
     // A person killed in service is not out-processing. Their record still
     // closes and still holds everything the sheet would have said.
-    expect(world.player.pending?.kind).not.toBe('separation')
+    expect(world.player.pending?.kind).not.toBe('separation-record')
   })
 })

@@ -100,6 +100,33 @@ const MEDICAL_LIMIT = 400
 /** Up-or-out applies BELOW this pay grade only. Make E-5 (SGT, PO2, SSgt)
  *  and the service will keep you: "a ton of people retire at SGT, SSG". */
 const HYT_BELOW_GRADE = 5
+
+/**
+ * How long up-or-out lets somebody sit at a junior grade — LONGER for a
+ * soldier who is visibly working at it.
+ *
+ * OWNER (playing): people should be shown the door "only if they suck, or
+ * have low effort like no badges or anything and aren't trying hard". A flat
+ * six-year clock could not tell those two apart: the soldier collecting
+ * schools and holding a good evaluation went out on exactly the same month
+ * as the one coasting, because the only thing being measured was that the
+ * board had not picked them up.
+ *
+ * So the effort the player actually put in buys time. A strong evaluation is
+ * two more years; a rack of qualifications is two more again. Six years for
+ * somebody doing nothing, ten for somebody trying and unlucky — which is
+ * also the honest shape, because a strong performer at a junior grade is
+ * somebody the board eventually reaches.
+ */
+function highYearTenureMonthsFor(record: {
+  readonly performance: number
+  readonly qualifications: readonly string[]
+}): number {
+  let months = HIGH_YEAR_TENURE_TIG
+  if (record.performance >= 550) months += 24
+  if (record.qualifications.length >= 2) months += 24
+  return months
+}
 /**
  * Twenty years is the door everyone aims at — the reason "a ton of people
  * retire at SGT, SSG" is true. Reaching it makes leaving attractive rather
@@ -1839,7 +1866,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // not a question. The term was served in full, so good conduct is still
   // judged (the grant accepts this discharge).
   const grade = branchSpecFor(world, branch).grades[rank] ?? 9
-  if (grade < HYT_BELOW_GRADE && tick - rankSinceTick >= HIGH_YEAR_TENURE_TIG) {
+  if (grade < HYT_BELOW_GRADE && tick - rankSinceTick >= highYearTenureMonthsFor(world.service.get(person.id)!)) {
     discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
       factor('time-in-grade', 1000),
     ])
@@ -1871,7 +1898,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       subjectId: person.id,
       detail: eligibility.reason,
     })
-    discharge(world, tick, person, record, 'end of term', [factor('time-in-grade', 600)])
+    discharge(world, tick, person, record, 'barred from reenlistment', [factor('time-in-grade', 600)])
     return
   }
 
@@ -1937,26 +1964,34 @@ export function eligibilityOf(
   const strikes = eventsFor(world, person.id).filter(
     (e) => e.type === 'disciplined' && tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
   ).length
+  // THE COURTHOUSE, GRADED — a serving member is not a stranger at the
+  // recruiting desk. A serious conviction ends the career; a lesser one
+  // costs a waiver and the bonus, not the choice.
   const criminal = world.criminal.get(person.id)
-  const hasCriminalGate =
-    criminal !== undefined &&
-    criminal.convictions.some((c) => {
-      if (c.sealed === true) return false
-      const offence = offenceById(c.kind)
-      const years = Math.floor((tick - c.tick) / 12)
-      if (offence !== undefined && (offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade)))) {
-        return true
-      }
-      return years < (offence !== undefined && isFelony(offence.grade) ? 10 : 3)
-    })
+  let criminalGate: 'none' | 'waiver' | 'bar' = 'none'
+  for (const conviction of criminal?.convictions ?? []) {
+    if (conviction.sealed === true) continue
+    const offence = offenceById(conviction.kind)
+    if (offence === undefined) continue
+    const years = Math.floor((tick - conviction.tick) / 12)
+    const grave =
+      offence.grade === 'capital' || (offence.violent === true && isFelony(offence.grade))
+    if (grave || (isFelony(offence.grade) && years < 10)) {
+      criminalGate = 'bar'
+      break
+    }
+    if (years < 3) criminalGate = 'waiver'
+  }
   const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 1
   return reenlistEligibility(record, {
     strikes,
-    hasCriminalGate,
+    endsCareerAt: MISCONDUCT_STRIKES,
+    criminalGate,
     // High-year tenure: the up-or-out rule the career already models.
     // The same up-or-out rule the career already models, asked here as
     // the reason the service will not write another contract.
-    hitHighYearTenure: grade < HYT_BELOW_GRADE && tick - record.rankSinceTick >= HIGH_YEAR_TENURE_TIG,
+    hitHighYearTenure:
+      grade < HYT_BELOW_GRADE && tick - record.rankSinceTick >= highYearTenureMonthsFor(record),
     age: ageAt(person.birthTick, tick),
   })
 }
@@ -2311,7 +2346,7 @@ export function discharge(
   if (person.id === world.player.personId && person.deathTick === null) {
     raisePending(world, {
       tick,
-      kind: 'separation',
+      kind: 'separation-record',
       personId: person.id,
       otherId: null,
       occupationId: null,

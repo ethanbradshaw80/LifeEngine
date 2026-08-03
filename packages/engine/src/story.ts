@@ -271,6 +271,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
           return `${year} — Discharged on medical grounds at ${age}.`
         case 'high-year tenure':
           return `${year} — The service did not offer another term; separated at ${age}.`
+        case 'barred from reenlistment':
+          return `${year} — The record barred another term; separated at ${age}.`
         case 'misconduct':
           return `${year} — Put out of the service at ${age}; the file had filled.`
         case 'thirty years served':
