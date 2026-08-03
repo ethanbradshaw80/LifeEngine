@@ -22,22 +22,25 @@ import {
   creditOf,
   creditWords,
   depositFor,
+  discretionaryFor,
   economyPhaseWords,
   holdingValue,
   homeEquityOf,
   homePriceFor,
   homeValueOf,
   householdCosts,
-  householdIncome,
   incomeTaxFor,
   loanBar,
   marginalRatePerMille,
   marketLevel,
+  monthlyNetOf,
   netWorthOf,
   offeredRatePerMille,
   portfolioValue,
+  personalIncome,
   rentFor,
   totalDebtOf,
+  withholdingFor,
 } from '@life-engine/engine'
 import type { LoanKind, Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
@@ -129,29 +132,37 @@ export function Bank({
             <section className="bank-card">
               <h4>This month</h4>
               {(() => {
-                const job = world.employment.get(person.id)
-                const income = household ? householdIncome(world, household) : (0 as Money)
+                // EVERY LINE IS THE ENGINE'S OWN, and deliberately the same
+                // functions the household ledger on the other view reads —
+                // two screens showing the same month must not be able to
+                // disagree about it. The gross is personal; the outgoings
+                // are the roof's, because rent genuinely is.
+                const gross = personalIncome(world, person.id)
+                const withheld = withholdingFor(gross)
                 const costs = household ? householdCosts(world, household) : (0 as Money)
+                const lifestyle = household ? discretionaryFor(world, household) : (0 as Money)
+                const left = household ? monthlyNetOf(world, household) : (0 as Money)
                 return (
                   <>
                     <Row
-                      label="Salary"
-                      value={job ? `${formatMoney(annualPay(job.monthlyPay))} / yr` : 'no wages'}
+                      label="Your pay"
+                      value={gross > 0 ? `${formatMoney(annualPay(gross))} / yr` : 'no wages'}
                     />
                     <Row
                       label="Tax withheld"
-                      value={job ? `−${formatMoney((job.monthlyPay - (income > 0 ? 0 : 0)) as Money)}` : '—'}
+                      value={gross > 0 ? `−${formatMoney(withheld)} / mo` : '—'}
                       tone="muted"
                     />
                     <Row label="Rent + living" value={`−${formatMoney(costs)}`} />
+                    <Row label="Lifestyle" value={`−${formatMoney(lifestyle)}`} />
                     <Row
                       label="Left over"
-                      value={formatMoney(Math.max(0, income - costs) as Money)}
-                      tone={income - costs < 0 ? 'bad' : 'good'}
+                      value={formatMoney(left)}
+                      tone={left < 0 ? 'bad' : 'good'}
                     />
                     {household && household.savings < 0 && (
                       <Row
-                        label="Household behind"
+                        label="The roof is behind"
                         value={formatMoney(-household.savings as Money)}
                         tone="bad"
                       />
@@ -334,6 +345,11 @@ export function Bank({
               {LOAN_TERMS.filter((t) => t.kind !== 'mortgage').map((terms) => {
                 const rate = offeredRatePerMille(world, credit, terms.kind)
                 const has = accounts.loans.some((l) => l.kind === terms.kind)
+                // CARRIED FORWARD AT TODAY'S PRICES: $15,000 is a car in the
+                // base year and a tank of fuel a century later. The offer has
+                // to inflate with everything else or the Loans tab quietly
+                // stops meaning anything.
+                const offer = atTodaysPrices(world, 1_500_000 as Money) as Money
                 return (
                   <div key={terms.kind} className="bank-row">
                     <span className="bank-row-label">
@@ -344,14 +360,14 @@ export function Bank({
                       className="bank-mini"
                       disabled={has || credit < terms.minCredit}
                       onClick={() =>
-                        onAct({
-                          verb: 'borrow',
-                          kind: terms.kind as LoanKind,
-                          cents: 1_500_000 as Money,
-                        })
+                        onAct({ verb: 'borrow', kind: terms.kind as LoanKind, cents: offer })
                       }
                     >
-                      {has ? 'carried' : credit < terms.minCredit ? 'refused' : 'Borrow $15,000'}
+                      {has
+                        ? 'carried'
+                        : credit < terms.minCredit
+                          ? 'refused'
+                          : `Borrow ${formatMoney(offer)}`}
                     </button>
                   </div>
                 )

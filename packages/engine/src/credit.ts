@@ -11,6 +11,7 @@
  * modelling at all.
  */
 
+import { formatMoney } from '@life-engine/shared'
 import type { Money, Tick } from '@life-engine/shared'
 import type { Loan, LoanKind, World } from './types.js'
 
@@ -182,7 +183,7 @@ export function loanBar(
   if (kind === 'mortgage') {
     const deposit = depositFor(price)
     if (cash < deposit) {
-      return `A mortgage wants a fifth down. That is ${String(Math.floor(deposit / 100))} dollars, and you have ${String(Math.floor(cash / 100))}.`
+      return `A mortgage wants a fifth down. That is ${formatMoney(deposit)}, and you have ${formatMoney(cash)}.`
     }
   }
   void world
