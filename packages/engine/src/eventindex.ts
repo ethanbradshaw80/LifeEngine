@@ -26,6 +26,16 @@ interface Index {
   /** Where the ledger was when this index was last brought up to date. */
   consumed: number
   readonly byPerson: Map<EntityId, WorldEvent[]>
+  /**
+   * By event id, for the callers that hold an id and need the event.
+   *
+   * MEASURED: an award cites the events that earned it, and rendering one
+   * line of a timeline resolved each of those ids with a scan of the whole
+   * ledger. At 150 simulated years that made `describeOutcome` 30 ms of a
+   * 33 ms timeline — the largest main-thread cost left once the worker
+   * stopped re-sending history. Same answer, one lookup.
+   */
+  readonly byId: Map<number, WorldEvent>
 }
 
 /**
@@ -47,18 +57,21 @@ function indexFor(world: World): Index {
       const own = existing.byPerson.get(event.subjectId)
       if (own === undefined) existing.byPerson.set(event.subjectId, [event])
       else own.push(event)
+      existing.byId.set(event.id, event)
     }
     existing.consumed = world.events.length
     return existing
   }
 
   const byPerson = new Map<EntityId, WorldEvent[]>()
+  const byId = new Map<number, WorldEvent>()
   for (const event of world.events) {
     const own = byPerson.get(event.subjectId)
     if (own === undefined) byPerson.set(event.subjectId, [event])
     else own.push(event)
+    byId.set(event.id, event)
   }
-  const built: Index = { consumed: world.events.length, byPerson }
+  const built: Index = { consumed: world.events.length, byPerson, byId }
   INDEXES.set(world, built)
   return built
 }
@@ -74,6 +87,14 @@ function indexFor(world: World): Index {
  */
 export function eventsFor(world: World, personId: EntityId): readonly WorldEvent[] {
   return indexFor(world).byPerson.get(personId) ?? []
+}
+
+/**
+ * The event with this id, or undefined. The same answer
+ * `world.events.find((e) => e.id === id)` gives, without the scan.
+ */
+export function eventById(world: World, id: number): WorldEvent | undefined {
+  return indexFor(world).byId.get(id)
 }
 
 /**

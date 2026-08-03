@@ -24,6 +24,7 @@ import { occupationById, offenceById } from './content.js'
 import { branchName, rankTitle } from './service.js'
 import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
+import { eventById } from './eventindex.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
@@ -529,10 +530,7 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
   /** Awards granted to this person in the same month. */
   const awardsAt = (tick: Tick) =>
     (world.awards.get(event.subjectId) ?? []).filter((award) =>
-      award.qualifyingEventIds.some((id) => {
-        const qualifying = world.events.find((e) => e.id === id)
-        return qualifying !== undefined && qualifying.tick === tick
-      }),
+      award.qualifyingEventIds.some((id) => eventById(world, id)?.tick === tick),
     )
 
   switch (event.type) {

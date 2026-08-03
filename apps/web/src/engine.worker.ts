@@ -147,7 +147,8 @@ function send(elapsedMs: number, notice?: string): void {
   }
   // A World is structured-cloneable: Maps, arrays, plain objects, numbers and
   // strings. No serialization step is needed to cross this boundary — but the
-  // ledger is not re-sent, only extended. It was 81% of this clone.
+  // ledger is not re-sent, only extended: it was the majority of this clone
+  // (docs/PERFORMANCE_BASELINE.md, "Render snapshot cost").
   const delta = ledger.since(world)
   const { events: _events, causalRecords: _records, ...head } = world
   post(

@@ -19,14 +19,14 @@ previously stood in `SIMULATION_LEVELS.md` §7, `CAUSAL_RECORDS.md` §5 and
 
 | People | Ticks | Worldgen | Total | ms/tick | ms/sim-year | Living at end |
 |---|---|---|---|---|---|---|
-| 100 | 120 | 3 ms | 104 ms | **0.87** | 10 | 101 |
-| 1,000 | 60 | 5 ms | 704 ms | **11.74** | 141 | 1,039 |
-| 10,000 | 12 | 20 ms | 22751 ms | **1895.89** | 22751 | 10,086 |
+| 100 | 120 | 8 ms | 218 ms | **1.81** | 22 | 100 |
+| 1,000 | 60 | 28 ms | 1325 ms | **22.09** | 265 | 1,041 |
+| 10,000 | 12 | 241 ms | 41065 ms | **3422.11** | 41065 | 10,082 |
 
 ### Scaling
 
-- 100 → 1,000 people: tick cost ×13.5 for 10× the population
-- 1,000 → 10,000 people: tick cost ×161.5 for 10× the population
+- 100 → 1,000 people: tick cost ×12.2 for 10× the population
+- 1,000 → 10,000 people: tick cost ×154.9 for 10× the population
 
 > **This is super-linear.** Cost is growing faster than population, which
 > means the documented population targets are not reachable without
@@ -35,9 +35,9 @@ previously stood in `SIMULATION_LEVELS.md` §7, `CAUSAL_RECORDS.md` §5 and
 
 ## Per-tick spread (1,000 people, 24 ticks)
 
-- Median: **9.72 ms**
-- Fastest: 8.46 ms
-- Slowest: 12.97 ms
+- Median: **22.55 ms**
+- Fastest: 17.89 ms
+- Slowest: 49.60 ms
 
 A wide spread means some months cost far more than others, which is
 felt as stutter when advancing time.
@@ -46,12 +46,12 @@ felt as stutter when advancing time.
 
 | People | Events | Causal records | Serialized | Node heap | Bytes/person |
 |---|---|---|---|---|---|
-| 100 | 965 | 226 | 297.5 KB | 1.80 MB | 3047 |
-| 1,000 | 5,319 | 1,689 | 2124.5 KB | 7.26 MB | 2175 |
-| 10,000 | 18,660 | 9,835 | 13885.1 KB | 43.91 MB | 1422 |
+| 100 | 1,240 | 370 | 384.7 KB | 2.64 MB | 3939 |
+| 1,000 | 6,528 | 2,303 | 2495.6 KB | 8.72 MB | 2555 |
+| 10,000 | 20,991 | 10,957 | 14689.1 KB | 48.10 MB | 1504 |
 
-At 100 people over 10 years: **3047 serialized bytes per person**,
-and roughly **1348 bytes per causal record** if the whole save is
+At 100 people over 10 years: **3939 serialized bytes per person**,
+and roughly **1065 bytes per causal record** if the whole save is
 attributed to records (an overestimate — the save also holds people, places
 and households).
 
@@ -59,19 +59,19 @@ and households).
 
 | Simulated year | Serialized size | Growth |
 |---|---|---|
-| 1 | 138.3 KB | — |
-| 2 | 154.1 KB | +15.7 KB |
-| 3 | 170.9 KB | +16.8 KB |
-| 4 | 185.8 KB | +14.9 KB |
-| 5 | 199.2 KB | +13.3 KB |
-| 6 | 211.2 KB | +12.1 KB |
-| 7 | 221.4 KB | +10.2 KB |
-| 8 | 231.4 KB | +10.0 KB |
-| 9 | 242.2 KB | +10.9 KB |
-| 10 | 256.0 KB | +13.7 KB |
+| 1 | 147.0 KB | — |
+| 2 | 168.6 KB | +21.6 KB |
+| 3 | 188.0 KB | +19.4 KB |
+| 4 | 205.8 KB | +17.8 KB |
+| 5 | 222.5 KB | +16.8 KB |
+| 6 | 239.8 KB | +17.2 KB |
+| 7 | 252.9 KB | +13.1 KB |
+| 8 | 266.3 KB | +13.4 KB |
+| 9 | 278.4 KB | +12.1 KB |
+| 10 | 293.5 KB | +15.0 KB |
 
-Average growth: **13.1 KB per simulated year** at this population.
-Extrapolated to 80 simulated years: roughly 1.02 MB — before any
+Average growth: **16.3 KB per simulated year** at this population.
+Extrapolated to 80 simulated years: roughly 1.27 MB — before any
 causal-record compression, which is not yet implemented.
 
 ## Findings
@@ -81,7 +81,7 @@ documents assumed.
 
 ### 1. Cost is super-linear in population
 
-Ten times the people costs **162x** the time per tick, not ten times.
+Ten times the people costs **155x** the time per tick, not ten times.
 That is the signature of an O(n squared) algorithm — work proportional to
 *pairs* of people rather than to people.
 
@@ -90,8 +90,8 @@ person it filters the whole living population to build a candidate
 list. At 100 people that is 10,000 comparisons per tick and invisible;
 at 10,000 people it is 100,000,000 and dominates everything else.
 
-At 10,000 people a single month costs 1896 ms, against a budget of
-100 ms. Advancing one simulated year takes 22.8 seconds.
+At 10,000 people a single month costs 3422 ms, against a budget of
+100 ms. Advancing one simulated year takes 41.1 seconds.
 
 **Not fixed here.** Milestone 3 measures; it does not tune
 (`MILESTONE_PLAN.md`). Recorded so the fix is chosen deliberately —
@@ -112,12 +112,12 @@ priorities: the tier system is needed for CPU first, memory second.
 
 ### 3. The current game is comfortably fast
 
-At the shipped scale of ~100 people, a month costs 0.87 ms and a
-simulated year 10 ms. Advancing five years — the largest
+At the shipped scale of ~100 people, a month costs 1.81 ms and a
+simulated year 22 ms. Advancing five years — the largest
 control in the interface — is well under a second. The Web Worker planned
 for Milestone 4 remains worth doing, but it is not urgent at this scale.
 
-Worst single tick observed at 1,000 people: 12.97 ms.
+Worst single tick observed at 1,000 people: 49.60 ms.
 
 ### What this changes
 
@@ -127,6 +127,28 @@ Worst single tick observed at 1,000 people: 12.97 ms.
   expectation.
 - No optimization is authorized by this milestone. The next change to
   the tick loop should be reviewed by `performance-reviewer`.
+
+## Render snapshot cost (the engine/UI seam)
+
+The worker owns the world; the main thread renders a structured clone
+of it. That clone is not part of the tick and grows with the LEDGER, so
+it is the one cost that worsens the longer a single save is played.
+
+| Simulated years | Events | Records | Whole world | Head + one month | Saving |
+|---|---|---|---|---|---|
+| 25 | 2867 | 744 | 11.5 ms | **2.8 ms** | 4.1x |
+| 75 | 9171 | 2414 | 33.1 ms | **7.6 ms** | 4.3x |
+| 150 | 18930 | 6161 | 71.9 ms | **9.1 ms** | 7.9x |
+
+At 150 simulated years the whole-world clone costs 71.9 ms — against a tick of 1.81 ms at this
+population. The ledger was the overwhelming majority of it, and the
+ledger is append-only, so the seam sends the world without its ledger
+plus only the entries the main thread has not seen
+(`apps/web/src/ledgerdelta.ts`). Compaction, which rewrites history from
+the middle, forces a full resend and is detected in O(1).
+
+Re-measure after any change to the worker message, the ledger shape, or
+compaction.
 
 ## Browser spot check
 
@@ -138,7 +160,7 @@ they need corroborating where it matters. Recorded by hand — see
 - Advancing 60 ticks at ~100 people: **14 ms** once warm (128.9 ms on the first click, which includes JIT warm-up and a React render).
 - Whole-page heap after the run: **11.3 MB**, including React and the interface.
 
-Node predicts 52 ms for the same work; the browser measured 14 ms. **The two agree**, so the Node figures above can be
+Node predicts 109 ms for the same work; the browser measured 14 ms. **The two agree**, so the Node figures above can be
 trusted as a guide to browser behaviour at this scale.
 
 Re-measure after any change that could affect the tick loop, and after
@@ -152,109 +174,132 @@ the Web Worker move in Milestone 4.
     {
       "population": 100,
       "ticks": 120,
-      "worldgenMs": 2.8617000000000417,
-      "totalMs": 104.43259999999998,
-      "msPerTick": 0.8702716666666664,
-      "msPerYear": 10.443259999999997,
-      "livingAtEnd": 101,
-      "events": 965,
-      "causalRecords": 226,
-      "serializedBytes": 304659,
-      "heapBytes": 1885936
+      "worldgenMs": 7.597599999999829,
+      "totalMs": 217.75329999999985,
+      "msPerTick": 1.8146108333333322,
+      "msPerYear": 21.775329999999986,
+      "livingAtEnd": 100,
+      "events": 1240,
+      "causalRecords": 370,
+      "serializedBytes": 393931,
+      "heapBytes": 2765032
     },
     {
       "population": 1000,
       "ticks": 60,
-      "worldgenMs": 5.435500000000047,
-      "totalMs": 704.1873,
-      "msPerTick": 11.736455000000001,
-      "msPerYear": 140.83746000000002,
-      "livingAtEnd": 1039,
-      "events": 5319,
-      "causalRecords": 1689,
-      "serializedBytes": 2175474,
-      "heapBytes": 7609224
+      "worldgenMs": 27.809799999999996,
+      "totalMs": 1325.1468,
+      "msPerTick": 22.08578,
+      "msPerYear": 265.02936,
+      "livingAtEnd": 1041,
+      "events": 6528,
+      "causalRecords": 2303,
+      "serializedBytes": 2555483,
+      "heapBytes": 9148008
     },
     {
       "population": 10000,
       "ticks": 12,
-      "worldgenMs": 20.133199999999988,
-      "totalMs": 22750.6951,
-      "msPerTick": 1895.8912583333333,
-      "msPerYear": 22750.6951,
-      "livingAtEnd": 10086,
-      "events": 18660,
-      "causalRecords": 9835,
-      "serializedBytes": 14218359,
-      "heapBytes": 46043280
+      "worldgenMs": 241.21129999999994,
+      "totalMs": 41065.350999999995,
+      "msPerTick": 3422.112583333333,
+      "msPerYear": 41065.350999999995,
+      "livingAtEnd": 10082,
+      "events": 20991,
+      "causalRecords": 10957,
+      "serializedBytes": 15041613,
+      "heapBytes": 50441408
     }
   ],
   "spreadMs": [
-    12.968300000000454,
-    12.138100000000122,
-    9.066800000000512,
-    9.787000000000262,
-    9.246200000001409,
-    8.461199999997916,
-    10.071200000002136,
-    8.886800000000221,
-    9.377199999998993,
-    8.61449999999968,
-    11.653699999998935,
-    8.457299999998213,
-    9.752500000002328,
-    9.358100000001286,
-    10.110399999997753,
-    8.963299999999435,
-    11.001599999999598,
-    9.660799999997835,
-    10.274999999997817,
-    10.051299999999173,
-    9.41309999999794,
-    9.681000000000495,
-    11.752699999997276,
-    9.84309999999823
+    49.60179999999673,
+    37.58759999999893,
+    28.25050000000192,
+    22.491000000001804,
+    20.149300000004587,
+    21.163800000002084,
+    22.60460000000603,
+    19.039199999999255,
+    20.03910000000178,
+    26.32549999999901,
+    24.014499999997497,
+    18.205000000001746,
+    21.182200000002922,
+    20.08940000000439,
+    20.108899999999267,
+    17.894599999999627,
+    27.72200000000157,
+    24.561000000001513,
+    25.780899999997928,
+    26.607499999998254,
+    24.173299999994924,
+    21.607499999998254,
+    30.125200000002224,
+    20.54910000000382
   ],
   "growth": [
     {
       "year": 1,
-      "bytes": 141667
+      "bytes": 150482
     },
     {
       "year": 2,
-      "bytes": 157749
+      "bytes": 172619
     },
     {
       "year": 3,
-      "bytes": 174996
+      "bytes": 192474
     },
     {
       "year": 4,
-      "bytes": 190269
+      "bytes": 210705
     },
     {
       "year": 5,
-      "bytes": 203936
+      "bytes": 227885
     },
     {
       "year": 6,
-      "bytes": 216285
+      "bytes": 245534
     },
     {
       "year": 7,
-      "bytes": 226728
+      "bytes": 258989
     },
     {
       "year": 8,
-      "bytes": 236936
+      "bytes": 272713
     },
     {
       "year": 9,
-      "bytes": 248060
+      "bytes": 285128
     },
     {
       "year": 10,
-      "bytes": 262094
+      "bytes": 300527
+    }
+  ],
+  "renderSnapshot": [
+    {
+      "years": 25,
+      "events": 2867,
+      "records": 744,
+      "wholeMs": 11.529600000001665,
+      "deltaMs": 2.8245000000024447
+    },
+    {
+      "years": 75,
+      "events": 9171,
+      "records": 2414,
+      "wholeMs": 33.069799999997485,
+      "deltaMs": 7.645499999998719
+    },
+    {
+      "years": 150,
+      "events": 18930,
+      "records": 6161,
+      "wholeMs": 71.91760000000068,
+      "deltaMs": 9.10559999999532
     }
   ],
   "gcAvailable": true,
