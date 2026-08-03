@@ -27,6 +27,7 @@ import {
 import {
   contractFor,
   decodeContract,
+  rankTitle,
   decodeScene,
   ordersSheetFor,
   sceneById,
@@ -351,6 +352,16 @@ function optionLabel(world: World, pending: PendingDecision, option: string): st
   return OPTION_LABELS[pending.kind]?.[option] ?? option
 }
 
+/** "SSG Delacroix — squad leader", from the id the option carries. */
+function oathLabel(world: World, option: string): string {
+  const id = Number(option.slice(3))
+  const person = world.people.get(id as never)
+  const record = world.service.get(id as never)
+  if (!person) return 'Take the oath'
+  const rank = record ? `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} ` : ''
+  return `${rank}${person.familyName}`
+}
+
 interface PromptProps {
   readonly world: World
   readonly pending: PendingDecision
@@ -412,14 +423,31 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       { termYears: state.termYears, option: state.option, bonus: state.bonus as Money },
     )
     if (contract) {
+      // §6. THE CEREMONY. Where the unit has people senior to you, the
+      // buttons ARE those people — the document is on screen and you choose
+      // who swears you in, rather than answering that in a separate box.
+      const byPerson = pending.options.filter((o) => o.startsWith('by-'))
       return (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="A contract">
           <ServiceContractView contract={contract}>
-            <div className="contract-actions">
-              <button type="button" onClick={() => onChoose(pending.options[0] ?? 'take-the-oath')}>
-                Raise Your Right Hand — Take the Oath
-              </button>
-            </div>
+            {byPerson.length === 0 ? (
+              <div className="contract-actions">
+                <button type="button" onClick={() => onChoose(pending.options[0] ?? 'take-the-oath')}>
+                  Raise Your Right Hand — Take the Oath
+                </button>
+              </div>
+            ) : (
+              <div className="contract-ceremony">
+                <p className="muted small">Who administers the oath?</p>
+                <div className="contract-actions">
+                  {byPerson.map((option) => (
+                    <button key={option} type="button" onClick={() => onChoose(option)}>
+                      {oathLabel(world, option)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </ServiceContractView>
         </div>
       )

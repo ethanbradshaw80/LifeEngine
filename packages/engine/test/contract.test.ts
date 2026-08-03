@@ -13,10 +13,11 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import { ageAt } from '../src/clock.js'
+import { ageAt, toDate } from '../src/clock.js'
 import { contractFor } from '../src/contract.js'
 import { createWorld } from '../src/index.js'
 import { requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
+import { oathAdministratorsFor } from '../src/service.js'
 import { SPECIALTIES } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
 import type { Person, World } from '../src/types.js'
@@ -112,6 +113,16 @@ describe('the commission fork', () => {
     expect(pending?.options).toEqual(['take-the-oath'])
   })
 })
+
+const MONTH_NAMES = [
+  'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+  'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
+]
+
+function stampOf(world: World, tick: Tick): string {
+  const { year, month } = toDate(world, tick)
+  return `${MONTH_NAMES[month - 1] ?? 'JANUARY'} ${String(year)}`
+}
 
 describe('the contract document', () => {
   const found = SPECIALTIES.find((sp) => sp.requires === 'none')
@@ -227,6 +238,126 @@ describe('the contract document', () => {
     expect(again?.form).toBe('FORM RA-4')
     expect(again?.undertaking).toBe('I reenlist in')
     expect(again?.oathHeading).toBe('Oath of Reenlistment')
+  })
+
+  /** A serving NPC senior to the player, at the same posting. */
+  function postASenior(world: World, personId: EntityId, rank: number): EntityId {
+    const record = world.service.get(personId)
+    if (!record) throw new Error('the player is not serving')
+    const other = livingPeople(world)
+      .filter((p) => p.id !== personId && !world.service.has(p.id) && ageAt(p.birthTick, world.tick) >= 25)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!other) throw new Error('nobody to post')
+    world.service.set(other.id, { ...record, personId: other.id, rank })
+    return other.id
+  }
+
+  it('§6: a first enlistment has nobody to swear it, and a posting does', () => {
+    const { world, personId } = aWalkIn(4141, false)
+    requestEnlistment(world)
+    resolvePending(world, walkIn.id)
+
+    // A recruit's posting holds nobody senior yet, so the ceremony is the
+    // plain button. That is the right answer rather than a gap: it becomes
+    // personal once there are people to choose between.
+    expect(oathAdministratorsFor(world, personId)).toEqual([])
+    expect(world.player.pending?.options).toEqual(['take-the-oath'])
+    resolvePending(world, 'take-the-oath')
+
+    // Post somebody senior to the same place and the offer becomes them.
+    const seniorId = postASenior(world, personId, 6)
+    const offered = oathAdministratorsFor(world, personId)
+    expect(offered.map((m) => m.personId)).toContain(seniorId)
+    const record = world.service.get(personId)
+    for (const member of offered) {
+      expect(member.rank).toBeGreaterThan(record!.rank)
+      expect(member.personId).not.toBe(personId)
+      expect(world.people.get(member.personId)?.deathTick).toBeNull()
+    }
+  })
+
+  it('§6: nobody junior, nobody discharged, and nobody dead is offered', () => {
+    const { world, personId } = aWalkIn(4141, false)
+    requestEnlistment(world)
+    resolvePending(world, walkIn.id)
+    resolvePending(world, 'take-the-oath')
+
+    const juniorId = postASenior(world, personId, 0)
+    expect(oathAdministratorsFor(world, personId).map((m) => m.personId)).not.toContain(juniorId)
+
+    const seniorId = postASenior(world, personId, 6)
+    expect(oathAdministratorsFor(world, personId).map((m) => m.personId)).toContain(seniorId)
+    world.service.set(seniorId, {
+      ...world.service.get(seniorId)!,
+      dischargedAtTick: world.tick,
+    })
+    expect(oathAdministratorsFor(world, personId).map((m) => m.personId)).not.toContain(seniorId)
+  })
+
+  it('§6: the chosen name reaches the paper, and a vanished one does not', () => {
+    const { world, personId } = aWalkIn(4141, false)
+    requestEnlistment(world)
+    resolvePending(world, walkIn.id)
+    resolvePending(world, 'take-the-oath')
+
+    const seniorId = postASenior(world, personId, 6)
+    const senior = oathAdministratorsFor(world, personId).find((m) => m.personId === seniorId)
+    if (!senior) throw new Error('the senior was not offered')
+
+    const contract = contractFor(world, world.tick, personId, 'reenlistment', {
+      ...noTerms,
+      administratorId: seniorId,
+    })
+    const them = world.people.get(seniorId)
+    expect(contract?.administeredBy).toContain(them!.familyName.toUpperCase())
+    expect(contract?.administeredTitle).toContain(senior.rankTitle)
+
+    // Somebody who left between the choice and the ceremony falls back to
+    // the adjutant rather than being printed on paper they cannot sign.
+    world.service.set(seniorId, {
+      ...world.service.get(seniorId)!,
+      dischargedAtTick: world.tick,
+    })
+    const fallback = contractFor(world, world.tick, personId, 'reenlistment', {
+      ...noTerms,
+      administratorId: seniorId,
+    })
+    expect(fallback?.administeredBy).not.toContain(them!.familyName.toUpperCase())
+  })
+
+  it('the far bookend: a certificate of service, once the record is closed', () => {
+    const { world, personId } = aWalkIn(4141, false)
+    requestEnlistment(world)
+    resolvePending(world, walkIn.id)
+    resolvePending(world, 'take-the-oath')
+
+    // While they serve there is no certificate — a document about a
+    // finished career must not exist for an unfinished one.
+    expect(contractFor(world, world.tick, personId, 'discharge', noTerms)).toBeUndefined()
+
+    const record = world.service.get(personId)!
+    const dischargedAt = (record.enlistedAtTick + 8 * 12) as Tick
+    world.service.set(personId, {
+      ...record,
+      dischargedAtTick: dischargedAt,
+      dischargeReason: 'completed the term',
+    })
+
+    // And now the contracts stop, because they are for somebody serving.
+    expect(contractFor(world, world.tick, personId, 'reenlistment', noTerms)).toBeUndefined()
+
+    const certificate = contractFor(world, world.tick, personId, 'discharge', noTerms)
+    if (!certificate) throw new Error('a closed record has a certificate')
+    expect(certificate.title).toBe('CERTIFICATE OF SERVICE')
+    expect(certificate.form).toBe('FORM RA-9')
+    expect(certificate.oathHeading).toBe('Character of Service')
+    expect(certificate.headline).toBe('COMPLETED THE TERM')
+    // It spans the WHOLE career, not a term.
+    expect(certificate.from).toBe(stampOf(world, record.enlistedAtTick))
+    expect(certificate.to).toBe(stampOf(world, dischargedAt))
+    expect(certificate.stamp).toBe('8-YEAR')
+    expect(certificate.oath).toContain('8 years')
+    expect(certificate.oath).toContain('completed the term')
   })
 
   it('has nothing to write for somebody not serving', () => {

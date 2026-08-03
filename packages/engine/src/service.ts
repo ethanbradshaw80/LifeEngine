@@ -408,6 +408,63 @@ export function lastUnitRosterOf(world: World, personId: EntityId): UnitRoster |
   return rosterFrom(world, personId, world.service.get(personId))
 }
 
+/**
+ * §6. WHO SWEARS YOU IN.
+ *
+ * The people senior to you in your own squad, senior first. A ceremony
+ * administered by a name the player has watched get promoted, wounded or
+ * buried is a different thing from one administered by an anonymous
+ * adjutant — and every one of these is a full simulated person who can
+ * later be any of those.
+ *
+ * Empty for a brand-new recruit, who has no unit yet. That is the right
+ * answer rather than a gap: the ceremony becomes personal only once you
+ * have actually served beside somebody, which is how it works.
+ */
+export function oathAdministratorsFor(world: World, personId: EntityId): readonly RosterMember[] {
+  const record = activeRecord(world, personId)
+  if (!record) return []
+
+  // THE POSTING, NOT THE SQUAD. The first version asked only the player's
+  // own squad, which is one of sixteen derived sub-units — in a town this
+  // size that is almost always empty, and the ceremony would simply never
+  // have happened. It is also the wrong pool: a reenlistment oath is
+  // administered at the company or the retention office, by somebody senior
+  // from the posting. Squadmates still come first, because the person you
+  // actually serve beside is the one worth choosing.
+  const mine = subUnitOf(world, personId, record.baseId)
+  const candidates: { member: RosterMember; sameSquad: boolean }[] = []
+  for (const other of world.service.values()) {
+    if (other.personId === personId) continue
+    if (other.dischargedAtTick !== null) continue
+    if (other.baseId !== record.baseId || other.branch !== record.branch) continue
+    if (other.rank <= record.rank) continue
+    const person = world.people.get(other.personId)
+    if (!person || person.deathTick !== null) continue
+    if (isDeployed(world, other.personId)) continue
+    const theirs = subUnitOf(world, other.personId, other.baseId)
+    candidates.push({
+      sameSquad: theirs.company === mine.company && theirs.squad === mine.squad,
+      member: {
+        personId: other.personId,
+        name: `${person.givenName} ${person.familyName}`,
+        rankTitle: rankTitle(world, other.branch, other.rank, other.commissioned === true),
+        rank: other.rank,
+        specialtyTitle: specialtyFor(world, other.specialtyId).title,
+        role: theirs.company === mine.company && theirs.squad === mine.squad ? 'your squad' : 'the company',
+        deployed: false,
+      },
+    })
+  }
+  candidates.sort(
+    (a, b) =>
+      Number(b.sameSquad) - Number(a.sameSquad) ||
+      b.member.rank - a.member.rank ||
+      a.member.personId - b.member.personId,
+  )
+  return candidates.slice(0, 3).map((c) => c.member)
+}
+
 function rosterFrom(
   world: World,
   personId: EntityId,
@@ -2003,7 +2060,13 @@ export function applyReenlistmentOption(
   }
 }
 
-export function reenlist(world: World, tick: Tick, person: Person, termMonths?: number): void {
+export function reenlist(
+  world: World,
+  tick: Tick,
+  person: Person,
+  termMonths?: number,
+  administratorId?: EntityId | null,
+): void {
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return
   // Judge the closing term BEFORE the ledger resets for the next one.
@@ -2023,6 +2086,11 @@ export function reenlist(world: World, tick: Tick, person: Person, termMonths?: 
   const reenlisted = recordEvent(world, tick, {
     type: 'reenlisted',
     subjectId: person.id,
+    ...(administratorId ? { otherId: administratorId } : {}),
+    // §6. Who administered the oath, where somebody did. `otherId` already
+    // means "the other person involved", so the ceremony needs no new event
+    // type and no schema change — and a save written before this simply has
+    // null there, which reads as the anonymous adjutant it always was.
     detail: rankTitle(world, record.branch, record.rank, record.commissioned === true),
   })
   grantGoodConduct(world, tick, person.id, reenlisted, termAverage)

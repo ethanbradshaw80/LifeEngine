@@ -258,7 +258,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
     case 'reenlisted':
-      return `${year} — Signed for another term.`
+      // §6: named where the oath was administered by somebody from the unit.
+      return event.otherId === null
+        ? `${year} — Signed for another term.`
+        : `${year} — Signed for another term, sworn in by ${nameOf(world, event.otherId)}.`
     case 'discharged':
       // Every ending names itself. A thirty-year career and a career ended
       // at the orderly room are not "left the service" (review S5); Law 8

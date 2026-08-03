@@ -76,6 +76,7 @@ import {
   isDeployed,
   isCaptive,
   capturedSince,
+  contractFor,
   isServing,
   rankTitle,
   schoolOptionsFor,
@@ -95,6 +96,7 @@ import {
   placesOfKind,
 } from '@life-engine/engine'
 import type { EntityId, Money } from '@life-engine/shared'
+import { ServiceContractView } from './ServiceContract.js'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
@@ -534,6 +536,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   const [tab, setTab] = useState<Tab>('story')
   const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
   const [crimeTab, setCrimeTab] = useState<CrimeTab>('acts')
+  const [showCertificate, setShowCertificate] = useState(false)
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -1695,11 +1698,38 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         `serving · ${record.termMonthsLeft} months left on the term`
                       )
                     ) : (
-                      `discharged ${formatYear(world, record.dischargedAtTick)}${
-                        record.dischargeReason ? ` — ${record.dischargeReason}` : ''
-                      }`
+                      <>
+                        {`discharged ${formatYear(world, record.dischargedAtTick)}${
+                          record.dischargeReason ? ` — ${record.dischargeReason}` : ''
+                        }`}
+                        {/* The far bookend: a career ends with paper too, and
+                            this is the artifact a descendant finds. */}
+                        <button
+                          type="button"
+                          className="link certificate-link"
+                          onClick={() => setShowCertificate((open) => !open)}
+                        >
+                          {showCertificate ? 'Put it away' : 'Certificate of service'}
+                        </button>
+                      </>
                     )}
                   </dd>
+                  {showCertificate && record.dischargedAtTick !== null && (() => {
+                    const certificate = contractFor(world, world.tick, person.id, 'discharge', {
+                      termYears: Math.max(
+                        1,
+                        Math.floor((record.dischargedAtTick - record.enlistedAtTick) / 12),
+                      ),
+                      option: 'none',
+                      bonus: 0 as Money,
+                    })
+                    if (!certificate) return null
+                    return (
+                      <dd className="certificate-cell">
+                        <ServiceContractView contract={certificate} />
+                      </dd>
+                    )
+                  })()}
                   {(() => {
                     // The file, which the soldier has always known and the
                     // player never saw.

@@ -25,7 +25,12 @@ import type { World } from './types.js'
 import { specialtyTitleFor } from './content.js'
 import { branchSpecFor, specialtyFor } from './worldspec.js'
 
-export type ContractVariant = 'enlistment' | 'reenlistment'
+/**
+ * 'discharge' is the far bookend: the certificate a career ends with, and
+ * the artifact a descendant finds. Read from the CLOSED record, so unlike
+ * the other two it is a document about something already finished.
+ */
+export type ContractVariant = 'enlistment' | 'reenlistment' | 'discharge'
 
 export interface ServiceContract {
   readonly variant: ContractVariant
@@ -89,6 +94,11 @@ const WITNESS_TITLES = [
   'Chief Warrant Officer, Retention',
 ]
 
+/** "an aviator" / "a rifleman" — the certificate reads as a sentence. */
+function withArticleFor(trade: string): string {
+  return `${'aeiou'.includes(trade.charAt(0)) ? 'an' : 'a'} ${trade}`
+}
+
 function stamped(world: World, tick: Tick, monthsAhead = 0): string {
   const { year, month } = toDate(world, (tick + monthsAhead) as Tick)
   return `${MONTHS[month - 1] ?? 'JANUARY'} ${String(year)}`
@@ -124,11 +134,20 @@ export function contractFor(
     readonly termYears: number
     readonly option: string
     readonly bonus: Money
+    /** §6: who administers the oath, when the player chose somebody real. */
+    readonly administratorId?: EntityId | null
   },
 ): ServiceContract | undefined {
   const person = world.people.get(personId)
   const record = world.service.get(personId)
-  if (!person || !record || record.dischargedAtTick !== null) return undefined
+  if (!person || !record) return undefined
+  // A contract is written for somebody serving; a discharge certificate is
+  // written for somebody who has finished. Each is undefined for the other's
+  // case rather than printing a document that contradicts the record.
+  const discharge = variant === 'discharge'
+  if (discharge ? record.dischargedAtTick === null : record.dischargedAtTick !== null) {
+    return undefined
+  }
 
   const branch = branchSpecFor(world, record.branch)
   const commissioned = record.commissioned === true
@@ -152,8 +171,36 @@ export function contractFor(
   ])
   const witness = rng.pick(WITNESS_TITLES)
 
+  // The chosen administrator, if they are still here to do it. A person who
+  // died or was discharged between the choice and the ceremony falls back to
+  // the adjutant rather than being named on paper they cannot sign.
+  const chosen =
+    terms.administratorId === undefined || terms.administratorId === null
+      ? undefined
+      : world.people.get(terms.administratorId)
+  const chosenRecord =
+    terms.administratorId === undefined || terms.administratorId === null
+      ? undefined
+      : world.service.get(terms.administratorId)
+  const administrator =
+    chosen && chosen.deathTick === null && chosenRecord && chosenRecord.dischargedAtTick === null
+      ? chosen
+      : undefined
+  const administratorTitle =
+    administrator && chosenRecord
+      ? `${
+          (chosenRecord.commissioned === true
+            ? (branchSpecFor(world, chosenRecord.branch).officerRanks ?? [])
+            : branchSpecFor(world, chosenRecord.branch).ranks)[chosenRecord.rank] ?? ''
+        }, ${specialtyFor(world, chosenRecord.specialtyId).title}`
+      : null
+
   const { year } = toDate(world, tick)
   const reenlistment = variant === 'reenlistment'
+  const totalYears = Math.max(
+    1,
+    Math.floor(((record.dischargedAtTick ?? tick) - record.enlistedAtTick) / 12),
+  )
   const spelled = SPELLED[terms.termYears] ?? String(terms.termYears)
   // Which contract of the career this is: every signing already left an
   // event, so the ledger counts them rather than a field that could drift.
@@ -174,23 +221,27 @@ export function contractFor(
     // AN OFFICER DOES NOT ENLIST (military review, should-fix 7). The
     // document had the grade and the headline right and then called a
     // lieutenant a recruit in every other line. Same family, third form.
-    title: commissioned
-      ? reenlistment
-        ? 'OFFICER SERVICE AGREEMENT'
-        : 'OFFICER APPOINTMENT'
-      : reenlistment
-        ? 'REENLISTMENT CONTRACT'
-        : 'ENLISTMENT CONTRACT',
-    form: commissioned ? 'FORM RA-2' : reenlistment ? 'FORM RA-4' : 'FORM RA-1',
+    title: discharge
+      ? 'CERTIFICATE OF SERVICE'
+      : commissioned
+        ? reenlistment
+          ? 'OFFICER SERVICE AGREEMENT'
+          : 'OFFICER APPOINTMENT'
+        : reenlistment
+          ? 'REENLISTMENT CONTRACT'
+          : 'ENLISTMENT CONTRACT',
+    form: discharge ? 'FORM RA-9' : commissioned ? 'FORM RA-2' : reenlistment ? 'FORM RA-4' : 'FORM RA-1',
     contractNo: `${reenlistment ? 'RE' : 'EN'}-${String(year)}-${String(sequence)}`,
     controlNo: `${initials === '' ? 'HQ' : initials}-${String(sequence)}-${String(year).slice(-2)}`,
     command: branch.name,
     dated: stamped(world, tick),
-    headline: reenlistment
-      ? `${commissioned ? 'CONTINUED SERVICE' : 'REENLISTMENT'} — ${ordinal} TERM`
-      : commissioned
-        ? 'INITIAL APPOINTMENT — COMMISSIONED SERVICE'
-        : 'INITIAL ENLISTMENT — FIRST TERM',
+    headline: discharge
+      ? (record.dischargeReason ?? 'SEPARATION').toUpperCase()
+      : reenlistment
+        ? `${commissioned ? 'CONTINUED SERVICE' : 'REENLISTMENT'} — ${ordinal} TERM`
+        : commissioned
+          ? 'INITIAL APPOINTMENT — COMMISSIONED SERVICE'
+          : 'INITIAL ENLISTMENT — FIRST TERM',
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
     grade: grade === undefined
       ? rankTitle
@@ -199,39 +250,56 @@ export function contractFor(
     station,
     termYears: terms.termYears,
     termText: `${spelled} (${String(terms.termYears)}) years`,
-    from: stamped(world, tick),
-    to: stamped(world, tick, terms.termYears * 12),
+    from: discharge ? stamped(world, record.enlistedAtTick) : stamped(world, tick),
+    to: discharge
+      ? stamped(world, record.dischargedAtTick ?? tick)
+      : stamped(world, tick, terms.termYears * 12),
     branch: branch.name,
     option: optionText(terms.option, terms.bonus),
     bonus: terms.option === 'bonus' ? terms.bonus : (0 as Money),
     // THE COUNTRY IS THE PRESET'S, never a name typed into engine prose — a
     // soldier of the United States does not swear to the Republic.
-    oath:
-      `I, ${person.givenName} ${person.familyName}, do solemnly swear that I will support and ` +
+    oath: discharge
+      ? `${person.givenName} ${person.familyName} served ${totalYears} year${
+          totalYears === 1 ? '' : 's'
+        } in ${branch.name}, separating as ${trade === '' ? 'a member of the service' : withArticleFor(trade)}. ` +
+        `Character of service: ${record.dischargeReason ?? 'completed the term'}. This certificate is ` +
+        `issued as evidence of that service and is not returnable.`
+      : `I, ${person.givenName} ${person.familyName}, do solemnly swear that I will support and ` +
       `defend ${world.spec.homelandName} against all enemies, foreign and domestic; that I will ` +
       `bear true faith and allegiance to the same; and that I will obey the orders of those ` +
       `appointed over me, according to the Code of Military Justice. So help me.`,
     commissioned,
-    oathHeading: commissioned
-      ? 'Oath of Office'
-      : reenlistment
-        ? 'Oath of Reenlistment'
-        : 'Oath of Enlistment',
-    undertaking: commissioned
+    oathHeading: discharge
+      ? 'Character of Service'
+      : commissioned
+        ? 'Oath of Office'
+        : reenlistment
+          ? 'Oath of Reenlistment'
+          : 'Oath of Enlistment',
+    undertaking: discharge
+      ? 'This member served honourably in'
+      : commissioned
       ? reenlistment
         ? 'I agree to continue in commissioned service in'
         : 'I accept appointment as a commissioned officer in'
       : reenlistment
         ? 'I reenlist in'
         : 'I enlist in',
-    signatureLabel: commissioned
-      ? "Officer's signature"
-      : reenlistment
-        ? "Member's signature"
-        : "Recruit's signature",
+    signatureLabel: discharge
+      ? "Member's signature"
+      : commissioned
+        ? "Officer's signature"
+        : reenlistment
+          ? "Member's signature"
+          : "Recruit's signature",
     signedBy: `${person.givenName.charAt(0)}. ${person.familyName.toUpperCase()}`,
-    administeredBy: `${officerInitial}. ${officerFamily.toUpperCase()}`,
-    administeredTitle: witness,
-    stamp: `${String(terms.termYears)}-YEAR`,
+    // §6. A NAME THE PLAYER KNOWS, where one was chosen. The drawn officer
+    // stays for a first enlistment, when there is no unit to choose from.
+    administeredBy: administrator
+      ? `${administrator.givenName.charAt(0)}. ${administrator.familyName.toUpperCase()}`
+      : `${officerInitial}. ${officerFamily.toUpperCase()}`,
+    administeredTitle: administratorTitle ?? witness,
+    stamp: discharge ? `${String(totalYears)}-YEAR` : `${String(terms.termYears)}-YEAR`,
   }
 }

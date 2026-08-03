@@ -71,6 +71,7 @@ import {
   boardStandingFor,
   boostServicePerformance,
   commissionsOnEntry,
+  oathAdministratorsFor,
   discharge as dischargeService,
   enlistPerson,
   enlistmentBar,
@@ -1667,9 +1668,16 @@ export function resolvePending(world: World, choice: string): void {
     case 'service-contract': {
       // §6b. THE OATH IS WHAT EXECUTES IT. Everything before this was
       // paperwork; this is the moment the contract becomes a fact.
+      //
+      // §6. And the CHOICE here is who administers it — the answer is a
+      // roster member's id, or 'take-the-oath' when there was nobody to
+      // choose from (a first enlistment has no unit yet).
       const state = decodeContract(pending.occupationId)
+      const administratorId = choice.startsWith('by-')
+        ? (Number(choice.slice(3)) as EntityId)
+        : null
       if (state.code === 'enlist') break // the first term already began
-      reenlistService(world, pending.tick, person, state.termYears * 12)
+      reenlistService(world, pending.tick, person, state.termYears * 12, administratorId)
       applyReenlistmentOption(world, pending.tick, person, state.option)
       // The money is moved here, where the ledger is reachable.
       if (state.option === 'bonus' && state.bonus > 0 && person.householdId !== null) {
@@ -2052,7 +2060,7 @@ export function resolvePending(world: World, choice: string): void {
             decodeContract(contractNext.state).code,
             decodeContract(contractNext.state).bonus,
           )
-        : ['take-the-oath']
+        : oathOptionsFor(world, person.id)
     raisePending(world, {
       tick: pending.tick,
       kind: contractNext.kind,
@@ -2130,7 +2138,7 @@ export function resolvePending(world: World, choice: string): void {
       workplaceId: null,
       monthlyPay: null,
       placeId: null,
-      options: ['take-the-oath'],
+      options: [...oathOptionsFor(world, person.id)],
     })
   }
   // THE TRADE QUESTION COMES AFTER THE OATH, and only when it was BOUGHT.
@@ -2321,6 +2329,17 @@ function resolveFieldAid(
     rejected: [],
     streamId: Stream.Health,
   })
+}
+
+/**
+ * §6. The oath's options: the people senior to you in your own squad, or
+ * the plain button when there is nobody — which is every first enlistment,
+ * because a recruit has no unit yet.
+ */
+function oathOptionsFor(world: World, personId: EntityId): readonly string[] {
+  const candidates = oathAdministratorsFor(world, personId)
+  if (candidates.length === 0) return ['take-the-oath']
+  return candidates.map((member) => `by-${String(member.personId)}`)
 }
 
 /**

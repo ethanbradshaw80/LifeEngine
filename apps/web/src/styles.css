@@ -2285,3 +2285,11 @@ ol.contract-body .em { font-weight: 700; }
   .mast-date { margin-left: 0; text-align: left; width: 100%; }
   .lead-headline { font-size: 1.05rem; }
 }
+
+/* §6. The ceremony under the contract: the buttons are the people. */
+.contract-ceremony { margin-top: 16px; }
+.contract-ceremony p { margin: 0 0 8px; text-align: center; }
+
+/* The certificate, opened inside the service record. */
+.certificate-link { margin-left: 0.5rem; }
+.certificate-cell { grid-column: 1 / -1; margin-top: 0.75rem; }
