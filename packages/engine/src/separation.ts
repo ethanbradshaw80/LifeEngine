@@ -24,6 +24,7 @@ import { toDate } from './clock.js'
 import { eventsFor } from './eventindex.js'
 import { openStream, Stream } from './rng.js'
 import type { World } from './types.js'
+import { specialtyTitleCased } from './content.js'
 import { branchSpecFor, specialtyFor } from './worldspec.js'
 
 /**
@@ -264,7 +265,7 @@ export function separationFor(
       ? (ladder[index] ?? '—')
       : `${ladder[index] ?? '—'} (${commissioned ? 'O' : 'E'}-${String(grade)})`,
     branch: branch.name,
-    specialty: specialtyFor(world, record.specialtyId).title,
+    specialty: specialtyTitleCased(specialtyFor(world, record.specialtyId), commissioned),
     enteredService: stamped(world, record.enlistedAtTick, true),
     separated: stamped(world, record.dischargedAtTick, true),
     totalService: `${String(years)} year${years === 1 ? '' : 's'}${

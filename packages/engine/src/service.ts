@@ -706,6 +706,54 @@ export function disciplinaryFileOf(
   }
 }
 
+/**
+ * Up-or-out, as the serving member can see it — months in grade, the months
+ * they get, and whether the clock is close enough to matter.
+ *
+ * OWNER (playing): "I literally just got kicked out the army... I didn't
+ * even get the choice." The rule itself is right — a service really does
+ * stop offering terms to somebody it has not promoted — but it was arriving
+ * as a surprise, and a surprise is what makes a correct rule feel arbitrary.
+ * A real orderly room tells you where you stand long before the date.
+ *
+ * Null for anyone the rule cannot reach: made the grade, discharged, or on
+ * a ladder with no such thing.
+ */
+export function upOrOutStandingFor(
+  world: World,
+  personId: EntityId,
+): { readonly monthsInGrade: number; readonly monthsAllowed: number; readonly warning: boolean } | null {
+  const record = activeRecord(world, personId)
+  if (!record) return null
+  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 9
+  if (grade >= HYT_BELOW_GRADE) return null
+  const monthsAllowed = highYearTenureMonthsFor(record)
+  const monthsInGrade = world.tick - record.rankSinceTick
+  return {
+    monthsInGrade,
+    monthsAllowed,
+    // A year out is enough time to put in for a board or take a school —
+    // which is the whole point of saying it.
+    warning: monthsAllowed - monthsInGrade <= 12,
+  }
+}
+
+/**
+ * What a file of non-selections adds to the board's cutoff.
+ *
+ * CAPPED, at four boards' worth. A record of being passed over genuinely
+ * makes the next board harder — that is why 'let it go by' is a real
+ * choice — but an unbounded penalty is not a harder board, it is a closed
+ * door wearing a board's clothes. Past the cap the file has said what it
+ * has to say, and the only thing that moves is the points the member earns.
+ */
+const FILE_PENALTY_PER_PASS = 15
+const FILE_PENALTY_CAP = FILE_PENALTY_PER_PASS * 4
+
+export function filePenaltyFor(priorPassOvers: number): number {
+  return Math.min(FILE_PENALTY_CAP, priorPassOvers * FILE_PENALTY_PER_PASS)
+}
+
 export function boardStandingFor(
   world: World,
   personId: EntityId,
@@ -720,6 +768,8 @@ export function boardStandingFor(
   readonly points: PromotionPoints
   /** Recorded non-selections for this same rank — the file the board reads. */
   readonly priorPassOvers: number
+  /** What those non-selections actually add to the cutoff, capped. */
+  readonly filePenalty: number
 } | null {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
@@ -735,6 +785,11 @@ export function boardStandingFor(
     tigNeeded: gates.tigNeeded,
     cutoff: gates.cutoff,
     points: promotionPointsFor(world, personId),
+    filePenalty: filePenaltyFor(
+      world.events.filter(
+        (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === String(gates.targetRank),
+      ).length,
+    ),
     priorPassOvers: world.events.filter(
       (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === String(gates.targetRank),
     ).length,

@@ -139,7 +139,8 @@ describe('the contract document', () => {
     expect(contract.name).toContain(person!.familyName.toUpperCase())
     // The trade under the OFFICER's name for it: nobody is commissioned as
     // a rifleman.
-    expect(contract.specialty).toBe(walkIn.officerTitle)
+    // Title-cased, because this is a form field and not a sentence.
+    expect(contract.specialty).toBe('Infantry Officer')
     expect(contract.specialty).not.toBe(walkIn.title)
     expect(contract.station).toBe(world.places.get(record!.baseId)?.name)
     // O-grades, not E-grades: the commission is on the paper.
@@ -221,7 +222,7 @@ describe('the contract document', () => {
     expect(first?.undertaking).toBe('I enlist in')
     expect(first?.oathHeading).toBe('Oath of Enlistment')
     expect(first?.signatureLabel).toBe("Recruit's signature")
-    expect(first?.specialty).toBe(walkIn.title)
+    expect(first?.specialty).toBe('Rifleman')
     expect(first?.grade).toContain('(E-1)')
 
     const again = contractFor(world, world.tick, personId, 'reenlistment', noTerms)
@@ -313,6 +314,35 @@ describe('the contract document', () => {
       administratorId: seniorId,
     })
     expect(fallback?.administeredBy).not.toContain(them!.familyName.toUpperCase())
+  })
+
+  it('counts terms past the words it has', () => {
+    const { world, personId } = aWalkIn(4141, false)
+    requestEnlistment(world)
+    resolvePending(world, walkIn.id)
+    resolvePending(world, 'take-the-oath')
+
+    // No reenlistments yet: signing again makes this the SECOND term.
+    expect(contractFor(world, world.tick, personId, 'reenlistment', noTerms)?.headline).toContain(
+      'SECOND',
+    )
+
+    // Nine signings is a fourteenth-term career; the words run out at
+    // eighth and it used to print EIGHTH for ever after.
+    for (let i = 0; i < 12; i++) {
+      world.events.push({
+        id: 900_000 + i,
+        tick: world.tick,
+        type: 'reenlisted',
+        subjectId: personId,
+        otherId: null,
+        placeId: null,
+        detail: null,
+      })
+    }
+    const late = contractFor(world, world.tick, personId, 'reenlistment', noTerms)
+    expect(late?.headline).toContain('14TH')
+    expect(late?.headline).not.toContain('EIGHTH')
   })
 
   it('has nothing to write for somebody not serving', () => {

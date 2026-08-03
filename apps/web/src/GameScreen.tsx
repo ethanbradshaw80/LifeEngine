@@ -63,6 +63,7 @@ import {
 } from '@life-engine/engine'
 import {
   boardStandingFor,
+  upOrOutStandingFor,
   currentDeployment,
   disciplinaryFileOf,
   rotationAvailable,
@@ -1669,6 +1670,26 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <dd>{record.qualifications.join(', ')}</dd>
                     </>
                   )}
+                  {(() => {
+                    // UP-OR-OUT, VISIBLE. The rule ends careers; the player
+                    // should never learn it exists on the month it fires.
+                    const standing = upOrOutStandingFor(world, person.id)
+                    if (!standing) return null
+                    const left = standing.monthsAllowed - standing.monthsInGrade
+                    return (
+                      <>
+                        <dt>Time in grade</dt>
+                        <dd className={standing.warning ? 'bad' : undefined}>
+                          {standing.monthsInGrade} months
+                          {standing.warning
+                            ? left > 0
+                              ? ` — the service stops offering terms at this grade in ${String(left)} month${left === 1 ? '' : 's'}. A promotion board or a school is the way off it.`
+                              : ' — past the point the service offers another term at this grade.'
+                            : ` of ${String(standing.monthsAllowed)} before the service stops offering terms at this grade`}
+                        </dd>
+                      </>
+                    )
+                  })()}
                   <dt>Status</dt>
                   <dd>
                     {record.dischargedAtTick === null ? (
@@ -1822,7 +1843,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       if (!standing) return null
                       // The bar the board actually applies (P2): base cutoff
                       // plus what the file of non-selections adds.
-                      const realBar = standing.cutoff + standing.priorPassOvers * 15
+                      const realBar = standing.cutoff + standing.filePenalty
                       return (
                         <p className="muted small">
                           Promotion points: {standing.points.total} against the {standing.targetTitle} cutoff

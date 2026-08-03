@@ -22,7 +22,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import { toDate } from './clock.js'
 import type { World } from './types.js'
-import { specialtyTitleFor } from './content.js'
+import { specialtyTitleCased } from './content.js'
 import { branchSpecFor, specialtyFor } from './worldspec.js'
 
 /**
@@ -148,7 +148,7 @@ export function contractFor(
   const rankTitle = ladder[index] ?? '—'
   const grade = grades[index]
   const specialty = specialtyFor(world, record.specialtyId)
-  const trade = specialtyTitleFor(specialty, commissioned)
+  const trade = specialtyTitleCased(specialty, commissioned)
   const station = world.places.get(record.baseId)?.name ?? 'the garrison'
 
   const rng = openStream(world.seed, Stream.Employment, personId, tick + 9100)
@@ -194,7 +194,16 @@ export function contractFor(
   const priors = world.events.filter(
     (e) => e.subjectId === personId && e.type === 'reenlisted',
   ).length
-  const ordinal = ORDINALS[Math.min(ORDINALS.length - 1, priors + 1)] ?? 'NEXT'
+  // Past the words, count in figures rather than repeating the last word
+  // the list happens to hold: a fourteenth term printed as "EIGHTH TERM"
+  // for the rest of a long career.
+  // A first REENLISTMENT is a second TERM, which is why this counts from
+  // two. Ninth and beyond print as figures — the words run out at eighth,
+  // and repeating the last one made a fourteenth term read "EIGHTH TERM"
+  // for the rest of a long career. (9th through 20th are all "TH"; a
+  // twenty-first term is forty years of contracts and does not arise.)
+  const termNumber = priors + 2
+  const ordinal = ORDINALS[termNumber - 1] ?? `${String(termNumber)}TH`
   const initials = station
     .split(/\s+/)
     .map((word) => word.charAt(0))

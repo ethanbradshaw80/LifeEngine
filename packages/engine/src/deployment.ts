@@ -66,7 +66,7 @@ import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import { specialtyTitleFor } from './content.js'
+import { specialtyTitleCased } from './content.js'
 import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
@@ -356,7 +356,7 @@ export function ordersSheetFor(
     issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
     rank: `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} (${payGradeOf(branch, record.rank, record.commissioned === true)})`,
-    specialty: specialtyTitleFor(specialty, record.commissioned === true),
+    specialty: specialtyTitleCased(specialty, record.commissioned === true),
     unit: unit?.name ?? `${garrison} garrison`,
     assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,
     enemy: enemy?.name ?? 'the enemy',

@@ -121,6 +121,7 @@ export type { InjuryContext } from './wounds.js'
 export {
   badgesOf,
   boardStandingFor,
+  upOrOutStandingFor,
   branchName,
   disciplinaryFileOf,
   enlistmentBar,

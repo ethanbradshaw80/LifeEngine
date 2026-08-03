@@ -67,7 +67,7 @@ describe('orders', () => {
     // Read from the record, not written by the sheet.
     expect(sheet.name).toContain(person.familyName.toUpperCase())
     expect(sheet.name).toContain(person.givenName)
-    expect(sheet.specialty).toBe('rifleman')
+    expect(sheet.specialty).toBe('Rifleman')
     expect(sheet.enemy).toBe(enemy.name)
     expect(sheet.tourMonths).toBeGreaterThan(0)
 

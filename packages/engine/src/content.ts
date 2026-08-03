@@ -388,6 +388,19 @@ export function specialtyTitleFor(specialty: ServiceSpecialty, commissioned: boo
   return commissioned ? (specialty.officerTitle ?? specialty.title) : specialty.title
 }
 
+/**
+ * The trade as a DOCUMENT writes it — "Rifleman", not "rifleman".
+ *
+ * The catalogue stores lowercase because prose reads "enlisted as a
+ * rifleman", which is right in a sentence and wrong in a form field. A
+ * DD-214 that says "PRIMARY SPECIALTY: rifleman" looks like a bug on the
+ * one page a player keeps.
+ */
+export function specialtyTitleCased(specialty: ServiceSpecialty, commissioned: boolean): string {
+  const title = specialtyTitleFor(specialty, commissioned)
+  return title.replace(/(^|\s)(\w)/g, (_m, lead: string, ch: string) => lead + ch.toUpperCase())
+}
+
 export function specialtyById(id: string): ServiceSpecialty {
   const found = SPECIALTIES.find((sp) => sp.id === id)
   if (!found) throw new Error(`Unknown specialty: ${id}`)

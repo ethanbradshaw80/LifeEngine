@@ -1498,7 +1498,7 @@ export function resolvePending(world: World, choice: string): void {
           // draw exists only NEAR the line, standing in for the cutoff's
           // month-to-month drift the game does not model.
           const prepped = standing.points.total + 40
-          const cutoffWithFile = standing.cutoff + standing.priorPassOvers * 15
+          const cutoffWithFile = standing.cutoff + standing.filePenalty
           const margin = prepped - cutoffWithFile
           const selected =
             margin >= 0 && (margin >= 150 || rng.chance(6 + Math.floor(margin / 15), 24))
@@ -3065,7 +3065,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
         // The bar the board ACTUALLY applies: base cutoff plus what the file
         // of prior non-selections adds (P2 carry-note — the stakes used to
         // print the base and the resolution used the raised one).
-        const realBar = standing.cutoff + standing.priorPassOvers * 15
+        const realBar = standing.cutoff + standing.filePenalty
         lines.push(
           `Your points: ${String(standing.points.total)} against the ${standing.targetTitle} cutoff of ${String(realBar)} for your trade${standing.priorPassOvers > 0 ? ' (raised by the file)' : ''}.`,
         )
