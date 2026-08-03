@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { SPECIALTIES } from '../src/content.js'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
 import {
   BRANCH_OFFICER_RANKS_SPELLED,
@@ -19,7 +20,7 @@ import {
   officerPayOn,
   servicePayOn,
 } from '../src/content.js'
-import { rankTitle } from '../src/service.js'
+import { competitiveGates, meetsRankGate, rankTitle, unitRosterOf } from '../src/service.js'
 
 describe('the officer ladder', () => {
   it('exists for every branch, and is not the enlisted one', () => {
@@ -94,6 +95,68 @@ describe('the officer ladder', () => {
       if (record.commissioned !== true) continue
       expect(record.termMonths).toBe(72)
     }
+  })
+
+  it('is offered a board, on its own ladder', () => {
+    // OWNER, playing an officer: "cant get promoted". The player's board
+    // read the ENLISTED gate for a commissioned member — a lieutenant asked
+    // whether index 2 cleared an enlisted competitiveFrom of four, got
+    // null, and was never offered a board at all. NPC officers promoted in
+    // the same town, which is what made it look like bad luck.
+    const world = createWorld(makeSeed(4141), 100)
+    const specialty = SPECIALTIES.find((sp) => sp.branch === 'land-forces')
+    if (!specialty) throw new Error('no land specialty')
+
+    for (let rank = 0; rank < 5; rank++) {
+      const asOfficer = competitiveGates(world, specialty, rank, true)
+      const asEnlisted = competitiveGates(world, specialty, rank, false)
+      // Every officer step above the first is a board with a real wait.
+      if (rank >= 1) {
+        expect(asOfficer, `officer rank ${String(rank)} has no board`).not.toBeNull()
+        expect(asOfficer?.tigNeeded).toBeGreaterThan(0)
+      }
+      // And the two ladders answer differently — reading the wrong one is
+      // exactly the bug.
+      if (asOfficer !== null && asEnlisted !== null) {
+        expect(asOfficer.tigNeeded).not.toBe(asEnlisted.tigNeeded)
+      }
+    }
+  })
+
+  it('clears the enlisted rank gates on schools and units', () => {
+    // OWNER: "cant attend schools". minRank is an index into the ENLISTED
+    // ladder, and an officer's rank indexes a different one — so a second
+    // lieutenant sat at 0 and was refused every course opening at 1.
+    for (let minRank = 0; minRank <= 4; minRank++) {
+      expect(meetsRankGate({ rank: 0, commissioned: true }, minRank)).toBe(true)
+    }
+    // The enlisted rule is untouched.
+    expect(meetsRankGate({ rank: 0, commissioned: false }, 2)).toBe(false)
+    expect(meetsRankGate({ rank: 3, commissioned: false }, 2)).toBe(true)
+  })
+
+  it('leads the squad it is posted to, and is listed first', () => {
+    // OWNER: "not being properly listed or assigned to squads". The roster
+    // sorted on the ladder INDEX, so a 2LT at 0 came below a master
+    // sergeant at 8 and a sergeant was named leader over their officer.
+    const world = createWorld(makeSeed(4141), 100)
+    advanceTicks(world, 40 * 12)
+
+    let checked = 0
+    for (const record of world.service.values()) {
+      if (record.commissioned !== true || record.dischargedAtTick !== null) continue
+      const roster = unitRosterOf(world, record.personId)
+      if (!roster || roster.members.length < 2) continue
+      checked++
+      expect(roster.members[0]?.personId, 'an officer is not at the head of their own roster').toBe(
+        record.personId,
+      )
+      expect(roster.members[0]?.role).toBe('platoon leader')
+      // And they are listed under an OFFICER's rank, not a private's.
+      const officerRanks = CLASSIC_SPEC.branches.find((b) => b.id === record.branch)?.officerRanks ?? []
+      expect(officerRanks).toContain(roster.members[0]?.rankTitle)
+    }
+    expect(checked, 'no commissioned member shared a squad in eighty years').toBeGreaterThan(0)
   })
 
   it('pays a commission on its own table, and does not make it a free upgrade', () => {

@@ -358,17 +358,24 @@ const SQUAD_ORDINALS = ['1st', '2nd', '3rd', '4th'] as const
  * Which sub-unit a soldier belongs to at their current posting.
  *
  * DERIVED, not stored (DOMAIN_MAP §1 — a roster kept in two places is two
- * truths): the pair (person, base) hashes to a company and a squad, so a
- * soldier keeps the same squadmates for as long as they are posted
- * together, and a transfer genuinely moves them. No schema change, and a
- * save written before this existed answers the same way.
+ * truths). Keyed on the POSTING, so everybody at a station in the same
+ * branch serves in the same sub-unit, and a transfer genuinely moves them.
+ *
+ * IT USED TO BE KEYED ON THE PERSON, which split each posting across
+ * sixteen buckets. Measured across three sixty-year towns: postings hold
+ * one to five people, and 30 of 34 serving members were ALONE in their own
+ * squad — so there was no squad, no squadmates, and an officer could never
+ * be listed at the head of anything (owner: "not being properly listed or
+ * assigned to squads"). A structure that exists on paper and never has two
+ * people in it is not a structure.
  */
 function subUnitOf(
   world: World,
-  personId: EntityId,
   baseId: EntityId,
+  branchId: string,
 ): { company: string; squad: string } {
-  const draw = hash32(world.seed, Stream.Employment, personId, baseId + 31_000)
+  const branchIndex = Math.max(0, world.spec.branches.findIndex((b) => b.id === branchId))
+  const draw = hash32(world.seed, Stream.Employment, baseId, 31_000 + branchIndex)
   const company = COMPANY_LETTERS[draw % COMPANY_LETTERS.length] ?? 'A'
   const squad = SQUAD_ORDINALS[Math.floor(draw / 4) % SQUAD_ORDINALS.length] ?? '1st'
   return { company, squad }
@@ -422,7 +429,7 @@ export function deadFromTheUnit(world: World, unitId: string, tick: Tick): Entit
 }
 
 export function unitRosterOf(world: World, personId: EntityId): UnitRoster | null {
-  return rosterFrom(world, personId, activeRecord(world, personId))
+  return rosterFrom(world, activeRecord(world, personId))
 }
 
 /**
@@ -432,7 +439,7 @@ export function unitRosterOf(world: World, personId: EntityId): UnitRoster | nul
  * living and serving: it is the squad that survives them.
  */
 export function lastUnitRosterOf(world: World, personId: EntityId): UnitRoster | null {
-  return rosterFrom(world, personId, world.service.get(personId))
+  return rosterFrom(world, world.service.get(personId))
 }
 
 /**
@@ -454,53 +461,61 @@ export function oathAdministratorsFor(world: World, personId: EntityId): readonl
   const record = activeRecord(world, personId)
   if (!record) return []
 
-  // THE POSTING, NOT THE SQUAD. The first version asked only the player's
-  // own squad, which is one of sixteen derived sub-units — in a town this
-  // size that is almost always empty, and the ceremony would simply never
-  // have happened. It is also the wrong pool: a reenlistment oath is
-  // administered at the company or the retention office, by somebody senior
-  // from the posting. Squadmates still come first, because the person you
-  // actually serve beside is the one worth choosing.
-  const mine = subUnitOf(world, personId, record.baseId)
-  const candidates: { member: RosterMember; sameSquad: boolean }[] = []
+  // THE POSTING IS THE UNIT. Everyone at a station in the same branch now
+  // serves in one sub-unit, so "your squad first" no longer distinguishes
+  // anybody — seniority does, and the senior person present is the one who
+  // would actually administer it.
+  const candidates: { member: RosterMember; authority: number }[] = []
   for (const other of world.service.values()) {
     if (other.personId === personId) continue
     if (other.dischargedAtTick !== null) continue
     if (other.baseId !== record.baseId || other.branch !== record.branch) continue
-    if (other.rank <= record.rank) continue
+    // SENIOR BY AUTHORITY, not by ladder index — an index comparison called
+    // a lieutenant junior to a master sergeant, because both ladders start
+    // at zero.
+    if (authorityOf(world, other.personId) <= authorityOf(world, personId)) continue
     const person = world.people.get(other.personId)
     if (!person || person.deathTick !== null) continue
     if (isDeployed(world, other.personId)) continue
-    const theirs = subUnitOf(world, other.personId, other.baseId)
     candidates.push({
-      sameSquad: theirs.company === mine.company && theirs.squad === mine.squad,
+      authority: authorityOf(world, other.personId),
       member: {
         personId: other.personId,
         name: `${person.givenName} ${person.familyName}`,
         rankTitle: rankTitle(world, other.branch, other.rank, other.commissioned === true),
         rank: other.rank,
         specialtyTitle: specialtyFor(world, other.specialtyId).title,
-        role: theirs.company === mine.company && theirs.squad === mine.squad ? 'your squad' : 'the company',
+        role: other.commissioned === true ? 'your officer' : 'your unit',
         deployed: false,
       },
     })
   }
   candidates.sort(
-    (a, b) =>
-      Number(b.sameSquad) - Number(a.sameSquad) ||
-      b.member.rank - a.member.rank ||
-      a.member.personId - b.member.personId,
+    (a, b) => b.authority - a.authority || a.member.personId - b.member.personId,
   )
   return candidates.slice(0, 3).map((c) => c.member)
 }
 
-function rosterFrom(
-  world: World,
-  personId: EntityId,
-  record: ServiceRecordT | undefined,
-): UnitRoster | null {
+/**
+ * How senior somebody is, comparably across the two ladders.
+ *
+ * Pay grade, with every officer above every enlisted member — which is the
+ * one thing the raw ladder index cannot express, because both ladders start
+ * at zero.
+ */
+function authorityOf(world: World, personId: EntityId): number {
+  const record = world.service.get(personId)
+  if (!record) return -1
+  const branch = branchSpecFor(world, record.branch)
+  if (record.commissioned === true) {
+    return 100 + ((branch.officerGrades ?? [])[record.rank] ?? record.rank + 1)
+  }
+  return branch.grades[record.rank] ?? record.rank + 1
+}
+
+function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoster | null {
   if (!record) return null
-  const mine = subUnitOf(world, personId, record.baseId)
+  const mine = subUnitOf(world, record.baseId, record.branch)
 
   const members: RosterMember[] = []
   for (const other of world.service.values()) {
@@ -508,29 +523,50 @@ function rosterFrom(
     if (other.baseId !== record.baseId || other.branch !== record.branch) continue
     const person = world.people.get(other.personId)
     if (!person || person.deathTick !== null) continue
-    const theirs = subUnitOf(world, other.personId, other.baseId)
-    if (theirs.company !== mine.company || theirs.squad !== mine.squad) continue
     members.push({
       personId: other.personId,
       name: `${person.givenName} ${person.familyName}`,
-      rankTitle: rankTitle(world, other.branch, other.rank),
+      // The ladder THEY are on. A lieutenant in the roster was being listed
+      // under a private's rank (owner: "having their rank wrongs in
+      // different menus").
+      rankTitle: rankTitle(world, other.branch, other.rank, other.commissioned === true),
       rank: other.rank,
       specialtyTitle: specialtyFor(world, other.specialtyId).title,
       role: '',
       deployed: isDeployed(world, other.personId),
     })
   }
+  // SORTED BY WHO ACTUALLY ANSWERS FOR THE REST, which is not the ladder
+  // index. Rank is an index into whichever ladder somebody is on, so a
+  // second lieutenant sat at 0 and sorted BELOW a master sergeant at 8 —
+  // the platoon's officer was listed last and a sergeant was named as their
+  // leader (owner: "not being properly listed or assigned to squads"). An
+  // officer is above the enlisted, and within each ladder the grade orders
+  // them.
   members.sort(
     (a, b) =>
-      b.rank - a.rank ||
+      authorityOf(world, b.personId) - authorityOf(world, a.personId) ||
       (world.service.get(a.personId)?.rankSinceTick ?? 0) -
         (world.service.get(b.personId)?.rankSinceTick ?? 0) ||
       a.personId - b.personId,
   )
 
+  // And the roles follow: a squad with an officer in it is led by the
+  // officer, and the senior enlisted beside them is the platoon sergeant —
+  // not a "team leader" reporting to nobody.
+  const ledByAnOfficer = world.service.get(members[0]?.personId ?? (0 as EntityId))?.commissioned === true
   const withRoles = members.map((member, index) => ({
     ...member,
-    role: index === 0 ? 'squad leader' : index === 1 ? 'team leader' : member.specialtyTitle,
+    role:
+      index === 0
+        ? ledByAnOfficer
+          ? 'platoon leader'
+          : 'squad leader'
+        : index === 1
+          ? ledByAnOfficer
+            ? 'platoon sergeant'
+            : 'team leader'
+          : member.specialtyTitle,
   }))
 
   return {
@@ -605,6 +641,29 @@ function seatsTaken(world: World, schoolId: string, classTick: Tick): number {
  * the UI hides them rather than the engine pretending they do not exist —
  * an engine that silently drops content is an engine you cannot debug.
  */
+/**
+ * Whether a record clears a rank gate written on the ENLISTED ladder.
+ *
+ * `minRank` on a school or a special unit is an index into the enlisted
+ * ranks — "opens at SPC". An officer's rank is an index into a DIFFERENT,
+ * six-rung ladder, so comparing the two numbers compares nothing: a second
+ * lieutenant sat at index 0 and was refused every course that opened at
+ * index 1, while a captain cleared a sergeant's gate by coincidence of
+ * arithmetic. (Owner, playing an officer: "cant attend schools".)
+ *
+ * A commissioned member is above every enlisted gate these courses set, so
+ * they clear it. What still stops them is everything that is actually about
+ * them — the branch, the trade, the badge they already hold, the evaluation
+ * and the seats.
+ */
+export function meetsRankGate(
+  record: { readonly rank: number; readonly commissioned?: boolean },
+  minRank: number,
+): boolean {
+  if (record.commissioned === true) return true
+  return record.rank >= minRank
+}
+
 export function schoolOptionsFor(world: World, personId: EntityId): readonly SchoolOption[] {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return []
@@ -621,7 +680,7 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
       reason = 'Not this trade.'
     } else if (badges.includes(school.badge)) {
       reason = 'Already earned.'
-    } else if (record.rank < school.minRank) {
+    } else if (!meetsRankGate(record, school.minRank)) {
       reason = `Opens at ${rankTitle(world, record.branch, school.minRank)}.`
     } else if (record.performance < school.minPerformance) {
       reason = 'The work is not there yet.'
@@ -665,7 +724,7 @@ export function unitOptionsFor(
       reason = `${branchName(world, specialty.branch)} does not feed this unit.`
     } else if (unit.feederUnitId !== null && record.unitId !== unit.feederUnitId) {
       reason = `Selection draws from ${unitFor(world, unit.feederUnitId)?.name ?? 'the feeder unit'}.`
-    } else if (record.rank < unit.minRank) {
+    } else if (!meetsRankGate(record, unit.minRank)) {
       reason = `Looks at ${rankTitle(world, record.branch, unit.minRank)} and above.`
     } else if (unit.requiredBadges.some((b) => !badges.includes(b))) {
       reason = `Wants ${unit.requiredBadges.filter((b) => !badges.includes(b)).join(', ')} first.`
@@ -1718,7 +1777,16 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // grade — a same-tick second 'promotion' record hijacks the Why?, and
     // a put-in dies against its own fresh rankSinceTick. The board waits
     // for a month in grade like the soldier does.
-    const gates = promotedThisMonth ? null : competitiveGates(world, specialty, rank)
+    // THE LADDER THEY ARE ON. Without this the player's board read the
+    // ENLISTED gate for a commissioned member: a lieutenant asked whether
+    // index 2 cleared an enlisted competitiveFrom of four, got null, and was
+    // never offered a board at all (owner, playing an officer: "cant get
+    // promoted"). The NPC path and the standings were already passing it;
+    // this one site was missed, which is why officers promoted in the town
+    // and never in the player's own career.
+    const gates = promotedThisMonth
+      ? null
+      : competitiveGates(world, specialty, rank, commissioned)
     if (gates) {
       // LIVE time in grade, not the value captured at the top of the month
       // (review S4): a bust resets rankSinceTick, and the stale figure asked
@@ -1750,17 +1818,26 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // crowding out the ones that matter. Roughly one slot every six years,
     // and the player can always ASK for one from the Service tab.
     if (rng.chance(1, 72)) {
-      raisePending(world, {
-        tick,
-        kind: 'attend-school',
-        personId: person.id,
-        otherId: null,
-        occupationId: null,
-        workplaceId: null,
-        monthlyPay: null,
-        placeId: null,
-        options: ['attend', 'pass'],
-      })
+      // WHICH SCHOOL. The slot used to be anonymous — the prompt said "an
+      // advanced school" and the record said "an advanced course" — while
+      // the world has a list of named courses with their own badges and
+      // gates. A DD-214 that lists "an advanced course" among real schools
+      // reads like a placeholder, because it was one.
+      const open = schoolOptionsFor(world, person.id).filter((option) => option.open)
+      const offered = open[open.length - 1]
+      if (offered !== undefined) {
+        raisePending(world, {
+          tick,
+          kind: 'attend-school',
+          personId: person.id,
+          otherId: null,
+          occupationId: offered.id,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: ['attend', 'pass'],
+        })
+      }
     }
     // --- UNIT MOMENTS (owner's combat plan §4a). ------------------------
     // Commitment and aftermath, not contact. Each plays ONCE, and the log

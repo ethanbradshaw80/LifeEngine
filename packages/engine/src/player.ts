@@ -1533,7 +1533,7 @@ export function resolvePending(world: World, choice: string): void {
             recordEvent(world, pending.tick, {
               type: 'promoted',
               subjectId: person.id,
-              detail: rankTitle(world, record.branch, newRank),
+              detail: rankTitle(world, record.branch, newRank, record.commissioned === true),
             })
             recordDecision(world, pending.tick, {
               subjectId: person.id,
@@ -1544,7 +1544,7 @@ export function resolvePending(world: World, choice: string): void {
                 factor('strong-performance', record.performance),
                 factor('time-in-grade', Math.min(1000, standing.timeInGrade * 10)),
               ],
-              chosen: `made ${rankTitle(world, record.branch, newRank)}`,
+              chosen: `made ${rankTitle(world, record.branch, newRank, record.commissioned === true)}`,
               rejected: [],
               streamId: Stream.Employment,
             })
@@ -1593,7 +1593,15 @@ export function resolvePending(world: World, choice: string): void {
           const specialty = specialtyFor(world, record.specialtyId)
           // One event, not a same-tick begin-and-end: a short course fits
           // inside the month, and the feed should not pretend otherwise.
-          recordEvent(world, pending.tick, { type: 'completed-training', subjectId: person.id, detail: 'an advanced course' })
+          const school =
+            pending.occupationId === null
+              ? undefined
+              : world.spec.schools.find((sc) => sc.id === pending.occupationId)
+          recordEvent(world, pending.tick, {
+            type: 'completed-training',
+            subjectId: person.id,
+            detail: school?.title ?? 'an advanced course',
+          })
           const performance = Math.min(1000, record.performance + 60)
           boostServicePerformance(world, person.id, 60)
           // The school can also earn the trade's rating — which counts
@@ -2629,7 +2637,17 @@ export function describePending(world: World, pending: PendingDecision): string 
       return `The ${standing?.targetTitle ?? 'promotion'} board meets. Put your name in?`
     }
     case 'attend-school':
-      return 'A slot at an advanced school has opened. Take it?'
+      {
+        // The course has a NAME, and the player deciding whether to go
+        // should be told which one it is.
+        const school =
+          pending.occupationId === null
+            ? undefined
+            : world.spec.schools.find((sc) => sc.id === pending.occupationId)
+        return school === undefined
+          ? 'A slot at an advanced school has opened. Take it?'
+          : `A seat has opened at ${school.title}. Take it?`
+      }
     case 'volunteer-deploy':
       return 'The unit is taking names for the next deployment. Volunteer?'
     case 'support-deployment': {

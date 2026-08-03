@@ -213,11 +213,16 @@ export function separationFor(
     ...decorations.filter((a) => a.kind === 'qualification-badge'),
   ].map((a) => (a.count > 1 ? `${a.title} (×${String(a.count)})` : a.title))
 
-  // Military education: the courses actually finished, in the order they
-  // were finished, without repeats.
+  // Military education: the COURSES actually finished, in order, without
+  // repeats. Initial entry training is not one of them — everybody who ever
+  // wore the uniform did it, so listing it says nothing and pushes the real
+  // schools down the block. A DD-214's education line is what somebody was
+  // sent away to learn.
+  const ENTRY_TRAINING = new Set(['basic training', 'the commissioning course'])
   const schools: string[] = []
   for (const event of eventsFor(world, personId)) {
     if (event.type !== 'completed-training' || event.detail === null) continue
+    if (ENTRY_TRAINING.has(event.detail)) continue
     if (!schools.includes(event.detail)) schools.push(event.detail)
   }
 

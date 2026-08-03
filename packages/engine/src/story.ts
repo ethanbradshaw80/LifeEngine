@@ -103,7 +103,7 @@ function rankWordsFor(world: World, event: WorldEvent): string {
   const rank = Number.parseInt(event.detail, 10)
   if (!Number.isInteger(rank) || String(rank) !== event.detail) return event.detail
   const record = world.service.get(event.subjectId)
-  return record ? rankTitle(world, record.branch, rank) : 'promotion'
+  return record ? rankTitle(world, record.branch, rank, record.commissioned === true) : 'promotion'
 }
 
 function describeEvent(world: World, person: Person, event: WorldEvent): string | null {
@@ -677,7 +677,7 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
       const record = world.service.get(event.subjectId)
       if (!record || record.dischargedAtTick === null) return null
       const years = Math.max(1, Math.floor((record.dischargedAtTick - record.enlistedAtTick) / TICKS_PER_YEAR))
-      return `${String(years)} year${years === 1 ? '' : 's'} in uniform, finishing as ${rankTitle(world, record.branch, record.rank)}.`
+      return `${String(years)} year${years === 1 ? '' : 's'} in uniform, finishing as ${rankTitle(world, record.branch, record.rank, record.commissioned === true)}.`
     }
 
     case 'granted-pension': {
@@ -903,7 +903,7 @@ export function personSummary(world: World, personId: EntityId): string {
   const service = world.service.get(personId)
   if (service && service.dischargedAtTick === null) {
     const trade = specialtyFor(world, service.specialtyId).title
-    return `${fullName(person)}, ${age}, ${rankTitle(world, service.branch, service.rank)} — ${trade}${married}`
+    return `${fullName(person)}, ${age}, ${rankTitle(world, service.branch, service.rank, service.commissioned === true)} — ${trade}${married}`
   }
   if (occupation) return `${fullName(person)}, ${age}, ${occupation}${married}`
   const education = world.education.get(personId)

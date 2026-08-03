@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { CLASSIC_SPEC } from '../src/worldspec.js'
 import { squadmatesOf, unitRosterOf } from '../src/service.js'
 
 describe('unit rosters', () => {
@@ -35,7 +36,19 @@ describe('unit rosters', () => {
     expect(rostersSeen).toBeGreaterThan(0)
   })
 
-  it('rank the roster, so the leader is whoever really holds the rank', () => {
+  it('rank the roster by who actually answers for the rest', () => {
+    // NOT by the ladder index. Both ladders start at zero, so an index
+    // comparison put a second lieutenant below a master sergeant and named
+    // the sergeant their leader. Authority is the pay grade, with every
+    // officer above every enlisted member.
+    const authority = (personId: number): number => {
+      const r = world.service.get(personId as never)
+      if (!r) return -1
+      const branch = CLASSIC_SPEC.branches.find((b) => b.id === r.branch)
+      if (r.commissioned === true) return 100 + ((branch?.officerGrades ?? [])[r.rank] ?? r.rank + 1)
+      return (branch?.grades ?? [])[r.rank] ?? r.rank + 1
+    }
+
     for (const record of serving) {
       const roster = unitRosterOf(world, record.personId)
       if (!roster || roster.members.length < 2) continue
@@ -43,10 +56,13 @@ describe('unit rosters', () => {
         const above = roster.members[i - 1]
         const below = roster.members[i]
         if (!above || !below) continue
-        expect(above.rank).toBeGreaterThanOrEqual(below.rank)
+        expect(authority(above.personId)).toBeGreaterThanOrEqual(authority(below.personId))
       }
-      expect(roster.members[0]?.role).toBe('squad leader')
-      if (roster.members.length > 1) expect(roster.members[1]?.role).toBe('team leader')
+      // And a unit with an officer in it is led by the officer.
+      const ledByOfficer =
+        world.service.get(roster.members[0]?.personId as never)?.commissioned === true
+      expect(roster.members[0]?.role).toBe(ledByOfficer ? 'platoon leader' : 'squad leader')
+      expect(roster.members[1]?.role).toBe(ledByOfficer ? 'platoon sergeant' : 'team leader')
     }
   })
 
