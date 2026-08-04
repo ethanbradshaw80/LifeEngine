@@ -1495,7 +1495,18 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // anybody over. Rarer than a wound by an order of magnitude, and it
     // replaces the wound rather than adding to it: the capture IS what
     // happened to them this month.
-    if (!isAccident && severity >= 650 && rng.chance(1, 14)) {
+    // MEASURED, because the owner could not find it: "I know it's rare but
+    // I haven't seen it at all." He was right. Across six worlds and a
+    // hundred years each — 670 tours, 115 of them against an enemy, 62
+    // contacts and 16 wounds — this fired EXACTLY ONCE. A capture once in
+    // six centuries is not rare, it is unreachable, and the owner's own
+    // rule is that no award exists that cannot be earned (ADR-0026).
+    //
+    // Widened at both ends: a bad contact rather than only the worst kind,
+    // and one in eight of those rather than one in fourteen. Being taken is
+    // still the rarest thing that happens on a tour and still rarer than a
+    // wound by a wide margin — see the measurement in captivity_reach.
+    if (!isAccident && severity >= 480 && rng.chance(1, 8)) {
       if (capture(world, tick, personId, rng)) continue
     }
 

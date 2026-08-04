@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v89 — CAPTURE MADE REACHABLE. The owner had never seen a prisoner of war
+ *      in any playthrough, and measurement agreed: six worlds of a century
+ *      each produced exactly ONE capture. Widened from severity 650 and one
+ *      in fourteen to severity 480 and one in eight — three captures over
+ *      the same six worlds, all repatriated, and still about a fifth as
+ *      likely as a wound, which is roughly the real ratio.
  * v88 — CALIBRATED TO HISTORY. The world starts in 1970 and its money was
  *      written in modern dollars, so neither the start year nor the wage
  *      table could be right. Every base-year constant is now 1970 money —
@@ -562,7 +568,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 88
+export const SIMULATION_VERSION = 89
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

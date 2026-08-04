@@ -171,3 +171,40 @@ describe('a prisoner', () => {
     }
   })
 })
+
+describe('capture is reachable, not theoretical', () => {
+  it('happens often enough that a played world can meet it', () => {
+    // OWNER, PLAYING: "I know we have that badge where you can become a POW
+    // but I've never actually ever been captured or seen anyone with the
+    // badge... I know it's rare but I haven't seen it at all."
+    //
+    // MEASURED, and he was right. At the first setting — enemy contact at
+    // severity 650 or worse, then one in fourteen — six worlds of a hundred
+    // years each produced 670 tours, 115 of them against an enemy, 62
+    // contacts, 16 wounds and EXACTLY ONE capture. Once in six centuries is
+    // not rare, it is unreachable, and no award may exist that cannot be
+    // earned (ADR-0026).
+    //
+    // Widened to severity 480 and one in eight: three captures across the
+    // same six worlds, all three repatriated, held seven, fourteen and
+    // thirty months. The wounded-to-captured ratio lands near five to one,
+    // which is about what the real figures are.
+    let captured = 0
+    let wounded = 0
+    let repatriated = 0
+    for (const seedValue of [12345, 4141, 777, 2024, 90210, 31415]) {
+      const world = createWorld(makeSeed(seedValue), 100)
+      advanceTicks(world, 1200)
+      for (const event of world.events) {
+        if (event.type === 'was-captured') captured++
+        if (event.type === 'wounded-in-action') wounded++
+        if (event.type === 'repatriated') repatriated++
+      }
+    }
+    expect(captured, 'nobody in six centuries was ever taken').toBeGreaterThan(1)
+    // And still the rarest thing on a tour — never commoner than a wound.
+    expect(captured).toBeLessThan(wounded)
+    // Nobody is left held for ever: every capture ends, one way or another.
+    expect(repatriated).toBeGreaterThan(0)
+  })
+})
