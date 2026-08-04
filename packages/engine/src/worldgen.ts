@@ -148,6 +148,7 @@ export function createWorld(
     households: new Map(),
     accounts: new Map(),
     bankruptcies: new Map(),
+    businesses: new Map(),
     economy: freshEconomy(),
     sectorPrices: freshSectorPrices(),
     education: new Map(),

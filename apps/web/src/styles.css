@@ -3032,3 +3032,306 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   margin-top: 0.8rem;
   width: 100%;
 }
+
+/* ---------------------------------------------------------------------------
+   THE CAREER TAB (M-CAREER §6).
+
+   The Service tab's civilian twin, and the owner's mockup: a header with the
+   title and the YEARLY pay, sections behind a bottom bar, and the ladder
+   drawn as rungs with you standing on one.
+   ------------------------------------------------------------------------- */
+.career {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.career-head {
+  padding: 0.7rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.career-head .k {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.career-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin-top: 0.2rem;
+}
+
+.career-emp {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.1rem;
+}
+
+.career-pay {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-top: 0.4rem;
+}
+
+.career-pay span {
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 0.74rem;
+}
+
+.career-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.6rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.career-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+}
+
+.career-card h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.career-meter {
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.career-meter i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.career-meter i.good {
+  background: var(--ok);
+}
+
+.career-meter i.bad {
+  background: var(--bad);
+}
+
+.career-meter i.gold {
+  background: #d4af37;
+}
+
+.career-meterline {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 0.35rem;
+}
+
+.career-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.career-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.22rem 0;
+  font-size: 0.84rem;
+}
+
+.career-row-label {
+  color: var(--muted);
+}
+
+.career-row-sub {
+  display: block;
+  font-size: 0.7rem;
+}
+
+.career-row-value {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The ladder, drawn. */
+.rungs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rung {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.35rem 0;
+  position: relative;
+}
+
+.rung + .rung::before {
+  content: '';
+  position: absolute;
+  left: 0.3rem;
+  top: -0.35rem;
+  height: 0.7rem;
+  border-left: 2px solid var(--line);
+}
+
+.rung .dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  flex: 0 0 auto;
+  margin-top: 0.2rem;
+}
+
+.rung.done .dot {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.rung.here .dot {
+  background: #d4af37;
+  border-color: #d4af37;
+  box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.18);
+}
+
+.rung .t {
+  font-size: 0.86rem;
+}
+
+.rung.here .t {
+  font-weight: 800;
+}
+
+.rung.future .t {
+  color: var(--muted);
+}
+
+.rung .s {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.rung .chip {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #e3c06a;
+  background: rgba(212, 175, 55, 0.14);
+  border-radius: 5px;
+  padding: 0.05rem 0.35rem;
+}
+
+/* Openings, and the trades you could go into. */
+.openings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.openings li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.openings li:last-child {
+  border-bottom: none;
+}
+
+.openings li.is-shut .o-title {
+  color: var(--muted);
+}
+
+.openings .o-title {
+  font-size: 0.84rem;
+  min-width: 0;
+}
+
+.openings .s {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+
+.openings .s.bar {
+  font-style: italic;
+}
+
+.resume {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.resume li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.resume li:last-child {
+  border-bottom: none;
+}
+
+.career-tabs {
+  display: flex;
+  gap: 0.2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.career-tabs button {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.25rem 0.1rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.6rem;
+}
+
+.career-tabs button .i {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.career-tabs button.is-active {
+  color: var(--accent);
+}

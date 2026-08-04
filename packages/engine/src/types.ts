@@ -448,6 +448,28 @@ export interface Accounts {
  * on the credit file for years afterwards — seven and ten — which is the
  * same door the criminal record uses (C3 §5): shut, and openable again.
  */
+/**
+ * M-CAREER §5. A BUSINESS. Persisted, so it lives here beside every other
+ * entity the save carries; business.ts holds what one DOES.
+ */
+export interface Business {
+  readonly id: EntityId
+  readonly ownerId: EntityId
+  readonly kindId: string
+  /** Fictional, like every business in this world (charter §3). */
+  readonly name: string
+  readonly foundedTick: Tick
+  /** What is in it. Grows with retained profit, shrinks with losses. */
+  readonly capital: Money
+  readonly employees: number
+  /** Consecutive months in the red. Three closes it. */
+  readonly badMonths: number
+  /** Null while trading. */
+  readonly closedTick: Tick | null
+  /** How many times it has changed hands. Legacy, on the record. */
+  readonly generations: number
+}
+
 export type BankruptcyChapter = 7 | 13
 
 export interface Bankruptcy {
@@ -1242,6 +1264,7 @@ export type PendingKind =
   | 'bankruptcy'
   | 'promotion-offer'
   | 'work-moment'
+  | 'interview'
   | 'promotion-offer'
   | 'reenlist-term'
   | 'reenlist-option'
@@ -1369,6 +1392,9 @@ export type EventType =
   | 'drew-unemployment'
   | 'drew-assistance'
   | 'state-pension-began'
+  | 'opened-business'
+  | 'business-closed'
+  | 'inherited-business'
   | 'promoted-at-work'
   | 'passed-over'
   | 'work-moment'
@@ -1698,6 +1724,8 @@ export interface World {
    * remembers for years after that.
    */
   readonly bankruptcies: Map<EntityId, readonly Bankruptcy[]>
+  /** M-CAREER §5: every business ever opened in this town, by its own id. */
+  readonly businesses: Map<EntityId, Business>
   /** M-ECON §4: the weather everybody lives in. */
   readonly economy: EconomyState
   /** M-ECON §5: what each fictional sector costs today, in basis points. */

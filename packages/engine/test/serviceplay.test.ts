@@ -270,18 +270,30 @@ describe('tab verbs', () => {
       const person = anAdult(world)
       setPlayer(world, person.id)
       const result = applyForJob(world, 'labourer')
-      // Either hired (event 'hired') or turned down (event 'turned-down') —
-      // both are real answers, both in the story.
-      const hired = world.events.some((e) => e.type === 'hired' && e.subjectId === person.id)
-      const refused = world.events.some((e) => e.type === 'turned-down' && e.subjectId === person.id)
-      expect(result.hired ? hired : refused || result.reason.length > 0).toBe(true)
+      // M-CAREER §4: asking opens an INTERVIEW. Either the room happened —
+      // and the pending is there to prove it — or it was refused in words.
+      // Both are real answers, both on the record.
+      expect(result.applied ? world.player.pending?.kind === 'interview' : result.reason.length > 0).toBe(
+        true,
+      )
       expect(world.player.log.some((entry) => entry.kind === 'job-application')).toBe(true)
+
+      // And the room resolves to a hiring or an honest no.
+      if (result.applied) {
+        resolvePending(world, 'straight')
+        const hired = world.player.pending?.kind === 'job-offer'
+        const refused = world.events.some(
+          (e) => e.type === 'turned-down' && e.subjectId === person.id,
+        )
+        expect(hired || refused).toBe(true)
+        if (hired) resolvePending(world, 'accept')
+      }
 
       // One asking a month: the second application is refused before the
       // roll, and writes nothing new.
       const eventsBefore = world.events.length
       const again = applyForJob(world, 'cook')
-      expect(again.hired).toBe(false)
+      expect(again.applied).toBe(false)
       expect(again.reason).toContain('One asking')
       expect(world.events.length).toBe(eventsBefore)
     }
@@ -295,7 +307,7 @@ describe('tab verbs', () => {
     const education = world.education.get(person.id)
     if (education?.level === 'college') return // this seed's adult is a scholar; nothing to test
     const result = applyForJob(world, 'doctor')
-    expect(result.hired).toBe(false)
+    expect(result.applied).toBe(false)
     expect(result.reason).toContain('college')
     expect(world.events.some((e) => e.type === 'turned-down')).toBe(false)
   })

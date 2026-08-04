@@ -104,6 +104,7 @@ import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
 import { Bank } from './Bank.js'
+import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
 
 /** One glyph per event type. Emoji: zero assets, universally shipped. */
@@ -229,7 +230,7 @@ const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
   { id: 'record', label: 'Record' },
 ]
 
-type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'jobs' | 'news' | 'stats' | 'service' | 'health' | 'record'
+type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'career' | 'jobs' | 'news' | 'stats' | 'service' | 'health' | 'record'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -237,6 +238,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
   { id: 'home', icon: '🏠', label: 'Home' },
   { id: 'money', icon: '💰', label: 'Money' },
+  { id: 'career', icon: '📈', label: 'Career' },
   { id: 'family', icon: '👪', label: 'Family' },
   { id: 'people', icon: '💞', label: 'People' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
@@ -1179,6 +1181,18 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               )
             })()
           )}
+        </div>
+      )}
+
+      {tab === 'career' && (
+        <div className="panel" aria-label="Career">
+          <Career
+            world={world}
+            person={person}
+            busy={busy}
+            onApplyJob={onApplyJob}
+            onAct={onAct}
+          />
         </div>
       )}
 

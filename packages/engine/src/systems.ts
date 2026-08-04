@@ -58,6 +58,7 @@ import {
   householdCosts,
   householdIncome,
   inArrears,
+  passOnBusinesses,
   startUnemployment,
 } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
@@ -1746,6 +1747,11 @@ export function performDeath(
   // survivor's share opens here, while the marriage is still a marriage
   // (relationships turns it to widowhood a few lines down).
   openSurvivorPension(world, tick, person.id)
+
+  // M-CAREER §5. THE BUSINESS PASSES ON EVERY DEATH, not only the ones that
+  // empty a household — that is where the estate is settled, and a business
+  // owner usually dies with somebody still in the house.
+  passOnBusinesses(world, tick, person.id)
 
   if (person.householdId !== null) {
     const householdId = person.householdId

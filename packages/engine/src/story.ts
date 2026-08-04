@@ -461,6 +461,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return null // a balance, not a life event
     case 'drew-assistance':
       return null
+    case 'opened-business':
+      return `${year} — Opened ${event.detail ?? 'a business'}.`
+    case 'business-closed':
+      return `${year} — ${event.detail ?? 'The business'} closed its doors.`
+    case 'inherited-business':
+      return `${year} — Took on ${event.detail ?? 'the family business'} from ${nameOf(world, event.otherId)}.`
     case 'promoted-at-work':
       return `${year} — Promoted to ${occupationById(event.detail ?? '').title}.`
     case 'passed-over':

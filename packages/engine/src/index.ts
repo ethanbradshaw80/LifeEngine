@@ -82,6 +82,9 @@ export {
   quitJob,
   requestDeployment,
   requestDischarge,
+  isStretchFor,
+  jobBar,
+  startBusiness,
   requestEnlistment,
   requestEnrolment,
   requestSchool,
@@ -349,7 +352,16 @@ export {
   totalDebtOf,
 } from './credit.js'
 export type { Loan, LoanKind } from './types.js'
-export type { Bankruptcy, BankruptcyChapter } from './types.js'
+export type { Bankruptcy, BankruptcyChapter, Business } from './types.js'
+export {
+  BUSINESS_KINDS,
+  businessBar,
+  businessHealthWords,
+  businessKindById,
+  businessNameFor,
+  monthlyProfitFor,
+} from './business.js'
+export type { BusinessKind } from './business.js'
 export {
   CHAPTER_7_FILE_YEARS,
   CHAPTER_13_FILE_YEARS,
@@ -394,6 +406,14 @@ export {
   workResultFor,
 } from './workmoments.js'
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
+export {
+  INTERVIEW_APPROACHES,
+  INTERVIEW_OPTIONS,
+  decodeInterview,
+  interviewOutcomeOf,
+  interviewSituation,
+} from './interview.js'
+export type { InterviewApproach, InterviewOption, InterviewOutcome } from './interview.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

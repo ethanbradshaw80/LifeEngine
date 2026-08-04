@@ -272,6 +272,15 @@ describe('the courthouse', () => {
     expect(head).toBeDefined()
     if (!head) return
 
+    // A chapter 7 discharge is what is left AFTER the non-exempt assets are
+    // sold, so the fixture has to be somebody who genuinely cannot cover it
+    // — otherwise a well-off filer legitimately discharges nothing, which
+    // is what happened once businesses started paying people.
+    world.accounts.set(head.id, {
+      ...accountsOf(world, head.id),
+      checking: 0 as Money,
+      savings: 0 as Money,
+    })
     world.households.set(household.id, { ...household, savings: -4_000_000 as Money })
     const filing = fileBankruptcy(world, world.tick as Tick, head.id, 7)
     expect(filing).toBeDefined()

@@ -1100,3 +1100,64 @@ saves still read back.
   *before* support was considered, so **the floors were counted in household
   income and never actually paid to anyone**. A household with $647 coming
   in went $250 further behind every month.
+
+---
+
+## ADR-0029 — Civilian careers brought up to the military's depth
+
+**Date.** 2026-08-04. **Status.** Accepted.
+
+**Context.** Civilian work was a list of jobs with pay bands and a record
+that went hired → annual raise → fired. The military career beside it has
+ranks, a promotion board, schools, tours and awards. A shop clerk had a wage
+and nothing else for fifty years.
+
+**Decision.** Build the civilian parallel, one for one — rank ladder → job
+ladder, board → annual review, time in grade → months in the rung, specialty
+→ track, deployments → work moments, discharge → quitting, being let go, or
+going into business for yourself.
+
+1. **Nine tracks, twenty-nine new rungs.** A rung is an ordinary occupation,
+   so hiring, pay, tax and the ledger needed no changes; what is new is that
+   occupations know what comes next. Pay stays in `content.ts` — a ladder
+   carrying its own pay table would be a second source of truth.
+
+2. **The review is the board.** Performance and time in the job, leaned on
+   by the economy so a boom opens doors a slump keeps shut. Meeting the bar
+   is not being chosen, and being passed over is recorded.
+
+3. **Ten work moments, each with its own copy.** The rule the crime scenes
+   were rebuilt to enforce, applied to work: no line is shared between two
+   moments. A test proves it and caught three shared labels on the first run.
+
+4. **Applying opens an interview.** Three ways to play the room, and which
+   one works depends on whether the job is a reach. The offer that follows
+   is a card of its own. `jobBar` gives the Openings list the same refusal
+   the button gives — the `offenceBar` pattern.
+
+5. **Business is the other road.** Five scales from freelance work to a
+   contracting firm, bought with real capital, riding the cycle directly,
+   able to fail, and passing to an eldest child — the only thing in this
+   world that keeps earning for somebody who did not build it.
+
+6. **A Career tab**, the Service tab's civilian twin. Pay shown yearly and
+   paid monthly throughout.
+
+**Consequences.** SIMULATION_VERSION 85, SCHEMA_VERSION 35, two migrations
+(the ladder, and the register of businesses). Every working life in every
+seed differs from v81.
+
+**Four things measured rather than guessed.** Promotions run 92 against 88
+pass-overs across three seeds and seventy-five years, with people standing on
+every rung. Work moments fire 2,080 times, all ten kinds, about one every
+three years per worker. A work-moment raise had to be **clamped to the
+occupation's band** — a counteroffer really can beat the band, but pay that
+drifts past the ceiling compounds over fifty years. And business survival
+was **93 per cent** at the first setting, which no small trade has ever had;
+at the second it is 58 per cent, with the failures having a median life of
+seventeen years.
+
+**One leak a test caught.** Businesses passed on through `distributeEstate`,
+which only runs when a death empties a household — so a business went on
+trading for decades under an owner who had died with somebody still in the
+house. It now passes on every death.

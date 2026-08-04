@@ -114,6 +114,18 @@ import { loanBar } from './credit.js'
 import type { LoanKind } from './types.js'
 import { crimeOutcomeFor, decodeCrimeScene } from './crimescene.js'
 import { decodeWorkMoment, situationOf, workMomentById } from './workmoments.js'
+import {
+  INTERVIEW_APPROACHES,
+  approachBonus,
+  decodeInterview,
+  encodeInterview,
+  interviewSituation,
+} from './interview.js'
+import type { InterviewApproach } from './interview.js'
+import { placeOf } from './careers.js'
+import { businessBar, businessKindById } from './business.js'
+import { openBusiness } from './finances.js'
+import { atTodaysPrices } from './economy.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -290,40 +302,115 @@ export function createCustomLife(world: World, spec: CustomLifeSpec): EntityId |
  * qualified gets you considered; the town still has to have a place. A "no"
  * goes in the feed like a "yes" does — asking is part of the story.
  */
-export function applyForJob(world: World, occupationId: string): { hired: boolean; reason: string } {
+/**
+ * M-CAREER §4. WHY THIS JOB IS SHUT TO THEM, in plain English, or null when
+ * it is open.
+ *
+ * The `offenceBar` / `moveBar` pattern, and for the same reason: the
+ * Openings list and the button under it must read from ONE function, or a
+ * live row and an honest refusal will eventually disagree. Everything
+ * applyForJob would refuse for is here, so the list can grey a row and say
+ * why without guessing.
+ */
+export function jobBar(world: World, occupationId: string): string | null {
   const person = playerPerson(world)
-  if (!person || person.deathTick !== null) return { hired: false, reason: 'Nobody is being played.' }
-  if (world.player.pending !== null) return { hired: false, reason: 'A decision is already waiting.' }
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
   const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
-  if (!occupation) return { hired: false, reason: 'No such trade in town.' }
+  if (!occupation) return 'No such trade in town.'
 
   const tick = world.tick
-  const age = ageAt(person.birthTick, tick)
-  if (age < 18) return { hired: false, reason: 'Not yet eighteen.' }
+  if (ageAt(person.birthTick, tick) < 18) return 'Not yet eighteen.'
   if (isServing(world, person.id)) {
-    return { hired: false, reason: 'The uniform is a full-time career; leave the service first.' }
+    return 'The uniform is a full-time career; leave the service first.'
   }
   const education = world.education.get(person.id)
   if (education?.enrolledIn !== null && education !== undefined && educationRank(education.enrolledIn) > 2) {
-    return { hired: false, reason: 'Full-time study fills the days.' }
+    return 'Full-time study fills the days.'
+  }
+  if (isSeverelyAiling(world, person.id)) return 'Too ill or hurt to take new work this month.'
+  if (isJailed(world, person.id)) return 'Nobody is hiring out of a cell.'
+  const current = world.employment.get(person.id)
+  if (current?.occupationId === occupationId) return 'This is already the work they do.'
+  if (world.player.log.some((entry) => entry.kind === 'job-application' && entry.tick === tick)) {
+    return 'One asking a month. The town knows where to find you.'
+  }
+  const unlocked = veteranUnlocks(world, person.id)
+  const qualified =
+    meetsRequirement(education?.level ?? 'none', occupation.requires) || unlocked.includes(occupation.id)
+  if (!qualified) {
+    const asks =
+      occupation.requires === 'college'
+        ? 'college'
+        : occupation.requires === 'trade'
+          ? 'trade school'
+          : 'more schooling'
+    return `${sentenceCase(occupation.title)} asks for ${asks} — the papers are not there.`
+  }
+  if (placesOfKind(world, 'workplace').length === 0) return 'No workplace stands in town.'
+  return null
+}
+
+/**
+ * M-CAREER §4. Is this job a genuine reach for them?
+ *
+ * A rung above what they hold, or a third more money than they earn now.
+ * The interview reads it: what wins a room you are ready for is not what
+ * wins a room you are reaching into.
+ */
+export function isStretchFor(world: World, personId: EntityId, occupationId: string): boolean {
+  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
+  if (!occupation) return false
+  const current = world.employment.get(personId)
+  if (!current) return false
+  if (occupation.minMonthlyPay > Math.floor((current.monthlyPay * 13) / 10)) return true
+  const here = placeOf(current.occupationId)
+  const there = placeOf(occupationId)
+  return here !== undefined && there !== undefined && there.rung > here.rung
+}
+
+/**
+ * M-CAREER §4. GO AND ASK.
+ *
+ * NOTE THE RETURN. This used to hire you or not; it now opens an INTERVIEW,
+ * so `applied` is what it can honestly report — whether the room happened.
+ * Whether they want you is decided in it, and the offer that may follow is
+ * a card of its own. The field was called `hired` and a test caught the lie
+ * immediately, which is the field name doing its job.
+ */
+export function applyForJob(world: World, occupationId: string): { applied: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { applied: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { applied: false, reason: 'A decision is already waiting.' }
+  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
+  if (!occupation) return { applied: false, reason: 'No such trade in town.' }
+
+  const tick = world.tick
+  const age = ageAt(person.birthTick, tick)
+  if (age < 18) return { applied: false, reason: 'Not yet eighteen.' }
+  if (isServing(world, person.id)) {
+    return { applied: false, reason: 'The uniform is a full-time career; leave the service first.' }
+  }
+  const education = world.education.get(person.id)
+  if (education?.enrolledIn !== null && education !== undefined && educationRank(education.enrolledIn) > 2) {
+    return { applied: false, reason: 'Full-time study fills the days.' }
   }
   if (isSeverelyAiling(world, person.id)) {
-    return { hired: false, reason: 'Too ill or hurt to take new work this month.' }
+    return { applied: false, reason: 'Too ill or hurt to take new work this month.' }
   }
   // Jail is absence (C1) — runEmployment has always known that and this
   // verb never did, so a jailed player could be hired from a cell. Reachable
   // the moment C2 let the player go to jail at all.
   if (isJailed(world, person.id)) {
-    return { hired: false, reason: 'Nobody is hiring out of a cell.' }
+    return { applied: false, reason: 'Nobody is hiring out of a cell.' }
   }
   const current = world.employment.get(person.id)
   if (current?.occupationId === occupationId) {
-    return { hired: false, reason: 'This is already the work they do.' }
+    return { applied: false, reason: 'This is already the work they do.' }
   }
   // One asking a month: the same month re-rolls the same answer, and a life
   // story should not carry ten identical rejections dated the same day.
   if (world.player.log.some((entry) => entry.kind === 'job-application' && entry.tick === tick)) {
-    return { hired: false, reason: 'One asking a month. The town knows where to find you.' }
+    return { applied: false, reason: 'One asking a month. The town knows where to find you.' }
   }
 
   // The asking is a player input — logged before the answer, so replay
@@ -340,29 +427,68 @@ export function applyForJob(world: World, occupationId: string): { hired: boolea
   const qualified =
     meetsRequirement(education?.level ?? 'none', occupation.requires) || unlocked.includes(occupation.id)
   if (!qualified) {
-    return { hired: false, reason: `${occupation.title} asks for ${occupation.requires === 'college' ? 'college' : occupation.requires === 'trade' ? 'trade school' : 'more schooling'} — the papers are not there.` }
+    return { applied: false, reason: `${occupation.title} asks for ${occupation.requires === 'college' ? 'college' : occupation.requires === 'trade' ? 'trade school' : 'more schooling'} — the papers are not there.` }
   }
 
-  const workplaces = placesOfKind(world, 'workplace')
-  if (workplaces.length === 0) return { hired: false, reason: 'No workplace stands in town.' }
-
+  // M-CAREER §4. THERE IS A ROOM NOW.
+  //
+  // This used to be one hidden roll behind a button. The interview is a
+  // real moment with three ways to play it, and the roll happens when it is
+  // answered — see the 'interview' case in resolvePending.
   const rng = openStream(world.seed, Stream.Employment, person.id, tick + 9999)
-  // Asking beats waiting for the town to come to you — but a big step up
-  // from today's wage is a harder door, and none of it is a sure thing.
-  const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
-  const stretch = current !== undefined && occupation.minMonthlyPay > Math.floor(current.monthlyPay * 13 / 10) ? 150 : 0
-  if (!rng.chance(450 + Math.floor(drive / 4) - stretch, 1000)) {
-    recordEvent(world, tick, { type: 'turned-down', subjectId: person.id, detail: occupation.title })
-    return { hired: false, reason: `No place for ${withArticle(occupation.title)} this month. The asking is on the record.` }
-  }
+  const variant = rng.nextIntInclusive(0, 999)
+  const opened = raisePending(world, {
+    tick,
+    kind: 'interview',
+    personId: person.id,
+    otherId: null,
+    occupationId: encodeInterview(occupation.id, variant),
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: [...INTERVIEW_APPROACHES],
+  })
+  if (opened) return { applied: true, reason: '' }
+  return { applied: false, reason: 'There is already a decision waiting.' }
+}
 
+/**
+ * M-CAREER §4. THE ROOM'S ANSWER.
+ *
+ * The odds the old button rolled, plus what the approach was worth in a
+ * room of this kind. Returns the offer to raise, or null for a no — the
+ * caller raises it AFTER commit(), because raisePending refuses while the
+ * answered interview still holds the slot. (The trap the trial, the
+ * contract chain, the separation sheet and the crime scene each fell into.)
+ */
+export function resolveInterview(
+  world: World,
+  tick: Tick,
+  person: Person,
+  occupationId: string,
+  approach: InterviewApproach,
+  variant: number,
+): { hired: boolean; workplaceId: EntityId | null; pay: Money } {
+  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
+  const workplaces = placesOfKind(world, 'workplace')
+  if (!occupation || workplaces.length === 0) {
+    return { hired: false, workplaceId: null, pay: 0 as Money }
+  }
+  const rng = openStream(world.seed, Stream.Employment, person.id, tick + 10_101)
+  const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
+  const stretch = isStretchFor(world, person.id, occupationId)
+  const odds = 450 + Math.floor(drive / 4) - (stretch ? 150 : 0) + approachBonus(approach, stretch)
+  if (!rng.chance(Math.max(30, Math.min(970, odds)), 1000)) {
+    recordEvent(world, tick, { type: 'turned-down', subjectId: person.id, detail: occupation.title })
+    return { hired: false, workplaceId: null, pay: 0 as Money }
+  }
   const workplace = rng.pick(workplaces)
-  const pay = rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay) as Money
-  hirePerson(world, tick, person, occupation, workplace.id, pay, [
-    factor('own-choice', 1000),
-    factor('qualified-for-role', 500 + educationRank(education?.level ?? 'none') * 100),
-  ])
-  return { hired: true, reason: '' }
+  const pay = atTodaysPrices(
+    world,
+    rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay) as Money,
+  ) as Money
+  void variant
+  return { hired: true, workplaceId: workplace.id, pay }
 }
 
 /**
@@ -370,6 +496,32 @@ export function applyForJob(world: World, occupationId: string): { hired: boolea
  * which-uniform question follows immediately; barred, the reason comes back
  * in plain words instead of a silent dead end.
  */
+/**
+ * M-CAREER §5. OPEN THE DOORS.
+ *
+ * Real capital, out of savings, gone the moment it is spent. Refused in
+ * plain words rather than greyed out, like every other verb here.
+ */
+export function startBusiness(world: World, kindId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const kind = businessKindById(kindId)
+  const accounts = accountsOf(world, person.id)
+  const cash = (accounts.savings + accounts.checking) as Money
+  const capital = kind === undefined ? (0 as Money) : (atTodaysPrices(world, kind.capital) as Money)
+  const owns = [...world.businesses.values()].some(
+    (business) => business.ownerId === person.id && business.closedTick === null,
+  )
+  const bar = businessBar(kind, cash, capital, owns, ageAt(person.birthTick, world.tick))
+  if (bar !== null) return { done: false, reason: bar }
+  if (!kind) return { done: false, reason: 'No such trade to go into.' }
+
+  const opened = openBusiness(world, world.tick, person.id, kind.id, capital)
+  return opened
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'It did not come together this month.' }
+}
+
 /**
  * M-ECON §9. THE BANK'S VERBS.
  *
@@ -1392,6 +1544,14 @@ export function resolvePending(world: World, choice: string): void {
     kind: 'reenlist-term' | 'reenlist-option' | 'service-contract'
     state: string
   } | null = null
+  // M-CAREER §4. The OFFER, carried out of the switch below for the same
+  // reason everything else here is: raisePending refuses while the answered
+  // interview still holds the slot, so a job won in the room would vanish.
+  let offerNext: {
+    occupationId: string
+    workplaceId: EntityId
+    pay: Money
+  } | null = null
   // The crime, run after commit() so the courthouse it may open can land.
   let crimeNext: {
     offenceId: string
@@ -1564,6 +1724,30 @@ export function resolvePending(world: World, choice: string): void {
           danger: state.danger,
           variant: state.variant,
           choice: choice === 'press' || choice === 'cool' ? choice : 'bail',
+        }
+      }
+      break
+    }
+
+    case 'interview': {
+      // M-CAREER §4. The room's answer. The roll happens HERE, not when the
+      // button was pressed — how they played it is part of the odds.
+      const state = decodeInterview(pending.occupationId)
+      const approach: InterviewApproach =
+        choice === 'sell' || choice === 'keen' ? choice : 'straight'
+      const result = resolveInterview(
+        world,
+        pending.tick,
+        person,
+        state.occupationId,
+        approach,
+        state.variant,
+      )
+      if (result.hired && result.workplaceId !== null) {
+        offerNext = {
+          occupationId: state.occupationId,
+          workplaceId: result.workplaceId,
+          pay: result.pay,
         }
       }
       break
@@ -2263,6 +2447,23 @@ export function resolvePending(world: World, choice: string): void {
     openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
   }
 
+  // M-CAREER §4. THE OFFER, with the slot free. Shown as a job-offer, which
+  // is the pending the town already uses when it comes to you — the same
+  // card, reached by having gone and asked.
+  if (offerNext !== null) {
+    raisePending(world, {
+      tick: pending.tick,
+      kind: 'job-offer',
+      personId: person.id,
+      otherId: null,
+      occupationId: offerNext.occupationId,
+      workplaceId: offerNext.workplaceId,
+      monthlyPay: offerNext.pay,
+      placeId: null,
+      options: ['accept', 'decline'],
+    })
+  }
+
   // The crime itself, with the slot free.
   if (crimeNext !== null) {
     const offence = offenceById(crimeNext.offenceId)
@@ -2778,6 +2979,13 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'interview': {
+      // The scene component draws the room; this is the fallback line.
+      const state = decodeInterview(pending.occupationId)
+      const title = occupationById(state.occupationId).title
+      return `They are interviewing you for ${withArticle(title)}. ${interviewSituation(state.variant)}`
+    }
+
     case 'work-moment': {
       // The scene component draws the card; this is the fallback line.
       const state = decodeWorkMoment(pending.occupationId)

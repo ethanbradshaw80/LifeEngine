@@ -27,7 +27,9 @@ import {
 import {
   contractFor,
   crimeSceneFor,
+  decodeInterview,
   decodeWorkMoment,
+  isStretchFor,
   occupationById,
   standingWords,
   workMomentById,
@@ -48,6 +50,7 @@ import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
+import { InterviewView } from './Interview.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
 import { Avatar } from './Avatar.js'
 import type { EntityId, Money } from '@life-engine/shared'
@@ -347,6 +350,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
 export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
   'crime-scene',
   'work-moment',
+  'interview',
   'separation-record',
   'retirement-certificate',
   'service-contract',
@@ -482,6 +486,21 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
         </div>
       )
     }
+  }
+
+  // THE INTERVIEW. The forty minutes the old button skipped over.
+  if (pending.kind === 'interview') {
+    const state = decodeInterview(pending.occupationId)
+    return (
+      <div className="overlay" role="dialog" aria-modal="true" aria-label="An interview">
+        <InterviewView
+          role={occupationById(state.occupationId).title}
+          variant={state.variant}
+          stretch={isStretchFor(world, pending.personId, state.occupationId)}
+          onChoose={onChoose}
+        />
+      </div>
+    )
   }
 
   // A MOMENT AT WORK. Same rails as the crime scene, entirely its own copy.

@@ -154,7 +154,7 @@ describe('committing an offence', () => {
       // assertion is the jail one.)
       expect(hasRecentConviction(world, id)).toBe(true)
       const asked = applyForJob(world, 'labourer')
-      expect(asked.hired).toBe(false)
+      expect(asked.applied).toBe(false)
       expect(asked.reason).toContain('cell')
     }
     expect(tested).toBeGreaterThan(0)

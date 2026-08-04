@@ -83,6 +83,13 @@ import {
   underStay,
 } from './bankruptcy.js'
 import { placesOfKind } from './worldgen.js'
+import {
+  BUSINESS_FAILS_AFTER,
+  BUSINESS_KINDS,
+  businessKindById,
+  businessNameFor,
+  monthlyProfitFor,
+} from './business.js'
 
 /** Months of arrears before a household is pushed toward cheaper rent. */
 const ARREARS_PATIENCE_MONTHS = 4
@@ -1186,6 +1193,8 @@ export function runFinances(world: World, tick: Tick): void {
     noteArrearsCrossing(world, tick, household.id, before)
   }
 
+  runNpcVentures(world, tick)
+  runBusinesses(world, tick)
   runPlans(world, tick)
   runInsolvency(world, tick)
   rehouseIfAble(world, tick)
@@ -1600,6 +1609,228 @@ function rehouseIfAble(world: World, tick: Tick): void {
         streamId: Stream.Economy,
       })
     }
+  }
+}
+
+/**
+ * M-CAREER §5. THE CAPITAL GOES IN AND THE DOORS OPEN.
+ *
+ * Money out of savings then checking — it is spent, not staked, and there
+ * is no version of this where it comes back untouched.
+ */
+export function openBusiness(
+  world: World,
+  tick: Tick,
+  ownerId: EntityId,
+  kindId: string,
+  capital: Money,
+): boolean {
+  const owner = world.people.get(ownerId)
+  if (!owner || capital <= 0) return false
+  const accounts = accountsOf(world, ownerId)
+  if (accounts.savings + accounts.checking < capital) return false
+
+  const fromSavings = Math.min(capital, accounts.savings)
+  const fromChecking = capital - fromSavings
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings - fromSavings) as Money,
+    checking: (accounts.checking - fromChecking) as Money,
+  })
+
+  const id = world.nextEntityId as EntityId
+  world.nextEntityId += 1
+  const rng = openStream(world.seed, Stream.Career, ownerId, tick + 11_500)
+  world.businesses.set(id, {
+    id,
+    ownerId,
+    kindId,
+    name: businessNameFor(owner.familyName, kindId, rng.nextIntInclusive(0, 999)),
+    foundedTick: tick,
+    capital,
+    employees: 0,
+    badMonths: 0,
+    closedTick: null,
+    generations: 0,
+  })
+  recordEvent(world, tick, {
+    type: 'opened-business',
+    subjectId: ownerId,
+    detail: world.businesses.get(id)?.name ?? kindId,
+  })
+  recordDecision(world, tick, {
+    subjectId: ownerId,
+    decision: 'employment-change',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('ambition', owner.traits.ambition)],
+    chosen: `opened ${world.businesses.get(id)?.name ?? 'a business'}`,
+    rejected: ['working for somebody else'],
+    streamId: Stream.Career,
+  })
+  return true
+}
+
+/**
+ * M-CAREER §5. A BUSINESS PASSES DOWN.
+ *
+ * The only thing in this world that keeps earning for somebody who did not
+ * build it. Called from the estate, because that is where everything else a
+ * person leaves is handed on — and if there is no heir it simply closes,
+ * which is what happens to most of them.
+ */
+export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId): void {
+  // The eldest living child, or nobody. Worked out here rather than passed
+  // in, because this is called on EVERY death — not only the ones that
+  // empty a household, which is where distributeEstate lives and is
+  // exactly the gap a test caught: a business went on trading for decades
+  // under an owner who had died in a house with other people in it.
+  const heirId =
+    [...world.people.values()]
+      .filter((person) => person.deathTick === null && person.parentIds.includes(deceasedId))
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]?.id ?? null
+  for (const business of [...world.businesses.values()].sort((a, b) => a.id - b.id)) {
+    if (business.ownerId !== deceasedId || business.closedTick !== null) continue
+    if (heirId === null) {
+      world.businesses.set(business.id, { ...business, closedTick: tick })
+      recordEvent(world, tick, {
+        type: 'business-closed',
+        subjectId: deceasedId,
+        detail: business.name,
+      })
+      continue
+    }
+    world.businesses.set(business.id, {
+      ...business,
+      ownerId: heirId,
+      generations: business.generations + 1,
+    })
+    recordEvent(world, tick, {
+      type: 'inherited-business',
+      subjectId: heirId,
+      otherId: deceasedId,
+      detail: business.name,
+    })
+  }
+}
+
+/**
+ * M-CAREER §5. THE TOWN'S OWN ENTREPRENEURS.
+ *
+ * The player is not the only person who can go into business. An ambitious
+ * adult with enough put by to cover a trade's capital AND a year of living
+ * afterwards will take the risk — rarely, because most people do not.
+ *
+ * Without this the register held exactly one business per world, the
+ * player's, which would make "business owners both succeed and fail" a
+ * claim about a sample of one.
+ */
+function runNpcVentures(world: World, tick: Tick): void {
+  if (tick % 6 !== 3) return // twice a year, on a fixed month
+  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+    if (person.deathTick !== null || person.id === world.player.personId) continue
+    const age = ageAt(person.birthTick, tick)
+    if (age < 24 || age > 62) continue
+    if (person.traits.ambition < 620) continue
+    if ([...world.businesses.values()].some((b) => b.ownerId === person.id && b.closedTick === null)) {
+      continue
+    }
+    const accounts = accountsOf(world, person.id)
+    const cash = (accounts.savings + accounts.checking) as Money
+    const keepBy = livingCostAt(world, LIVING_COST_ADULT) * 12
+    // The biggest trade they could open and still have a year to live on.
+    const kind = [...BUSINESS_KINDS]
+      .sort((a, b) => b.capital - a.capital)
+      .find((entry) => cash - keepBy >= atTodaysPrices(world, entry.capital))
+    if (!kind) continue
+
+    const rng = openStream(world.seed, Stream.Career, person.id, tick + 11_900)
+    if (!rng.chance(35 + Math.floor(person.traits.ambition / 20), 1000)) continue
+    openBusiness(world, tick, person.id, kind.id, atTodaysPrices(world, kind.capital) as Money)
+  }
+}
+
+/**
+ * M-CAREER §5. THE MONTH A BUSINESS HAD.
+ *
+ * Profit lands in the owner's own checking, which is what makes it income
+ * rather than a score. A loss comes out of the CAPITAL first — a business
+ * absorbs its own bad months, which is what capital is for — and only what
+ * the capital cannot absorb touches the owner. Three consecutive months in
+ * the red and the doors shut.
+ */
+function runBusinesses(world: World, tick: Tick): void {
+  for (const id of [...world.businesses.keys()].sort((a, b) => a - b)) {
+    const business = world.businesses.get(id)
+    if (!business || business.closedTick !== null) continue
+    const owner = world.people.get(business.ownerId)
+    const kind = businessKindById(business.kindId)
+    if (!kind) continue
+
+    // A dead owner's business waits for probate — distributeEstate hands it
+    // on. It does not trade in the meantime.
+    if (!owner || owner.deathTick !== null) continue
+
+    const rng = openStream(world.seed, Stream.Career, business.id, tick + 11_000)
+    const swing = rng.nextIntInclusive(-980, 980)
+    const profit = monthlyProfitFor(
+      business,
+      kind,
+      world.economy.phase,
+      world.economy.growthPerMille,
+      owner.traits.diligence,
+      swing,
+    )
+
+    if (profit >= 0) {
+      // A share is drawn as income and the rest is retained, which is how a
+      // business grows into a bigger one without a second mechanism.
+      const drawn = Math.floor((profit * 700) / 1000) as Money
+      creditPerson(world, business.ownerId, drawn)
+      world.businesses.set(business.id, {
+        ...business,
+        capital: (business.capital + (profit - drawn)) as Money,
+        badMonths: 0,
+      })
+      continue
+    }
+
+    const loss = -profit
+    const fromCapital = Math.min(loss, business.capital)
+    const badMonths = business.badMonths + 1
+    if (badMonths >= BUSINESS_FAILS_AFTER || fromCapital < loss) {
+      // IT CLOSES. What is left of the capital comes back to the owner, and
+      // it is always less than went in.
+      world.businesses.set(business.id, {
+        ...business,
+        capital: 0 as Money,
+        badMonths,
+        closedTick: tick,
+      })
+      creditPerson(world, business.ownerId, Math.max(0, business.capital - loss) as Money)
+      recordEvent(world, tick, {
+        type: 'business-closed',
+        subjectId: business.ownerId,
+        detail: business.name,
+      })
+      recordDecision(world, tick, {
+        subjectId: business.ownerId,
+        decision: 'employment-change',
+        significance: 'major',
+        inputs: [
+          factor('economy-turned', Math.min(1000, Math.abs(world.economy.growthPerMille) * 40)),
+          factor('poor-performance', 1000 - owner.traits.diligence),
+        ],
+        chosen: `closed ${business.name}`,
+        rejected: ['carrying it another month'],
+        streamId: Stream.Career,
+      })
+      continue
+    }
+    world.businesses.set(world.businesses.get(business.id)!.id, {
+      ...business,
+      capital: (business.capital - fromCapital) as Money,
+      badMonths,
+    })
   }
 }
 

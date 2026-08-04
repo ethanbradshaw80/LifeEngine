@@ -12,6 +12,7 @@ import type {
   Accounts,
   AwardRecord,
   Bankruptcy,
+  Business,
   CausalRecord,
   CriminalRecord,
   EducationRecord,
@@ -174,6 +175,10 @@ function hydrate(
   const households = new Map<EntityId, Household>()
   for (const household of body['households'] as Household[]) households.set(household.id, household)
 
+  const businesses = new Map<EntityId, Business>()
+  for (const record of (body['businesses'] as Business[] | undefined) ?? []) {
+    businesses.set(record.id, record)
+  }
   const bankruptcies = new Map<EntityId, readonly Bankruptcy[]>()
   for (const record of (body['bankruptcies'] as Bankruptcy[] | undefined) ?? []) {
     bankruptcies.set(record.personId, [...(bankruptcies.get(record.personId) ?? []), record])
@@ -244,6 +249,7 @@ function hydrate(
     households,
     accounts,
     bankruptcies,
+    businesses,
     economy: body['economy'] as World['economy'],
     sectorPrices: body['sectorPrices'] as World['sectorPrices'],
     education,

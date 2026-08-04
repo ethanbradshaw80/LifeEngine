@@ -26,6 +26,7 @@ import {
   bankTransfer,
   borrowPlayer,
   buyHomePlayer,
+  startBusiness,
   divestPlayer,
   investPlayer,
   chooseSpendStance,
@@ -99,6 +100,7 @@ export type VerbRequest =
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
   | { readonly verb: 'buy-home' }
+  | { readonly verb: 'start-business'; readonly kindId: string }
 
 export type WorkerRequest =
   | {
@@ -237,7 +239,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         // The engine answers honestly either way; a "no" travels back as a
         // notice so the player hears it even though the world barely moved.
         const result = applyForJob(world, request.occupationId)
-        send(0, result.hired ? undefined : result.reason)
+        send(0, result.applied ? undefined : result.reason)
         return
       }
 
@@ -413,6 +415,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'buy-home': {
             const r = buyHomePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'start-business': {
+            const r = startBusiness(world, a.kindId)
             outcome = { ok: r.done, reason: r.reason }
             break
           }
