@@ -1389,7 +1389,12 @@ export function resolvePending(world: World, choice: string): void {
     state: string
   } | null = null
   // The crime, run after commit() so the courthouse it may open can land.
-  let crimeNext: { offenceId: string; danger: CrimeDanger; choice: CrimeChoice } | null = null
+  let crimeNext: {
+    offenceId: string
+    danger: CrimeDanger
+    variant: number
+    choice: CrimeChoice
+  } | null = null
   if (!pending.options.includes(choice)) {
     throw new Error(`"${choice}" is not one of: ${pending.options.join(', ')}`)
   }
@@ -1553,6 +1558,7 @@ export function resolvePending(world: World, choice: string): void {
         crimeNext = {
           offenceId: state.offenceId,
           danger: state.danger,
+          variant: state.variant,
           choice: choice === 'press' || choice === 'cool' ? choice : 'bail',
         }
       }
@@ -2220,7 +2226,7 @@ export function resolvePending(world: World, choice: string): void {
   if (crimeNext !== null) {
     const offence = offenceById(crimeNext.offenceId)
     if (offence !== undefined) {
-      const outcome = crimeOutcomeFor(crimeNext.danger, crimeNext.choice, offence)
+      const outcome = crimeOutcomeFor(crimeNext.danger, crimeNext.choice, offence, crimeNext.variant)
       executeOffence(world, pending.tick, person, offence, outcome)
       // The armed resident, through the same health system every other
       // wound uses. A shotgun in a hallway is not a special case, and it

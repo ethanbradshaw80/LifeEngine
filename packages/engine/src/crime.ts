@@ -543,12 +543,17 @@ export function commitOffence(
   // until executeOffence runs.
   const sceneRng = openStream(world.seed, Stream.Crime, person.id, tick + 5252)
   const danger = dangerFor(offence, sceneRng)
+  // Which wording out of the scene's pools. Rolled ONCE and carried on the
+  // pending, so the sentence the player read before choosing is the one the
+  // outcome follows on from — a scene that rewords itself between the tell
+  // and the answer is a different scene.
+  const variant = sceneRng.nextIntInclusive(0, 999)
   const opened = raisePending(world, {
     tick,
     kind: 'crime-scene',
     personId: person.id,
     otherId: null,
-    occupationId: encodeCrimeScene(offence.id, danger),
+    occupationId: encodeCrimeScene(offence.id, danger, variant),
     workplaceId: null,
     monthlyPay: null,
     placeId: null,
@@ -557,7 +562,7 @@ export function commitOffence(
   if (opened) return { done: true, reason: '' }
   // No slot for the scene — resolve it the way an unattended crime goes,
   // rather than silently doing nothing with a verb the player just spent.
-  executeOffence(world, tick, person, offence, crimeOutcomeFor(danger, 'cool', offence))
+  executeOffence(world, tick, person, offence, crimeOutcomeFor(danger, 'cool', offence, variant))
   return { done: true, reason: '' }
 }
 

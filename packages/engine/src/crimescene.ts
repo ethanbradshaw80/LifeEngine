@@ -14,30 +14,43 @@
  * the player is given a TELL they can read, and what they do about it
  * decides the outcome. Nothing moves until they answer.
  *
+ * THE SECOND BUG, found the same way: one generic template was reused for
+ * every crime and every answer, so a white-collar crime showed the burglary
+ * text and offered "go for the safe". The fix is the rule this module now
+ * enforces end to end —
+ *
+ *   text + options = f(the offence, the rolled band, the choice, the result)
+ *
+ * — with every line authored per scene in crimecopy.ts and picked from a
+ * pool by seed. Varied wording, never a mismatched fact. Nothing is
+ * generated; the pools are written by hand, which is the point.
+ *
  * This module is pure and holds no state: it says what the room looks like
  * and what an answer to it means. crime.ts owns the money, the record and
  * the courthouse, exactly as before.
  */
 
 import type { Offence } from './content.js'
+import { PROFILE_BANDS, PROFILE_OPTIONS, SCENE_OF } from './crimecopy.js'
+import type { CrimeDanger, DangerProfile, SceneCopy } from './crimecopy.js'
 
 /**
  * How the room actually is, hidden until the scene is drawn.
  *
- * Named for what the player sees rather than for a number, because the
- * whole point is that the tell is readable: a dark house, a light upstairs,
- * a shotgun in the dark.
+ * Declared alongside the copy it names — "armed" in a house, "a patrol near"
+ * on a street, "an audit" in a ledger — and re-exported here, which is where
+ * the rest of the engine has always read it from.
  */
-export type CrimeDanger = 'quiet' | 'occupied' | 'hot'
+export type { CrimeDanger }
 
-/** Press on, keep cool, or back out. */
+/** The three answers. Their WORDS come from the profile; these are the ids. */
 export type CrimeChoice = 'press' | 'cool' | 'bail'
 
 export const CRIME_SCENE_OPTIONS: readonly CrimeChoice[] = ['press', 'cool', 'bail']
 
 export interface CrimeScene {
   readonly danger: CrimeDanger
-  /** "Occupied" — the banner. */
+  /** "Occupied" / "A witness" / "An audit" — the banner, in this profile's words. */
   readonly label: string
   /** The tell: what the player can see before choosing. */
   readonly tell: string
@@ -56,7 +69,7 @@ export type CrimeOutcomeKind =
   | 'seen'
   /** Nothing taken; arrested on the spot. */
   | 'caught'
-  /** The resident was armed. */
+  /** It went physically wrong. */
   | 'wounded'
   /** Backed out. No crime, no loss. */
   | 'bailed'
@@ -80,6 +93,16 @@ export interface CrimeOutcome {
   readonly clearancePerMille: number
 }
 
+/** Every offence has one. The catalogue is checked for it by a test. */
+export function profileOf(offence: Offence): DangerProfile {
+  return offence.danger ?? 'police'
+}
+
+/** The authored set for this offence. */
+export function copyFor(offence: Offence): SceneCopy | undefined {
+  return SCENE_OF[offence.id]
+}
+
 /**
  * The danger, weighted by WHAT KIND of danger the offence carries.
  *
@@ -97,282 +120,188 @@ export function dangerFor(
   offence: Offence,
   rng: { nextIntInclusive: (min: number, max: number) => number },
 ): CrimeDanger {
-  const risk = offence.danger === 'physical' ? 2 : offence.danger === 'police' ? 1 : 0
+  const profile = profileOf(offence)
+  const risk = profile === 'physical' ? 2 : profile === 'police' ? 1 : 0
   const roll = rng.nextIntInclusive(1, 100)
   // quiet / occupied / hot, sliding with the offence's own danger.
-  const quiet = 55 - risk * 15
-  const occupied = quiet + 32 - risk * 4
+  //
+  // MEASURED, and the first setting contradicted the paragraph above it: at
+  // `55 - risk * 15` a physical crime came up HOT 51 times in 100 — a
+  // burglary met an armed resident more often than not, which is both
+  // absurd and exactly the thing that teaches a player to always bail.
+  // Re-measured over all 100 rolls at this setting: hot is 25 for physical,
+  // 17 for police-risk and 9 for a paper crime, which is the intended shape
+  // — rare, real, and rarest where nobody is going to walk in on you.
+  const quiet = 50 - risk * 8
+  const occupied = quiet + 41
   if (roll <= quiet) return 'quiet'
   if (roll <= occupied) return 'occupied'
   return 'hot'
 }
 
-const LABELS: Record<CrimeDanger, string> = {
-  quiet: 'Quiet',
-  occupied: 'Occupied',
-  hot: 'Hot',
+/**
+ * ONE LINE OUT OF A POOL, by seed.
+ *
+ * Deterministic and total: the same offence, band and pick always give the
+ * same sentence, and an empty pool is impossible because the test asserts
+ * every slot of every set is non-empty.
+ */
+function fromPool(pool: readonly string[], pick: number): string {
+  if (pool.length === 0) return ''
+  return pool[Math.abs(pick) % pool.length] ?? ''
 }
 
 /**
- * WHICH KIND OF ROOM THIS IS.
+ * A stable number to pick pool entries with.
  *
- * Found by playing: "disorderly conduct" was being described as a burglary
- * — "whoever lives here is not home tonight", with "go for the safe" as an
- * option. There is no house and there is no safe. A tell that asserts a
- * scene the offence does not have is the same fault as prose asserting a
- * mechanism the record does not support, and the player reads it instantly.
- *
- * Four registers, decided by what the offence actually IS rather than by
- * how bad it is:
- *
- *   person   somebody is standing in front of you
- *   house    you are inside somewhere you should not be
- *   ledger   nobody will walk in; the risk is that it is noticed later
- *   street   nothing is being taken at all — the risk is being seen doing it
+ * The variant is carried on the pending alongside the band, so the sentence
+ * a player read before choosing is the same one they would read again — a
+ * scene that reworded itself between the tell and the answer would be a
+ * different scene.
  */
-type SceneRegister = 'person' | 'house' | 'ledger' | 'street'
-
-function registerFor(offence: Offence): SceneRegister {
-  if (offence.violent === true) return 'person'
-  if (offence.takesFromHousehold === true) return 'house'
-  if (offence.gainMax > 0) return 'ledger'
-  return 'street'
-}
-
-const TELLS: Record<SceneRegister, Record<CrimeDanger, string>> = {
-  person: {
-    quiet:
-      'They are alone and not paying attention, head down, a long way from the nearest lit porch.',
-    occupied:
-      'They are alone, but the street is not — there are voices somewhere behind you, and a car idling at the kerb.',
-    hot: 'They turn before you are ready, and they are bigger than they looked. Their hand is already going inside their coat.',
-  },
-  house: {
-    quiet: 'The windows are dark and the drive is empty. Whoever lives here is not home tonight.',
-    occupied: 'A light burns upstairs, and somewhere inside a dog starts to bark.',
-    hot: 'You are barely inside when you hear it — the unmistakable rack of a shotgun in the dark.',
-  },
-  ledger: {
-    quiet: 'The office is empty and the ledger is open. Nobody reconciles this account until spring.',
-    occupied: 'The book does not balance the way it did last week. Someone has been through it since you have.',
-    hot: 'There is an auditor at the desk that is usually empty, and they have your file open in front of them.',
-  },
-  street: {
-    quiet: 'The street is empty and the hour is late. Nobody is going to see this.',
-    occupied: 'There are people on the corner and a lit window across the road. Somebody is watching, or will be.',
-    hot: 'A constable rounds the corner ahead of you and slows down when they see your face.',
-  },
-}
-
-const OPTION_WORDS: Record<
-  SceneRegister,
-  { press: string; cool: string; bail: string; pressTitle: string; coolTitle: string; bailTitle: string }
-> = {
-  person: {
-    pressTitle: 'Press on',
-    press: 'Take everything they have on them — and make sure they do not follow.',
-    coolTitle: 'Keep cool',
-    cool: 'Take what is in their hand and be gone before they place your face.',
-    bailTitle: 'Bail',
-    bail: 'Leave them be and walk the other way.',
-  },
-  house: {
-    pressTitle: 'Press on',
-    press: 'Go for the safe — more to take, more to lose.',
-    coolTitle: 'Keep cool',
-    cool: "Grab what's in reach and slip out.",
-    bailTitle: 'Bail',
-    bail: 'Back out now, empty-handed.',
-  },
-  ledger: {
-    pressTitle: 'Take the lot',
-    press: 'Move the whole balance and square the book afterwards.',
-    coolTitle: 'Skim it',
-    cool: 'Take a little, from an account nobody reads closely.',
-    bailTitle: 'Put it back',
-    bail: 'Close the book and leave the numbers where they were.',
-  },
-  street: {
-    pressTitle: 'Push it',
-    press: 'Make a scene of it, and let whoever is watching watch.',
-    coolTitle: 'Keep it quiet',
-    cool: 'Do what you came to do without drawing a crowd.',
-    bailTitle: 'Walk away',
-    bail: 'Let it go and keep walking.',
-  },
-}
-
-function optionsFor(offence: Offence): CrimeScene['options'] {
-  const words = OPTION_WORDS[registerFor(offence)]
-  return [
-    { id: 'press', title: words.pressTitle, tag: 'high risk', detail: words.press },
-    { id: 'cool', title: words.coolTitle, tag: 'measured', detail: words.cool },
-    { id: 'bail', title: words.bailTitle, tag: 'safe', detail: words.bail },
-  ]
-}
-
-export function crimeSceneFor(offence: Offence, danger: CrimeDanger): CrimeScene {
+export function crimeSceneFor(offence: Offence, danger: CrimeDanger, variant = 0): CrimeScene {
+  const profile = profileOf(offence)
+  const copy = copyFor(offence)
+  const words = PROFILE_OPTIONS[profile]
   return {
     danger,
-    label: LABELS[danger],
-    tell: TELLS[registerFor(offence)][danger],
-    options: optionsFor(offence),
+    label: PROFILE_BANDS[profile][danger],
+    tell: copy === undefined ? '' : fromPool(copy[danger], variant),
+    options: [
+      {
+        id: 'press',
+        title: words.press,
+        tag: 'high risk',
+        detail: copy?.pressDetail ?? '',
+      },
+      { id: 'cool', title: words.cool, tag: 'measured', detail: copy?.coolDetail ?? '' },
+      { id: 'bail', title: words.bail, tag: 'safe', detail: copy?.bailDetail ?? '' },
+    ],
   }
+}
+
+/** What the six results are called, per profile. */
+const TITLES: Record<DangerProfile, Record<CrimeOutcomeKind, string>> = {
+  physical: {
+    bailed: 'Walked away',
+    clean: 'Clean getaway',
+    seen: 'Seen',
+    wounded: 'It goes wrong',
+    caught: 'Caught in the act',
+  },
+  police: {
+    bailed: 'Left it alone',
+    clean: 'Nobody looked',
+    seen: 'Somebody saw',
+    wounded: 'It goes wrong',
+    caught: 'Stopped',
+  },
+  discovery: {
+    bailed: 'Put it back',
+    clean: 'Nobody counted',
+    seen: 'It shows in the books',
+    wounded: 'The file comes apart',
+    caught: 'Asked to explain it',
+  },
+}
+
+/** The consequence line: factual, and worded for where the danger lives. */
+const CONSEQUENCES: Record<DangerProfile, Record<CrimeOutcomeKind, string>> = {
+  physical: {
+    bailed: 'Nothing taken. Nothing lost.',
+    clean: 'No witnesses. You were never there.',
+    seen: 'You were seen — evidence is high. Expect the constable.',
+    wounded: 'Badly hurt in the doing. If you live, this goes before the judge.',
+    caught: 'Arrested on the spot. Your case goes before the judge.',
+  },
+  police: {
+    bailed: 'Nothing done. Nothing on the record.',
+    clean: 'Nobody reported it. Low evidence.',
+    seen: 'Somebody gave a description. Evidence is high.',
+    wounded: 'It went physical, and that is a charge of its own.',
+    caught: 'Stopped and taken in. Your case goes before the judge.',
+  },
+  discovery: {
+    bailed: 'The books balance. Nothing happened.',
+    clean: 'Nothing on paper points anywhere near you.',
+    seen: 'It is in writing now, and the writing is yours.',
+    wounded: 'The whole file is being read, and it reads badly.',
+    caught: 'Referred, and the referral names you. This goes before the judge.',
+  },
 }
 
 /**
  * What an answer to that room actually means.
  *
  * THE RULE THIS OBEYS is the combat moment's: a choice is never a discount.
- * Bailing is genuinely safe and genuinely empty-handed; pressing on in a
- * hot room can get you hurt; and keeping cool is the middle everywhere,
+ * Bailing is genuinely safe and genuinely empty-handed; pressing on in the
+ * worst band can get you hurt; and holding back is the middle everywhere,
  * which is what makes reading the tell worth doing.
  *
- * The WORDS take the offence, because a ledger has no hallway — the first
- * version described every outcome as a burglary, including a bar fight and
- * a forged cheque.
+ * The numbers are the same for every crime — they are the shape of the
+ * gamble. The WORDS are the offence's own, out of its authored set.
  */
 export function crimeOutcomeFor(
   danger: CrimeDanger,
   choice: CrimeChoice,
   offence?: Offence,
+  variant = 0,
 ): CrimeOutcome {
-  const register = offence === undefined ? 'house' : registerFor(offence)
-  const said = (byRegister: Partial<Record<SceneRegister, string>>, fallback: string): string =>
-    byRegister[register] ?? fallback
-
-  if (choice === 'bail') {
-    return {
-      kind: 'bailed',
-      title: danger === 'hot' ? 'Backed off' : 'Walked away',
-      text: said(
-        {
-          person: 'You let them go past. They never knew how close it came.',
-          ledger: 'You close the book and put it back exactly as you found it.',
-          street: 'You keep your head down and keep walking. Nothing happened here.',
-        },
-        danger === 'hot'
-          ? 'You do not argue with a shotgun. You are back out and gone, heart going like a hammer.'
-          : 'Something about it feels wrong. You back out and melt into the dark.',
-      ),
-      consequence: 'Nothing taken. Nothing lost.',
-      lootPerMille: 0,
-      clearancePerMille: 0,
-    }
+  const profile = offence === undefined ? 'physical' : profileOf(offence)
+  const copy = offence === undefined ? undefined : copyFor(offence)
+  const said = (slot: keyof SceneCopy): string => {
+    const pool = copy?.[slot]
+    return Array.isArray(pool) ? fromPool(pool, variant) : ''
   }
+  const made = (kind: CrimeOutcomeKind, slot: keyof SceneCopy, loot: number, clearance: number) => ({
+    kind,
+    title: TITLES[profile][kind],
+    text: said(slot),
+    consequence: CONSEQUENCES[profile][kind],
+    lootPerMille: loot,
+    clearancePerMille: clearance,
+  })
+
+  if (choice === 'bail') return made('bailed', 'bailed', 0, 0)
 
   if (danger === 'quiet') {
-    const press = choice === 'press'
-    return {
-      kind: 'clean',
-      title: 'Clean getaway',
-      text: press
-        ? said(
-            {
-              person: 'They never see you coming, and they are still on the ground when you are two streets away.',
-              ledger: 'You move the whole balance and square the book behind you. It will be spring before anyone looks.',
-              street: 'You do exactly what you came to do, loudly, and nobody comes.',
-            },
-            'Nobody home, all night to work. You find the safe, and it is not much of one.',
-          )
-        : said(
-            {
-              person: 'You take what is in their hand and you are gone before they have your face.',
-              ledger: 'A little, off an account nobody reads closely. It will not be missed.',
-              street: 'Quick and quiet, and the street stays empty.',
-            },
-            'You take what is lying out and you are gone in two minutes.',
-          ),
-      consequence: press ? 'No witnesses. You were never here.' : 'Low evidence — a quiet job.',
-      lootPerMille: press ? 1000 : 420,
-      clearancePerMille: press ? 350 : 200,
-    }
+    return choice === 'press'
+      ? made('clean', 'boldClean', 1000, 350)
+      : made('clean', 'quietClean', 420, 200)
   }
 
   if (danger === 'occupied') {
     return choice === 'press'
-      ? {
-          kind: 'seen',
-          title: 'Seen',
-          text: said(
-            {
-              person: 'Somebody shouts from the corner. You get what you came for and run, and they get a long look at you doing it.',
-              ledger: 'You take the lot — and the transfer sits there in the open, in your hand, dated.',
-              street: 'You make a scene of it, and half the street watches you make it.',
-            },
-            'A floorboard gives under you. A voice calls a name that is not yours, and a shape moves at the top of the stairs. You grab the drawer and run.',
-          ),
-          consequence: 'You were seen — evidence is high. Expect the constable.',
-          lootPerMille: 720,
-          clearancePerMille: 2400,
-        }
-      : {
-          kind: 'clean',
-          title: 'Slipped out',
-          text: said(
-            {
-              person: 'You take what is easy and go before anyone behind you turns round.',
-              ledger: 'You skim it and leave the book looking like a book.',
-              street: 'You do it small, and the corner does not look up.',
-            },
-            'You take what is by the door and go before the dog brings anyone down.',
-          ),
-          consequence: 'Somebody may have noticed — some evidence.',
-          lootPerMille: 300,
-          clearancePerMille: 900,
-        }
+      ? made('seen', 'seen', 720, 2400)
+      : made('clean', 'quietClean', 300, 900)
   }
 
-  // Hot. The room already told them.
+  // The worst band. The room already told them.
   return choice === 'press'
-    ? {
-        kind: 'wounded',
-        title: register === 'ledger' || register === 'street' ? 'It goes wrong' : 'It goes wrong',
-        text: said(
-          {
-            person: 'The knife is out before you understand there is one, and the street comes apart around you.',
-            ledger: 'The auditor looks up, and the room fills with people who were waiting for you to reach for it.',
-            street: 'You push it, and it stops being your night the moment hands are on you.',
-          },
-          'You go for the hall and the dark goes white. The blast catches you across the shoulder, and you are down before you hear the second one.',
-        ),
-        consequence:
-          register === 'ledger' || register === 'street'
-            ? 'Taken hold of, and hurt in the doing. This goes before the judge.'
-            : 'Gravely wounded. If you live, this is a court case — and the charge may not be what you came for.',
-        lootPerMille: 0,
-        clearancePerMille: 1000,
-      }
-    : {
-        kind: 'caught',
-        title: 'Caught in the act',
-        text: said(
-          {
-            person: 'They have your wrist and they are not letting go, and they are shouting for someone.',
-            ledger: 'The auditor turns the page towards you and asks you to explain it.',
-            street: 'The constable is already saying your name by the time you look up.',
-          },
-          'You freeze, hands up. The barrel does not waver. Headlights swing into the drive — they had already called it in.',
-        ),
-        consequence: 'Arrested. Your case goes before the judge.',
-        lootPerMille: 0,
-        clearancePerMille: 1000,
-      }
+    ? made('wounded', 'wounded', 0, 1000)
+    : made('caught', 'caught', 0, 1000)
 }
 
-/** "quiet:press" — what the pending carries between the scene and the answer. */
-export function encodeCrimeScene(offenceId: string, danger: CrimeDanger): string {
-  return `${offenceId}:${danger}`
+/**
+ * "burglary:quiet:2" — what the pending carries between the scene and the
+ * answer. The VARIANT travels with it so the sentence a player read before
+ * choosing is the one the outcome follows on from.
+ */
+export function encodeCrimeScene(offenceId: string, danger: CrimeDanger, variant = 0): string {
+  return `${offenceId}:${danger}:${String(variant)}`
 }
 
 export function decodeCrimeScene(encoded: string | null): {
   offenceId: string
   danger: CrimeDanger
+  variant: number
 } {
   const parts = (encoded ?? '').split(':')
   const danger = parts[1]
+  const variant = Number.parseInt(parts[2] ?? '0', 10)
   return {
     offenceId: parts[0] ?? '',
     danger: danger === 'quiet' || danger === 'occupied' || danger === 'hot' ? danger : 'quiet',
+    variant: Number.isFinite(variant) ? variant : 0,
   }
 }

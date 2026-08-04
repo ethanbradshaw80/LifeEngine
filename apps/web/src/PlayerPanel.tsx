@@ -480,7 +480,8 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       return (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="A crime">
           <CrimeSceneView
-            scene={crimeSceneFor(offence, state.danger)}
+            variant={state.variant}
+            scene={crimeSceneFor(offence, state.danger, state.variant)}
             offence={offence}
             title={offence.title}
             onChoose={onChoose}

@@ -30,18 +30,24 @@ export function CrimeSceneView({
   scene,
   offence,
   title,
+  variant,
   onChoose,
 }: {
   readonly scene: CrimeScene
   readonly offence: Offence
   /** The offence, by name. */
   readonly title: string
+  /**
+   * Which wording out of the scene's pools. Carried from the pending so the
+   * outcome follows on from the sentence the player actually read.
+   */
+  readonly variant: number
   readonly onChoose: (option: string) => void
 }): JSX.Element {
   const [answered, setAnswered] = useState<CrimeChoice | null>(null)
 
   if (answered !== null) {
-    const outcome = crimeOutcomeFor(scene.danger, answered, offence)
+    const outcome = crimeOutcomeFor(scene.danger, answered, offence, variant)
     const tone =
       outcome.kind === 'clean' ? 'win' : outcome.kind === 'bailed' ? 'warn' : 'bad'
     return (
