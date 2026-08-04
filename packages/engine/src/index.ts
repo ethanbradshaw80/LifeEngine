@@ -372,6 +372,17 @@ export {
   statePensionOf,
   unemploymentOf,
 } from './safetynet.js'
+export {
+  CAREER_TRACKS,
+  nextRungOf,
+  placeOf,
+  promotionBar,
+  reviewScoreFor,
+  standingWords,
+  trackById,
+  tracksOpenTo,
+} from './careers.js'
+export type { CareerTrack, Rung } from './careers.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

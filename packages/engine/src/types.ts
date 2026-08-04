@@ -697,6 +697,16 @@ export interface EmploymentRecord {
   readonly startedAtTick: Tick
   /** 0-1000, drifts with diligence. */
   readonly performance: number
+  /**
+   * M-CAREER §1. WHICH LADDER, AND WHEN THIS RUNG WAS TAKEN.
+   *
+   * The civilian parallel to a service record's rank and rankSinceTick:
+   * time in the job is half of what a review counts, exactly as time in
+   * grade is half of what a board counts. Null on a job that belongs to no
+   * track — the ladders cover the town's work, not every possible job.
+   */
+  readonly trackId: string | null
+  readonly rungSinceTick: Tick
 }
 
 // ---------------------------------------------------------------------------
@@ -1230,6 +1240,8 @@ export type PendingKind =
   | 'crime-scene'
   | 'money-shock'
   | 'bankruptcy'
+  | 'promotion-offer'
+  | 'promotion-offer'
   | 'reenlist-term'
   | 'reenlist-option'
   | 'service-contract'
@@ -1356,6 +1368,10 @@ export type EventType =
   | 'drew-unemployment'
   | 'drew-assistance'
   | 'state-pension-began'
+  | 'promoted-at-work'
+  | 'passed-over'
+  | 'promoted-at-work'
+  | 'passed-over'
   /** Money passed to this person from a parent's estate. */
   | 'inherited'
   | 'was-injured'

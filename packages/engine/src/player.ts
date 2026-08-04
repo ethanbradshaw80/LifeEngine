@@ -149,6 +149,7 @@ import {
   performQuit,
   retirePerson,
   TRADE_YEARS,
+  promoteTo,
 } from './systems.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
@@ -1566,6 +1567,17 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'promotion-offer': {
+      // M-CAREER §2. The civilian promotion board's answer. Declining is a
+      // real answer with a real cost — the rung stays where it is and the
+      // clock on it starts again — because a career is a series of choices
+      // about how much of your life the job gets.
+      if (choice === 'accept' && pending.occupationId !== null) {
+        promoteTo(world, pending.tick, person.id, pending.occupationId)
+      }
+      break
+    }
+
     case 'bankruptcy': {
       // M-SAFETY §2. Which chapter, where more than one is open. The court
       // is not being asked whether — the household is insolvent either way
@@ -2748,6 +2760,11 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'promotion-offer': {
+      const title = occupationById(pending.occupationId ?? '').title
+      return `They want to make you ${withArticle(title)}. More money, more of your week, and more of it on you. Take it?`
+    }
+
     case 'bankruptcy': {
       const owed = formatMoney((pending.monthlyPay ?? 0) as Money)
       const both = (pending.options ?? []).length > 1

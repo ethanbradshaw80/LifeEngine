@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { placeOf } from '../src/careers.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { BRANCH_RANKS,
@@ -249,7 +250,15 @@ describe('veterans', () => {
     const job = world.employment.get(person.id)
     if (job) {
       const allowed = new Set(['machinist', 'electrician', 'carpenter', 'labourer', 'shop-clerk', 'millhand', 'cook'])
-      expect(allowed.has(job.occupationId)).toBe(true)
+      // M-CAREER §2: a job can now be CLIMBED TO as well as hired into, so
+      // the claim is that whatever they hold is reachable — either a job
+      // they could be hired into directly, or a rung above one.
+      const climbedTo = (id: string): boolean => {
+        const place = placeOf(id)
+        if (!place) return false
+        return place.track.rungs.some((rung) => allowed.has(rung.occupationId))
+      }
+      expect(allowed.has(job.occupationId) || climbedTo(job.occupationId)).toBe(true)
     }
   })
 })

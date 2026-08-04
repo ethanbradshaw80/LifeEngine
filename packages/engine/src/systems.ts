@@ -21,6 +21,13 @@ import {
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
+import {
+  nextRungOf,
+  placeOf,
+  promotionBar,
+  reviewScoreFor,
+  trackById,
+} from './careers.js'
 import type { Rng } from './rng.js'
 import type {
   EducationLevel,
@@ -306,7 +313,110 @@ function constableSeatOpen(world: World): boolean {
   return serving < Math.max(1, Math.floor(adults / 250) + 1)
 }
 
+/**
+ * M-CAREER §2. THE ANNUAL REVIEW — the civilian promotion board.
+ *
+ * Once a year, in the month the job started, a person standing on a rung
+ * with the next one's requirements met is put up for it. The player is
+ * ASKED, because a promotion is a real choice — it is more money and more
+ * of your life — and NPCs are moved on the same numbers without a popup,
+ * which is the parity rule.
+ *
+ * The economy has its hand on this: reviewScoreFor leans on the cycle, so
+ * booms open doors a slump keeps shut. Being passed over is recorded too —
+ * a career that stalls is a thing that happened, not an absence of things.
+ */
+function runReviews(world: World, tick: Tick): void {
+  for (const person of livingPeople(world).sort((a, b) => a.id - b.id)) {
+    const job = world.employment.get(person.id)
+    if (!job || job.trackId === null) continue
+    // Once a year, on the anniversary of taking the rung.
+    if ((tick - job.rungSinceTick) % 12 !== 0 || tick === job.rungSinceTick) continue
+
+    const track = trackById(job.trackId)
+    if (!track) continue
+    const place = placeOf(job.occupationId)
+    if (!place) continue
+    const monthsInRung = tick - job.rungSinceTick
+    if (promotionBar(track, place.rung, job.performance, monthsInRung) !== null) continue
+
+    const next = nextRungOf(track, place.rung)
+    if (!next) continue
+    const score = reviewScoreFor(job.performance, monthsInRung, world.economy.growthPerMille)
+    const rng = openStream(world.seed, Stream.Career, person.id, tick + 9_100)
+    // Meeting the bar is not the same as being chosen. The score decides,
+    // and a slump can leave somebody qualified standing still for years.
+    if (!rng.chance(Math.max(0, Math.min(1000, score - 300)), 1000)) {
+      recordEvent(world, tick, { type: 'passed-over', subjectId: person.id, detail: next.occupationId })
+      continue
+    }
+
+    if (person.id === world.player.personId) {
+      const raised = raisePending(world, {
+        tick,
+        kind: 'promotion-offer',
+        personId: person.id,
+        otherId: null,
+        occupationId: next.occupationId,
+        workplaceId: job.workplaceId,
+        monthlyPay: null,
+        placeId: null,
+        options: ['accept', 'decline'],
+      })
+      if (raised) continue
+    }
+    promoteTo(world, tick, person.id, next.occupationId)
+  }
+}
+
+/**
+ * M-CAREER §2. UP A RUNG. The pay is drawn on the new occupation's band, at
+ * today's prices, and performance carries across — you are the same worker,
+ * in a bigger job.
+ */
+export function promoteTo(world: World, tick: Tick, personId: EntityId, occupationId: string): boolean {
+  const job = world.employment.get(personId)
+  if (!job) return false
+  const occupation = occupationById(occupationId)
+  const rng = openStream(world.seed, Stream.Career, personId, tick + 9_200)
+  const pay = atTodaysPrices(
+    world,
+    rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay) as Money,
+  ) as Money
+  const place = placeOf(occupationId)
+  world.employment.set(personId, {
+    ...job,
+    occupationId,
+    monthlyPay: pay,
+    trackId: place?.track.id ?? job.trackId,
+    rungSinceTick: tick,
+    // A new rung is a fresh start on it: the review that follows is about
+    // the job they are in now, not the one they left.
+    performance: Math.max(400, job.performance - 60),
+  })
+  recordEvent(world, tick, {
+    type: 'promoted-at-work',
+    subjectId: personId,
+    detail: occupationId,
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs: [
+      factor('qualified-for-role', job.performance),
+      factor('steady-pay', Math.min(1000, (tick - job.rungSinceTick) * 8)),
+    ],
+    chosen: `promoted to ${occupation.title}`,
+    rejected: ['staying where they were'],
+    streamId: Stream.Career,
+  })
+  return true
+}
+
 export function runEmployment(world: World, tick: Tick): void {
+  runReviews(world, tick)
+
   const workplaces = placesOfKind(world, 'workplace')
   if (workplaces.length === 0) return
 
@@ -453,6 +563,11 @@ export function hirePerson(
     monthlyPay: pay,
     startedAtTick: tick,
     performance: previous?.performance ?? Math.floor((person.traits.diligence + 500) / 2),
+    // M-CAREER §1. Which ladder this job sits on, and when they took this
+    // rung. Null where the job belongs to no track — the ladders cover the
+    // town's work, not every job it is possible to hold.
+    trackId: placeOf(occupation.id)?.track.id ?? null,
+    rungSinceTick: tick,
   })
   recordEvent(world, tick, {
     type: 'hired',

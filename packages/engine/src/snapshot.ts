@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v82 — M-CAREER PHASE 1: CIVILIAN WORK GETS A LADDER. Nine tracks from the
+ *      mill floor to the corner office, twenty-nine new rungs, and an
+ *      annual REVIEW that is the civilian promotion board — performance and
+ *      time in the job, leaned on by the economy, so a boom opens doors a
+ *      slump keeps shut. Every seed's working lives diverge from v81.
  * v81 — M-SAFETY: BANKRUPTCY, HOMELESSNESS AND THE FLOORS UNDER A LIFE.
  *      A state pension from 65 scaling with the months actually worked;
  *      unemployment insurance for six months after a LAYOFF; public
@@ -518,7 +523,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 81
+export const SIMULATION_VERSION = 82
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

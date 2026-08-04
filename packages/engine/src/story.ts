@@ -449,6 +449,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return null // a balance, not a life event
     case 'drew-assistance':
       return null
+    case 'promoted-at-work':
+      return `${year} — Promoted to ${occupationById(event.detail ?? '').title}.`
+    case 'passed-over':
+      return null // a year that did not turn is not an event on a timeline
     case 'state-pension-began':
       return `${year} — The state pension began.`
     case 'inherited': {

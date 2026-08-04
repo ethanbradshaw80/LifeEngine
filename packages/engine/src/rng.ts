@@ -38,6 +38,12 @@ export const Stream = {
   CombatResolution: 10,
   /** Appended at C1 (the sanctioned path): crime and justice draws. */
   Crime: 11,
+  /**
+   * Appended at M-CAREER, by the same sanctioned path: the civilian ladder,
+   * its reviews and its work moments. A stream of its own so that adding a
+   * career draw never reorders an employment one.
+   */
+  Career: 12,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

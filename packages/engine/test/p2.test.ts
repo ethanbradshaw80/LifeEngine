@@ -137,6 +137,8 @@ function giveJob(world: World, person: Person, performance: number, pay: number)
     monthlyPay: pay as Money,
     startedAtTick: world.tick,
     performance,
+    trackId: 'industrial',
+    rungSinceTick: world.tick,
   })
 }
 

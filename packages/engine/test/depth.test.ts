@@ -186,6 +186,8 @@ describe('retirement is the player\'s call', () => {
         monthlyPay: 200_000 as Money,
         startedAtTick: 0 as Tick,
         performance: 600,
+    trackId: null,
+    rungSinceTick: world.tick,
       })
     }
     return elder
