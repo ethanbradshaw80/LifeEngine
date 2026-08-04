@@ -255,7 +255,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Back on ${objectPronoun(person) === 'her' ? 'her' : 'his'} feet.`
     }
     case 'enlisted':
-      return `${year} — Enlisted as a ${event.detail ?? 'recruit'} at ${age}.`
+      return `${year} — Enlisted as ${withArticle(event.detail ?? 'recruit')} at ${age}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
     case 'money-shock': {

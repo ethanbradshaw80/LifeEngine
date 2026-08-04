@@ -32,6 +32,7 @@ import {
 } from '../src/index.js'
 import { distributeEstate, netWorthOf } from '../src/finances.js'
 import { atTodaysPrices } from '../src/economy.js'
+import { salesTaxOn } from '../src/tax.js'
 import type { World } from '../src/types.js'
 
 function build(seedValue = 12345, ticks = 0): World {
@@ -392,8 +393,14 @@ describe('the itemized ledger (P3)', () => {
       ).toBe(householdCosts(world, household))
 
       expect(ledger.lifestyle).toBe(discretionaryFor(world, household))
+      expect(ledger.salesTax).toBe(salesTaxOn(ledger.lifestyle))
       expect(ledger.net).toBe(monthlyNetOf(world, household))
-      expect(ledger.net).toBe(ledger.income - ledger.costs - ledger.lifestyle)
+      // SALES TAX IS IN THE MONTH. This assertion is what caught its absence:
+      // the settle charges costs + spending + salesTaxOn(spending), and the
+      // ledger was showing a left-over that skipped the last term.
+      expect(ledger.net).toBe(
+        ledger.income - ledger.costs - ledger.lifestyle - ledger.salesTax,
+      )
       expect(ledger.savings).toBe(household.savings)
       expect(ledger.inArrears).toBe(household.savings < 0)
     }

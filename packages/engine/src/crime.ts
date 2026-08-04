@@ -16,7 +16,7 @@
  *    gating (never stops existing) after ten clean years.
  */
 
-import type { EntityId, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { GRADE_TITLES, isFelony, offenceById, RECORD_GATE_YEARS } from './content.js'
 import type { Offence } from './content.js'
@@ -32,7 +32,7 @@ import { isDeployed } from './deployment.js'
 import {
   chargeHousehold,
   householdWealth,
-  creditHousehold,
+  creditPerson,
   inArrears,
   transferBetweenHouseholds,
 } from './finances.js'
@@ -649,11 +649,17 @@ export function executeOffence(
         if (member.id !== victim?.id && ageAt(member.birthTick, tick) < 18) continue
         recordEvent(world, tick, { type: 'was-robbed', subjectId: member.id, detail: String(taken) })
       }
-    } else if (person.householdId !== null) {
+    } else {
       // Money from outside the town's households — a till, a forged
-      // cheque, tax not paid. It still lands in a real ledger, through
-      // finances' own crediting door.
-      taken = creditHousehold(world, tick, person.householdId, wanted)
+      // cheque, tax not paid. It lands in the pocket of whoever took it,
+      // through finances' own crediting door.
+      //
+      // M-ECON §1: this used to credit the HOUSEHOLD balance, which is an
+      // obligations counter clamped at or below zero every month — so the
+      // proceeds of every till and forged cheque in the town were quietly
+      // deleted at the next settle, and C2's whole premise ("what you take
+      // is real money") was not true of half the offences.
+      taken = creditPerson(world, person.id, wanted as Money)
     }
   }
 
@@ -956,9 +962,10 @@ function carryOutOffence(
   const offence = intended.violent === true ? resolveViolence(world, tick, person, intended, rng) : intended
 
   let taken = 0
-  if (offence.gainMax > 0 && person.householdId !== null) {
+  if (offence.gainMax > 0) {
     const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
-    taken = creditHousehold(world, tick, person.householdId, wanted)
+    // The thief's own pocket — see the note in the theft path above.
+    taken = creditPerson(world, person.id, wanted as Money)
   }
 
   recordEvent(world, tick, {

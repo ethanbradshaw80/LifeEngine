@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v79 — MONEY THAT WAS BEING DELETED. Three places still credited the
+ *      HOUSEHOLD balance, which since M-ECON §1 is an obligations counter
+ *      clamped at or below zero every month: a reenlistment bonus, the
+ *      proceeds of every till and forged cheque, and a thief's take from
+ *      outside the town. All three were paid and then erased at the next
+ *      settle. They now land in the person's own checking, so lives that
+ *      re-enlisted for money or stole any of it diverge from v78.
  * v78 — M-ECON PHASES 4-6: A MARKET, DEBT, AND MONTHS THAT GO WRONG. Four
  *      fictional sectors with their own volatility and war-sensitivity; a
  *      brokerage and a tax-advantaged retirement account; dividends and
@@ -495,7 +502,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 78
+export const SIMULATION_VERSION = 79
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

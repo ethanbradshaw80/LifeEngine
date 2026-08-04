@@ -25,7 +25,7 @@ import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
-import { canAfford, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance, creditHousehold } from './finances.js'
+import { canAfford, creditPerson, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
   answerSupportDeployment,
@@ -1834,8 +1834,12 @@ export function resolvePending(world: World, choice: string): void {
       reenlistService(world, pending.tick, person, state.termYears * 12, administratorId)
       applyReenlistmentOption(world, pending.tick, person, state.option)
       // The money is moved here, where the ledger is reachable.
-      if (state.option === 'bonus' && state.bonus > 0 && person.householdId !== null) {
-        creditHousehold(world, pending.tick, person.householdId, state.bonus)
+      if (state.option === 'bonus' && state.bonus > 0) {
+        // M-ECON §1. THE MEMBER'S MONEY, NOT THE ROOF'S. This used to credit
+        // the household balance, which since the split is an OBLIGATIONS
+        // counter clamped at or below zero every month — so a player took a
+        // twelve-thousand-dollar bonus and the next settle deleted it.
+        creditPerson(world, person.id, state.bonus as Money)
       }
       break
     }

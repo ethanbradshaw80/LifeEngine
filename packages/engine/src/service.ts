@@ -1160,7 +1160,7 @@ export function enlistPerson(
       ? `commissioned into ${branchName(world, specialty.branch)} as ${
           'aeiou'.includes(specialtyTitleFor(specialty, true).charAt(0)) ? 'an' : 'a'
         } ${specialtyTitleFor(specialty, true)}`
-      : `enlisted in ${branchName(world, specialty.branch)} as a ${specialty.title}`,
+      : `enlisted in ${branchName(world, specialty.branch)} as ${withArticle(specialty.title)}`,
     rejected: commissioned ? ['civilian life', 'signing as enlisted'] : ['civilian life'],
     streamId: Stream.Employment,
   })

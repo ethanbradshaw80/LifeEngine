@@ -60,7 +60,24 @@ export function FrontPage({
   const lead = [...recent].sort(
     (a, b) => gravityOf(b) - gravityOf(a) || b.tick - a.tick,
   )[0]
-  const leadKey = lead === undefined ? '' : `${String(lead.tick)}-${lead.text}`
+
+  // A KEY PER STORY, and it has to be unique AND stable.
+  //
+  // It used to be `tick-text`, which collides the month two different houses
+  // are robbed — the newsroom words both the same way, so React saw one row
+  // twice and opening one article opened both. The occurrence number breaks
+  // the tie without making the key positional: a story keeps its identity as
+  // newer items arrive above it, which is what keeps an open article open.
+  const keys = new Map<NewsItem, string>()
+  const seen = new Map<string, number>()
+  for (const item of recent) {
+    const base = `${String(item.tick)}-${item.text}`
+    const nth = seen.get(base) ?? 0
+    seen.set(base, nth + 1)
+    keys.set(item, nth === 0 ? base : `${base}#${String(nth)}`)
+  }
+
+  const leadKey = lead === undefined ? '' : (keys.get(lead) ?? '')
   const leadArticle = lead === undefined ? null : articleFor(world, lead)
 
   // The ticker: the newest one-liners, whatever they are.
@@ -110,8 +127,8 @@ export function FrontPage({
           </button>
           {openKeys.has(leadKey) && (
             <div className="card-why article">
-              {leadArticle.body.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
+              {leadArticle.body.map((paragraph, i) => (
+                <p key={`${String(i)}-${paragraph}`}>{paragraph}</p>
               ))}
               {leadArticle.closing !== null && <p>{leadArticle.closing}</p>}
             </div>
@@ -126,7 +143,7 @@ export function FrontPage({
           <div className="news-section" key={section}>
             <h2>{SECTION_TITLES[section]}</h2>
             {inSection.slice(0, 5).map((item) => {
-              const key = `${String(item.tick)}-${item.text}`
+              const key = keys.get(item) ?? `${String(item.tick)}-${item.text}`
               const article = articleFor(world, item)
               return (
                 <div className="story" key={key}>
@@ -146,8 +163,8 @@ export function FrontPage({
                       </p>
                       <h4 className="article-headline">{article.headline}</h4>
                       <p className="article-lede">{article.lede}</p>
-                      {article.body.map((paragraph) => (
-                        <p key={paragraph}>{paragraph}</p>
+                      {article.body.map((paragraph, i) => (
+                        <p key={`${String(i)}-${paragraph}`}>{paragraph}</p>
                       ))}
                       {article.quote !== null && (
                         <p className="article-quote">

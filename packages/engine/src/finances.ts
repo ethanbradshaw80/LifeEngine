@@ -105,6 +105,19 @@ export function householdWealth(world: World, household: Household): Money {
   return total as Money
 }
 
+/**
+ * MONEY ON HAND — what a person could actually spend this afternoon.
+ *
+ * Deliberately NOT net worth: a house, a portfolio and a retirement account
+ * are wealth, but none of them buys groceries, and a glance-level chip that
+ * says $300,000 to somebody who cannot make rent is lying to them. Net worth
+ * lives on the Bank, where there is room to explain what it is made of.
+ */
+export function moneyOnHand(world: World, personId: EntityId): Money {
+  const a = accountsOf(world, personId)
+  return (a.checking + a.savings) as Money
+}
+
 /** Everything a person holds in money. Property and debt join it later. */
 export function netWorthOf(world: World, personId: EntityId): Money {
   const a = accountsOf(world, personId)
@@ -333,10 +346,11 @@ export function personalIncome(world: World, personId: EntityId): Money {
  * Move money into a person's checking, from a wage or anywhere else.
  * Exported because pay is not the only thing that lands there.
  */
-export function creditPerson(world: World, personId: EntityId, amount: Money): void {
-  if (amount === 0) return
+export function creditPerson(world: World, personId: EntityId, amount: Money): number {
+  if (amount <= 0) return 0
   const accounts = accountsOf(world, personId)
   setAccounts(world, { ...accounts, checking: (accounts.checking + amount) as Money })
+  return amount
 }
 
 /**
@@ -670,6 +684,8 @@ export interface HouseholdLedger {
   readonly livingCosts: Money
   readonly costs: Money
   readonly lifestyle: Money
+  /** M-ECON §3: what the state takes on the lifestyle line. */
+  readonly salesTax: Money
   readonly net: Money
   readonly savings: Money
   readonly inArrears: boolean
@@ -744,6 +760,7 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     livingCosts,
     costs: householdCosts(world, household),
     lifestyle: discretionaryFor(world, household),
+    salesTax: salesTaxOn(discretionaryFor(world, household)),
     net: monthlyNetOf(world, household),
     savings: household.savings,
     inArrears: household.savings < 0,
@@ -796,9 +813,46 @@ export function arrearsHistoryOf(world: World, household: Household): readonly A
 
 /** This month's true change in savings, mirroring runFinances exactly. */
 export function monthlyNetOf(world: World, household: Household): Money {
+  // SALES TAX IS PART OF WHAT LEAVES. Found by playing: the settle charges
+  // costs + spending + salesTaxOn(spending), and this left the tax out, so
+  // the chip told a captain he cleared $804 a month when the month actually
+  // cleared less. The two must be computed from the same expression or the
+  // number on the glance is a small lie every month for a lifetime.
+  const spending = discretionaryFor(world, household)
   return (householdIncome(world, household) -
     householdCosts(world, household) -
-    discretionaryFor(world, household)) as Money
+    spending -
+    salesTaxOn(spending)) as Money
+}
+
+/**
+ * WHAT ONE PERSON'S OWN MONEY DOES THIS MONTH.
+ *
+ * Found by playing: the glance chip stacked a person's balance on top of the
+ * household's monthly net, so it read "$1,337.58, +$804 a month" to a man
+ * whose own money was growing by about a tenth of that. Two different
+ * subjects in one chip is not a rounding problem, it is the wrong number.
+ *
+ * The share is the SAME pro-rata split the monthly settle uses — by net
+ * income, so whoever brings in more of the household's money carries more of
+ * its costs. Somebody with no income of their own carries none of it, and
+ * their own money simply does not move.
+ */
+export function personalMonthlyNet(world: World, personId: EntityId): Money {
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return 0 as Money
+  const household = world.households.get(person.householdId)
+  if (!household) return 0 as Money
+
+  const gross = personalIncome(world, personId)
+  const mine = (gross - withholdingFor(gross)) as Money
+  if (mine <= 0) return 0 as Money
+
+  const income = householdIncome(world, household)
+  if (income <= 0) return mine
+  const spending = discretionaryFor(world, household)
+  const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
+  return (mine - Math.floor((owed * mine) / income)) as Money
 }
 
 export function inArrears(world: World, householdId: EntityId | null): boolean {

@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId, Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { moneyOnHand } from '../src/finances.js'
 import { GRADE_TITLES, isFelony, OFFENCES, offenceById } from '../src/content.js'
 import {
   commitOffence,
@@ -283,12 +284,15 @@ describe('the review must-fixes', () => {
       const { world, id } = playedAdult(seedValue)
       const person = world.people.get(id)
       if (!person || person.householdId === null) continue
-      const before = world.households.get(person.householdId)?.savings ?? 0
+      // M-ECON §1: IT LANDS IN THE THIEF'S POCKET. It used to be credited to
+      // the household balance, which is an obligations counter clamped at or
+      // below zero every month — so the money was paid and then deleted at
+      // the next settle, and this test passed while the player kept nothing.
+      const before = moneyOnHand(world, id)
       const result = commitAndGoThrough(world, world.tick, person, 'shoplifting')
       if (!result.done) continue
       checked++
-      const after = world.households.get(person.householdId)?.savings ?? 0
-      expect(after).toBeGreaterThan(before)
+      expect(moneyOnHand(world, id)).toBeGreaterThan(before)
       // And nothing NaN reached the record.
       const theft = world.events.find((e) => e.type === 'committed-theft' && e.subjectId === id)
       expect(theft?.detail ?? '').not.toContain('NaN')

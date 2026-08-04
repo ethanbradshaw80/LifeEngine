@@ -43,7 +43,7 @@ import { GRADE_TITLES, isFelony, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
-import { bareName, sentenceCase, sentenceInWords } from './text.js'
+import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
 import type { Person, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
@@ -247,7 +247,7 @@ function deathInService(
   if (branch !== null && trade !== null && years !== null) {
     body.push(
       // BRANCH_NAMES already carry their article ("the Land Forces").
-      `${fullName(person)} had served ${String(years)} year${years === 1 ? '' : 's'} in ${branch} as a ${trade}, and held the rank of ${rank ?? 'private'} at the time of death.`,
+      `${fullName(person)} had served ${String(years)} year${years === 1 ? '' : 's'} in ${branch} as ${withArticle(trade)}, and held the rank of ${rank ?? 'private'} at the time of death.`,
     )
   }
   // OWNER'S SPEC §1: what the month's contact actually was, in the words

@@ -154,7 +154,7 @@ export function Bank({
                       tone="muted"
                     />
                     <Row label="Rent + living" value={`−${formatMoney(costs)}`} />
-                    <Row label="Lifestyle" value={`−${formatMoney(lifestyle)}`} />
+                    <Row label="Lifestyle + sales tax" value={`−${formatMoney(lifestyle)}`} />
                     <Row
                       label="Left over"
                       value={formatMoney(left)}

@@ -49,6 +49,7 @@ import {
   householdLedger,
   livingPeople,
   monthlyNetOf,
+  personalMonthlyNet,
   moveBar,
   newsSince,
   OCCUPATIONS,
@@ -82,7 +83,7 @@ import {
   schoolOptionsFor,
   servicePayOf,
   annualPay,
-  netWorthOf,
+  moneyOnHand,
   specialtyFor,
   specialtyTitleFor,
   unitFor,
@@ -609,9 +610,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     [world, household],
   )
 
-  // The TRUE monthly change — after lifestyle spending, not just the bills —
-  // mirroring the ledger exactly so the chip never flatters the household.
-  const monthlyNet = household ? monthlyNetOf(world, household) : 0
+  // The chip is about THIS PERSON: their money, and what their money does.
+  // Under 18 nobody earns, so the roof's month is the honest thing to show.
+  const monthlyNet =
+    age < 18 ? (household ? monthlyNetOf(world, household) : 0) : personalMonthlyNet(world, person.id)
 
   return (
     <div className="game">
@@ -697,10 +699,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {/* Money is household-level and nobody under 18 works; a child's
               chip says whose pot this actually is (owner feedback). */}
           <span className="stat-label">{age < 18 ? 'Family money' : 'Money'}</span>
-          {/* M-ECON §1: YOUR money, not the roof's. The household balance is
-              obligations now and only ever shows what is owed. */}
+          {/* M-ECON §1: YOUR money, not the roof's — and ON HAND, not net
+              worth. A chip reading $300,000 to somebody who cannot make
+              rent is a lie; the house and the portfolio are on the Bank,
+              where there is room to say what they are. */}
           <span className={household && household.savings < 0 ? 'stat-value bad' : 'stat-value'}>
-            {formatMoney(netWorthOf(world, person.id))}
+            {formatMoney(moneyOnHand(world, person.id))}
           </span>
           {household && (
             <span className={monthlyNet < 0 ? 'stat-sub bad' : 'stat-sub'}>
@@ -1018,10 +1022,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </span>
                       <span className="ledger-amount">−{formatMoney(ledger.lifestyle)}</span>
                     </li>
+                    {ledger.salesTax > 0 && (
+                      <li className="ledger-row out">
+                        <span className="ledger-label">
+                          Sales tax
+                          <span className="muted small"> · on the lifestyle line</span>
+                        </span>
+                        <span className="ledger-amount">−{formatMoney(ledger.salesTax)}</span>
+                      </li>
+                    )}
                     <li className="ledger-row subtotal">
                       <span className="ledger-label">Going out</span>
                       <span className="ledger-amount">
-                        {formatMoney((ledger.costs + ledger.lifestyle) as Money)}
+                        {formatMoney((ledger.costs + ledger.lifestyle + ledger.salesTax) as Money)}
                       </span>
                     </li>
                     <li className={ledger.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
