@@ -20,7 +20,11 @@ import {
   atTodaysPrices,
   annualPay,
   creditOf,
+  CHAPTER_7_FILE_YEARS,
+  CHAPTER_13_FILE_YEARS,
+  chapterTitle,
   creditWords,
+  filingsOf,
   depositFor,
   discretionaryFor,
   economyPhaseWords,
@@ -277,6 +281,29 @@ export function Bank({
             <section className="bank-card">
               <h4>Credit</h4>
               <Row label="Score" value={`${String(credit)} · ${creditWords(credit)}`} />
+              {(() => {
+                // M-SAFETY §2. A filing is the heaviest thing a file can
+                // carry, and it FADES — so the screen says which year it
+                // stops counting rather than leaving it as a life sentence.
+                const filings = filingsOf(world, person.id)
+                const last = filings[filings.length - 1]
+                if (!last) return null
+                const carries = last.chapter === 7 ? CHAPTER_7_FILE_YEARS : CHAPTER_13_FILE_YEARS
+                const off = Math.max(
+                  0,
+                  carries - Math.floor((world.tick - last.filedAtTick) / 12),
+                )
+                return (
+                  <>
+                    <Row label="On file" value={chapterTitle(last.chapter)} tone="bad" />
+                    <Row
+                      label="Clears in"
+                      value={off <= 0 ? 'cleared' : `${String(off)} ${off === 1 ? 'year' : 'years'}`}
+                      tone="muted"
+                    />
+                  </>
+                )
+              })()}
               <div className="bank-gauge">
                 <span style={{ width: `${String(Math.round(((credit - 300) / 550) * 100))}%` }} />
               </div>

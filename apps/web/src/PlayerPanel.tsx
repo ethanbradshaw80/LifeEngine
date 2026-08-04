@@ -324,6 +324,12 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     'pay-now': '💵 Pay it now',
     'pay-over-time': '🧾 Carry it',
   },
+  // M-SAFETY §2. Two genuinely different roads: a plan keeps the home and
+  // takes years, a liquidation is a fresh start that costs what is not exempt.
+  bankruptcy: {
+    'chapter-13': '📋 File a repayment plan',
+    'chapter-7': '⚖️ File for liquidation',
+  },
 }
 
 /**

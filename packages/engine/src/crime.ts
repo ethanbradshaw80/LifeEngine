@@ -33,6 +33,7 @@ import {
   chargeHousehold,
   householdWealth,
   creditPerson,
+  isHomeless,
   inArrears,
   transferBetweenHouseholds,
 } from './finances.js'
@@ -381,6 +382,9 @@ export function runCrime(world: World, tick: Tick): void {
     let pressure = BASELINE_PRESSURE + Math.floor(townPressure / 20)
     if (behind) pressure += 90
     if (jobless) pressure += 40
+    // M-SAFETY §3. Nowhere to sleep is its own weather, and a heavier one
+    // than either of the others.
+    if (isHomeless(world, person.id)) pressure += 120
     if (behind && jobless) pressure += 30 // both at once is its own weather
     pressure += Math.floor((1000 - person.traits.diligence) / 50) // 0..20
     // Resilience is what carries somebody through a bad month without doing

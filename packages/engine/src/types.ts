@@ -406,6 +406,64 @@ export interface Accounts {
    */
   readonly taxableYtd: Money
   readonly withheldYtd: Money
+  /**
+   * M-SAFETY §4. THE WORK RECORD A PENSION IS BUILT FROM.
+   *
+   * Months in which this person earned — a wage, service pay, either. The
+   * state pension scales with it, which is what makes a working life worth
+   * something after it ends. Counted rather than derived because the
+   * employment record does not survive the job, and Law 6 says history is
+   * kept, not recomputed from a gap.
+   */
+  readonly monthsWorked: number
+  /**
+   * What they last earned in a month, kept after the job ends. Unemployment
+   * insurance is a share of it, so it has to outlive the wage.
+   */
+  readonly lastMonthlyPay: Money
+  /**
+   * M-SAFETY §4. Unemployment insurance runs until this tick, or null when
+   * they are not drawing it. Set by a LAYOFF — being sacked for cause and
+   * walking out do not qualify, which is how the real thing works.
+   */
+  readonly unemploymentUntilTick: Tick | null
+}
+
+/**
+ * M-SAFETY §2. A BANKRUPTCY, on the public record.
+ *
+ * Modelled on the structure of United States bankruptcy law, which is public
+ * law and fine to model. Every NAME here is generic and fictional — this
+ * world has no trademarked programs in it (charter §3).
+ *
+ *   Chapter 13 — REORGANISATION, for somebody with income. A court-approved
+ *   plan of three to five years; the home and the basics are kept; arrears
+ *   are caught up on a schedule and what is left at the end is resolved.
+ *
+ *   Chapter 7 — LIQUIDATION, for somebody with little or none, and
+ *   means-tested. What is not exempt is sold, most unsecured debt is
+ *   discharged, and it is a genuine fresh start at zero.
+ *
+ * Both put an automatic stay over repossession while they run, and both sit
+ * on the credit file for years afterwards — seven and ten — which is the
+ * same door the criminal record uses (C3 §5): shut, and openable again.
+ */
+export type BankruptcyChapter = 7 | 13
+
+export interface Bankruptcy {
+  readonly personId: EntityId
+  readonly chapter: BankruptcyChapter
+  readonly filedAtTick: Tick
+  /** What was owed when it was filed — the record of how deep it went. */
+  readonly owed: Money
+  /** Chapter 13's monthly payment. Zero under chapter 7. */
+  readonly planMonthly: Money
+  /** When the plan finishes. Null under chapter 7, which has no plan. */
+  readonly planEndsAtTick: Tick | null
+  /** When the debt was actually wiped. Null while a plan is still running. */
+  readonly dischargedAtTick: Tick | null
+  /** How much the discharge wiped, for the record and the newspaper. */
+  readonly discharged: Money
 }
 
 /**
@@ -487,6 +545,17 @@ export interface Household {
    * Schema v18.
    */
   readonly spendStance: SpendStance | null
+  /**
+   * M-SAFETY §3. WHEN THEY LOST THE ROOF, or null while they have one.
+   *
+   * Homelessness is a modelled STATE, not a crash and not an ever-deepening
+   * debt: no rent is charged, a shelter floor keeps people alive, and the
+   * consequences are real — health, work, relationships and exposure to
+   * crime. It is the bottom of the ladder and never a dead end; income buys
+   * a room back. `placeId` is kept so the record still says which street
+   * they were pushed out of.
+   */
+  readonly homelessSinceTick: Tick | null
 }
 
 /** How the household carries its money: tight, as-it-comes, or open-handed. */
@@ -1160,6 +1229,7 @@ export type PendingKind =
   | 'crime-victim'
   | 'crime-scene'
   | 'money-shock'
+  | 'bankruptcy'
   | 'reenlist-term'
   | 'reenlist-option'
   | 'service-contract'
@@ -1276,6 +1346,16 @@ export type EventType =
   /** Savings recovered above zero after arrears. */
   | 'back-in-the-black'
   | 'debt-written-off'
+  | 'filed-bankruptcy'
+  | 'debt-discharged'
+  | 'plan-completed'
+  | 'plan-dismissed'
+  | 'lost-housing'
+  | 'rehoused'
+  | 'laid-off'
+  | 'drew-unemployment'
+  | 'drew-assistance'
+  | 'state-pension-began'
   /** Money passed to this person from a parent's estate. */
   | 'inherited'
   | 'was-injured'
@@ -1594,6 +1674,12 @@ export interface World {
   readonly households: Map<EntityId, Household>
   /** M-ECON §1: every person's own money. Absent means zero. */
   readonly accounts: Map<EntityId, Accounts>
+  /**
+   * M-SAFETY §2: every bankruptcy ever filed, newest last, by person.
+   * The HISTORY is the point — you cannot refile for years, and the file
+   * remembers for years after that.
+   */
+  readonly bankruptcies: Map<EntityId, readonly Bankruptcy[]>
   /** M-ECON §4: the weather everybody lives in. */
   readonly economy: EconomyState
   /** M-ECON §5: what each fictional sector costs today, in basis points. */

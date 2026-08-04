@@ -230,7 +230,9 @@ export {
   applyMoneyShock,
   creditOf,
   homeValueOf,
+  fileBankruptcy,
   moneyOnHand,
+  supportOf,
   moveBetweenOwnAccounts,
   sellInvestment,
   takeLoan,
@@ -347,6 +349,29 @@ export {
   totalDebtOf,
 } from './credit.js'
 export type { Loan, LoanKind } from './types.js'
+export type { Bankruptcy, BankruptcyChapter } from './types.js'
+export {
+  CHAPTER_7_FILE_YEARS,
+  CHAPTER_13_FILE_YEARS,
+  chapterTitle,
+  chapterWords,
+  chaptersOpenTo,
+  creditPenaltyOf,
+  filingsOf,
+  openFilingOf,
+  planMonthsFor,
+  planPaymentFor,
+  totalOwedBy,
+  underStay,
+} from './bankruptcy.js'
+export {
+  ASSISTANCE_FLOOR,
+  STATE_PENSION_AGE,
+  assistanceOf,
+  safetyNetWords,
+  statePensionOf,
+  unemploymentOf,
+} from './safetynet.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

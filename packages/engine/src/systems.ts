@@ -35,7 +35,14 @@ import { withArticle } from './text.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import type { CausalFactor, Occupation } from './types.js'
-import { canAfford, distributeEstate, householdCosts, householdIncome, inArrears } from './finances.js'
+import {
+  canAfford,
+  distributeEstate,
+  householdCosts,
+  householdIncome,
+  inArrears,
+  startUnemployment,
+} from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { isJailed, recordGateOf } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
@@ -676,6 +683,11 @@ function considerBetterJob(
     const exposure = job.performance < DISMISSAL_PERFORMANCE ? 3 : 1
     if (rng.chanceInTenThousand(Math.min(400, (slack - 55) * exposure))) {
       world.employment.delete(person.id)
+      // M-SAFETY §4. A LAYOFF QUALIFIES; being sacked and walking out do
+      // not. The insurance runs for a bounded stretch from here, which is
+      // the floor under the single largest thing an economy does to a life.
+      startUnemployment(world, person.id, tick)
+      recordEvent(world, tick, { type: 'laid-off', subjectId: person.id, detail: 'laid off' })
       recordEvent(world, tick, { type: 'left-job', subjectId: person.id, detail: 'laid off' })
       recordDecision(world, tick, {
         subjectId: person.id,
@@ -1046,6 +1058,7 @@ export function performMoveOut(
     dissolvedTick: null,
     savings: moverPay as Money,
     spendStance: null,
+    homelessSinceTick: null,
   })
   setPerson(world, { ...person, householdId: newHouseholdId })
 

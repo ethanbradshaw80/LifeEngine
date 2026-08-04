@@ -159,8 +159,13 @@ describe('arrears', () => {
     )
     // The mechanism exists in the world's history; the exact count is seed luck.
     expect(moves.length).toBeGreaterThanOrEqual(0)
+    // M-SAFETY §3: there are now TWO arrears-driven moves, and both are
+    // real — down the ladder while there are rungs left, and off the end of
+    // it when there are not.
     for (const record of moves) {
-      expect(record.chosen).toContain('make ends meet')
+      expect(
+        record.chosen.includes('make ends meet') || record.chosen === 'lost the housing',
+      ).toBe(true)
       expect(record.inputs.some((f) => f.factor === 'cheaper-rent')).toBe(true)
     }
   })
@@ -229,6 +234,9 @@ describe('inheritance', () => {
       homePurchasePrice: 0 as Money,
       monthsPaid: 0,
       defaults: 0,
+      monthsWorked: 0,
+      lastMonthlyPay: 0 as Money,
+      unemploymentUntilTick: null,
     })
 
     const children = [...world.people.values()]
@@ -249,6 +257,7 @@ describe('inheritance', () => {
         dissolvedTick: null,
         savings: 10_000 as Money,
         spendStance: null,
+    homelessSinceTick: null,
       })
       world.people.set(child.id, { ...child, householdId: newId })
     }
@@ -372,11 +381,13 @@ describe('the itemized ledger (P3)', () => {
         ...ledger.servicePay,
         ...ledger.pensions,
         ...ledger.survivorPay,
+        ...ledger.statePension,
       ].reduce((sum, entry) => sum + entry.amount, 0)
       // M-ECON §3: the rows are GROSS and the income line is what arrives,
       // so the itemisation sums through the withholding line the way a
       // payslip does. Without that line it silently stopped adding up.
-      expect(parts - ledger.taxWithheld).toBe(householdIncome(world, household))
+      const supportTotal = ledger.support.reduce((sum, entry) => sum + entry.amount, 0)
+      expect(parts - ledger.taxWithheld + supportTotal).toBe(householdIncome(world, household))
       expect(ledger.income).toBe(householdIncome(world, household))
       expect(ledger.taxWithheld).toBeGreaterThanOrEqual(0)
 
@@ -386,11 +397,18 @@ describe('the itemized ledger (P3)', () => {
       // adult/child SPLIT against the total the tick loop actually charges.
       // AT TODAY'S PRICES (M-ECON §4) — the constants are base-year and the
       // charge is what a month costs now.
-      expect(
-        ledger.rent +
-          ledger.adults * atTodaysPrices(world, LIVING_COST_ADULT) +
-          ledger.children * atTodaysPrices(world, LIVING_COST_CHILD),
-      ).toBe(householdCosts(world, household))
+      //
+      // M-SAFETY §3: a household with no roof is not charged rent or full
+      // living costs at all — it is charged a shelter figure per living
+      // head — so the split claim is about housed households. The
+      // rent+livingCosts === costs claim above covers both.
+      if (!ledger.homeless) {
+        expect(
+          ledger.rent +
+            ledger.adults * atTodaysPrices(world, LIVING_COST_ADULT) +
+            ledger.children * atTodaysPrices(world, LIVING_COST_CHILD),
+        ).toBe(householdCosts(world, household))
+      }
 
       expect(ledger.lifestyle).toBe(discretionaryFor(world, household))
       expect(ledger.salesTax).toBe(salesTaxOn(ledger.lifestyle))
@@ -471,9 +489,14 @@ describe('the itemized ledger (P3)', () => {
       const spells = arrearsHistoryOf(world, household)
       let previousEnd = -1
       for (const spell of spells) {
-        expect(spell.fromTick).toBeGreaterThan(previousEnd)
+        // M-SAFETY §2: a spell can now open and close inside ONE month —
+        // the courthouse can resolve a fall in the month it happened — and
+        // a theft can re-open one the same month it closed. Both are real,
+        // so the ordering claim is >=, and the pairing claim below is what
+        // actually carries the weight.
+        expect(spell.fromTick).toBeGreaterThanOrEqual(previousEnd)
         if (spell.toTick !== null) {
-          expect(spell.toTick).toBeGreaterThan(spell.fromTick)
+          expect(spell.toTick).toBeGreaterThanOrEqual(spell.fromTick)
           previousEnd = spell.toTick
         }
         seen++

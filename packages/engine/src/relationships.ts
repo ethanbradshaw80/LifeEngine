@@ -22,7 +22,7 @@ import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { raisePending } from './player.js'
-import { inArrears } from './finances.js'
+import { isHomeless, inArrears } from './finances.js'
 import { openStream, Stream, type Rng } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
 import { relationshipKey } from './types.js'
@@ -303,6 +303,8 @@ function decayAndReinforce(world: World, tick: Tick): void {
       // that tells (M-MONEY; the record's 'financial-strain' factor now has
       // a real ledger behind it).
       if (inArrears(world, a.householdId)) change -= 3
+      // M-SAFETY §3. Losing the roof is harder on a marriage than arrears.
+      if (isHomeless(world, a.id)) change -= 5
     }
 
     // The years that held get their day (M-DEPTH3, courtship/marriage
@@ -1209,6 +1211,7 @@ function splitHousehold(world: World, tick: Tick, aId: EntityId, bId: EntityId):
     dissolvedTick: null,
     savings: half,
     spendStance: null,
+    homelessSinceTick: null,
   })
   world.people.set(leaverId, { ...leaver, householdId: newHouseholdId })
 

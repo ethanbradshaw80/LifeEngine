@@ -28,6 +28,17 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v81 — M-SAFETY: BANKRUPTCY, HOMELESSNESS AND THE FLOORS UNDER A LIFE.
+ *      A state pension from 65 scaling with the months actually worked;
+ *      unemployment insurance for six months after a LAYOFF; public
+ *      assistance as a bare income floor for any adult below it. Insolvency
+ *      is resolved at a courthouse — a chapter 13 plan of three to five
+ *      years, or a means-tested chapter 7 liquidation — with an automatic
+ *      stay while it runs and a credit file that carries it for seven or
+ *      ten years and then fades. A household with nowhere cheaper to go
+ *      LOSES ITS HOUSING rather than being billed for a house it is not in,
+ *      and income buys a room back. The v80 write-off is gone: it was a
+ *      hack wearing a recovery path. Every seed's poor lives differ.
  * v80 — ARREARS IS NO LONGER A TRAP. A household two years behind on its
  *      own costs has the debt written off, recorded as an event. Found by
  *      playing: with no state pension, a man who retired with $134,703 by
@@ -507,7 +518,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 80
+export const SIMULATION_VERSION = 81
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -548,6 +559,11 @@ export function toSnapshot(world: World): WorldSnapshot {
       people: [...world.people.values()].sort((a, b) => a.id - b.id),
       households: [...world.households.values()].sort((a, b) => a.id - b.id),
       accounts: [...world.accounts.values()].sort((a, b) => a.personId - b.personId),
+      // M-SAFETY §2: flattened, because a filing already carries its own
+      // personId — the map is rebuilt from it on the way back in.
+      bankruptcies: [...world.bankruptcies.values()]
+        .flat()
+        .sort((a, b) => a.personId - b.personId || a.filedAtTick - b.filedAtTick),
       economy: world.economy,
       sectorPrices: world.sectorPrices,
       education: [...world.education.values()].sort((a, b) => a.personId - b.personId),

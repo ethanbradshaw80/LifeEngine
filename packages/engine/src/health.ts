@@ -105,9 +105,22 @@ export function runHealth(world: World, tick: Tick): void {
     // Onset. Injury tracks the work; illness tracks the years.
     const job = world.employment.get(person.id)
     const risky = job !== undefined && RISKY_OCCUPATIONS.has(occupationById(job.occupationId).id)
-    const injuryPerTenK = (risky ? 14 : 5) + Math.floor(Math.max(0, age - 50) / 8)
+    const injuryPerTenK =
+      (risky ? 14 : 5) + Math.floor(Math.max(0, age - 50) / 8) + (roughSleeping(world, person) ? 6 : 0)
+    // M-SAFETY §3. NOWHERE TO SLEEP IS A HEALTH CONDITION. Roughly triple
+    // the ordinary rate of falling ill, and a real rise in injury with it —
+    // this is the largest of homelessness's consequences and the reason it
+    // must never be a cheap way to avoid rent.
+    // Read inline rather than importing finances: health is upstream of it
+    // in the graph and the import ratchet is right to refuse the edge. The
+    // state is two plain lookups (same reasoning as householdCosts reading
+    // the jail record inline).
+    const rough = roughSleeping(world, person)
     const illnessPerTenK =
-      3 + Math.floor(Math.max(0, age - 35) / 3) + Math.floor((1000 - person.traits.vitality) / 150)
+      3 +
+      Math.floor(Math.max(0, age - 35) / 3) +
+      Math.floor((1000 - person.traits.vitality) / 150) +
+      (rough ? 20 : 0)
 
     if (rng.chanceInTenThousand(injuryPerTenK)) {
       beginAilment(world, tick, person, 'injury', rng.nextBellInt(150, 850), rng, risky ? 'machinery' : 'mishap')
@@ -115,6 +128,12 @@ export function runHealth(world: World, tick: Tick): void {
       beginAilment(world, tick, person, 'illness', rng.nextBellInt(150, 900), rng, 'mishap')
     }
   }
+}
+
+/** M-SAFETY §3. Nowhere to sleep, read straight off the household. */
+function roughSleeping(world: World, person: Person): boolean {
+  if (person.householdId === null) return false
+  return world.households.get(person.householdId)?.homelessSinceTick !== null
 }
 
 function livingSorted(world: World): Person[] {

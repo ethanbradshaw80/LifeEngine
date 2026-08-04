@@ -957,6 +957,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   label: `Survivor's share — ${nameOf(e.personId)}`,
                   amount: e.amount,
                 })),
+                // M-SAFETY §4. The floors, named. A month carried by the
+                // state should say so — it is the difference between a
+                // quiet month and a month somebody else paid for.
+                ...ledger.statePension.map((e) => ({
+                  key: `sp${e.personId}`,
+                  label: `State pension — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
+                ...ledger.support.map((e) => ({
+                  key: `su${e.personId}`,
+                  label: `Assistance — ${nameOf(e.personId)}`,
+                  amount: e.amount,
+                })),
               ]
               const mouths = [
                 ledger.adults > 0 ? `${ledger.adults} grown` : null,
@@ -1009,13 +1022,23 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <span className="ledger-label">Coming in</span>
                       <span className="ledger-amount">{formatMoney(ledger.income)}</span>
                     </li>
-                    <li className="ledger-row out">
-                      <span className="ledger-label">
-                        Rent{home && <span className="muted small"> · {home.name}</span>}
-                      </span>
-                      <span className="ledger-amount">−{formatMoney(ledger.rent)}</span>
-                    </li>
-                    <li className="ledger-row out">
+                    {ledger.homeless ? (
+                      <li className="ledger-row out">
+                        <span className="ledger-label">
+                          Shelter
+                          <span className="muted small"> · no address of your own</span>
+                        </span>
+                        <span className="ledger-amount">−{formatMoney(ledger.livingCosts)}</span>
+                      </li>
+                    ) : (
+                      <li className="ledger-row out">
+                        <span className="ledger-label">
+                          Rent{home && <span className="muted small"> · {home.name}</span>}
+                        </span>
+                        <span className="ledger-amount">−{formatMoney(ledger.rent)}</span>
+                      </li>
+                    )}
+                    <li className={ledger.homeless ? 'ledger-row out hide' : 'ledger-row out'}>
                       <span className="ledger-label">
                         Living costs
                         {mouths.length > 0 && <span className="muted small"> · {mouths.join(', ')}</span>}

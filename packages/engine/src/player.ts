@@ -102,6 +102,7 @@ import { rentFor } from './content.js'
 import {
   accountsOf,
   applyMoneyShock,
+  fileBankruptcy,
   buyHome,
   buyInvestment,
   creditOf,
@@ -1565,6 +1566,16 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'bankruptcy': {
+      // M-SAFETY §2. Which chapter, where more than one is open. The court
+      // is not being asked whether — the household is insolvent either way
+      // — it is being asked how, and the two roads are genuinely different:
+      // a plan keeps the home and takes years, a liquidation is a fresh
+      // start at zero that costs everything not exempt.
+      fileBankruptcy(world, pending.tick, person.id, choice === 'chapter-7' ? 7 : 13)
+      break
+    }
+
     case 'money-shock': {
       // §8. The bill happens either way; what the player chooses is whether
       // it comes out of what they have or is carried as debt.
@@ -2737,6 +2748,14 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'bankruptcy': {
+      const owed = formatMoney((pending.monthlyPay ?? 0) as Money)
+      const both = (pending.options ?? []).length > 1
+      return both
+        ? `You owe ${owed} and there is no month ahead that clears it. The court will hear either a repayment plan or a liquidation. Which do you file?`
+        : `You owe ${owed} and there is no month ahead that clears it. There is one road open to you at the courthouse.`
+    }
+
     case 'money-shock': {
       const bill = formatMoney((pending.monthlyPay ?? 0) as Money)
       switch (pending.occupationId) {

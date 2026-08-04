@@ -126,6 +126,8 @@ export function creditScoreOf(
   loans: readonly Loan[],
   defaults: number,
   monthsPaid: number,
+  /** M-SAFETY §2: what a bankruptcy on the file still costs, and it fades. */
+  filingPenalty = 0,
 ): number {
   void world
   let score = CREDIT_START
@@ -137,6 +139,9 @@ export function creditScoreOf(
   const owed = totalDebtOf(loans)
   score -= Math.min(90, Math.floor(owed / 5_000_00))
   for (const loan of loans) if (loan.missedMonths > 0) score -= Math.min(80, loan.missedMonths * 25)
+  // A filing is the heaviest single thing a file can carry, and it FADES —
+  // the same door the criminal record uses (C3 §5). Shut hard, then open.
+  score -= filingPenalty
   return Math.max(CREDIT_MIN, Math.min(CREDIT_MAX, score))
 }
 

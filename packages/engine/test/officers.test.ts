@@ -139,24 +139,32 @@ describe('the officer ladder', () => {
     // OWNER: "not being properly listed or assigned to squads". The roster
     // sorted on the ladder INDEX, so a 2LT at 0 came below a master
     // sergeant at 8 and a sergeant was named leader over their officer.
-    const world = createWorld(makeSeed(4141), 100)
-    advanceTicks(world, 40 * 12)
-
+    // ACROSS SEEDS, not one. Whether any serving officer happens to share a
+    // sub-unit inside a given eighty years is seed luck, and pinning the
+    // claim to a single draw made it fail the first time an unrelated system
+    // changed who enlists (the safety net, M-SAFETY). The CLAIM is about the
+    // roster's ordering; the seeds are only there to find a roster.
     let checked = 0
-    for (const record of world.service.values()) {
-      if (record.commissioned !== true || record.dischargedAtTick !== null) continue
-      const roster = unitRosterOf(world, record.personId)
-      if (!roster || roster.members.length < 2) continue
-      checked++
-      expect(roster.members[0]?.personId, 'an officer is not at the head of their own roster').toBe(
-        record.personId,
-      )
-      expect(roster.members[0]?.role).toBe('platoon leader')
-      // And they are listed under an OFFICER's rank, not a private's.
-      const officerRanks = CLASSIC_SPEC.branches.find((b) => b.id === record.branch)?.officerRanks ?? []
-      expect(officerRanks).toContain(roster.members[0]?.rankTitle)
+    for (const seedValue of [4141, 12345, 777, 2024]) {
+      const world = createWorld(makeSeed(seedValue), 100)
+      advanceTicks(world, 40 * 12)
+
+      for (const record of world.service.values()) {
+        if (record.commissioned !== true || record.dischargedAtTick !== null) continue
+        const roster = unitRosterOf(world, record.personId)
+        if (!roster || roster.members.length < 2) continue
+        checked++
+        expect(roster.members[0]?.personId, 'an officer is not at the head of their own roster').toBe(
+          record.personId,
+        )
+        expect(roster.members[0]?.role).toBe('platoon leader')
+        // And they are listed under an OFFICER's rank, not a private's.
+        const officerRanks =
+          CLASSIC_SPEC.branches.find((b) => b.id === record.branch)?.officerRanks ?? []
+        expect(officerRanks).toContain(roster.members[0]?.rankTitle)
+      }
     }
-    expect(checked, 'no commissioned member shared a squad in eighty years').toBeGreaterThan(0)
+    expect(checked, 'no commissioned member shared a squad in any seed').toBeGreaterThan(0)
   })
 
   it('pays a commission on its own table, and does not make it a free upgrade', () => {

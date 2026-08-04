@@ -416,7 +416,41 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'back-in-the-black':
       return `${year} — The household got back on its feet.`
     case 'debt-written-off':
-      return `${year} — The arrears were written off. Nothing left to take, and a clean sheet from here.`
+      // M-SAFETY: no longer written by anything. Kept so saves made before
+      // the bankruptcy build still read back (Law 6 — unrecorded history
+      // stays unrecorded, but recorded history stays readable).
+      return `${year} — The arrears were written off.`
+    case 'filed-bankruptcy': {
+      const [chapter, owed] = (event.detail ?? ':').split(':')
+      const sum = formatMoney(Number(owed ?? 0) as never)
+      return chapter === '7'
+        ? `${year} — Filed for liquidation, owing ${sum}. What could be sold was sold.`
+        : `${year} — Filed a repayment plan with the court, owing ${sum}.`
+    }
+    case 'plan-completed':
+      return `${year} — The repayment plan was served out to its last month.`
+    case 'plan-dismissed':
+      return `${year} — The repayment plan was dismissed. It could not be kept up with.`
+    case 'debt-discharged': {
+      const sum = formatMoney(Number(event.detail ?? 0) as never)
+      return `${year} — ${sum} of debt discharged. A clean sheet, and a file that will say so for years.`
+    }
+    case 'lost-housing':
+      return `${year} — Lost the housing. Nowhere cheaper left to go.`
+    case 'rehoused': {
+      const months = Number(event.detail ?? 0)
+      return Number.isFinite(months) && months > 0
+        ? `${year} — Back under a roof, in ${placeName(world, event.placeId)}, after ${String(months)} months without one.`
+        : `${year} — Back under a roof, in ${placeName(world, event.placeId)}.`
+    }
+    case 'laid-off':
+      return null // 'left-job' already tells this one; two lines would be two events
+    case 'drew-unemployment':
+      return null // a balance, not a life event
+    case 'drew-assistance':
+      return null
+    case 'state-pension-began':
+      return `${year} — The state pension began.`
     case 'inherited': {
       const amount = event.detail === null ? null : Number.parseInt(event.detail, 10)
       const sum = amount !== null && Number.isFinite(amount) ? formatMoney(amount as never) : 'an inheritance'

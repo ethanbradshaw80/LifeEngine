@@ -147,6 +147,7 @@ export function createWorld(
     people: new Map(),
     households: new Map(),
     accounts: new Map(),
+    bankruptcies: new Map(),
     economy: freshEconomy(),
     sectorPrices: freshSectorPrices(),
     education: new Map(),
@@ -253,6 +254,7 @@ export function createWorld(
       memberIds,
       formedTick: makeTick(0),
       dissolvedTick: null,
+      homelessSinceTick: null,
       // Filled in below, once employment exists to base it on.
       savings: 0 as Money,
       spendStance: null,

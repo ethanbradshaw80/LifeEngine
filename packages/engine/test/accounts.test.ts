@@ -38,11 +38,20 @@ describe('the household holds obligations, not wealth', () => {
 
   it('still falls behind when a month cannot be met', () => {
     const world = grown()
-    const behind = [...world.households.values()].filter((h) => h.savings < 0)
     // Some households struggle — that is Law 10, and every consequence that
     // reads arrears depends on this still happening.
-    expect(behind.length).toBeGreaterThan(0)
-    expect(world.events.some((e) => e.type === 'fell-behind')).toBe(true)
+    //
+    // THE CLAIM IS ABOUT THE RECORD, NOT ABOUT ONE INSTANT. M-SAFETY put a
+    // courthouse and three floors under this: arrears is now usually
+    // resolved within months of appearing, so a snapshot of any single tick
+    // can legitimately find nobody behind at that moment. What must remain
+    // true is that households DO fall behind, which the events say.
+    const fellBehind = world.events.filter((e) => e.type === 'fell-behind')
+    expect(fellBehind.length).toBeGreaterThan(0)
+    // And the state is reachable and readable when it is happening.
+    for (const household of world.households.values()) {
+      expect(household.savings).toBeLessThanOrEqual(0)
+    }
   })
 })
 

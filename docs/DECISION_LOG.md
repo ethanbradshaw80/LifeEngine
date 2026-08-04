@@ -1031,3 +1031,72 @@ spending was drawn against gross income while the money arriving was net.
 Phase 3 collapsed a town again — prices inflated sixfold over a century
 while wages stayed flat. Each was found by printing the number first, and
 each band in the tests carries the measurement that set it.
+
+---
+
+## ADR-0028 — Bankruptcy, homelessness, and the floors under a life
+
+**Date.** 2026-08-03. **Status.** Accepted. **Supersedes** the Law-7 arrears
+write-off introduced with SIMULATION_VERSION 80, on the owner's explicit
+written authority to overrule it.
+
+**Context.** Playing the economy build turned up two absences that were never
+design decisions. There was no state pension, so every non-veteran retirement
+ended in destitution — a man who retired at 66 with $134,703 was broke inside
+eight years, which made "retire or keep working" a trap. And there was no
+floor of any kind under a household that stopped earning, so arrears
+free-fell: one reached **−$606,276 over seventy-nine months** with no month in
+any future that could clear it.
+
+The v80 fix — write the debt off after two years — stopped the number being
+absurd and left the mechanism dishonest. Debt does not evaporate on a timer.
+A silent reset is not a recovery path; it is a hack wearing one.
+
+**Decision.**
+
+1. **Three floors, generically named** (charter §3 — the structure of a
+   safety net is public policy and fine to model; no trademarked program
+   name or restricted dataset appears anywhere). A **state pension** from 65
+   scaling with months actually worked; **unemployment insurance** at 45% of
+   the last wage for six months, and only after a *layoff*; **public
+   assistance** topping any adult up to a bare floor. The first two are
+   earned, the third is not, and that distinction is modelled.
+
+2. **Insolvency is resolved through a system, always.** A **chapter 13**
+   plan of three to five years for somebody with something spare at the end
+   of the month, or a means-tested **chapter 7** liquidation for somebody
+   with nothing. An automatic stay while either runs. A plan can be
+   **dismissed** when it cannot be kept — which is the honest failure mode
+   and what makes the whole thing bounded.
+
+3. **Homelessness is a state, not a crash.** A household with nowhere
+   cheaper to go loses its housing rather than being billed for a house it
+   is not in — which is what stops the free-fall at its source. It costs a
+   shelter figure instead of rent, and it is felt: triple the illness rate,
+   more injury, marriage strain, and heavier crime pressure. Income buys a
+   room back, and the test measures that people do climb out.
+
+4. **A filing is a door, not a punishment** — the same rule the criminal
+   record uses (C3 §5). Seven years for a plan, ten for a liquidation,
+   fading the whole way, then gone.
+
+**Consequences.** SIMULATION_VERSION 81, SCHEMA_VERSION 33, one migration.
+`debt-written-off` is no longer written by anything and survives only so old
+saves still read back.
+
+**Five things measured rather than guessed**, each of which was wrong first:
+
+- The deepest arrears anywhere across four centuries went **$606,276 →
+  $25,344**, and what remains belongs to households mid-resolution.
+- A household barred from refiling used to `continue`, and free-fell anyway.
+  It loses the housing instead.
+- Re-housing on the old affordability rule (rent plus *one* adult) bounced
+  families in and out **2,500 times**; requiring the whole month's costs cut
+  it to 429.
+- The means test on **gross** income put every insolvent household onto a
+  repayment plan, including those with nothing to pay one from: 460
+  dismissed against 31 completed. It runs on **disposable** income now.
+- And the one that mattered most: the settle skipped anybody with no wage
+  *before* support was considered, so **the floors were counted in household
+  income and never actually paid to anyone**. A household with $647 coming
+  in went $250 further behind every month.

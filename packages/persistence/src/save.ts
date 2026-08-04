@@ -11,6 +11,7 @@ import { generateNations, relationshipKey, specById, toSnapshot } from '@life-en
 import type {
   Accounts,
   AwardRecord,
+  Bankruptcy,
   CausalRecord,
   CriminalRecord,
   EducationRecord,
@@ -173,6 +174,10 @@ function hydrate(
   const households = new Map<EntityId, Household>()
   for (const household of body['households'] as Household[]) households.set(household.id, household)
 
+  const bankruptcies = new Map<EntityId, readonly Bankruptcy[]>()
+  for (const record of (body['bankruptcies'] as Bankruptcy[] | undefined) ?? []) {
+    bankruptcies.set(record.personId, [...(bankruptcies.get(record.personId) ?? []), record])
+  }
   const accounts = new Map<EntityId, Accounts>()
   for (const record of (body['accounts'] as Accounts[] | undefined) ?? []) {
     accounts.set(record.personId, record)
@@ -238,6 +243,7 @@ function hydrate(
     people,
     households,
     accounts,
+    bankruptcies,
     economy: body['economy'] as World['economy'],
     sectorPrices: body['sectorPrices'] as World['sectorPrices'],
     education,

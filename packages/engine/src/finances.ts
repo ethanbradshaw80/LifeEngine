@@ -50,8 +50,38 @@ import {
   withholdingFor,
   capitalGainsTaxOn,
 } from './tax.js'
-import type { Accounts, Holding, Household, Loan, LoanKind, Person, World } from './types.js'
+import type {
+  Accounts,
+  Bankruptcy,
+  BankruptcyChapter,
+  Holding,
+  Household,
+  Loan,
+  LoanKind,
+  Person,
+  World,
+} from './types.js'
 import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
+import {
+  assistanceOf,
+  shelterCostFor,
+  statePensionOf,
+  UNEMPLOYMENT_MONTHS,
+  unemploymentOf,
+} from './safetynet.js'
+import {
+  chaptersOpenTo,
+  creditPenaltyOf,
+  HOMESTEAD_EXEMPTION,
+  isInsolvent,
+  medianMonthlyIncome,
+  PLAN_MONTHS_MIN,
+  planMonthsFor,
+  planPaymentFor,
+  PROPERTY_EXEMPTION,
+  totalOwedBy,
+  underStay,
+} from './bankruptcy.js'
 import { placesOfKind } from './worldgen.js'
 
 /** Months of arrears before a household is pushed toward cheaper rent. */
@@ -85,6 +115,9 @@ export function accountsOf(world: World, personId: EntityId): Accounts {
       homePurchasePrice: 0 as Money,
       monthsPaid: 0,
       defaults: 0,
+      monthsWorked: 0,
+      lastMonthlyPay: 0 as Money,
+      unemploymentUntilTick: null,
     }
   )
 }
@@ -147,7 +180,13 @@ export function homeValueOf(world: World, personId: EntityId): Money {
 /** The score, read from the history rather than stored beside it. */
 export function creditOf(world: World, personId: EntityId): number {
   const a = accountsOf(world, personId)
-  return creditScoreOf(world, a.loans, a.defaults, a.monthsPaid)
+  return creditScoreOf(
+    world,
+    a.loans,
+    a.defaults,
+    a.monthsPaid,
+    creditPenaltyOf(world, personId, world.tick),
+  )
 }
 
 /**
@@ -336,10 +375,41 @@ function setAccounts(world: World, accounts: Accounts): void {
 /** What this person earns in a month, from every source. */
 export function personalIncome(world: World, personId: EntityId): Money {
   const job = world.employment.get(personId)
+  const person = world.people.get(personId)
+  // M-SAFETY §4. The state pension is earned income deferred, and it is
+  // taxed like the wage it was earned from — which is why it belongs here
+  // and the two untaxed floors below do not.
+  const statePension =
+    person === undefined
+      ? (0 as Money)
+      : statePensionOf(world, person, accountsOf(world, personId), world.tick)
   return ((job?.monthlyPay ?? 0) +
     servicePayOf(world, personId) +
     pensionOf(world, personId) +
-    survivorPensionOf(world, personId)) as Money
+    survivorPensionOf(world, personId) +
+    statePension) as Money
+}
+
+/**
+ * M-SAFETY §4. THE TWO UNTAXED FLOORS, monthly.
+ *
+ * Unemployment insurance is a share of the last wage for a bounded stretch
+ * after a layoff. Public assistance is whatever it takes to bring an adult
+ * up to a bare floor, and it is computed against what they would otherwise
+ * have IN HAND — net of tax and including the insurance — because a floor
+ * measured against gross is not a floor.
+ *
+ * Neither is withheld from. Taxing a floor down through itself would make
+ * the floor a fiction, and the fiction is what let arrears free-fall.
+ */
+export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 0 as Money
+  const accounts = accountsOf(world, personId)
+  const insurance = unemploymentOf(world, personId, accounts, tick)
+  const gross = personalIncome(world, personId)
+  const inHand = (gross - withholdingFor(gross) + insurance) as Money
+  return (insurance + assistanceOf(world, person, inHand, tick)) as Money
 }
 
 /**
@@ -373,7 +443,7 @@ export function householdIncome(world: World, household: Household): Money {
   let total = 0
   for (const memberId of household.memberIds) {
     const gross = personalIncome(world, memberId)
-    total += gross - withholdingFor(gross)
+    total += gross - withholdingFor(gross) + supportOf(world, memberId, world.tick)
   }
   return total as Money
 }
@@ -542,6 +612,21 @@ export function livingCostAt(world: World, base: number): Money {
 }
 
 export function householdCosts(world: World, household: Household): Money {
+  // M-SAFETY §3. NO ROOF, NO RENT. This is the single largest reason the
+  // old model could free-fall: a household that could not pay rent went on
+  // being charged it, for ever, and the arrears compounded on a bill nobody
+  // was sending. Losing housing is terrible in every other way the model
+  // has — health, work, relationships, exposure to crime — but it does not
+  // go on billing you for a house you are not in.
+  if (household.homelessSinceTick !== null) {
+    let shelter = 0
+    for (const memberId of household.memberIds) {
+      const member = world.people.get(memberId)
+      if (!member || member.deathTick !== null) continue
+      shelter += shelterCostFor(world)
+    }
+    return shelter as Money
+  }
   const place = world.places.get(household.placeId)
   let total = place ? rentAt(world, place.desirability) : 0
   for (const memberId of household.memberIds) {
@@ -582,6 +667,16 @@ export function householdCosts(world: World, household: Household): Money {
  */
 export function discretionaryFor(world: World, household: Household): Money {
   if (household.savings < 0) return 0 as Money
+  // M-SAFETY §2. A HOUSEHOLD UNDER A PLAN IS ON A COURT-SUPERVISED BUDGET.
+  //
+  // MEASURED, and it is what made plans unkeepable: a filing set the
+  // arrears to zero, discretionary spending switched straight back on, and
+  // it ate the very surplus the plan was computed from. 155 plans were
+  // dismissed against 2 completed. A chapter 13 budget is supervised
+  // precisely so that this cannot happen.
+  for (const memberId of household.memberIds) {
+    if (underStay(world, memberId, world.tick)) return 0 as Money
+  }
 
   const income = householdIncome(world, household)
   const basics = householdCosts(world, household)
@@ -672,6 +767,13 @@ export interface HouseholdLedger {
   readonly servicePay: readonly LedgerEntry[]
   readonly pensions: readonly LedgerEntry[]
   readonly survivorPay: readonly LedgerEntry[]
+  /**
+   * M-SAFETY §4. The state pension, unemployment insurance and public
+   * assistance, per person. The pension is taxed like the wage it was
+   * earned from; the other two arrive whole.
+   */
+  readonly statePension: readonly LedgerEntry[]
+  readonly support: readonly LedgerEntry[]
   readonly income: Money
   /** M-ECON §3: earned minus arrived. The rows above are gross. */
   readonly taxWithheld: Money
@@ -682,6 +784,12 @@ export interface HouseholdLedger {
   /** Members the county is feeding this month (jailed), fed by nobody here. */
   readonly jailed: number
   readonly livingCosts: Money
+  /**
+   * M-SAFETY §3. No roof: rent is zero and the living line is what a
+   * shelter costs. Exposed so the screen can say WHY the month suddenly
+   * looks cheap, which is the least it owes somebody in that state.
+   */
+  readonly homeless: boolean
   readonly costs: Money
   readonly lifestyle: Money
   /** M-ECON §3: what the state takes on the lifestyle line. */
@@ -696,6 +804,8 @@ export function householdLedger(world: World, household: Household): HouseholdLe
   const servicePay: LedgerEntry[] = []
   const pensions: LedgerEntry[] = []
   const survivorPay: LedgerEntry[] = []
+  const statePension: LedgerEntry[] = []
+  const support: LedgerEntry[] = []
 
   // Same iteration as householdIncome, kept deliberately parallel.
   for (const memberId of household.memberIds) {
@@ -710,23 +820,39 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     if (pension !== 0) pensions.push({ personId: memberId, amount: pension as Money })
     const survivor = survivorPensionOf(world, memberId)
     if (survivor !== 0) survivorPay.push({ personId: memberId, amount: survivor as Money })
+    const member = world.people.get(memberId)
+    const state =
+      member === undefined
+        ? 0
+        : statePensionOf(world, member, accountsOf(world, memberId), world.tick)
+    if (state !== 0) statePension.push({ personId: memberId, amount: state as Money })
+    const floor = supportOf(world, memberId, world.tick)
+    if (floor !== 0) support.push({ personId: memberId, amount: floor })
   }
 
   // Exactly the rows above, added up: what the household EARNS before tax.
-  const grossTotal = [...wages, ...servicePay, ...pensions, ...survivorPay].reduce(
+  const grossTotal = [...wages, ...servicePay, ...pensions, ...survivorPay, ...statePension].reduce(
     (sum, entry) => sum + entry.amount,
     0,
   )
+  // The untaxed floors, which arrive whole and are therefore NOT part of
+  // what withholding is computed from.
+  const supportTotal = support.reduce((sum, entry) => sum + entry.amount, 0)
 
-  // Same iteration as householdCosts, including the jail exemption.
+  // Same iteration as householdCosts, including the jail exemption AND the
+  // homelessness case — the two must agree to the cent or the itemisation
+  // stops summing to the month the tick loop actually spends.
+  const homeless = household.homelessSinceTick !== null
   const place = world.places.get(household.placeId)
-  const rent = (place ? rentAt(world, place.desirability) : 0) as Money
+  const rent = (homeless ? 0 : place ? rentAt(world, place.desirability) : 0) as Money
   let adults = 0
   let children = 0
   let jailed = 0
+  let living = 0
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
+    living++
     const criminal = world.criminal.get(memberId)
     if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
       jailed++
@@ -735,14 +861,20 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults++
     else children++
   }
-  const livingCosts = (adults * livingCostAt(world, LIVING_COST_ADULT) +
-    children * livingCostAt(world, LIVING_COST_CHILD)) as Money
+  const livingCosts = (
+    homeless
+      ? living * shelterCostFor(world)
+      : adults * livingCostAt(world, LIVING_COST_ADULT) +
+        children * livingCostAt(world, LIVING_COST_CHILD)
+  ) as Money
 
   return {
     wages,
     servicePay,
     pensions,
     survivorPay,
+    statePension,
+    support,
     income: householdIncome(world, household),
     // M-ECON §3. The rows above are what people EARN; the income line is
     // what arrives. This is the difference, on its own line, the way a
@@ -752,12 +884,17 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     // rather than recomputed from a third source: the first version summed
     // withholding independently and drifted from the rows whenever the two
     // walked the members differently.
-    taxWithheld: (grossTotal - householdIncome(world, household)) as Money,
+    // M-SAFETY §4: the floors are subtracted back out before the difference
+    // is taken. Without that this went NEGATIVE the moment a household's
+    // support exceeded its withholding, which is exactly what a floor under
+    // somebody with no wages does.
+    taxWithheld: (grossTotal - (householdIncome(world, household) - supportTotal)) as Money,
     rent,
     adults,
     children,
     jailed,
     livingCosts,
+    homeless,
     costs: householdCosts(world, household),
     lifestyle: discretionaryFor(world, household),
     salesTax: salesTaxOn(discretionaryFor(world, household)),
@@ -878,6 +1015,19 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
   return (mine - fromWages - fromSavings) as Money
 }
 
+/**
+ * M-SAFETY §3. Is this person sleeping rough or in a shelter?
+ *
+ * Read by health, hiring, relationships and crime — the state is only worth
+ * modelling because it is felt everywhere, and a homelessness that cost
+ * nothing but rent would be a discount rather than a disaster.
+ */
+export function isHomeless(world: World, personId: EntityId): boolean {
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return false
+  return world.households.get(person.householdId)?.homelessSinceTick !== null
+}
+
 export function inArrears(world: World, householdId: EntityId | null): boolean {
   if (householdId === null) return false
   const household = world.households.get(householdId)
@@ -936,18 +1086,34 @@ export function runFinances(world: World, tick: Tick): void {
       const member = world.people.get(memberId)
       if (!member || member.deathTick !== null) continue
       const gross = personalIncome(world, memberId)
-      if (gross <= 0) continue
       // M-ECON §3. WITHHELD AT SOURCE, because that is what a wage feels
       // like: the money that arrives is what is left. The yearly return
       // settles the difference, which is the only moment tax is a decision.
       const withheld = withholdingFor(gross)
-      const earned = (gross - withheld) as Money
+      // M-SAFETY §4. The two untaxed floors arrive whole, alongside the wage.
+      //
+      // AND THEY ARRIVE FOR PEOPLE WITH NO WAGE AT ALL, which is the entire
+      // point of a floor. Measured: the skip below used to read
+      // `if (gross <= 0) continue`, so somebody living on assistance was
+      // never credited it and never counted as contributing — their whole
+      // month became arrears while householdIncome cheerfully reported the
+      // money. A household with $647 coming in went $250 further behind
+      // every month, and every repayment plan built on it was dismissed.
+      const support = supportOf(world, memberId, tick)
+      if (gross <= 0 && support <= 0) continue
+      const earned = (gross - withheld + support) as Money
       const accounts = accountsOf(world, memberId)
+      // THE WORK RECORD A PENSION IS BUILT FROM. A month with a wage or
+      // service pay in it counts; a month on a floor does not, because the
+      // floors are what a working record is not.
+      const wage = (world.employment.get(memberId)?.monthlyPay ?? 0) + servicePayOf(world, memberId)
       setAccounts(world, {
         ...accounts,
         checking: (accounts.checking + earned) as Money,
         taxableYtd: (accounts.taxableYtd + gross) as Money,
         withheldYtd: (accounts.withheldYtd + withheld) as Money,
+        monthsWorked: wage > 0 ? accounts.monthsWorked + 1 : accounts.monthsWorked,
+        lastMonthlyPay: wage > 0 ? (wage as Money) : accounts.lastMonthlyPay,
       })
       earners.push({ personId: memberId, income: earned })
       income += earned
@@ -1020,48 +1186,435 @@ export function runFinances(world: World, tick: Tick): void {
     noteArrearsCrossing(world, tick, household.id, before)
   }
 
-  writeOffHopelessArrears(world, tick)
+  runPlans(world, tick)
+  runInsolvency(world, tick)
+  rehouseIfAble(world, tick)
   pushArrearsHouseholdsToCheaperRent(world, tick)
 }
 
-/** Two years behind, with nothing coming, is not a debt any more. */
-const ARREARS_WRITE_OFF_MONTHS = 24
+/**
+ * INSOLVENCY IS RESOLVED THROUGH A SYSTEM, ALWAYS (M-SAFETY §1-2).
+ *
+ * THIS REPLACES A HACK OF MY OWN. The last build capped runaway arrears by
+ * writing them off after two years. It stopped the number being absurd and
+ * left the mechanism dishonest: debt does not evaporate on a timer, and a
+ * silent reset is not a recovery path, it is a hack wearing one. The
+ * owner's instruction was to overrule it and build the real thing, which
+ * this is - and the write-off, and the `debt-written-off` event with it,
+ * are gone.
+ *
+ * A household that is genuinely insolvent - owing more than eighteen months
+ * of everything its people earn, or owing anything at all with nothing
+ * coming in - goes onto the bankruptcy track. The player is ASKED which
+ * chapter, where more than one is open to them; NPCs are routed on the same
+ * numbers, which is the parity rule.
+ */
+function runInsolvency(world: World, tick: Tick): void {
+  // The means test is against what this town actually earns, so it moves
+  // with the economy instead of being a number typed once.
+  const spare: number[] = []
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick !== null) continue
+    spare.push(householdIncome(world, household) - householdCosts(world, household))
+  }
+  const townMedian = medianMonthlyIncome(spare)
+
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (household.dissolvedTick !== null) continue
+
+    // WHO IS ACTUALLY INSOLVENT UNDER THIS ROOF.
+    //
+    // Not only the household that cannot make rent. A person can be square
+    // with their landlord and buried in loans, and that person is exactly
+    // who a repayment plan is for — measured, the first version looked only
+    // at arrears, and so chapter 13 never once fired in four centuries
+    // while chapter 7 fired 195 times. Both roads have to be real.
+    const arrears = Math.max(0, -household.savings)
+    const debtors = [...household.memberIds]
+      .map((id) => world.people.get(id))
+      .filter((member): member is Person => member !== undefined && member.deathTick === null)
+      .filter((member) => totalDebtOf(accountsOf(world, member.id).loans) > 0)
+    if (arrears <= 0 && debtors.length === 0) continue
+
+    const head =
+      arrears > 0
+        ? eldestMember(world, household)
+        : debtors.sort(
+            (a, b) =>
+              totalDebtOf(accountsOf(world, b.id).loans) -
+                totalDebtOf(accountsOf(world, a.id).loans) || a.id - b.id,
+          )[0]
+    if (!head) continue
+    // A filing already running is doing this job. Let the plan run.
+    if (underStay(world, head.id, tick)) continue
+
+    const accounts = accountsOf(world, head.id)
+    const owed = totalOwedBy(accounts, household.savings)
+    const income = householdIncome(world, household)
+    const costs = householdCosts(world, household)
+    if (!isInsolvent(owed, income, costs)) continue
+
+    const open = chaptersOpenTo(world, head.id, income - costs, townMedian, tick)
+    if (open.length === 0) {
+      // THE COURTHOUSE IS SHUT TO THEM - they filed too recently. That
+      // cannot mean the debt free-falls instead: measured, it took a run to
+      // -$680,582 with the bankruptcy system already in. What actually
+      // happens to somebody who cannot file and cannot pay is that they
+      // lose the housing, which stops the rent that was compounding.
+      if (household.homelessSinceTick === null) loseHousing(world, tick, household, head)
+      continue
+    }
+
+    if (head.id === world.player.personId) {
+      const raised = raisePending(world, {
+        tick,
+        kind: 'bankruptcy',
+        personId: head.id,
+        otherId: null,
+        occupationId: open.join('/'),
+        workplaceId: null,
+        monthlyPay: owed,
+        placeId: null,
+        options: open.map((chapter) => `chapter-${String(chapter)}`),
+      })
+      if (raised) continue
+    }
+
+    // NPCs, and a player whose slot was full: the court routes them. Where
+    // both are open the honest default is the one that keeps the home - a
+    // plan is what a person with income is actually put on.
+    fileBankruptcy(world, tick, head.id, open.includes(13) ? 13 : 7)
+  }
+}
 
 /**
- * A DEBT NOBODY CAN EVER PAY IS NOT A DEBT, IT IS A PERMANENT TAG.
+ * THE FILING ITSELF. Money moves here, because this module is the only
+ * thing that may move it.
  *
- * Found by playing: a man who retired at 66 with $134,703 by had spent it
- * all within eight years — there is no state pension in this world — and his
- * household's arrears then ran on compounding into SIX FIGURES. The screen
- * read "the household has -$606,276.09" and there was no state of the world
- * from which it could ever return. That is a trap, and Law 7 says failure
- * keeps a realistic recovery path.
- *
- * What actually happens to arrears like that is that they end: the household
- * has already been moved to the bottom of town, there is nothing left to
- * take, and the debt is written off. The event records it, so the record
- * still says what happened, and the sheet is clean from that month on.
+ * Chapter 7 liquidates what is not exempt and discharges the rest, at once.
+ * Chapter 13 opens a plan: nothing is discharged today, the stay goes up,
+ * and the payments come out month by month until the term is served.
  */
-function writeOffHopelessArrears(world: World, tick: Tick): void {
-  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
-    if (household.dissolvedTick !== null || household.savings >= 0) continue
-    const costs = householdCosts(world, household)
-    if (costs <= 0) continue
-    if (-household.savings < costs * ARREARS_WRITE_OFF_MONTHS) continue
+export function fileBankruptcy(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  chapter: BankruptcyChapter,
+): Bankruptcy | undefined {
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return undefined
+  const household = world.households.get(person.householdId)
+  if (!household) return undefined
 
-    const head = eldestMember(world, household)
+  const accounts = accountsOf(world, personId)
+  const arrears = Math.max(0, -household.savings)
+  const owed = totalOwedBy(accounts, household.savings)
+  if (owed <= 0) return undefined
+  // THE PLAN IS SIZED ON THE FILER'S OWN SPARE MONEY, not the household's.
+  //
+  // MEASURED, and this was the whole reason plans could not be kept: the
+  // payment came out of ONE person's checking while being computed from
+  // what the WHOLE roof had spare. Where the filer was not the main earner,
+  // the payment took money their share of the rent needed, the settle could
+  // not collect it, and the arrears the plan existed to end started
+  // rebuilding the month it began. 150 plans dismissed against 2 completed.
+  const disposable = personalMonthlyNet(world, personId)
+
+  let filing: Bankruptcy
+  if (chapter === 13) {
+    const months = planMonthsFor(owed, disposable)
+    filing = {
+      personId,
+      chapter: 13,
+      filedAtTick: tick,
+      owed,
+      planMonthly: planPaymentFor(owed, disposable, months),
+      planEndsAtTick: (tick + months) as Tick,
+      dischargedAtTick: null,
+      discharged: 0 as Money,
+    }
+    // THE STAY GOES UP AND THE ARREARS STOP RUNNING. The debt is not gone -
+    // it is on a schedule, which is the whole difference from the write-off.
     world.households.set(household.id, { ...household, savings: 0 as Money })
-    if (head) {
-      recordEvent(world, tick, {
-        type: 'debt-written-off',
-        subjectId: head.id,
-        detail: String(household.id),
+    noteArrearsCrossing(world, tick, household.id, household.savings)
+  } else {
+    // Chapter 7. What is not exempt is sold; the homestead allowance and
+    // essential property come through, so nobody is stripped to nothing.
+    const liquid = (accounts.checking + accounts.savings) as Money
+    const exempt = Math.min(liquid, PROPERTY_EXEMPTION)
+    const sold = Math.max(0, liquid - exempt)
+    const homeValue = homeValueOf(world, personId)
+    const keepsHome = homeValue <= HOMESTEAD_EXEMPTION
+    setAccounts(world, {
+      ...accounts,
+      checking: 0 as Money,
+      savings: exempt as Money,
+      // A brokerage account is not exempt. The retirement account is,
+      // which is the whole reason it exists.
+      holdings: [],
+      brokerage: 0 as Money,
+      // Unsecured debt is discharged. A mortgage on a home they keep is
+      // secured and survives - that is the difference between the two.
+      loans: keepsHome ? accounts.loans.filter((loan) => loan.kind === 'mortgage') : [],
+      homePlaceId: keepsHome ? accounts.homePlaceId : null,
+      homePurchasePrice: keepsHome ? accounts.homePurchasePrice : (0 as Money),
+    })
+    world.households.set(household.id, { ...household, savings: 0 as Money })
+    noteArrearsCrossing(world, tick, household.id, household.savings)
+    filing = {
+      personId,
+      chapter: 7,
+      filedAtTick: tick,
+      owed,
+      planMonthly: 0 as Money,
+      planEndsAtTick: null,
+      dischargedAtTick: tick,
+      discharged: Math.max(0, owed - sold) as Money,
+    }
+  }
+
+  world.bankruptcies.set(personId, [...(world.bankruptcies.get(personId) ?? []), filing])
+  recordEvent(world, tick, {
+    type: 'filed-bankruptcy',
+    subjectId: personId,
+    detail: `${String(chapter)}:${String(owed)}`,
+  })
+  if (filing.dischargedAtTick !== null) {
+    recordEvent(world, tick, {
+      type: 'debt-discharged',
+      subjectId: personId,
+      detail: String(filing.discharged),
+    })
+  }
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'spending',
+    significance: 'defining',
+    inputs: [
+      factor('own-choice', 700),
+      factor('in-arrears', Math.min(1000, Math.floor(arrears / 1000))),
+    ],
+    chosen: chapter === 7 ? 'filed for liquidation' : 'filed a repayment plan',
+    rejected: [chapter === 7 ? 'a repayment plan' : 'liquidation'],
+    streamId: Stream.Economy,
+  })
+  return filing
+}
+
+/**
+ * How far behind a household may fall while a plan is running before the
+ * court gives up on it. Half a year of its own costs: enough that a bad
+ * month does not end a plan, little enough that it cannot hide a spiral.
+ */
+const PLAN_FAILURE_MONTHS = 6
+
+/**
+ * A PLAN RUNNING. The payment comes out each month, and when the term is
+ * served whatever is left is discharged and the file is clean.
+ */
+function runPlans(world: World, tick: Tick): void {
+  for (const personId of [...world.bankruptcies.keys()].sort((a, b) => a - b)) {
+    const filings = world.bankruptcies.get(personId) ?? []
+    const index = filings.findIndex(
+      (entry) => entry.dischargedAtTick === null && entry.planEndsAtTick !== null,
+    )
+    if (index < 0) continue
+    const filing = filings[index]
+    if (!filing) continue
+
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) {
+      // Death ends a plan. The debt does not follow anybody else.
+      const ended = { ...filing, dischargedAtTick: tick, discharged: 0 as Money }
+      world.bankruptcies.set(
+        personId,
+        filings.map((entry, i) => (i === index ? ended : entry)),
+      )
+      continue
+    }
+
+    const accounts = accountsOf(world, personId)
+    const fromChecking = Math.max(0, Math.min(filing.planMonthly, accounts.checking))
+    const fromSavings = Math.max(0, Math.min(filing.planMonthly - fromChecking, accounts.savings))
+    if (fromChecking + fromSavings > 0) {
+      setAccounts(world, {
+        ...accounts,
+        checking: (accounts.checking - fromChecking) as Money,
+        savings: (accounts.savings - fromSavings) as Money,
+        // Months met under a plan build the file back the same way months
+        // met on a loan do. It is the same thing: a record of paying.
+        monthsPaid: accounts.monthsPaid + 1,
       })
     }
-    // Zero is not negative, so the household is out of arrears — the
-    // crossing owes its event like every other writer in this module.
-    noteArrearsCrossing(world, tick, household.id, household.savings)
+
+    // THE PLAN CAN FAIL, and it must be able to. Measured: without this a
+    // household under a stay went on falling behind for the whole three to
+    // five years of its plan - rent does not stop for a court - and one run
+    // still reached -$680,582 with the bankruptcy system already in.
+    //
+    // A real plan is DISMISSED when the debtor cannot keep up with it. The
+    // stay lifts, nothing is discharged, and next month the ordinary track
+    // takes over: liquidation if the means test now passes, and the housing
+    // if it does not. That is the honest failure mode, and it is bounded.
+    const household =
+      person.householdId === null ? undefined : world.households.get(person.householdId)
+    if (household !== undefined) {
+      const behind = Math.max(0, -household.savings)
+      if (behind > householdCosts(world, household) * PLAN_FAILURE_MONTHS) {
+        const dismissed = { ...filing, dischargedAtTick: tick, discharged: 0 as Money }
+        world.bankruptcies.set(
+          personId,
+          filings.map((entry, i) => (i === index ? dismissed : entry)),
+        )
+        recordEvent(world, tick, {
+          type: 'plan-dismissed',
+          subjectId: personId,
+          detail: String(behind),
+        })
+        continue
+      }
+    }
+
+    if (tick < (filing.planEndsAtTick ?? 0)) continue
+
+    // TERM SERVED. What is left is discharged and they walk out of it clean,
+    // which is the recovery path Law 7 asks for.
+    const done = {
+      ...filing,
+      dischargedAtTick: tick,
+      discharged: Math.max(0, filing.owed - filing.planMonthly * PLAN_MONTHS_MIN) as Money,
+    }
+    world.bankruptcies.set(
+      personId,
+      filings.map((entry, i) => (i === index ? done : entry)),
+    )
+    recordEvent(world, tick, {
+      type: 'plan-completed',
+      subjectId: personId,
+      detail: String(filing.owed),
+    })
+    recordEvent(world, tick, {
+      type: 'debt-discharged',
+      subjectId: personId,
+      detail: String(done.discharged),
+    })
   }
+}
+
+/**
+ * M-SAFETY §3. THE ROOF GOES.
+ *
+ * No rent is charged from here (householdCosts drops to a shelter figure),
+ * which is what stops the free-fall at its source. Everything else about it
+ * is bad: health, work, relationships and exposure to crime all read the
+ * state. What it is NOT is a dead end - `rehouseIfAble` below is checked
+ * every month, and income buys a room back.
+ */
+function loseHousing(world: World, tick: Tick, household: Household, head: Person): void {
+  if (household.homelessSinceTick !== null) return
+  world.households.set(household.id, {
+    ...household,
+    homelessSinceTick: tick,
+    // The arrears stop here. There is no longer a rent to be behind on, and
+    // carrying the old balance forward would be billing them for a house
+    // they were put out of.
+    savings: 0 as Money,
+  })
+  noteArrearsCrossing(world, tick, household.id, household.savings)
+  recordEvent(world, tick, {
+    type: 'lost-housing',
+    subjectId: head.id,
+    placeId: household.placeId,
+    detail: String(household.id),
+  })
+  recordDecision(world, tick, {
+    subjectId: head.id,
+    decision: 'move',
+    significance: 'defining',
+    inputs: [factor('in-arrears', 1000), factor('cheaper-rent', 0)],
+    chosen: 'lost the housing',
+    rejected: ['somewhere cheaper to go'],
+    streamId: Stream.Economy,
+  })
+}
+
+/**
+ * M-SAFETY §3. THE WAY BACK IN.
+ *
+ * The bottom of the ladder is a rung, not a hole. A household with enough
+ * coming in to carry the cheapest street in town takes it - and because the
+ * safety net puts a floor under everybody, that is a state which is actually
+ * reachable from destitution rather than in theory only.
+ */
+function rehouseIfAble(world: World, tick: Tick): void {
+  const neighbourhoods = placesOfKind(world, 'neighbourhood')
+  if (neighbourhoods.length === 0) return
+  const cheapest = [...neighbourhoods].sort((a, b) => a.desirability - b.desirability)[0]
+  if (!cheapest) return
+
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (household.dissolvedTick !== null || household.homelessSinceTick === null) continue
+    const income = householdIncome(world, household)
+    // Enough to carry the WHOLE month at that address - the rent and every
+    // mouth in the house - not merely the rent and one adult. Measured: the
+    // looser test re-housed families into months they could not carry, and
+    // they lost it again within the year. A door back has to be a door to
+    // somewhere they can stay.
+    let mouths = 0
+    for (const memberId of household.memberIds) {
+      const member = world.people.get(memberId)
+      if (!member || member.deathTick !== null) continue
+      mouths +=
+        ageAt(member.birthTick, tick) >= ADULT_COST_AGE
+          ? livingCostAt(world, LIVING_COST_ADULT)
+          : livingCostAt(world, LIVING_COST_CHILD)
+    }
+    if (income < rentAt(world, cheapest.desirability) + mouths) continue
+
+    const head = eldestMember(world, household)
+    world.households.set(household.id, {
+      ...household,
+      homelessSinceTick: null,
+      placeId: cheapest.id,
+      savings: 0 as Money,
+    })
+    // The crossing is an invariant of the FIELD, not of runFinances: any
+    // writer that moves savings across zero owes the event. Leaving it out
+    // here produced two `fell-behind` events in a row with no recovery
+    // between them, and arrearsHistoryOf read that as one impossible spell.
+    noteArrearsCrossing(world, tick, household.id, household.savings)
+    if (head) {
+      recordEvent(world, tick, {
+        type: 'rehoused',
+        subjectId: head.id,
+        placeId: cheapest.id,
+        detail: String(tick - household.homelessSinceTick),
+      })
+      recordDecision(world, tick, {
+        subjectId: head.id,
+        decision: 'move',
+        significance: 'major',
+        inputs: [factor('own-choice', 600), factor('cheaper-rent', 1000)],
+        chosen: `took a place in ${cheapest.name}`,
+        rejected: ['staying where they were'],
+        streamId: Stream.Economy,
+      })
+    }
+  }
+}
+
+/**
+ * M-SAFETY §4. THE INSURANCE STARTS. Called by the layoff, and only by the
+ * layoff — the qualifying condition is the whole point of it.
+ */
+export function startUnemployment(world: World, personId: EntityId, tick: Tick): void {
+  const accounts = accountsOf(world, personId)
+  if (accounts.lastMonthlyPay <= 0) return
+  setAccounts(world, {
+    ...accounts,
+    unemploymentUntilTick: (tick + UNEMPLOYMENT_MONTHS) as Tick,
+  })
+  recordEvent(world, tick, { type: 'drew-unemployment', subjectId: personId })
 }
 
 /**
@@ -1439,11 +1992,23 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
     const cheaper = neighbourhoods
       .filter((p) => p.desirability < current.desirability - 60)
       .sort((a, b) => a.desirability - b.desirability)
-    const target = cheaper[0]
-    if (!target) continue // already at the bottom of town; nothing to sell but time
-
     const head = eldestMember(world, household)
     if (!head) continue
+
+    // M-SAFETY §2. THE AUTOMATIC STAY. Nobody is moved out over money while
+    // a filing is running - that is what a stay is for.
+    if (underStay(world, head.id, tick)) continue
+
+    const target = cheaper[0]
+    if (!target) {
+      // M-SAFETY §3. ALREADY AT THE BOTTOM OF TOWN. This used to be where
+      // the model gave up - "nothing to sell but time" - and the arrears
+      // simply went on compounding on a rent nobody could pay. They lose
+      // the housing instead, which is a real state with real consequences
+      // and, unlike an infinite debt, a way back out of it.
+      loseHousing(world, tick, household, head)
+      continue
+    }
 
     const playerId = world.player.personId
     if (playerId !== null && household.memberIds.includes(playerId)) {
@@ -1562,6 +2127,9 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
     homePurchasePrice: 0 as Money,
     monthsPaid: 0,
     defaults: 0,
+    monthsWorked: 0,
+    lastMonthlyPay: 0 as Money,
+    unemploymentUntilTick: null,
   })
   // The household itself keeps only what it owes, which death does not clear.
   void household
