@@ -1275,6 +1275,7 @@ export type EventType =
   | 'fell-behind'
   /** Savings recovered above zero after arrears. */
   | 'back-in-the-black'
+  | 'debt-written-off'
   /** Money passed to this person from a parent's estate. */
   | 'inherited'
   | 'was-injured'

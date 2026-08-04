@@ -966,10 +966,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <div className={ledger.inArrears ? 'balance behind' : 'balance'}>
+                    {/* The household balance is OBLIGATIONS since M-ECON §1
+                        — it is at or below zero by construction, so "has
+                        -$606,276.09" is the wrong sentence. Behind, it OWES,
+                        and the sum is written as a plain positive amount. */}
                     <span className="balance-label">
-                      {age < 18 ? 'The family has' : 'The household has'}
+                      {ledger.inArrears
+                        ? age < 18
+                          ? 'The family owes'
+                          : 'The household owes'
+                        : age < 18
+                          ? 'The family is square'
+                          : 'The household is square'}
                     </span>
-                    <span className="balance-value">{formatMoney(ledger.savings)}</span>
+                    <span className="balance-value">
+                      {formatMoney(Math.abs(ledger.savings) as Money)}
+                    </span>
                     <span className="balance-sub">
                       {ledger.inArrears
                         ? 'behind — nothing goes on lifestyle until it is clear'
@@ -1020,7 +1032,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           {' '}· {ledger.inArrears ? 'belt tightened' : 'the life between rent and the bank'}
                         </span>
                       </span>
-                      <span className="ledger-amount">−{formatMoney(ledger.lifestyle)}</span>
+                      <span className="ledger-amount">
+                        {ledger.lifestyle > 0 ? `−${formatMoney(ledger.lifestyle)}` : formatMoney(0 as Money)}
+                      </span>
                     </li>
                     {ledger.salesTax > 0 && (
                       <li className="ledger-row out">
@@ -1039,7 +1053,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </li>
                     <li className={ledger.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
                       <span className="ledger-label">Left over</span>
-                      <span className="ledger-amount">{formatMoney(ledger.net)}</span>
+                      <span className="ledger-amount">
+                        {ledger.net < 0
+                          ? `−${formatMoney(-ledger.net as Money)}`
+                          : formatMoney(ledger.net)}
+                      </span>
                     </li>
                   </ul>
 

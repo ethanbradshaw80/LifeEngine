@@ -318,9 +318,34 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     reclass: '🔧 Retrain into another trade',
   },
   'service-contract': { 'take-the-oath': 'Raise your right hand' },
+  // M-ECON §8. The bill happens either way; the choice is whether it comes
+  // out of what you have or is carried as a debt at your own rate.
+  'money-shock': {
+    'pay-now': '💵 Pay it now',
+    'pay-over-time': '🧾 Carry it',
+  },
 }
 
-function optionLabel(world: World, pending: PendingDecision, option: string): string {
+/**
+ * The decisions that DRAW THEIR OWN BUTTONS — a discharge sheet, a
+ * certificate, a contract, a crime scene, a set of orders. Their answers
+ * never pass through optionLabel, so the label table owes them nothing.
+ * Exported for the test that checks every other kind has words on it.
+ */
+export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
+  'crime-scene',
+  'separation-record',
+  'retirement-certificate',
+  'service-contract',
+  'deployment-order',
+]
+
+/**
+ * The words on a button. Exported so a test can play whole lives and catch
+ * an option that falls through to its raw engine id — which is how
+ * "pay-now / pay-over-time" reached a real screen.
+ */
+export function optionLabel(world: World, pending: PendingDecision, option: string): string {
   // P2: move pendings carry the whole candidate list as 'to-<placeId>'
   // options, and 'accept' is the engine's own pick — both label with the
   // street's name so the buttons read as destinations, not verbs.

@@ -2784,8 +2784,24 @@ export function describePending(world: World, pending: PendingDecision): string 
       const ally = pending.placeId === null ? undefined : world.nations.get(pending.placeId)
       return `${ally?.name ?? 'The country you are posted to'} has gone to war while you stand on its soil. Go home, or stay and fight beside them?`
     }
-    case 'desperation':
-      return 'The money is not there and it is not coming. There is a house on the next street with something in it.'
+    case 'desperation': {
+      // THE PROMPT HAS TO MATCH THE LEDGER. Found by playing: the moment is
+      // reachable at the baseline pressure everybody carries, so a major on
+      // $37,200 a year with $17,000 by met a screen telling him the money
+      // was not there and not coming. It was there. The circumstance is
+      // already modelled — behind, out of work, or neither — so the words
+      // are read from it rather than assuming the worst case (Law 1).
+      const behind = inArrears(world, person?.householdId ?? null)
+      const jobless =
+        !world.employment.has(pending.personId) && !isServing(world, pending.personId)
+      const house = 'There is a house on the next street with something in it.'
+      if (behind && jobless) {
+        return `The money is not there and it is not coming. ${house}`
+      }
+      if (behind) return `The month will not close, however you move it around. ${house}`
+      if (jobless) return `Another week with no work in it, and the savings only go so far. ${house}`
+      return `Nobody is home on the next street, and nobody would know. ${house}`
+    }
     case 'plea': {
       const offence = pending.occupationId === null ? undefined : offenceById(pending.occupationId)
       return `You are charged with ${offence?.title ?? 'theft'}. How do you plead?`

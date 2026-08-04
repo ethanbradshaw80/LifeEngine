@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v80 — ARREARS IS NO LONGER A TRAP. A household two years behind on its
+ *      own costs has the debt written off, recorded as an event. Found by
+ *      playing: with no state pension, a man who retired with $134,703 by
+ *      spent it in eight years and his household then ran to -$606,276 in
+ *      arrears with no future month that could ever clear it (Law 7).
  * v79 — MONEY THAT WAS BEING DELETED. Three places still credited the
  *      HOUSEHOLD balance, which since M-ECON §1 is an obligations counter
  *      clamped at or below zero every month: a reenlistment bonus, the
@@ -502,7 +507,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 79
+export const SIMULATION_VERSION = 80
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

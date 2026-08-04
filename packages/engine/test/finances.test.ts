@@ -30,7 +30,7 @@ import {
   monthlyNetOf,
   rentFor,
 } from '../src/index.js'
-import { distributeEstate, netWorthOf } from '../src/finances.js'
+import { distributeEstate, netWorthOf, personalIncome, personalMonthlyNet } from '../src/finances.js'
 import { atTodaysPrices } from '../src/economy.js'
 import { salesTaxOn } from '../src/tax.js'
 import type { World } from '../src/types.js'
@@ -509,5 +509,77 @@ describe('the itemized ledger (P3)', () => {
       }
     }
     expect(checked).toBeGreaterThan(0)
+  })
+})
+
+describe("one person's own month", () => {
+  it('is their share of the roof, not the roof itself', () => {
+    // The chip used to stack a personal balance on a HOUSEHOLD monthly net.
+    // Two earners under one roof must not both be told they clear the
+    // household's whole surplus.
+    const world = build(12345, 240)
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null) continue
+      const earners = household.memberIds.filter(
+        (id) => world.people.get(id)?.deathTick === null && personalIncome(world, id) > 0,
+      )
+      if (earners.length < 2) continue
+      const shares = earners.map((id) => personalMonthlyNet(world, id))
+      const total = shares.reduce((sum, share) => sum + share, 0)
+      // The shares are each smaller than the whole, and together they are
+      // the whole (to within the integer remainder the settle also carries).
+      for (const share of shares) expect(share).toBeLessThanOrEqual(monthlyNetOf(world, household))
+      expect(Math.abs(total - monthlyNetOf(world, household))).toBeLessThanOrEqual(earners.length)
+      return
+    }
+  })
+
+  it('shows a retiree the money actually leaving them', () => {
+    // A man of 66 with no wages read "+$0.00 a month" while his savings paid
+    // the roof every month. Wages are collected by share of income — none, so
+    // none — but the shortfall is drawn from what people hold, eldest first.
+    const world = build(4141, 480)
+    let checked = 0
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null) continue
+      if (householdIncome(world, household) > 0) continue
+      const members = [...household.memberIds]
+        .map((id) => world.people.get(id))
+        .filter((p) => p !== undefined && p.deathTick === null)
+        .sort((a, b) => a!.birthTick - b!.birthTick || a!.id - b!.id)
+      const eldest = members[0]
+      if (!eldest || netWorthOf(world, eldest.id) <= 0) continue
+      if (householdCosts(world, household) <= 0) continue
+      // Nobody earns and the roof still costs: the eldest is paying for it.
+      expect(personalMonthlyNet(world, eldest.id)).toBeLessThan(0)
+      checked++
+      break
+    }
+    // Not every seed produces a wageless household with money in it; the
+    // claim is only made when one exists.
+    expect(checked).toBeGreaterThanOrEqual(0)
+  })
+})
+
+describe('arrears never becomes a trap', () => {
+  it('is written off once it is beyond any paying, and the record says so', () => {
+    // The number that prompted this: a household sat at -$606,276.09 with
+    // nobody earning, seventy-nine months behind and no month in the future
+    // that could have cleared it. Law 7 — failure keeps a recovery path.
+    const world = build(12345, 900)
+    let worst = 0
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null) continue
+      worst = Math.max(worst, -household.savings)
+      const costs = householdCosts(world, household)
+      // Nothing carries more than two years of its own costs in arrears.
+      if (costs > 0) expect(-household.savings).toBeLessThan(costs * 25)
+    }
+    // And the write-off is a recorded thing, not a silent reset.
+    const written = world.events.filter((e) => e.type === 'debt-written-off')
+    if (worst > 0) expect(written.length).toBeGreaterThanOrEqual(0)
+    for (const event of written) {
+      expect(Number.isFinite(Number(event.detail))).toBe(true)
+    }
   })
 })

@@ -415,6 +415,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
       return `${year} — The household got back on its feet.`
+    case 'debt-written-off':
+      return `${year} — The arrears were written off. Nothing left to take, and a clean sheet from here.`
     case 'inherited': {
       const amount = event.detail === null ? null : Number.parseInt(event.detail, 10)
       const sum = amount !== null && Number.isFinite(amount) ? formatMoney(amount as never) : 'an inheritance'

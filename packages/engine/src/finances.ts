@@ -828,15 +828,19 @@ export function monthlyNetOf(world: World, household: Household): Money {
 /**
  * WHAT ONE PERSON'S OWN MONEY DOES THIS MONTH.
  *
- * Found by playing: the glance chip stacked a person's balance on top of the
- * household's monthly net, so it read "$1,337.58, +$804 a month" to a man
- * whose own money was growing by about a tenth of that. Two different
- * subjects in one chip is not a rounding problem, it is the wrong number.
+ * Found by playing, twice.
  *
- * The share is the SAME pro-rata split the monthly settle uses — by net
- * income, so whoever brings in more of the household's money carries more of
- * its costs. Somebody with no income of their own carries none of it, and
- * their own money simply does not move.
+ * FIRST: the glance chip stacked a person's balance on top of the household's
+ * monthly net, so it read "$1,337.58, +$804 a month" to a man whose own money
+ * was growing by about a tenth of that. Two different subjects in one chip is
+ * not a rounding problem, it is the wrong number.
+ *
+ * SECOND: a retired man of 66 with no wages read "+$0.00 a month" while his
+ * savings drained every month to cover the roof. Wages are collected pro rata
+ * by income — so somebody with none contributes none — but whatever the wages
+ * cannot cover is then drawn from the members' own money, ELDEST FIRST, and a
+ * retiree is usually the eldest. Both halves of the settle are mirrored here,
+ * because showing only the first is what made the zero.
  */
 export function personalMonthlyNet(world: World, personId: EntityId): Money {
   const person = world.people.get(personId)
@@ -846,13 +850,32 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
 
   const gross = personalIncome(world, personId)
   const mine = (gross - withholdingFor(gross)) as Money
-  if (mine <= 0) return 0 as Money
-
   const income = householdIncome(world, household)
-  if (income <= 0) return mine
   const spending = discretionaryFor(world, household)
   const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
-  return (mine - Math.floor((owed * mine) / income)) as Money
+
+  // What the wages carry, taken by share of the household's income.
+  const fromWages = income > 0 ? Math.floor((owed * mine) / income) : 0
+
+  // What the wages cannot carry comes out of what people have put by, eldest
+  // first — the same order runFinances walks, so the same person bears it.
+  let shortfall = Math.max(0, owed - Math.min(owed, income))
+  let fromSavings = 0
+  if (shortfall > 0) {
+    const members = [...household.memberIds]
+      .map((id) => world.people.get(id))
+      .filter((member): member is Person => member !== undefined && member.deathTick === null)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+    for (const member of members) {
+      if (shortfall <= 0) break
+      const held = moneyOnHand(world, member.id)
+      const taken = Math.min(shortfall, held)
+      if (member.id === personId) fromSavings = taken
+      shortfall -= taken
+    }
+  }
+
+  return (mine - fromWages - fromSavings) as Money
 }
 
 export function inArrears(world: World, householdId: EntityId | null): boolean {
@@ -997,7 +1020,48 @@ export function runFinances(world: World, tick: Tick): void {
     noteArrearsCrossing(world, tick, household.id, before)
   }
 
+  writeOffHopelessArrears(world, tick)
   pushArrearsHouseholdsToCheaperRent(world, tick)
+}
+
+/** Two years behind, with nothing coming, is not a debt any more. */
+const ARREARS_WRITE_OFF_MONTHS = 24
+
+/**
+ * A DEBT NOBODY CAN EVER PAY IS NOT A DEBT, IT IS A PERMANENT TAG.
+ *
+ * Found by playing: a man who retired at 66 with $134,703 by had spent it
+ * all within eight years — there is no state pension in this world — and his
+ * household's arrears then ran on compounding into SIX FIGURES. The screen
+ * read "the household has -$606,276.09" and there was no state of the world
+ * from which it could ever return. That is a trap, and Law 7 says failure
+ * keeps a realistic recovery path.
+ *
+ * What actually happens to arrears like that is that they end: the household
+ * has already been moved to the bottom of town, there is nothing left to
+ * take, and the debt is written off. The event records it, so the record
+ * still says what happened, and the sheet is clean from that month on.
+ */
+function writeOffHopelessArrears(world: World, tick: Tick): void {
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (household.dissolvedTick !== null || household.savings >= 0) continue
+    const costs = householdCosts(world, household)
+    if (costs <= 0) continue
+    if (-household.savings < costs * ARREARS_WRITE_OFF_MONTHS) continue
+
+    const head = eldestMember(world, household)
+    world.households.set(household.id, { ...household, savings: 0 as Money })
+    if (head) {
+      recordEvent(world, tick, {
+        type: 'debt-written-off',
+        subjectId: head.id,
+        detail: String(household.id),
+      })
+    }
+    // Zero is not negative, so the household is out of arrears — the
+    // crossing owes its event like every other writer in this module.
+    noteArrearsCrossing(world, tick, household.id, household.savings)
+  }
 }
 
 /**
