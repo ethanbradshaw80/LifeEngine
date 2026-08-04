@@ -28,6 +28,11 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v83 — M-CAREER PHASE 2: THE MOMENTS A JOB IS MADE OF. Ten authored work
+ *      moments on the combat scene's three rails — the account nobody wants
+ *      to run, the mistake nobody saw, the offer from across town, the
+ *      corner the boss wants cut. The player is asked; NPCs answer by
+ *      character on the same maths. Every working life diverges from v82.
  * v82 — M-CAREER PHASE 1: CIVILIAN WORK GETS A LADDER. Nine tracks from the
  *      mill floor to the corner office, twenty-nine new rungs, and an
  *      annual REVIEW that is the civilian promotion board — performance and
@@ -523,7 +528,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 82
+export const SIMULATION_VERSION = 83
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

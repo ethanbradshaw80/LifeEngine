@@ -2887,3 +2887,148 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .bank-tabs button.is-active {
   color: var(--accent);
 }
+
+/* ---------------------------------------------------------------------------
+   A MOMENT AT WORK (M-CAREER §3).
+
+   The owner's mockup: standing across the top, the situation, three answers
+   with what each one means, then what it cost. Same bones as the crime
+   scene, its own voice.
+   ------------------------------------------------------------------------- */
+.work-card {
+  width: 100%;
+  max-width: 34rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.work-top {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.work-top .k {
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.work-top .title {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.work-stakes {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.work-stakes b {
+  color: var(--fg);
+}
+
+.work-scene {
+  padding: 0.85rem 0.9rem 0.3rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.work-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.5rem 0.7rem 0.9rem;
+}
+
+.work-opt {
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.work-opt:hover {
+  border-color: var(--accent);
+}
+
+.work-opt .h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.work-opt .tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.work-opt.is-bold .tag {
+  color: var(--accent);
+}
+
+.work-opt .d {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.work-outcome {
+  padding: 0.9rem;
+}
+
+.work-otitle {
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 0.35rem;
+}
+
+.work-otitle.win {
+  color: var(--ok);
+}
+
+.work-otitle.bad {
+  color: var(--bad);
+}
+
+.work-otext {
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.work-ofoot {
+  margin-top: 0.7rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.work-outcome .apply {
+  margin-top: 0.8rem;
+  width: 100%;
+}

@@ -28,6 +28,7 @@ import { eventById } from './eventindex.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
+import { workMomentById } from './workmoments.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
 
@@ -329,6 +330,17 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return citation === null
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
+    }
+    case 'work-moment': {
+      // M-CAREER §3. Only the ones that MOVED something reach a timeline —
+      // a steady month at work is not a life event, and the feed is for
+      // what changed (Law 6, history compressed).
+      const [momentId, , result] = (event.detail ?? '::').split(':')
+      const moment = workMomentById(momentId ?? '')
+      if (moment === undefined) return null
+      return result === 'bad'
+        ? `${year} — ${moment.title} at work, and it did not go well.`
+        : `${year} — ${moment.title} at work.`
     }
     case 'passed-over':
       return `${year} — Went before the ${rankWordsFor(world, event)} board; not selected.`

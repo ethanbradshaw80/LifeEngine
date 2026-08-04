@@ -1241,6 +1241,7 @@ export type PendingKind =
   | 'money-shock'
   | 'bankruptcy'
   | 'promotion-offer'
+  | 'work-moment'
   | 'promotion-offer'
   | 'reenlist-term'
   | 'reenlist-option'
@@ -1370,6 +1371,7 @@ export type EventType =
   | 'state-pension-began'
   | 'promoted-at-work'
   | 'passed-over'
+  | 'work-moment'
   | 'promoted-at-work'
   | 'passed-over'
   /** Money passed to this person from a parent's estate. */

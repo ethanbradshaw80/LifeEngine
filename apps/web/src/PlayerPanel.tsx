@@ -27,6 +27,10 @@ import {
 import {
   contractFor,
   crimeSceneFor,
+  decodeWorkMoment,
+  occupationById,
+  standingWords,
+  workMomentById,
   specialtyTitleFor,
   decodeContract,
   decodeCrimeScene,
@@ -43,6 +47,7 @@ import type { PendingDecision, World } from '@life-engine/engine'
 import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
+import { WorkMomentView } from './WorkMoment.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
 import { Avatar } from './Avatar.js'
 import type { EntityId, Money } from '@life-engine/shared'
@@ -341,6 +346,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
  */
 export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
   'crime-scene',
+  'work-moment',
   'separation-record',
   'retirement-certificate',
   'service-contract',
@@ -473,6 +479,26 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               ))}
             </div>
           </OrdersSheetView>
+        </div>
+      )
+    }
+  }
+
+  // A MOMENT AT WORK. Same rails as the crime scene, entirely its own copy.
+  if (pending.kind === 'work-moment') {
+    const state = decodeWorkMoment(pending.occupationId)
+    const moment = workMomentById(state.momentId)
+    const job = world.employment.get(pending.personId)
+    if (moment && job) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="A moment at work">
+          <WorkMomentView
+            moment={moment}
+            variant={state.variant}
+            performance={job.performance}
+            standing={`${occupationById(job.occupationId).title} · ${standingWords(job.performance)}`}
+            onChoose={onChoose}
+          />
         </div>
       )
     }

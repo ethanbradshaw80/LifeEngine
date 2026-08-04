@@ -383,6 +383,17 @@ export {
   tracksOpenTo,
 } from './careers.js'
 export type { CareerTrack, Rung } from './careers.js'
+export {
+  WORK_CHOICES,
+  WORK_MOMENTS,
+  decodeWorkMoment,
+  momentsFor,
+  outcomeOf,
+  situationOf,
+  workMomentById,
+  workResultFor,
+} from './workmoments.js'
+export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

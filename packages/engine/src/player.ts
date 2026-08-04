@@ -113,6 +113,7 @@ import {
 import { loanBar } from './credit.js'
 import type { LoanKind } from './types.js'
 import { crimeOutcomeFor, decodeCrimeScene } from './crimescene.js'
+import { decodeWorkMoment, situationOf, workMomentById } from './workmoments.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -150,6 +151,7 @@ import {
   retirePerson,
   TRADE_YEARS,
   promoteTo,
+  applyWorkMoment,
 } from './systems.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
@@ -1567,6 +1569,22 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'work-moment': {
+      // M-CAREER §3. The answer runs through the same function an NPC's
+      // does — the parity rule, and the reason a moment cannot be a
+      // discount for being played.
+      const state = decodeWorkMoment(pending.occupationId)
+      applyWorkMoment(
+        world,
+        pending.tick,
+        person.id,
+        state.momentId,
+        choice === 'lead' || choice === 'steady' ? choice : 'pass',
+        state.variant,
+      )
+      break
+    }
+
     case 'promotion-offer': {
       // M-CAREER §2. The civilian promotion board's answer. Declining is a
       // real answer with a real cost — the rung stays where it is and the
@@ -2760,6 +2778,15 @@ export function describePending(world: World, pending: PendingDecision): string 
         'the enlisted side and start at the bottom of that ladder, or take the ' +
         'commissioning course and enter as an officer.'
       )
+    case 'work-moment': {
+      // The scene component draws the card; this is the fallback line.
+      const state = decodeWorkMoment(pending.occupationId)
+      const moment = workMomentById(state.momentId)
+      return moment === undefined
+        ? 'Something has come up at work.'
+        : situationOf(moment, state.variant)
+    }
+
     case 'promotion-offer': {
       const title = occupationById(pending.occupationId ?? '').title
       return `They want to make you ${withArticle(title)}. More money, more of your week, and more of it on you. Take it?`

@@ -28,6 +28,16 @@ import {
   reviewScoreFor,
   trackById,
 } from './careers.js'
+import {
+  WORK_CHOICES,
+  encodeWorkMoment,
+  momentsFor,
+  outcomeOf,
+  raiseFrom,
+  workMomentById,
+  workResultFor,
+} from './workmoments.js'
+import type { WorkChoice } from './workmoments.js'
 import type { Rng } from './rng.js'
 import type {
   EducationLevel,
@@ -414,8 +424,115 @@ export function promoteTo(world: World, tick: Tick, personId: EntityId, occupati
   return true
 }
 
+/**
+ * M-CAREER §3. THE MONTHS A JOB IS SOMETHING OTHER THAN A WAGE.
+ *
+ * Rare, per person, per month — a job that produced a moment every month
+ * would be a job nobody could hold. The player is ASKED; NPCs answer the
+ * same three rails on the same numbers, by character rather than by dice:
+ * an ambitious, diligent person reaches, a cautious one does not. Parity is
+ * that the maths is identical, not that the answers are.
+ */
+function runWorkMoments(world: World, tick: Tick): void {
+  for (const person of livingPeople(world).sort((a, b) => a.id - b.id)) {
+    const job = world.employment.get(person.id)
+    if (!job) continue
+    // Not in the first half-year of a job: a moment needs somebody to have
+    // been there long enough for it to mean anything.
+    if (tick - job.startedAtTick < 6) continue
+
+    const rng = openStream(world.seed, Stream.Career, person.id, tick + 9_300)
+    if (!rng.chance(18, 1000)) continue
+
+    const place = placeOf(job.occupationId)
+    const open = momentsFor(place?.rung ?? 0)
+    if (open.length === 0) continue
+    const moment = open[rng.nextIntInclusive(0, open.length - 1)]
+    if (!moment) continue
+    const variant = rng.nextIntInclusive(0, 999)
+
+    if (person.id === world.player.personId) {
+      const raised = raisePending(world, {
+        tick,
+        kind: 'work-moment',
+        personId: person.id,
+        otherId: null,
+        occupationId: encodeWorkMoment(moment.id, variant),
+        workplaceId: job.workplaceId,
+        monthlyPay: null,
+        placeId: null,
+        options: [...WORK_CHOICES],
+      })
+      if (raised) continue
+    }
+
+    // WHAT AN NPC DOES. Their own character, not a coin: ambition reaches,
+    // diligence carries the middle, and somebody with neither keeps their
+    // head down. The same three answers, the same maths after it.
+    const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
+    const choice: WorkChoice = drive > 640 ? 'lead' : drive > 380 ? 'steady' : 'pass'
+    applyWorkMoment(world, tick, person.id, moment.id, choice, variant)
+  }
+}
+
+/**
+ * M-CAREER §3. WHAT THE ANSWER COST OR BOUGHT.
+ *
+ * The outcome's own numbers, applied through the single writers that
+ * already exist — performance through adjustJobPerformance, pay through
+ * grantRaise — so a moment cannot move anything by a route the rest of the
+ * game does not use.
+ */
+export function applyWorkMoment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  momentId: string,
+  choice: WorkChoice,
+  variant: number,
+): void {
+  const moment = workMomentById(momentId)
+  const job = world.employment.get(personId)
+  if (!moment || !job) return
+  const result = workResultFor(moment, choice, job.performance, variant % 1000)
+  const outcome = outcomeOf(moment, choice, result, variant)
+  if (!outcome) return
+
+  adjustJobPerformance(world, personId, outcome.performance)
+  if (outcome.payPerMille > 0) {
+    // CLAMPED TO WHAT THE JOB IS WORTH. A counteroffer really can put
+    // somebody above the usual band, but pay that can drift past the
+    // ceiling compounds over a career — and the invariant that a wage sits
+    // inside its occupation's band at today's prices is what stops a
+    // fifty-year run inventing money. The way past the ceiling is the next
+    // rung, which is the whole point of there being a ladder.
+    const ceiling = atTodaysPrices(world, occupationById(job.occupationId).maxMonthlyPay) as Money
+    const raise = raiseFrom(job.monthlyPay, outcome.payPerMille)
+    const next = Math.min(job.monthlyPay + raise, ceiling) as Money
+    if (next > job.monthlyPay) grantRaise(world, tick, personId, next)
+  }
+  recordEvent(world, tick, {
+    type: 'work-moment',
+    subjectId: personId,
+    detail: `${moment.id}:${choice}:${result}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'employment-change',
+    significance: Math.abs(outcome.performance) >= 90 ? 'major' : 'notable',
+    inputs: [
+      factor('own-choice', personId === world.player.personId ? 1000 : 500),
+      factor('qualified-for-role', job.performance),
+    ],
+    chosen: `${moment.title.toLowerCase()}: ${outcome.title.toLowerCase()}`,
+    rejected: moment.options.filter((option) => option.id !== choice).map((option) => option.title),
+    streamId: Stream.Career,
+  })
+}
+
 export function runEmployment(world: World, tick: Tick): void {
   runReviews(world, tick)
+  runWorkMoments(world, tick)
 
   const workplaces = placesOfKind(world, 'workplace')
   if (workplaces.length === 0) return
