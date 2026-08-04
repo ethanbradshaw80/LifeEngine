@@ -126,7 +126,14 @@ function passMonths(world: World, months: number): void {
   if (passed < months) throw new Error('could not pass the months — pending storm?')
 }
 
-/** Hand a person a job at the given performance and pay. */
+/**
+ * Hand a person a job at the given performance and pay.
+ *
+ * THE PAY IS BASE-YEAR MONEY. The world starts in 1970 and the occupation
+ * bands are 1970 bands; a fixture written in modern dollars sits above the
+ * top of every band, and the raise verb correctly answers "pay tops out
+ * where yours already is" instead of the thing the test is about.
+ */
 function giveJob(world: World, person: Person, performance: number, pay: number): void {
   const workplace = [...world.places.values()].find((p) => p.kind === 'workplace')
   if (!workplace) throw new Error('no workplace in town')
@@ -357,7 +364,7 @@ describe('quitJob / askForRaise', () => {
     setPlayer(world, a.id)
     expect(quitJob(world).reason).toContain('no job')
 
-    giveJob(world, a, 700, 150_000)
+    giveJob(world, a, 700, 18_750)
     expect(quitJob(world).quit).toBe(true)
     expect(world.employment.has(a.id)).toBe(false)
     expect(world.events.some((e) => e.type === 'left-job' && e.detail === 'quit')).toBe(true)
@@ -369,7 +376,7 @@ describe('quitJob / askForRaise', () => {
     setPlayer(world, a.id)
 
     // Poor work: honest no, and the asking is recorded.
-    giveJob(world, a, 300, 100_000)
+    giveJob(world, a, 300, 12_500)
     expect(askForRaise(world).reason).toContain('does not argue')
     expect(world.events.some((e) => e.type === 'turned-down' && e.detail === 'a raise')).toBe(true)
 
@@ -383,7 +390,7 @@ describe('quitJob / askForRaise', () => {
     for (let round = 0; round < 20 && !raised; round++) {
       passMonths(world, 6)
       resolveSafely(world)
-      if (!world.employment.has(a.id)) giveJob(world, a, 1000, 100_000)
+      if (!world.employment.has(a.id)) giveJob(world, a, 1000, 12_500)
       world.employment.set(a.id, { ...world.employment.get(a.id)!, performance: 1000 })
       raised = askForRaise(world).raised
     }
@@ -397,7 +404,7 @@ describe("the foreman's warning", () => {
     const world = createWorld(makeSeed(2024), 100)
     const { a } = findSingles(world)
     setPlayer(world, a.id)
-    giveJob(world, a, 230, 120_000)
+    giveJob(world, a, 230, 15_000)
 
     // Drift and rival pendings can each steal a month; hold the performance
     // down and wait for the foreman.
@@ -406,7 +413,7 @@ describe("the foreman's warning", () => {
       if (world.employment.has(a.id)) {
         world.employment.set(a.id, { ...world.employment.get(a.id)!, performance: 230 })
       } else {
-        giveJob(world, a, 230, 120_000)
+        giveJob(world, a, 230, 15_000)
       }
       advanceTick(world)
       if (world.player.pending?.kind === 'foremans-warning') warned = true
@@ -468,7 +475,7 @@ describe('spending stance', () => {
     const { wife } = findCouple(world)
     setPlayer(world, wife.id)
     // A surplus to steer: hand the wife a good wage.
-    giveJob(world, wife, 800, 400_000)
+    giveJob(world, wife, 800, 50_000)
     const household = world.households.get(wife.householdId!)
     if (!household) throw new Error('couple without a household')
     const base = discretionaryFor(world, household)
@@ -508,7 +515,7 @@ describe('lookForPlace', () => {
     const household = world.households.get(wife.householdId!)
     if (!household) throw new Error('no household')
     // Fatten the pot's income by hand: give the wife a good job.
-    giveJob(world, wife, 800, 400_000)
+    giveJob(world, wife, 800, 50_000)
 
     const streets = [...world.places.values()]
       .filter((p) => p.kind === 'neighbourhood' && p.id !== household.placeId)

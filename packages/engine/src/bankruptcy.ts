@@ -60,8 +60,8 @@ export const PLAN_MONTHS_MAX = 60
  * true of the real thing and is what makes it a fresh start rather than an
  * execution.
  */
-export const HOMESTEAD_EXEMPTION = 2_500_000 as Money
-export const PROPERTY_EXEMPTION = 400_000 as Money
+export const HOMESTEAD_EXEMPTION = 312_500 as Money
+export const PROPERTY_EXEMPTION = 50_000 as Money
 
 /** Everything ever filed by this person, oldest first. */
 export function filingsOf(world: World, personId: EntityId): readonly Bankruptcy[] {

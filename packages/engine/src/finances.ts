@@ -416,7 +416,7 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
   const accounts = accountsOf(world, personId)
   const insurance = unemploymentOf(world, personId, accounts, tick)
   const gross = personalIncome(world, personId)
-  const inHand = (gross - withholdingFor(gross) + insurance) as Money
+  const inHand = (gross - withholdingFor(gross, world.economy.priceLevelPerMille) + insurance) as Money
   return (insurance + assistanceOf(world, person, inHand, tick)) as Money
 }
 
@@ -451,7 +451,7 @@ export function householdIncome(world: World, household: Household): Money {
   let total = 0
   for (const memberId of household.memberIds) {
     const gross = personalIncome(world, memberId)
-    total += gross - withholdingFor(gross) + supportOf(world, memberId, world.tick)
+    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille) + supportOf(world, memberId, world.tick)
   }
   return total as Money
 }
@@ -994,7 +994,7 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
   if (!household) return 0 as Money
 
   const gross = personalIncome(world, personId)
-  const mine = (gross - withholdingFor(gross)) as Money
+  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille)) as Money
   const income = householdIncome(world, household)
   const spending = discretionaryFor(world, household)
   const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
@@ -1097,7 +1097,7 @@ export function runFinances(world: World, tick: Tick): void {
       // M-ECON §3. WITHHELD AT SOURCE, because that is what a wage feels
       // like: the money that arrives is what is left. The yearly return
       // settles the difference, which is the only moment tax is a decision.
-      const withheld = withholdingFor(gross)
+      const withheld = withholdingFor(gross, world.economy.priceLevelPerMille)
       // M-SAFETY §4. The two untaxed floors arrive whole, alongside the wage.
       //
       // AND THEY ARRIVE FOR PEOPLE WITH NO WAGE AT ALL, which is the entire
@@ -2082,7 +2082,7 @@ function runMoneyShocks(world: World, tick: Tick): void {
     // A fifth to a third of liquid money: enough to hurt and to be worth a
     // decision, never enough to end a life on its own (Law 7).
     const bill = Math.max(
-      5_000,
+      625,
       Math.floor((worth * rng.nextIntInclusive(200, 340)) / 1000),
     ) as Money
 
@@ -2173,7 +2173,7 @@ function runTaxSeason(world: World, tick: Tick): void {
     const person = world.people.get(personId)
     if (!person || person.deathTick !== null) continue
 
-    const owed = incomeTaxFor(accounts.taxableYtd)
+    const owed = incomeTaxFor(accounts.taxableYtd, world.economy.priceLevelPerMille)
     const settled = (accounts.withheldYtd - owed) as Money
 
     // A refund is money back; a bill comes out of checking and may overdraw
@@ -2320,7 +2320,7 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
   // M-ECON §3. THE ESTATE IS TAXED before it is divided — an exemption
   // large enough that an ordinary life passes whole, so this is felt by a
   // fortune and not by a family.
-  const passing = (gross - estateTaxOn(gross)) as Money
+  const passing = (gross - estateTaxOn(gross, world.economy.priceLevelPerMille)) as Money
   if (passing <= 0) return
 
   const heirs: Person[] = []

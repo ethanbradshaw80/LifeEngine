@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
+import { unitRosterOf } from '../src/service.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
@@ -247,5 +248,40 @@ describe('the town serves too', () => {
     expect(
       world.events.some((e) => e.type === 'completed-training' && schoolTitles.has(e.detail ?? '')),
     ).toBe(true)
+  })
+})
+
+describe('a selected unit is a unit', () => {
+  it('puts you with the people who passed it, and takes you off the old roster', () => {
+    // OWNER, PLAYING: "I just got assigned to a special unit after dropping
+    // a packet but my actual unit like the people in it didn't change, we
+    // should be in a unit with only people who have passed that selection
+    // process." The roster was built from base + branch and never read
+    // `unitId`, so selection changed a badge and nothing else.
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 480)
+    const serving = [...world.service.values()].filter((r) => r.dischargedAtTick === null)
+    expect(serving.length).toBeGreaterThan(2)
+    const [a, b, c] = serving
+    if (!a || !b || !c) return
+
+    const before = unitRosterOf(world, a.personId)
+    expect(before?.members.some((m) => m.personId === b.personId)).toBe(true)
+
+    world.service.set(a.personId, { ...a, unitId: 'pathfinders' })
+    world.service.set(c.personId, { ...c, unitId: 'pathfinders' })
+
+    // The new roster is the unit, and ONLY the unit.
+    const after = unitRosterOf(world, a.personId)
+    expect(after?.unitName).not.toBe(before?.unitName)
+    expect(after?.members.length).toBe(2)
+    for (const member of after?.members ?? []) {
+      expect(world.service.get(member.personId)?.unitId).toBe('pathfinders')
+    }
+
+    // And the squad they left no longer lists them.
+    const theirs = unitRosterOf(world, b.personId)
+    expect(theirs?.members.some((m) => m.personId === a.personId)).toBe(false)
+    expect(theirs?.members.some((m) => m.personId === b.personId)).toBe(true)
   })
 })

@@ -23,16 +23,24 @@ import {
   withholdingFor,
 } from '../src/tax.js'
 
+/**
+ * NOTE ON THE FIGURES. Every money literal here is BASE-YEAR money — the
+ * world starts in 1970 and the brackets are 1970 brackets, indexed upward
+ * by the price level at the moment a return is filed (see incomeTaxFor's
+ * priceLevelPerMille). These used to be written in modern dollars against
+ * modern brackets, which was consistent until the calibration made the base
+ * year mean something.
+ */
 describe('the income tax schedule', () => {
   it('is progressive, and exact in integer cents', () => {
     expect(incomeTaxFor(0 as Money)).toBe(0)
     // The floor nobody pays on.
-    expect(incomeTaxFor(1_400_000 as Money)).toBe(0)
+    expect(incomeTaxFor(175_000 as Money)).toBe(0)
     // A dollar into the second band pays that band's rate on that dollar.
-    expect(incomeTaxFor(1_400_100 as Money)).toBe(12)
+    expect(incomeTaxFor(175_100 as Money)).toBe(12)
 
     let previousRate = -1
-    for (const annual of [2_000_000, 4_000_000, 7_000_000, 12_000_000, 25_000_000]) {
+    for (const annual of [250_000, 500_000, 875_000, 1_500_000, 3_125_000]) {
       const owed = incomeTaxFor(annual as Money)
       expect(Number.isInteger(owed)).toBe(true)
       // Never more than the income, and the EFFECTIVE rate always climbs.
@@ -45,8 +53,8 @@ describe('the income tax schedule', () => {
 
   it('takes a believable bite across the salary ladder', () => {
     // A labourer keeps most of it; a doctor loses about a third.
-    const labourer = incomeTaxFor(3_000_000 as Money) / 3_000_000
-    const doctor = incomeTaxFor(18_000_000 as Money) / 18_000_000
+    const labourer = incomeTaxFor(375_000 as Money) / 375_000
+    const doctor = incomeTaxFor(2_250_000 as Money) / 2_250_000
     expect(labourer).toBeGreaterThan(0.05)
     expect(labourer).toBeLessThan(0.14)
     expect(doctor).toBeGreaterThan(0.22)
@@ -54,15 +62,15 @@ describe('the income tax schedule', () => {
   })
 
   it('names the marginal band the income actually sits in', () => {
-    expect(marginalRatePerMille(1_000_000 as Money)).toBe(0)
-    expect(marginalRatePerMille(3_000_000 as Money)).toBe(120)
-    expect(marginalRatePerMille(30_000_000 as Money)).toBe(370)
+    expect(marginalRatePerMille(125_000 as Money)).toBe(0)
+    expect(marginalRatePerMille(375_000 as Money)).toBe(120)
+    expect(marginalRatePerMille(3_750_000 as Money)).toBe(370)
   })
 })
 
 describe('withholding', () => {
   it('is the year annualised and divided back, so a steady year lands square', () => {
-    const monthly = 500_000 as Money
+    const monthly = 62_500 as Money
     const withheldOverAYear = withholdingFor(monthly) * 12
     const actuallyOwed = incomeTaxFor((monthly * 12) as Money)
     // Within twelve cents: the only gap is the flooring, once per month.

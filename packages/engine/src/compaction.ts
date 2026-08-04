@@ -127,7 +127,21 @@ export function compactHistory(world: World, tick: Tick): number {
   })
   // In place: the World holds these arrays as readonly properties, so the
   // arrays themselves are what changes, not the world's shape.
-  if (kept.length !== before) world.events.splice(0, before, ...kept)
+  //
+  // WITHOUT A SPREAD. This was `splice(0, before, ...kept)`, which passes
+  // every surviving event as a separate ARGUMENT — and a spread of tens of
+  // thousands of arguments overflows the call stack. It survived until the
+  // ledger grew (work moments, businesses, the safety net all write
+  // events) and then a long game crashed with "maximum call stack size
+  // exceeded" in the middle of a tick. Copy and truncate instead: no
+  // argument list, no ceiling, same array identity.
+  if (kept.length !== before) {
+    for (let i = 0; i < kept.length; i++) {
+      const event = kept[i]
+      if (event !== undefined) world.events[i] = event
+    }
+    world.events.length = kept.length
+  }
 
   // THE RECORDS STAY. The first draft dropped them by the same rule and
   // broke the thing they exist for: an event that SURVIVES compaction —

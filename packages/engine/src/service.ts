@@ -37,6 +37,7 @@ import {
   grantServiceRibbon,
 } from './awards.js'
 import { ageAt } from './clock.js'
+import { atTodaysPrices } from './economy.js'
 import {
   BOARD_CUTOFF_BASE,
   BOARD_CUTOFF_STEP,
@@ -191,7 +192,14 @@ export function servicePayOf(world: World, personId: EntityId): number {
   const record = world.service.get(personId)
   if (record === undefined || record.dischargedAtTick !== null) return 0
   const unit = record.unitId === null ? undefined : unitFor(world, record.unitId)
-  return record.monthlyPay + (unit?.dutyPay ?? 0)
+  // AT TODAY'S PRICES, like every civilian wage. Service pay was the one
+  // wage in the world that never moved: the grade tables are base-year
+  // content and were being paid out at face value forever, so a sergeant
+  // in 2070 drew a 1970 sergeant's money while the rent around him had
+  // risen eightfold. The stored `monthlyPay` stays base-year — it is the
+  // grade's pay, not this month's — and the price level is applied here,
+  // in the one place the number is read.
+  return atTodaysPrices(world, (record.monthlyPay + (unit?.dutyPay ?? 0)) as Money)
 }
 
 
@@ -517,10 +525,32 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
   if (!record) return null
   const mine = subUnitOf(world, record.baseId, record.branch)
 
+  // A SPECIAL UNIT IS A UNIT (owner, playing: "I just got assigned to a
+  // special unit after dropping a packet but my actual unit like the people
+  // in it didn't change").
+  //
+  // He is right, and it was a hole rather than a decision: the roster was
+  // built from base + branch and never read `unitId` at all, so passing
+  // selection changed the badge on the record and nothing about who you
+  // served beside. The whole point of selection is the people on the other
+  // side of it.
+  //
+  // So: in a special unit, your roster is that unit — and ONLY that unit,
+  // wherever its people are stationed, because a unit that recruits by
+  // selection is not a station's worth of whoever turned up. Outside one,
+  // your roster is the station as before, minus anybody who has left it for
+  // a selected unit. They are not in your squad any more either.
+  const inSpecialUnit = record.unitId !== null
+
   const members: RosterMember[] = []
   for (const other of world.service.values()) {
     if (other.dischargedAtTick !== null) continue
-    if (other.baseId !== record.baseId || other.branch !== record.branch) continue
+    if (inSpecialUnit) {
+      if (other.unitId !== record.unitId) continue
+    } else {
+      if (other.unitId !== null) continue
+      if (other.baseId !== record.baseId || other.branch !== record.branch) continue
+    }
     const person = world.people.get(other.personId)
     if (!person || person.deathTick !== null) continue
     members.push({
@@ -569,8 +599,11 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
           : member.specialtyTitle,
   }))
 
+  // A selected unit is called by its own name. "1st Squad, A Company" is
+  // what an ordinary posting is called; the Pathfinders are the Pathfinders.
+  const special = record.unitId === null ? undefined : unitFor(world, record.unitId)
   return {
-    unitName: `${mine.squad} Squad, ${mine.company} Company`,
+    unitName: special?.name ?? `${mine.squad} Squad, ${mine.company} Company`,
     baseName: world.places.get(record.baseId)?.name ?? 'a home station',
     branchName: branchName(world, record.branch),
     members: withRoles,
@@ -883,6 +916,10 @@ export function pensionValueOf(world: World, personId: EntityId): number {
 
   let monthly = 0
   // What the service took: harm it left on the body.
+  //
+  // The RATE is base-year content, like a grade's pay; the price level is
+  // applied at the end. A pension that never rose would be the same bug
+  // service pay had — a veteran drawing 1970 money in 2070.
   const serviceDisability = world.health.get(personId)?.serviceDisability ?? 0
   if (serviceDisability >= PENSION_THRESHOLD) {
     monthly += serviceDisability * PENSION_CENTS_PER_POINT
@@ -890,7 +927,7 @@ export function pensionValueOf(world: World, personId: EntityId): number {
   // What the service owes: the years themselves. Both can be true at once
   // — a wounded lifer is owed for the wound AND for the career.
   monthly += retirementPayOf(record)
-  return monthly
+  return atTodaysPrices(world, monthly as Money)
 }
 
 /**

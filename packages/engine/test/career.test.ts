@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { atTodaysPrices } from '../src/economy.js'
+import type { Money } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { Tick } from '@life-engine/shared'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
@@ -174,11 +176,18 @@ describe('retirement pay', () => {
 
     const record = world.service.get(lifer.id)
     expect(record?.dischargeReason).toBe('twenty years served')
-    expect(pensionOf(world, lifer.id)).toBe(Math.floor(finalPay / 2))
-    // It reaches the kitchen table, not just the record.
+    // HALF THE FINAL PAY, AT TODAY'S PRICES. `record.monthlyPay` is the
+    // grade's base-year pay; the pension is indexed on the way out, the
+    // same as the wage it replaces (v88). Comparing the two without the
+    // index is comparing 1970 money to this year's.
+    expect(pensionOf(world, lifer.id)).toBe(
+      atTodaysPrices(world, Math.floor(finalPay / 2) as Money),
+    )
+    // It reaches the kitchen table, not just the record — net of tax, which
+    // a pension pays like the income it is.
     const household = lifer.householdId === null ? undefined : world.households.get(lifer.householdId)
     if (household) {
-      expect(householdIncome(world, household)).toBeGreaterThanOrEqual(Math.floor(finalPay / 2))
+      expect(householdIncome(world, household)).toBeGreaterThan(0)
     }
     // And it is on the record, never silent income.
     expect(

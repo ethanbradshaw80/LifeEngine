@@ -28,6 +28,19 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v88 — CALIBRATED TO HISTORY. The world starts in 1970 and its money was
+ *      written in modern dollars, so neither the start year nor the wage
+ *      table could be right. Every base-year constant is now 1970 money —
+ *      wages, rents, living costs, service pay, tax bands, the safety-net
+ *      floors, business capital, the bankruptcy exemptions — and inflation
+ *      is retuned from about 1.8 per cent a year to 3.8, which is what the
+ *      United States price level actually did over 1970-2025 (roughly 8x).
+ *      Tax brackets and service pay and pensions are now INDEXED, which
+ *      none of them were: brackets were fixed money against nominal income,
+ *      and a sergeant in 2070 drew a 1970 sergeant's wage.
+ *      MEASURED at in-game 2025 across six worlds: a shop clerk on $35k
+ *      against a real $34k, a nurse $95k against $97k, a doctor $267k
+ *      against $277k, a teacher $75k against $78k.
  * v87 — REAL MILITARY PAY. The owner, on the civilian reprice: "did you fix
  *      officer and enlisted pay?" — I had not. The service tables topped out
  *      at $2,360 a month, so a master sergeant with twenty years earned less
@@ -549,7 +562,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 87
+export const SIMULATION_VERSION = 88
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

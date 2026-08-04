@@ -310,7 +310,11 @@ describe('the pension', () => {
     const person = world.people.get(soldierId)
     const household = person?.householdId == null ? undefined : world.households.get(person.householdId)
     if (household) {
-      expect(householdIncome(world, household)).toBeGreaterThanOrEqual(500 * 120)
+      // NET of withholding: the ledger's income line is what ARRIVES, and a
+      // pension is taxed like the income it is. The claim is that it
+      // reaches the table at all, not that it arrives untouched.
+      expect(householdIncome(world, household)).toBeGreaterThan(0)
+      expect(householdIncome(world, household)).toBeLessThanOrEqual(500 * 120)
     }
 
     // Below the threshold: no pension.

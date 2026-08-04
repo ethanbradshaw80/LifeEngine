@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { placeOf } from '../src/careers.js'
+import { meetsRequirement, occupationById } from '../src/content.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { BRANCH_RANKS,
@@ -249,16 +250,25 @@ describe('veterans', () => {
     advanceTicks(world, 120)
     const job = world.employment.get(person.id)
     if (job) {
-      const allowed = new Set(['machinist', 'electrician', 'carpenter', 'labourer', 'shop-clerk', 'millhand', 'cook'])
-      // M-CAREER §2: a job can now be CLIMBED TO as well as hired into, so
-      // the claim is that whatever they hold is reachable — either a job
-      // they could be hired into directly, or a rung above one.
-      const climbedTo = (id: string): boolean => {
-        const place = placeOf(id)
-        if (!place) return false
-        return place.track.rungs.some((rung) => allowed.has(rung.occupationId))
-      }
-      expect(allowed.has(job.occupationId) || climbedTo(job.occupationId)).toBe(true)
+      // THE CLAIM, READ FROM THE RULES rather than from a list.
+      //
+      // This used to name seven occupations by hand, which made it a test of
+      // the catalogue: it broke the moment M-CAREER added no-schooling jobs
+      // the list had never heard of (a nurse's aide), and again when a rung
+      // above one became reachable by promotion. What it is actually about
+      // is that a veteran holds a job their schooling or their unlocks
+      // ALLOW — so it asks the same two functions the hiring path asks.
+      const level = world.education.get(person.id)?.level ?? 'none'
+      const unlocks = veteranUnlocks(world, person.id)
+      const reachable = (id: string): boolean =>
+        meetsRequirement(level, occupationById(id).requires) || unlocks.includes(id)
+      const place = placeOf(job.occupationId)
+      const climbedTo =
+        place !== undefined && place.track.rungs.some((rung) => reachable(rung.occupationId))
+      expect(
+        reachable(job.occupationId) || climbedTo,
+        `unreachable job: ${job.occupationId}`,
+      ).toBe(true)
     }
   })
 })

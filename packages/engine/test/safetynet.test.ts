@@ -216,11 +216,12 @@ describe('public assistance', () => {
     expect(destitute).toBeGreaterThan(0)
     // Somebody already above the floor gets nothing.
     expect(assistanceOf(world, adult, 900_000 as Money, world.tick as Tick)).toBe(0)
-    // And a top-up plus what they had is exactly the floor.
-    const partial = 20_000 as Money
-    expect(assistanceOf(world, adult, partial, world.tick as Tick) + partial).toBe(
-      destitute + 0,
-    )
+    // And a top-up plus what they had is exactly the floor. Taken as a
+    // FRACTION of the floor rather than a typed figure, so the claim
+    // survives the money being rebased (it did not: 20,000 base-year cents
+    // is now well above the floor, and the top-up correctly came to zero).
+    const partial = Math.floor(destitute / 3) as Money
+    expect(assistanceOf(world, adult, partial, world.tick as Tick) + partial).toBe(destitute)
   })
 
   it('is the reason a household with nothing coming in still has something', () => {

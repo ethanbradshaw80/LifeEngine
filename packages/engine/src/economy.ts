@@ -30,7 +30,7 @@ import type { EconomyState, EconomyPhase, World } from './types.js'
 export const MARKET_INDEX_START = 10_000
 
 /** The rate the central bank returns to when nothing is wrong. */
-export const NEUTRAL_RATE_PER_MILLE = 35
+export const NEUTRAL_RATE_PER_MILLE = 55
 
 /** How long a phase runs before it may turn, in months. */
 const MIN_PHASE_MONTHS: Readonly<Record<EconomyPhase, number>> = {
@@ -82,11 +82,18 @@ export function freshEconomy(): EconomyState {
 const PHASE_TARGETS: Readonly<
   Record<EconomyPhase, { growth: number; inflation: number; unemployment: number }>
 > = {
-  expansion: { growth: 30, inflation: 22, unemployment: 40 },
-  peak: { growth: 12, inflation: 45, unemployment: 32 },
-  recession: { growth: -18, inflation: 12, unemployment: 90 },
-  depression: { growth: -55, inflation: -8, unemployment: 190 },
-  recovery: { growth: 22, inflation: 10, unemployment: 70 },
+  // CALIBRATED TO HISTORY. The first setting compounded to about 1.8 per
+  // cent a year, so fifty-five years of this world moved prices 2.1x to
+  // 3.2x. The United States price level over 1970-2025 moved roughly 8.3x,
+  // which is 3.9 per cent a year — so a wage table written in modern money
+  // and a start year of 1970 could never both be right. These targets are
+  // the old shape scaled to that history; the measured multiplier is in
+  // the test.
+  expansion: { growth: 30, inflation: 41, unemployment: 40 },
+  peak: { growth: 12, inflation: 87, unemployment: 32 },
+  recession: { growth: -18, inflation: 22, unemployment: 90 },
+  depression: { growth: -55, inflation: -16, unemployment: 190 },
+  recovery: { growth: 22, inflation: 19, unemployment: 70 },
 }
 
 /** Drift a value a third of the way toward its target, in integers. */
@@ -157,7 +164,10 @@ export function stepEconomy(
     0,
     Math.min(
       140,
-      NEUTRAL_RATE_PER_MILLE + (inflationPerMille - 20) * 2 - Math.max(0, -growthPerMille),
+      // Anchored on the new baseline rate of inflation, not the old one:
+      // the bank leans against inflation ABOVE normal, and "normal" moved
+      // when the price history did.
+      NEUTRAL_RATE_PER_MILLE + (inflationPerMille - 33) * 2 - Math.max(0, -growthPerMille),
     ),
   )
   const ratePerMille = drift(current.ratePerMille, wanted)

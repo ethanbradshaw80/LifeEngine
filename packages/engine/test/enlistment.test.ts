@@ -106,9 +106,15 @@ describe('service news', () => {
     // timeline, which is where it was always the better story.
     expect(news.some((n) => n.text.includes('came home'))).toBe(false)
     // What remains: the drives, and a death in uniform.
+    // READ THE KIND, NOT THE WORDING. This matched two substrings, which
+    // made it a test of the newsroom's phrasing: it broke the first time a
+    // seed produced a soldier killed in an ACCIDENT in uniform — a service
+    // death the paper should absolutely carry, worded differently. The
+    // claim is about which KINDS of thing reach the paper.
     for (const item of news) {
       expect(
-        item.text.includes('recruiters set up') || item.text.includes('died in service'),
+        item.kind === 'recruiting-drive' || item.kind === 'died-in-service',
+        `service news carried a ${String(item.kind)}: "${item.text}"`,
       ).toBe(true)
     }
   })

@@ -30,10 +30,10 @@ export interface TaxBracket {
 }
 
 export const INCOME_TAX_BRACKETS: readonly TaxBracket[] = [
-  { upTo: 1_400_000 as Money, perMille: 0 }, // first $14,000 — untaxed
-  { upTo: 5_200_000 as Money, perMille: 120 }, // to $52,000 — 12%
-  { upTo: 10_500_000 as Money, perMille: 220 }, // to $105,000 — 22%
-  { upTo: 19_500_000 as Money, perMille: 320 }, // to $195,000 — 32%
+  { upTo: 175_000 as Money, perMille: 0 }, // first $14,000 — untaxed
+  { upTo: 650_000 as Money, perMille: 120 }, // to $52,000 — 12%
+  { upTo: 1_312_500 as Money, perMille: 220 }, // to $105,000 — 22%
+  { upTo: 2_437_500 as Money, perMille: 320 }, // to $195,000 — 32%
   { upTo: null, perMille: 370 }, // above — 37%
 ]
 
@@ -41,12 +41,19 @@ export const INCOME_TAX_BRACKETS: readonly TaxBracket[] = [
  * Income tax owed on a year's income. Marginal, band by band, floored per
  * band so the total is exact and never a float.
  */
-export function incomeTaxFor(annualIncome: Money): Money {
+export function incomeTaxFor(annualIncome: Money, priceLevelPerMille = 1000): Money {
   if (annualIncome <= 0) return 0 as Money
   let owed = 0
   let floor = 0
   for (const bracket of INCOME_TAX_BRACKETS) {
-    const ceiling = bracket.upTo ?? annualIncome
+    // BRACKETS ARE INDEXED, because real ones are. Without this the bands
+    // are base-year money compared against nominal income, so 1970 pays no
+    // tax at all and by 2100 a labourer is in the top band — bracket creep
+    // of a kind no revenue service has ever allowed to run for a century.
+    const ceiling =
+      bracket.upTo === null
+        ? annualIncome
+        : ((Math.floor((bracket.upTo * priceLevelPerMille) / 1000)) as Money)
     if (annualIncome <= floor) break
     const inBand = Math.min(annualIncome, ceiling) - floor
     if (inBand > 0) owed += Math.floor((inBand * bracket.perMille) / 1000)
@@ -64,17 +71,20 @@ export function incomeTaxFor(annualIncome: Money): Money {
  * and why a year of steady pay lands close to square while a year with a
  * raise or a spell out of work does not. That gap is the refund or the bill.
  */
-export function withholdingFor(monthlyPay: Money): Money {
+export function withholdingFor(monthlyPay: Money, priceLevelPerMille = 1000): Money {
   if (monthlyPay <= 0) return 0 as Money
   const annualised = (monthlyPay * 12) as Money
-  return Math.floor(incomeTaxFor(annualised) / 12) as Money
+  return Math.floor(incomeTaxFor(annualised, priceLevelPerMille) / 12) as Money
 }
 
 /** The marginal band a year's income sits in, for the screen. */
-export function marginalRatePerMille(annualIncome: Money): number {
+export function marginalRatePerMille(annualIncome: Money, priceLevelPerMille = 1000): number {
   let floor = 0
   for (const bracket of INCOME_TAX_BRACKETS) {
-    const ceiling = bracket.upTo
+    const ceiling =
+      bracket.upTo === null
+        ? null
+        : ((Math.floor((bracket.upTo * priceLevelPerMille) / 1000)) as Money)
     if (ceiling === null || annualIncome <= ceiling) return bracket.perMille
     floor = ceiling
   }
@@ -103,12 +113,14 @@ export function salesTaxOn(spending: Money): Money {
  * An exemption large enough that an ordinary life passes whole — the tax
  * exists to be felt by a fortune, not by a family home's worth of savings.
  */
-export const ESTATE_TAX_EXEMPTION = 50_000_000 as Money // $500,000
+export const ESTATE_TAX_EXEMPTION = 6_250_000 as Money // $500,000
 export const ESTATE_TAX_PER_MILLE = 400
 
-export function estateTaxOn(estate: Money): Money {
+export function estateTaxOn(estate: Money, priceLevelPerMille = 1000): Money {
   if (estate <= ESTATE_TAX_EXEMPTION) return 0 as Money
-  return Math.floor(((estate - ESTATE_TAX_EXEMPTION) * ESTATE_TAX_PER_MILLE) / 1000) as Money
+  const exemption = Math.floor((ESTATE_TAX_EXEMPTION * priceLevelPerMille) / 1000)
+  if (estate <= exemption) return 0 as Money
+  return Math.floor(((estate - exemption) * ESTATE_TAX_PER_MILLE) / 1000) as Money
 }
 
 /**

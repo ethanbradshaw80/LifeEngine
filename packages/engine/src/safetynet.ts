@@ -56,8 +56,8 @@ export const STATE_PENSION_AGE = 65
  * lands below, and that difference is the whole point — this is a floor,
  * not a wage.
  */
-export const STATE_PENSION_FLOOR = 90_000 as Money
-export const STATE_PENSION_PER_YEAR_WORKED = 3_400
+export const STATE_PENSION_FLOOR = 11_250 as Money
+export const STATE_PENSION_PER_YEAR_WORKED = 425
 export const STATE_PENSION_MAX_YEARS = 40
 
 /**
@@ -100,7 +100,7 @@ export function unemploymentOf(world: World, personId: number, accounts: Account
  * enough that anybody would choose it. It is what makes the −$606,276
  * spiral arithmetically impossible: below this line, money comes IN.
  */
-export const ASSISTANCE_FLOOR = 62_000 as Money
+export const ASSISTANCE_FLOOR = 7_750 as Money
 
 /**
  * Public assistance, monthly: whatever it takes to bring an adult's own
@@ -123,7 +123,7 @@ export function assistanceOf(world: World, person: Person, otherIncome: Money, t
  * prices. A household with no roof still eats; this is the bare figure that
  * replaces rent and full living costs while they have nowhere.
  */
-export const SHELTER_COST = 24_000 as Money
+export const SHELTER_COST = 3_000 as Money
 
 export function shelterCostFor(world: World): Money {
   return atTodaysPrices(world, SHELTER_COST) as Money

@@ -46,7 +46,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'freelance',
     title: 'freelance work',
-    capital: 40_000 as Money,
+    capital: 5_000 as Money,
     returnPerMille: 900,
     exposure: 500,
     maxEmployees: 0,
@@ -54,7 +54,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'market-stall',
     title: 'a market stall',
-    capital: 250_000 as Money,
+    capital: 31_250 as Money,
     returnPerMille: 420,
     exposure: 700,
     maxEmployees: 1,
@@ -62,7 +62,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'workshop',
     title: 'a workshop',
-    capital: 900_000 as Money,
+    capital: 112_500 as Money,
     returnPerMille: 260,
     exposure: 850,
     maxEmployees: 3,
@@ -70,7 +70,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'shop',
     title: 'a shop on the square',
-    capital: 2_600_000 as Money,
+    capital: 325_000 as Money,
     returnPerMille: 180,
     exposure: 1000,
     maxEmployees: 6,
@@ -78,7 +78,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'contracting-firm',
     title: 'a contracting firm',
-    capital: 6_500_000 as Money,
+    capital: 812_500 as Money,
     returnPerMille: 150,
     exposure: 1200,
     maxEmployees: 14,
