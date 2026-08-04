@@ -93,6 +93,20 @@ export function businessKindById(id: string): BusinessKind | undefined {
 export const BUSINESS_FAILS_AFTER = 3
 
 /**
+ * HOW BIG ONE TRADE CAN GET, as a multiple of what it took to open.
+ *
+ * MEASURED, and it was a runaway: retained profit grew the capital, bigger
+ * capital returned more profit, and a hundred-year town ended with somebody
+ * holding $386 BILLION. A market stall compounding at 42 per cent a year
+ * for a century is not a market stall.
+ *
+ * Past this ceiling the profit is all DRAWN rather than retained. There is
+ * only so much capital one shop can absorb — beyond it you are running a
+ * different kind of business, which is what the larger kinds are for.
+ */
+export const CAPITAL_CEILING_MULTIPLE = 4
+
+/**
  * WHAT THE MONTH RETURNED, in cents. Can be negative, which is the point.
  *
  * The kind's own return on the capital in it, moved by the cycle through

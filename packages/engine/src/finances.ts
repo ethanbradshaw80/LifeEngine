@@ -86,6 +86,7 @@ import { placesOfKind } from './worldgen.js'
 import {
   BUSINESS_FAILS_AFTER,
   BUSINESS_KINDS,
+  CAPITAL_CEILING_MULTIPLE,
   businessKindById,
   businessNameFor,
   monthlyProfitFor,
@@ -1784,11 +1785,19 @@ function runBusinesses(world: World, tick: Tick): void {
     if (profit >= 0) {
       // A share is drawn as income and the rest is retained, which is how a
       // business grows into a bigger one without a second mechanism.
-      const drawn = Math.floor((profit * 700) / 1000) as Money
+      //
+      // UP TO A CEILING. Unbounded retention compounds: measured, a century
+      // of it left one owner holding $386 billion. Past four times what the
+      // trade took to open, the whole profit is drawn instead — there is
+      // only so much capital one shop can absorb.
+      const ceiling = (atTodaysPrices(world, kind.capital) * CAPITAL_CEILING_MULTIPLE) as Money
+      const room = Math.max(0, ceiling - business.capital)
+      const retained = Math.min(Math.floor((profit * 300) / 1000), room)
+      const drawn = (profit - retained) as Money
       creditPerson(world, business.ownerId, drawn)
       world.businesses.set(business.id, {
         ...business,
-        capital: (business.capital + (profit - drawn)) as Money,
+        capital: (business.capital + retained) as Money,
         badMonths: 0,
       })
       continue

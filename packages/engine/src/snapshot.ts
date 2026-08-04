@@ -28,6 +28,12 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v86 — REAL SALARIES. Every one of the forty-six occupations repriced
+ *      against United States national wage data (BLS OEWS, May 2025):
+ *      a nurse now out-earns a bookkeeper, a constable out-earns a cook,
+ *      and the professional ladder tops out where it does in life. Also
+ *      caps business capital at four times what the trade took to open —
+ *      unbounded retention compounded to $386 BILLION over a century.
  * v85 — M-CAREER PHASE 5: THE TOWN GOES INTO BUSINESS. Ambitious adults with
  *      capital open one of five trades; it rides the cycle directly, can
  *      fail, and passes to an eldest child. Measured: 58 per cent survive.
@@ -536,7 +542,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 85
+export const SIMULATION_VERSION = 86
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

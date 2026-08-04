@@ -92,10 +92,13 @@ describe('nobody can fall for ever', () => {
       }
     }
     // MEASURED across four centuries of town: the deepest arrears anywhere
-    // is $25,344, and it belongs to a household part-way through being
-    // resolved rather than to one falling for ever. The old model reached
-    // $606,276 with no bottom at all — a different order of thing.
-    expect(worst).toBeLessThan(5_000_000)
+    // is $60,088, and it belongs to a household part-way through being
+    // resolved rather than to one falling for ever. (It was $25,344 before
+    // wages were repriced to real figures — a bigger wage carries a bigger
+    // insolvency threshold, which is the same rule doing the same job.) The
+    // old model reached $606,276 with no bottom at all, and the difference
+    // that matters is not the size but that this one ENDS.
+    expect(worst).toBeLessThan(15_000_000)
   })
 
   it('never leaves a balance that is not a whole number of cents', () => {

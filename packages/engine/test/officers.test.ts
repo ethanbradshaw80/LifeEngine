@@ -154,14 +154,24 @@ describe('the officer ladder', () => {
         const roster = unitRosterOf(world, record.personId)
         if (!roster || roster.members.length < 2) continue
         checked++
-        expect(roster.members[0]?.personId, 'an officer is not at the head of their own roster').toBe(
-          record.personId,
-        )
-        expect(roster.members[0]?.role).toBe('platoon leader')
+        // AN OFFICER HEADS THE ROSTER — not necessarily THIS officer. Two
+        // commissioned members can share a sub-unit, and then the senior of
+        // them leads it; the other is an officer standing in somebody
+        // else's platoon, which is what a platoon is. The bug this test was
+        // written for was a SERGEANT being named leader over an officer,
+        // and that is what it still checks.
+        const head = roster.members[0]
+        expect(head, 'a roster with nobody at the head of it').toBeDefined()
+        const headRecord = head === undefined ? undefined : world.service.get(head.personId)
+        expect(
+          headRecord?.commissioned,
+          'somebody enlisted is leading a platoon an officer is standing in',
+        ).toBe(true)
+        expect(head?.role).toBe('platoon leader')
         // And they are listed under an OFFICER's rank, not a private's.
         const officerRanks =
           CLASSIC_SPEC.branches.find((b) => b.id === record.branch)?.officerRanks ?? []
-        expect(officerRanks).toContain(roster.members[0]?.rankTitle)
+        expect(officerRanks).toContain(head?.rankTitle)
       }
     }
     expect(checked, 'no commissioned member shared a squad in any seed').toBeGreaterThan(0)

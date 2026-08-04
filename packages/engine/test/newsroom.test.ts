@@ -107,8 +107,13 @@ describe('WCJC', () => {
     // yield a quotable story at all. The claim worth defending is the one
     // above — every quote names a real person — so the fixture widens until
     // it finds quotes, rather than the assertion being dropped.
-    if (quoted === 0) {
-      const wider = createWorld(makeSeed(4242))
+    // WIDENS ACROSS SEEDS, not one. Whether ninety years of a given town
+    // produces a quotable story is seed luck, and pinning it to a single
+    // draw made it fail the first time an unrelated system changed who
+    // works where. The CLAIM is that every quote names a real person.
+    for (const wideSeed of [4242, 12345, 777, 2024, 90210]) {
+      if (quoted > 0) break
+      const wider = createWorld(makeSeed(wideSeed))
       advanceTicks(wider, 90 * 12)
       for (const item of [
         ...newsSince(wider, 0 as never),

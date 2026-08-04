@@ -128,27 +128,27 @@ export const TOWN_NAME = 'Haverlock'
  */
 export const OCCUPATIONS: readonly Occupation[] = [
   // Working class — $30k to $50k.
-  { id: 'labourer', title: 'labourer', requires: 'none', minMonthlyPay: dollars(2_500), maxMonthlyPay: dollars(3_500) },
-  { id: 'cook', title: 'cook', requires: 'none', minMonthlyPay: dollars(2_600), maxMonthlyPay: dollars(3_600) },
-  { id: 'shop-clerk', title: 'shop clerk', requires: 'primary', minMonthlyPay: dollars(2_800), maxMonthlyPay: dollars(3_900) },
-  { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(3_000), maxMonthlyPay: dollars(4_200) },
+  { id: 'labourer', title: 'labourer', requires: 'none', minMonthlyPay: dollars(2_833), maxMonthlyPay: dollars(4_833) },
+  { id: 'cook', title: 'cook', requires: 'none', minMonthlyPay: dollars(2_333), maxMonthlyPay: dollars(3_833) },
+  { id: 'shop-clerk', title: 'shop clerk', requires: 'primary', minMonthlyPay: dollars(2_333), maxMonthlyPay: dollars(3_667) },
+  { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(3_000), maxMonthlyPay: dollars(5_000) },
   // Lower-middle — $50k to $70k.
-  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(4_200), maxMonthlyPay: dollars(5_400) },
-  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(4_300), maxMonthlyPay: dollars(5_600) },
-  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(4_400), maxMonthlyPay: dollars(5_800) },
-  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(4_500), maxMonthlyPay: dollars(5_900) },
-  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(4_600), maxMonthlyPay: dollars(5_900) },
-  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(4_800), maxMonthlyPay: dollars(6_000) },
+  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(2_833), maxMonthlyPay: dollars(4_500) },
+  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(3_333), maxMonthlyPay: dollars(5_167) },
+  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(4_583), maxMonthlyPay: dollars(7_500) },
+  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(4_000), maxMonthlyPay: dollars(7_000) },
+  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(3_500), maxMonthlyPay: dollars(5_500) },
+  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(10_000) },
   // Middle — $70k to $100k.
-  { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(5_900), maxMonthlyPay: dollars(7_400) },
-  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(6_000), maxMonthlyPay: dollars(7_800) },
-  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(6_100), maxMonthlyPay: dollars(8_000) },
+  { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(4_583), maxMonthlyPay: dollars(7_167) },
+  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(4_000), maxMonthlyPay: dollars(7_000) },
+  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(4_833), maxMonthlyPay: dollars(8_167) },
   // Upper-middle — $100k to $150k.
-  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(8_500), maxMonthlyPay: dollars(11_500) },
-  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(9_000), maxMonthlyPay: dollars(12_000) },
-  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(9_200), maxMonthlyPay: dollars(12_500) },
+  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(5_167), maxMonthlyPay: dollars(8_833) },
+  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(9_583), maxMonthlyPay: dollars(13_333) },
+  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(6_333), maxMonthlyPay: dollars(10_500) },
   // Professional — $150k and up.
-  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(13_000), maxMonthlyPay: dollars(18_000) },
+  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(17_083), maxMonthlyPay: dollars(29_167) },
 
   // --- M-CAREER §1. THE RUNGS ABOVE, AND THE ONES BELOW ------------------
   //
@@ -159,43 +159,43 @@ export const OCCUPATIONS: readonly Occupation[] = [
   //
   // Priced on the same real annual scale as everything above (M-ECON §7),
   // each rung a real step up from the one below it.
-  { id: 'apprentice', title: 'apprentice', requires: 'trade', minMonthlyPay: dollars(2_800), maxMonthlyPay: dollars(3_600) },
-  { id: 'master-tradesman', title: 'master tradesman', requires: 'trade', minMonthlyPay: dollars(6_400), maxMonthlyPay: dollars(8_200) },
-  { id: 'site-foreman', title: 'site foreman', requires: 'trade', minMonthlyPay: dollars(7_600), maxMonthlyPay: dollars(9_800) },
-  { id: 'contractor', title: 'contractor', requires: 'trade', minMonthlyPay: dollars(9_500), maxMonthlyPay: dollars(14_000) },
+  { id: 'apprentice', title: 'apprentice', requires: 'trade', minMonthlyPay: dollars(2_750), maxMonthlyPay: dollars(4_167) },
+  { id: 'master-tradesman', title: 'master tradesman', requires: 'trade', minMonthlyPay: dollars(4_833), maxMonthlyPay: dollars(8_000) },
+  { id: 'site-foreman', title: 'site foreman', requires: 'trade', minMonthlyPay: dollars(7_000), maxMonthlyPay: dollars(11_000) },
+  { id: 'contractor', title: 'contractor', requires: 'trade', minMonthlyPay: dollars(7_917), maxMonthlyPay: dollars(14_583) },
 
-  { id: 'shift-lead', title: 'shift lead', requires: 'primary', minMonthlyPay: dollars(3_400), maxMonthlyPay: dollars(4_400) },
-  { id: 'assistant-manager', title: 'assistant manager', requires: 'primary', minMonthlyPay: dollars(4_200), maxMonthlyPay: dollars(5_400) },
-  { id: 'store-manager', title: 'store manager', requires: 'primary', minMonthlyPay: dollars(5_600), maxMonthlyPay: dollars(7_200) },
-  { id: 'district-manager', title: 'district manager', requires: 'secondary', minMonthlyPay: dollars(8_000), maxMonthlyPay: dollars(11_000) },
+  { id: 'shift-lead', title: 'shift lead', requires: 'primary', minMonthlyPay: dollars(3_000), maxMonthlyPay: dollars(4_667) },
+  { id: 'assistant-manager', title: 'assistant manager', requires: 'primary', minMonthlyPay: dollars(3_500), maxMonthlyPay: dollars(5_500) },
+  { id: 'store-manager', title: 'store manager', requires: 'primary', minMonthlyPay: dollars(4_167), maxMonthlyPay: dollars(6_667) },
+  { id: 'district-manager', title: 'district manager', requires: 'secondary', minMonthlyPay: dollars(5_667), maxMonthlyPay: dollars(9_000) },
 
-  { id: 'associate', title: 'associate', requires: 'secondary', minMonthlyPay: dollars(5_000), maxMonthlyPay: dollars(6_400) },
-  { id: 'senior-associate', title: 'senior associate', requires: 'secondary', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(8_400) },
-  { id: 'manager', title: 'manager', requires: 'secondary', minMonthlyPay: dollars(8_700), maxMonthlyPay: dollars(11_500) },
-  { id: 'director', title: 'director', requires: 'college', minMonthlyPay: dollars(11_600), maxMonthlyPay: dollars(15_500) },
-  { id: 'vice-president', title: 'vice president', requires: 'college', minMonthlyPay: dollars(15_400), maxMonthlyPay: dollars(21_000) },
-  { id: 'executive', title: 'executive', requires: 'college', minMonthlyPay: dollars(20_000), maxMonthlyPay: dollars(30_000) },
+  { id: 'associate', title: 'associate', requires: 'secondary', minMonthlyPay: dollars(4_167), maxMonthlyPay: dollars(6_500) },
+  { id: 'senior-associate', title: 'senior associate', requires: 'secondary', minMonthlyPay: dollars(5_500), maxMonthlyPay: dollars(9_000) },
+  { id: 'manager', title: 'manager', requires: 'secondary', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(10_833) },
+  { id: 'director', title: 'director', requires: 'college', minMonthlyPay: dollars(9_833), maxMonthlyPay: dollars(14_833) },
+  { id: 'vice-president', title: 'vice president', requires: 'college', minMonthlyPay: dollars(12_917), maxMonthlyPay: dollars(19_583) },
+  { id: 'executive', title: 'executive', requires: 'college', minMonthlyPay: dollars(15_417), maxMonthlyPay: dollars(26_667) },
 
-  { id: 'lead-hand', title: 'lead hand', requires: 'none', minMonthlyPay: dollars(3_800), maxMonthlyPay: dollars(5_000) },
-  { id: 'superintendent', title: 'superintendent', requires: 'secondary', minMonthlyPay: dollars(7_400), maxMonthlyPay: dollars(9_600) },
-  { id: 'plant-manager', title: 'plant manager', requires: 'secondary', minMonthlyPay: dollars(10_000), maxMonthlyPay: dollars(13_500) },
+  { id: 'lead-hand', title: 'lead hand', requires: 'none', minMonthlyPay: dollars(3_667), maxMonthlyPay: dollars(5_667) },
+  { id: 'superintendent', title: 'superintendent', requires: 'secondary', minMonthlyPay: dollars(7_333), maxMonthlyPay: dollars(11_500) },
+  { id: 'plant-manager', title: 'plant manager', requires: 'secondary', minMonthlyPay: dollars(9_000), maxMonthlyPay: dollars(14_000) },
 
-  { id: 'aide', title: "nurse's aide", requires: 'none', minMonthlyPay: dollars(2_900), maxMonthlyPay: dollars(3_800) },
-  { id: 'charge-nurse', title: 'charge nurse', requires: 'trade', minMonthlyPay: dollars(6_200), maxMonthlyPay: dollars(7_900) },
-  { id: 'nurse-manager', title: 'nurse manager', requires: 'trade', minMonthlyPay: dollars(8_000), maxMonthlyPay: dollars(10_500) },
+  { id: 'aide', title: "nurse's aide", requires: 'none', minMonthlyPay: dollars(2_667), maxMonthlyPay: dollars(4_167) },
+  { id: 'charge-nurse', title: 'charge nurse', requires: 'trade', minMonthlyPay: dollars(7_333), maxMonthlyPay: dollars(10_667) },
+  { id: 'nurse-manager', title: 'nurse manager', requires: 'trade', minMonthlyPay: dollars(8_167), maxMonthlyPay: dollars(12_083) },
 
-  { id: 'resident', title: 'resident physician', requires: 'college', minMonthlyPay: dollars(6_000), maxMonthlyPay: dollars(7_500) },
-  { id: 'chief-of-medicine', title: 'chief of medicine', requires: 'college', minMonthlyPay: dollars(19_000), maxMonthlyPay: dollars(26_000) },
+  { id: 'resident', title: 'resident physician', requires: 'college', minMonthlyPay: dollars(5_000), maxMonthlyPay: dollars(6_333) },
+  { id: 'chief-of-medicine', title: 'chief of medicine', requires: 'college', minMonthlyPay: dollars(20_833), maxMonthlyPay: dollars(31_667) },
 
-  { id: 'department-head', title: 'department head', requires: 'college', minMonthlyPay: dollars(7_800), maxMonthlyPay: dollars(9_800) },
-  { id: 'assistant-principal', title: 'assistant principal', requires: 'college', minMonthlyPay: dollars(9_400), maxMonthlyPay: dollars(12_000) },
-  { id: 'principal', title: 'principal', requires: 'college', minMonthlyPay: dollars(11_500), maxMonthlyPay: dollars(15_000) },
+  { id: 'department-head', title: 'department head', requires: 'college', minMonthlyPay: dollars(5_667), maxMonthlyPay: dollars(8_750) },
+  { id: 'assistant-principal', title: 'assistant principal', requires: 'college', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(9_333) },
+  { id: 'principal', title: 'principal', requires: 'college', minMonthlyPay: dollars(7_917), maxMonthlyPay: dollars(11_500) },
 
-  { id: 'sergeant', title: 'police sergeant', requires: 'secondary', minMonthlyPay: dollars(5_800), maxMonthlyPay: dollars(7_400) },
-  { id: 'police-chief', title: 'chief of police', requires: 'secondary', minMonthlyPay: dollars(9_000), maxMonthlyPay: dollars(12_000) },
+  { id: 'sergeant', title: 'police sergeant', requires: 'secondary', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(10_500) },
+  { id: 'police-chief', title: 'chief of police', requires: 'secondary', minMonthlyPay: dollars(8_333), maxMonthlyPay: dollars(12_667) },
 
-  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(11_000), maxMonthlyPay: dollars(14_500) },
-  { id: 'partner', title: 'partner', requires: 'college', minMonthlyPay: dollars(16_000), maxMonthlyPay: dollars(24_000) },
+  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(6_500), maxMonthlyPay: dollars(10_167) },
+  { id: 'partner', title: 'partner', requires: 'college', minMonthlyPay: dollars(11_667), maxMonthlyPay: dollars(19_167) },
 ]
 
 /**
