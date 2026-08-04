@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v87 — REAL MILITARY PAY. The owner, on the civilian reprice: "did you fix
+ *      officer and enlisted pay?" — I had not. The service tables topped out
+ *      at $2,360 a month, so a master sergeant with twenty years earned less
+ *      than a shop clerk and a colonel less than a teacher. Repriced against
+ *      real compensation, allowances included: a private on $31,200 to a
+ *      master sergeant on $81,600, a lieutenant on $57,600 to a colonel on
+ *      $141,600. The ladders still overlap the way they do in life.
  * v86 — REAL SALARIES. Every one of the forty-six occupations repriced
  *      against United States national wage data (BLS OEWS, May 2025):
  *      a nurse now out-earns a bookkeeper, a constable out-earns a cook,
@@ -542,7 +549,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 86
+export const SIMULATION_VERSION = 87
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -358,18 +358,20 @@ export const BRANCH_OFFICER_GRADES: Readonly<Record<ServiceBranch, readonly numb
  * a commission being a straight upgrade.
  */
 const OFFICER_PAY_BY_GRADE: readonly Money[] = [
-  // ON THIS WORLD'S SCALE, not a real pay chart. The first version used
-  // real-world dollars and a brand-new lieutenant out-earned a master
-  // sergeant with twenty years, which is backwards and which a test caught.
-  // The ladders overlap the way they actually do: a commission starts
-  // between a sergeant and a staff sergeant, and passes the top of the
-  // enlisted table at captain.
-  dollars(1_700), // O-1 — under a senior NCO, over a young sergeant
-  dollars(2_050), // O-2
-  dollars(2_500), // O-3 — now past the top enlisted grade
-  dollars(3_100), // O-4
-  dollars(3_800), // O-5
-  dollars(4_600), // O-6
+  // REPRICED with the enlisted table, against the same real compensation
+  // figures, and holding the SAME SHAPE the old comment described - because
+  // that shape turns out to be what the real pay charts do.
+  //
+  // The ladders overlap. A new lieutenant out-earns a sergeant and is
+  // out-earned by a staff sergeant and by every senior NCO above them; the
+  // officer table passes the top of the enlisted one at CAPTAIN. That is
+  // both this world's rule and the actual arrangement, and a test holds it.
+  dollars(4_800), // O-1 — over an E-5 sergeant, under an E-6
+  dollars(5_600), // O-2 — under an E-7
+  dollars(6_900), // O-3 — now past the top enlisted grade
+  dollars(8_300), // O-4
+  dollars(9_800), // O-5
+  dollars(11_800), // O-6
 ]
 
 export function officerPayOn(branch: ServiceBranchSpec, rank: number): Money {
@@ -381,8 +383,26 @@ export function officerPayOn(branch: ServiceBranchSpec, rank: number): Money {
 
 /** Monthly pay by pay grade, E-1 first. A pay table, not base+step. */
 const PAY_BY_GRADE: readonly number[] = [
-  dollars(1_100), dollars(1_180), dollars(1_270), dollars(1_390),
-  dollars(1_560), dollars(1_790), dollars(2_060), dollars(2_360),
+  // REPRICED against real United States military compensation (owner, on
+  // the civilian reprice: "did you fix officer and enlisted pay?" - I had
+  // not). The old table topped out at $2,360 a month, so a master sergeant
+  // with twenty years earned less than a shop clerk and a full colonel
+  // earned less than a teacher.
+  //
+  // These are BASIC PAY PLUS ALLOWANCES, not basic pay alone. The real
+  // thing pays a soldier partly in an untaxed housing and subsistence
+  // allowance, and this engine has one `monthlyPay` per person that the
+  // ledger taxes like a wage - so the honest single number is regular
+  // military compensation rather than the basic-pay column, which on its
+  // own would understate a serving life by about a third.
+  dollars(2_600), // E-1
+  dollars(2_900), // E-2
+  dollars(3_200), // E-3
+  dollars(3_600), // E-4
+  dollars(4_300), // E-5
+  dollars(5_000), // E-6
+  dollars(5_900), // E-7
+  dollars(6_800), // E-8
 ]
 
 /**
@@ -700,19 +720,19 @@ export const SPECIAL_UNITS: readonly SpecialUnit[] = [
     id: 'pathfinders', name: 'the Pathfinder Battalion', tier: 1,
     branches: ['land-forces'], minRank: 2, minPerformance: 550,
     requiredBadges: ['parachutist'], feederUnitId: null,
-    selectionDenominator: 500, dutyPay: dollars(150), exposureMultiplier: 1250,
+    selectionDenominator: 500, dutyPay: dollars(360), exposureMultiplier: 1250,
   },
   {
     id: 'trident', name: 'the Trident Detachment', tier: 1,
     branches: ['naval-service'], minRank: 2, minPerformance: 560,
     requiredBadges: ['combat diver'], feederUnitId: null,
-    selectionDenominator: 520, dutyPay: dollars(150), exposureMultiplier: 1250,
+    selectionDenominator: 520, dutyPay: dollars(360), exposureMultiplier: 1250,
   },
   {
     id: 'guardian-flight', name: 'the Guardian Flight', tier: 1,
     branches: ['air-guard'], minRank: 2, minPerformance: 560,
     requiredBadges: ['military freefall'], feederUnitId: null,
-    selectionDenominator: 520, dutyPay: dollars(150), exposureMultiplier: 1200,
+    selectionDenominator: 520, dutyPay: dollars(360), exposureMultiplier: 1200,
   },
   {
     // The pack's aviation unit. Tier 2 and fed by the Guardian Flight: the
@@ -720,19 +740,19 @@ export const SPECIAL_UNITS: readonly SpecialUnit[] = [
     id: 'nighthawks', name: 'the Nighthawk Squadron', tier: 2,
     branches: ['air-guard'], minRank: 4, minPerformance: 700,
     requiredBadges: ['senior aviator'], feederUnitId: 'guardian-flight',
-    selectionDenominator: 900, dutyPay: dollars(400), exposureMultiplier: 1450,
+    selectionDenominator: 900, dutyPay: dollars(950), exposureMultiplier: 1450,
   },
   {
     id: 'vanguard', name: 'the Vanguard Group', tier: 2,
     branches: ['land-forces'], minRank: 4, minPerformance: 700,
     requiredBadges: ['special forces'], feederUnitId: 'pathfinders',
-    selectionDenominator: 850, dutyPay: dollars(350), exposureMultiplier: 1450,
+    selectionDenominator: 850, dutyPay: dollars(830), exposureMultiplier: 1450,
   },
   {
     id: 'task-unit-ember', name: 'Task Unit Ember', tier: 2,
     branches: ['naval-service'], minRank: 5, minPerformance: 720,
     requiredBadges: ['combat diver'], feederUnitId: 'trident',
-    selectionDenominator: 900, dutyPay: dollars(400), exposureMultiplier: 1500,
+    selectionDenominator: 900, dutyPay: dollars(950), exposureMultiplier: 1500,
   },
   {
     id: 'grey-section', name: 'the Grey Section', tier: 3,

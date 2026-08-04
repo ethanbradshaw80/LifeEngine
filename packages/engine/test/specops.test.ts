@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { CLASSIC_SPEC } from '../src/worldspec.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
@@ -156,8 +157,14 @@ describe('special units', () => {
     if (joined) {
       expect(world.service.get(person.id)?.unitId).toBe('pathfinders')
       expect(world.events.some((e) => e.type === 'joined-unit')).toBe(true)
-      // Membership pays: grade pay plus the unit's duty pay.
-      expect(servicePayOf(world, person.id)).toBe(139_000 + 15_000)
+      // Membership pays: grade pay plus the unit's duty pay. Read from the
+      // tables rather than typed, so a reprice moves the claim with the
+      // world instead of failing it — the CLAIM is that duty pay is added,
+      // not that a corporal earns a particular number this year.
+      const record = world.service.get(person.id)
+      const duty = CLASSIC_SPEC.units.find((u) => u.id === 'pathfinders')?.dutyPay ?? 0
+      expect(duty).toBeGreaterThan(0)
+      expect(servicePayOf(world, person.id)).toBe((record?.monthlyPay ?? 0) + duty)
     } else {
       // Two drops on the record; the third asking is refused by the file.
       expect(world.events.filter((e) => e.type === 'dropped-selection').length).toBe(2)
