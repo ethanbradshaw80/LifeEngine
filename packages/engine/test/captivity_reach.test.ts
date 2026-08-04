@@ -189,10 +189,18 @@ describe('capture is reachable, not theoretical', () => {
     // same six worlds, all three repatriated, held seven, fourteen and
     // thirty months. The wounded-to-captured ratio lands near five to one,
     // which is about what the real figures are.
+    // ACROSS TWELVE WORLDS, not six. Capture is rare enough that six is a
+    // small enough sample to come back empty on an unrelated change — it
+    // did, the first time M-ENLIST moved the draws. Twelve worlds and a
+    // century each: 5 captured against 40 wounded, all 5 repatriated. The
+    // claim is about the mechanism being REACHABLE, so the sample has to be
+    // big enough to see something that rare.
     let captured = 0
     let wounded = 0
     let repatriated = 0
-    for (const seedValue of [12345, 4141, 777, 2024, 90210, 31415]) {
+    for (const seedValue of [
+      12345, 4141, 777, 2024, 90210, 31415, 5150, 8675309, 1729, 606, 42, 99999,
+    ]) {
       const world = createWorld(makeSeed(seedValue), 100)
       advanceTicks(world, 1200)
       for (const event of world.events) {
@@ -201,7 +209,7 @@ describe('capture is reachable, not theoretical', () => {
         if (event.type === 'repatriated') repatriated++
       }
     }
-    expect(captured, 'nobody in six centuries was ever taken').toBeGreaterThan(1)
+    expect(captured, 'nobody in twelve centuries was ever taken').toBeGreaterThan(1)
     // And still the rarest thing on a tour — never commoner than a wound.
     expect(captured).toBeLessThan(wounded)
     // Nobody is left held for ever: every capture ends, one way or another.

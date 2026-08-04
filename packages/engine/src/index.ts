@@ -422,6 +422,25 @@ export {
   interviewSituation,
 } from './interview.js'
 export type { InterviewApproach, InterviewOption, InterviewOutcome } from './interview.js'
+export {
+  APTITUDE_MAX,
+  APTITUDE_MIN,
+  accessionOf,
+  accessionWords,
+  aptitudeBaseFor,
+  aptitudeWords,
+  assignOfficerRole,
+  commissionBar,
+  eligibleJobs,
+  entryTestScore,
+  jobsOfBranch,
+  meritScoreFor,
+  mosBar,
+  officerRolesOf,
+  sceneTagsFor,
+} from './enlistment.js'
+export { OFFICER_ROLES, officerRoleById } from './content.js'
+export type { MosField, OfficerAccession, OfficerRole } from './types.js'
 export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'

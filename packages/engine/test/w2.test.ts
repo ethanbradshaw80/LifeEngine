@@ -356,11 +356,17 @@ describe('the rulings, enforced rather than remembered', () => {
       // list is names and numbers, and every addition to it has to be one.
       expect(Object.keys(branch).sort()).toEqual(
         [
+          // M-ENLIST added two, and both are the kind this list allows:
+          // 'combatFlavor' is a word deciding which scenes a branch's
+          // moments come from, and 'officerAccession' is how it hands out
+          // officer jobs. Names and numbers, no artwork.
+          'combatFlavor',
           'competitiveFrom',
           'grades',
           'id',
           'juniorTigMonths',
           'name',
+          'officerAccession',
           'officerGrades',
           'officerRanks',
           'ranks',
@@ -409,7 +415,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '4a01de10'
+const HEARTLAND_GOLDEN = '7082cd8e'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

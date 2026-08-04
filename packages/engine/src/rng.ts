@@ -44,6 +44,12 @@ export const Stream = {
    * career draw never reorders an employment one.
    */
   Career: 12,
+  /**
+   * Appended at M-ENLIST, by the same sanctioned path: the entry test, the
+   * officer merit board and the scene a job meets. Its own stream so that
+   * adding a recruiting draw never reorders a deployment one.
+   */
+  Service: 13,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

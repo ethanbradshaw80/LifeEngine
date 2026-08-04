@@ -142,6 +142,15 @@ export interface ServiceBranchSpec {
   readonly competitiveFrom: number
   /** Months in grade before the next JUNIOR promotion, by current rank. */
   readonly juniorTigMonths: readonly number[]
+  /**
+   * M-ENLIST §5c. How this branch hands out officer jobs. Optional so a
+   * preset written before the officer track loads unchanged; absent behaves
+   * as 'needs-assigned', which is the least player-choice of the three and
+   * therefore the safe default.
+   */
+  readonly officerAccession?: OfficerAccession
+  /** M-ENLIST §5b. What the branch's moments look like when a job has none. */
+  readonly combatFlavor?: 'ground' | 'sea' | 'air'
 }
 
 // ---------------------------------------------------------------------------
@@ -157,9 +166,72 @@ export interface ExposureProfile {
   readonly accident: number
 }
 
+/** M-ENLIST §2. What a job is FOR, which decides which moments it meets. */
+export type MosField =
+  | 'combat'
+  | 'technical'
+  | 'medical'
+  | 'logistics'
+  | 'admin'
+  | 'intel'
+  | 'aviation'
+  | 'ordnance'
+
+/** M-ENLIST §5c. How a branch hands its officers their jobs. They differ. */
+export type OfficerAccession = 'community-select' | 'merit-branch' | 'needs-assigned'
+
+/**
+ * M-ENLIST §5c. AN OFFICER'S JOB, which is not an enlisted one.
+ *
+ * A separate catalogue from the specialties, because the two are separate
+ * things: an infantryman holds 11B and an infantry officer holds 11A, and
+ * the officer's job is to command the people holding the first.
+ */
+export interface OfficerRole {
+  readonly id: string
+  /** '13A', '1310', '11X'. */
+  readonly code: string
+  readonly title: string
+  readonly field: MosField
+  readonly branch: string
+  /** How often a combat moment fires for this role, per mille. */
+  readonly combatWeight: number
+  /** A seeded selection gate on top of the accession — pilot, special warfare. */
+  readonly competitive?: boolean
+  readonly minAptitude?: number
+  /** Which moments this role can meet. */
+  readonly sceneTags: readonly string[]
+  readonly exposure: ExposureProfile
+  readonly civilianUnlocks: readonly string[]
+}
+
 export interface ServiceSpecialty {
   readonly id: string
   readonly title: string
+  /**
+   * M-ENLIST §2. The job's CODE — '11B', 'HM', '3P0'.
+   *
+   * Real codes, on the owner's explicit override of the fictional-entity
+   * rule for jobs. Named UNITS stay fictional everywhere, which is the line
+   * the charter actually draws (§3): a code is a job title, a unit is a
+   * body of real people with real casualties.
+   */
+  readonly code?: string
+  readonly field?: MosField
+  /** The entry-test score this job asks for, 1-99. Absent means open. */
+  readonly minAptitude?: number
+  /** What signing for it pays, in integer cents, base-year money. */
+  readonly bonusCents?: Money
+  /** How often a combat moment fires for it, per mille. */
+  readonly combatWeight?: number
+  /**
+   * M-ENLIST §5b. WHICH MOMENTS THIS JOB CAN MEET.
+   *
+   * The whole point: a medic gets mass-casualty calls and never a door
+   * breach, a sailor's crisis happens aboard ship, a mechanic's happens on
+   * a flightline. Empty falls back to the branch's own flavour.
+   */
+  readonly sceneTags?: readonly string[]
   /**
    * What the same trade is called by the person COMMISSIONED into it.
    *
@@ -766,6 +838,25 @@ export interface ServiceRecord {
    * not vanish from the record that is foundation §10's whole point).
    */
   readonly priorSpecialtyIds: readonly string[]
+  /**
+   * M-ENLIST §4. THE ENTRY TEST, 1-99. Rolled once at the recruiting
+   * station and kept for ever: the score is a fact about the day they sat
+   * it, and recomputing it later would let a changed formula rewrite
+   * somebody's history (Law 3).
+   *
+   * Optional: a record written before the test existed simply has none, and
+   * the migration back-fills it from the same deterministic base.
+   */
+  readonly aptitude?: number
+  /**
+   * M-ENLIST §5c. Which road they are on. `commissioned` already says
+   * whether they hold a commission; this says which PIPELINE they entered
+   * through, which is not the same thing — a mustang commissioned from the
+   * ranks entered as enlisted.
+   */
+  readonly track?: 'enlisted' | 'officer'
+  /** M-ENLIST §5c. The officer job, for somebody on the officer track. */
+  readonly officerRoleId?: string
   /**
    * P2. When the current specialty was entered by RETRAIN, or null when it
    * is the enlistment trade. Gates deployment (the new trade's school must

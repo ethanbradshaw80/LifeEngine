@@ -1194,7 +1194,49 @@ const V35_TO_V36: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36]
+/**
+ * M-ENLIST. THE RECRUITING STATION OPENS.
+ *
+ * Every serving or discharged record gains an entry-test score and a track.
+ *
+ * THE SCORE IS BACK-FILLED AT A FLAT 55, and the spec offered a choice
+ * between that and deriving it from stats. Flat, deliberately: a derived
+ * score would be a claim about a test this person never sat, and Law 3 says
+ * the record holds what happened. 55 is "qualified for the trade they
+ * actually hold", which is the one thing their history does prove.
+ *
+ * The track is 'enlisted' unless the record already carries a commission —
+ * a mustang commissioned from the ranks entered as enlisted and this cannot
+ * tell the difference, so it reads the commission it can see.
+ *
+ * Specialty ids are untouched: every old trade is still in the catalogue,
+ * now with a code and a gate beside it, so nothing has to be remapped.
+ */
+const V36_TO_V37: Migration = {
+  from: 36,
+  to: 37,
+  describe: 'give every service record an entry score and a track',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const service = (Array.isArray(world['service']) ? world['service'] : []).map((entry) => {
+      const record = requireObject(entry, 'save.world.service[]')
+      return {
+        ...record,
+        aptitude: typeof record['aptitude'] === 'number' ? record['aptitude'] : 55,
+        track: record['commissioned'] === true ? 'officer' : 'enlisted',
+      }
+    })
+    const nextWorld = { ...world, service }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 37, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

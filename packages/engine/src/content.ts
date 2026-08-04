@@ -9,7 +9,7 @@
 
 import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
-import type { BaseSpec, NationSpec, ServiceBranchSpec } from './types.js'
+import type { BaseSpec, NationSpec, OfficerRole, ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
 import type {
   ExposureProfile,
@@ -443,6 +443,22 @@ export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
   officerGrades: BRANCH_OFFICER_GRADES[id],
   competitiveFrom: COMPETITIVE_FROM[id],
   juniorTigMonths: JUNIOR_TIG_MONTHS[id],
+  // M-ENLIST §5c. HOW EACH SERVICE HANDS OUT OFFICER JOBS, and they really
+  // do differ — this is one of the few places the three services are not
+  // the same shape with different words.
+  //
+  //   the naval service SELECTS a community: you pick, and the competitive
+  //     ones pick you back.
+  //   the ground service BRANCHES on merit: you list what you want and it
+  //     weighs that against what it needs, so a first choice is a hope.
+  //   the air service ASSIGNS by need, and a flying seat is competed for.
+  officerAccession: (
+    { 'land-forces': 'merit-branch', 'naval-service': 'community-select', 'air-guard': 'needs-assigned' } as const
+  )[id],
+  // M-ENLIST §5b. What a moment looks like when a job has no pool of its own.
+  combatFlavor: (
+    { 'land-forces': 'ground', 'naval-service': 'sea', 'air-guard': 'air' } as const
+  )[id],
 }))
 
 /**
@@ -456,24 +472,36 @@ export const CLASSIC_BRANCHES: readonly ServiceBranchSpec[] = (
 export const SPECIALTIES: readonly ServiceSpecialty[] = [
   {
     id: 'rifleman', title: 'rifleman', officerTitle: 'infantry officer', branch: 'land-forces', requires: 'none',
+    code: '11B', field: 'combat', minAptitude: 31,
+    bonusCents: dollars(8_000) as Money, combatWeight: 850,
+    sceneTags: ['combat_firefight', 'combat_breach', 'combat_convoy_ambush', 'combat_patrol_ied', 'base_defense'],
     schoolMonths: 2, qualification: 'expert marksman', boardCutoffOffset: -40,
     exposure: { directCombat: 850, convoy: 300, baseAttack: 300, accident: 300 },
     civilianUnlocks: [],
   },
   {
     id: 'transport', title: 'transport driver', officerTitle: 'transport officer', branch: 'land-forces', requires: 'primary',
+    code: '88M', field: 'logistics', minAptitude: 35,
+    bonusCents: dollars(4_000) as Money, combatWeight: 400,
+    sceneTags: ['combat_convoy_ambush', 'combat_patrol_ied', 'base_defense', 'work_maint_fault'],
     schoolMonths: 2, qualification: 'master driver', boardCutoffOffset: -20,
     exposure: { directCombat: 150, convoy: 850, baseAttack: 250, accident: 450 },
     civilianUnlocks: [],
   },
   {
     id: 'mechanic', title: 'field mechanic', officerTitle: 'maintenance officer', branch: 'land-forces', requires: 'primary',
+    code: '91B', field: 'technical', minAptitude: 45,
+    bonusCents: dollars(5_000) as Money, combatWeight: 300,
+    sceneTags: ['work_critical_repair', 'work_maint_fault', 'base_defense', 'combat_convoy_ambush'],
     schoolMonths: 4, qualification: 'master mechanic', boardCutoffOffset: 20,
     exposure: { directCombat: 80, convoy: 200, baseAttack: 350, accident: 400 },
     civilianUnlocks: ['machinist', 'electrician', 'carpenter'],
   },
   {
     id: 'medic', title: 'medic', officerTitle: 'medical service officer', branch: 'land-forces', requires: 'secondary',
+    code: '68W', field: 'medical', minAptitude: 55,
+    bonusCents: dollars(10_000) as Money, combatWeight: 600,
+    sceneTags: ['med_treat_under_fire', 'med_masscas', 'combat_rescue', 'combat_firefight'],
     schoolMonths: 4, qualification: 'field trauma certification', boardCutoffOffset: 30,
     exposure: { directCombat: 350, convoy: 400, baseAttack: 300, accident: 250 },
     civilianUnlocks: ['nurse'],
@@ -485,29 +513,407 @@ export const SPECIALTIES: readonly ServiceSpecialty[] = [
     // hazard — accidents are the aviator's real killer, in this simulation
     // as in the world.
     id: 'aviator', title: 'aviator', officerTitle: 'aviator', branch: 'air-guard', requires: 'college',
+    code: '15A', field: 'aviation', minAptitude: 70,
+    bonusCents: dollars(12_000) as Money, combatWeight: 400,
+    sceneTags: ['air_emergency_landing', 'air_crash', 'air_hardlanding', 'air_flightline_fire'],
     schoolMonths: 12, qualification: 'aviator wings', boardCutoffOffset: 60,
     exposure: { directCombat: 220, convoy: 0, baseAttack: 300, accident: 700 },
     civilianUnlocks: ['engineer'],
   },
   {
     id: 'aircrew', title: 'aircrew', officerTitle: 'air operations officer', branch: 'air-guard', requires: 'secondary',
+    code: '15U', field: 'aviation', minAptitude: 60,
+    bonusCents: dollars(9_000) as Money, combatWeight: 420,
+    sceneTags: ['air_flightline_fire', 'air_hardlanding', 'work_maint_fault', 'base_defense'],
     schoolMonths: 6, qualification: 'aircrew wings', boardCutoffOffset: 40,
     exposure: { directCombat: 260, convoy: 0, baseAttack: 320, accident: 620 },
     civilianUnlocks: ['machinist'],
   },
   {
     id: 'signals', title: 'signals operator', officerTitle: 'signals officer', branch: 'air-guard', requires: 'secondary',
+    code: '25B', field: 'technical', minAptitude: 65,
+    bonusCents: dollars(7_000) as Money, combatWeight: 250,
+    sceneTags: ['comms_blackout', 'cyber_incident', 'ops_center_crisis', 'base_defense'],
     schoolMonths: 4, qualification: 'senior signals rating', boardCutoffOffset: 40,
     exposure: { directCombat: 40, convoy: 100, baseAttack: 450, accident: 200 },
     civilianUnlocks: ['clerk'],
   },
   {
     id: 'deckhand', title: 'deckhand', officerTitle: 'deck officer', branch: 'naval-service', requires: 'none',
+    code: 'BM', field: 'combat', minAptitude: 31,
+    bonusCents: dollars(5_000) as Money, combatWeight: 400,
+    sceneTags: ['sea_general_quarters', 'sea_fire_aboard', 'sea_smallboat_attack', 'sea_manoverboard'],
     schoolMonths: 2, qualification: 'seamanship rating', boardCutoffOffset: 0,
     exposure: { directCombat: 120, convoy: 60, baseAttack: 500, accident: 550 },
     civilianUnlocks: ['millhand'],
   },
+  // --- M-ENLIST §3. THE REST OF THE CATALOGUE --------------------------
+  //
+  // Real codes and titles, on the owner's explicit override for JOBS. Named
+  // units stay fictional everywhere — that is the line the charter draws
+  // (§3), and it is the right one: a job code is a job title, a named unit
+  // is a body of real people with real casualties and living members.
+  //
+  // The branch IDS stay the preset's own ('land-forces' rather than
+  // 'army'), so Classic keeps its fictional services and Real World Mode
+  // keeps its real ones — one catalogue of jobs, whichever world you play.
+  //
+  // THE GATES AND BONUSES ARE GAME BALANCE, NOT FACT. They are not real
+  // line-score minimums and not real bonus figures, and the spec says so
+  // plainly. Bonuses are BASE-YEAR cents like every other wage (v88).
+  {
+    id: 'combat-engineer', title: 'combat engineer', officerTitle: 'engineer officer',
+    branch: 'land-forces', requires: 'primary',
+    code: '12B', field: 'combat', minAptitude: 40,
+    bonusCents: dollars(6_000) as Money, combatWeight: 650,
+    sceneTags: ['combat_breach', 'combat_patrol_ied', 'combat_firefight', 'base_defense'],
+    schoolMonths: 3, qualification: 'demolitions rating', boardCutoffOffset: -20,
+    exposure: { directCombat: 620, convoy: 380, baseAttack: 300, accident: 480 },
+    civilianUnlocks: ['carpenter', 'labourer'],
+  },
+  {
+    id: 'supply', title: 'supply specialist', officerTitle: 'logistics officer',
+    branch: 'land-forces', requires: 'primary',
+    code: '92Y', field: 'logistics', minAptitude: 40,
+    bonusCents: dollars(3_000) as Money, combatWeight: 200,
+    sceneTags: ['base_defense', 'work_maint_fault', 'combat_convoy_ambush'],
+    schoolMonths: 2, qualification: 'supply rating', boardCutoffOffset: 10,
+    exposure: { directCombat: 60, convoy: 220, baseAttack: 380, accident: 240 },
+    civilianUnlocks: ['bookkeeper', 'clerk'],
+  },
+  {
+    id: 'military-police', title: 'military police', officerTitle: 'provost officer',
+    branch: 'land-forces', requires: 'secondary',
+    code: '31B', field: 'combat', minAptitude: 45,
+    bonusCents: dollars(5_000) as Money, combatWeight: 450,
+    sceneTags: ['base_defense', 'combat_firefight', 'combat_patrol_ied'],
+    schoolMonths: 3, qualification: 'law enforcement rating', boardCutoffOffset: 0,
+    exposure: { directCombat: 400, convoy: 260, baseAttack: 520, accident: 260 },
+    civilianUnlocks: ['constable'],
+  },
+  {
+    id: 'intel-analyst', title: 'intelligence analyst', officerTitle: 'intelligence officer',
+    branch: 'land-forces', requires: 'secondary',
+    code: '35F', field: 'intel', minAptitude: 90,
+    bonusCents: dollars(12_000) as Money, combatWeight: 300,
+    sceneTags: ['ops_center_crisis', 'cyber_incident', 'comms_blackout', 'base_defense'],
+    schoolMonths: 6, qualification: 'all-source rating', boardCutoffOffset: 50,
+    exposure: { directCombat: 90, convoy: 120, baseAttack: 420, accident: 180 },
+    civilianUnlocks: ['clerk', 'bookkeeper'],
+  },
+  {
+    id: 'gunners-mate', title: "gunner's mate", officerTitle: 'weapons officer',
+    branch: 'naval-service', requires: 'primary',
+    code: 'GM', field: 'ordnance', minAptitude: 45,
+    bonusCents: dollars(7_000) as Money, combatWeight: 500,
+    sceneTags: ['sea_general_quarters', 'sea_smallboat_attack', 'munitions_mishap', 'sea_fire_aboard'],
+    schoolMonths: 3, qualification: 'ordnance rating', boardCutoffOffset: 0,
+    exposure: { directCombat: 300, convoy: 40, baseAttack: 480, accident: 520 },
+    civilianUnlocks: ['machinist'],
+  },
+  {
+    id: 'corpsman', title: 'hospital corpsman', officerTitle: 'medical officer',
+    branch: 'naval-service', requires: 'secondary',
+    code: 'HM', field: 'medical', minAptitude: 55,
+    bonusCents: dollars(11_000) as Money, combatWeight: 550,
+    sceneTags: ['med_masscas', 'med_treat_under_fire', 'combat_rescue', 'sea_general_quarters'],
+    schoolMonths: 5, qualification: 'corpsman rating', boardCutoffOffset: 30,
+    exposure: { directCombat: 320, convoy: 200, baseAttack: 380, accident: 300 },
+    civilianUnlocks: ['nurse', 'aide'],
+  },
+  {
+    id: 'master-at-arms', title: 'master-at-arms', officerTitle: 'security officer',
+    branch: 'naval-service', requires: 'primary',
+    code: 'MA', field: 'combat', minAptitude: 40,
+    bonusCents: dollars(5_000) as Money, combatWeight: 450,
+    sceneTags: ['base_defense', 'sea_general_quarters', 'sea_smallboat_attack'],
+    schoolMonths: 3, qualification: 'security rating', boardCutoffOffset: 0,
+    exposure: { directCombat: 260, convoy: 60, baseAttack: 520, accident: 280 },
+    civilianUnlocks: ['constable'],
+  },
+  {
+    id: 'electronics-tech', title: 'electronics technician', officerTitle: 'systems officer',
+    branch: 'naval-service', requires: 'secondary',
+    code: 'ET', field: 'technical', minAptitude: 75,
+    bonusCents: dollars(9_000) as Money, combatWeight: 200,
+    sceneTags: ['sea_fire_aboard', 'comms_blackout', 'work_critical_repair', 'sea_general_quarters'],
+    schoolMonths: 6, qualification: 'electronics rating', boardCutoffOffset: 40,
+    exposure: { directCombat: 60, convoy: 20, baseAttack: 420, accident: 420 },
+    civilianUnlocks: ['electrician', 'machinist'],
+  },
+  {
+    id: 'cryptologic-tech', title: 'cryptologic technician', officerTitle: 'cryptologic officer',
+    branch: 'naval-service', requires: 'secondary',
+    code: 'CTN', field: 'intel', minAptitude: 90,
+    bonusCents: dollars(13_000) as Money, combatWeight: 250,
+    sceneTags: ['cyber_incident', 'ops_center_crisis', 'comms_blackout', 'sea_fire_aboard'],
+    schoolMonths: 7, qualification: 'cryptologic rating', boardCutoffOffset: 55,
+    exposure: { directCombat: 40, convoy: 20, baseAttack: 400, accident: 220 },
+    civilianUnlocks: ['clerk'],
+  },
+  {
+    id: 'security-forces', title: 'security forces airman', officerTitle: 'security forces officer',
+    branch: 'air-guard', requires: 'primary',
+    code: '3P0', field: 'combat', minAptitude: 40,
+    bonusCents: dollars(5_000) as Money, combatWeight: 500,
+    sceneTags: ['base_defense', 'combat_firefight', 'combat_patrol_ied'],
+    schoolMonths: 3, qualification: 'air base defence rating', boardCutoffOffset: 0,
+    exposure: { directCombat: 380, convoy: 180, baseAttack: 620, accident: 260 },
+    civilianUnlocks: ['constable'],
+  },
+  {
+    id: 'aircraft-maintainer', title: 'aircraft maintainer', officerTitle: 'maintenance officer',
+    branch: 'air-guard', requires: 'secondary',
+    code: '2A3', field: 'technical', minAptitude: 55,
+    bonusCents: dollars(8_000) as Money, combatWeight: 300,
+    sceneTags: ['air_flightline_fire', 'work_maint_fault', 'work_critical_repair', 'air_hardlanding'],
+    schoolMonths: 5, qualification: 'crew chief rating', boardCutoffOffset: 30,
+    exposure: { directCombat: 60, convoy: 40, baseAttack: 380, accident: 600 },
+    civilianUnlocks: ['machinist', 'electrician'],
+  },
+  {
+    id: 'munitions', title: 'munitions systems specialist', officerTitle: 'munitions officer',
+    branch: 'air-guard', requires: 'primary',
+    code: '2W0', field: 'ordnance', minAptitude: 50,
+    bonusCents: dollars(7_000) as Money, combatWeight: 350,
+    sceneTags: ['munitions_mishap', 'air_flightline_fire', 'base_defense', 'work_maint_fault'],
+    schoolMonths: 4, qualification: 'munitions rating', boardCutoffOffset: 20,
+    exposure: { directCombat: 80, convoy: 60, baseAttack: 420, accident: 640 },
+    civilianUnlocks: ['machinist'],
+  },
+  {
+    id: 'aeromedical', title: 'aeromedical technician', officerTitle: 'flight medical officer',
+    branch: 'air-guard', requires: 'secondary',
+    code: '4N0', field: 'medical', minAptitude: 55,
+    bonusCents: dollars(9_000) as Money, combatWeight: 400,
+    sceneTags: ['med_masscas', 'combat_rescue', 'med_treat_under_fire', 'air_hardlanding'],
+    schoolMonths: 5, qualification: 'aeromedical rating', boardCutoffOffset: 30,
+    exposure: { directCombat: 140, convoy: 120, baseAttack: 360, accident: 420 },
+    civilianUnlocks: ['nurse', 'aide'],
+  },
+  {
+    id: 'cyber-ops', title: 'cyberspace operator', officerTitle: 'cyberspace operations officer',
+    branch: 'air-guard', requires: 'secondary',
+    code: '3D0', field: 'technical', minAptitude: 80,
+    bonusCents: dollars(11_000) as Money, combatWeight: 150,
+    sceneTags: ['cyber_incident', 'comms_blackout', 'ops_center_crisis', 'work_critical_repair'],
+    schoolMonths: 6, qualification: 'cyber operations rating', boardCutoffOffset: 50,
+    exposure: { directCombat: 20, convoy: 20, baseAttack: 340, accident: 160 },
+    civilianUnlocks: ['clerk', 'engineer'],
+  },
 ]
+
+
+/**
+ * M-ENLIST §5c. THE OFFICER CATALOGUE.
+ *
+ * A separate list from the trades because an officer holds a separate kind
+ * of job: an infantryman is 11B and the officer commanding them is 11A, and
+ * the second job is the first one's command rather than a senior version of
+ * it. Real codes, on the owner's override for jobs; named units stay
+ * fictional everywhere.
+ *
+ * `competitive` marks the seats a branch selects for rather than assigns —
+ * flying and special warfare — and those run a seeded board on top of
+ * whatever the branch's accession rule already does.
+ *
+ * THE CODES ARE DRAFTED FROM GENERAL KNOWLEDGE and are the spec's own
+ * "verify before shipping" list. They are job titles, not claims about a
+ * real organisation's current structure.
+ */
+export const OFFICER_ROLES: readonly OfficerRole[] = [
+  // --- the ground service ------------------------------------------------
+  {
+    id: 'of-infantry', code: '11A', title: 'infantry officer', field: 'combat',
+    branch: 'land-forces', combatWeight: 800,
+    sceneTags: ['combat_firefight', 'combat_breach', 'combat_convoy_ambush', 'combat_patrol_ied'],
+    exposure: { directCombat: 820, convoy: 320, baseAttack: 320, accident: 300 },
+    civilianUnlocks: ['constable'],
+  },
+  {
+    id: 'of-armor', code: '19A', title: 'armor officer', field: 'combat',
+    branch: 'land-forces', combatWeight: 700,
+    sceneTags: ['combat_firefight', 'combat_convoy_ambush', 'combat_patrol_ied', 'work_maint_fault'],
+    exposure: { directCombat: 700, convoy: 420, baseAttack: 300, accident: 420 },
+    civilianUnlocks: ['machinist'],
+  },
+  {
+    id: 'of-artillery', code: '13A', title: 'field artillery officer', field: 'combat',
+    branch: 'land-forces', combatWeight: 600,
+    sceneTags: ['combat_firefight', 'base_defense', 'munitions_mishap', 'ops_center_crisis'],
+    exposure: { directCombat: 520, convoy: 300, baseAttack: 380, accident: 420 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-aviation', code: '15A', title: 'aviation officer', field: 'aviation',
+    branch: 'land-forces', combatWeight: 500, competitive: true, minAptitude: 70,
+    sceneTags: ['air_emergency_landing', 'air_crash', 'air_hardlanding', 'air_flightline_fire'],
+    exposure: { directCombat: 260, convoy: 0, baseAttack: 300, accident: 720 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-engineer', code: '12A', title: 'engineer officer', field: 'combat',
+    branch: 'land-forces', combatWeight: 550,
+    sceneTags: ['combat_breach', 'combat_patrol_ied', 'work_critical_repair', 'base_defense'],
+    exposure: { directCombat: 520, convoy: 360, baseAttack: 320, accident: 460 },
+    civilianUnlocks: ['engineer', 'carpenter'],
+  },
+  {
+    id: 'of-signal', code: '25A', title: 'signal officer', field: 'technical',
+    branch: 'land-forces', combatWeight: 250,
+    sceneTags: ['comms_blackout', 'cyber_incident', 'ops_center_crisis', 'base_defense'],
+    exposure: { directCombat: 80, convoy: 140, baseAttack: 400, accident: 200 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-intelligence', code: '35D', title: 'military intelligence officer', field: 'intel',
+    branch: 'land-forces', combatWeight: 300, minAptitude: 80,
+    sceneTags: ['ops_center_crisis', 'cyber_incident', 'comms_blackout', 'base_defense'],
+    exposure: { directCombat: 100, convoy: 140, baseAttack: 420, accident: 180 },
+    civilianUnlocks: ['clerk'],
+  },
+  {
+    id: 'of-logistics', code: '90A', title: 'logistics officer', field: 'logistics',
+    branch: 'land-forces', combatWeight: 250,
+    sceneTags: ['combat_convoy_ambush', 'base_defense', 'work_maint_fault', 'ops_center_crisis'],
+    exposure: { directCombat: 90, convoy: 460, baseAttack: 340, accident: 300 },
+    civilianUnlocks: ['bookkeeper', 'accountant'],
+  },
+  {
+    id: 'of-provost', code: '31A', title: 'military police officer', field: 'combat',
+    branch: 'land-forces', combatWeight: 400,
+    sceneTags: ['base_defense', 'combat_firefight', 'combat_patrol_ied', 'ops_center_crisis'],
+    exposure: { directCombat: 360, convoy: 260, baseAttack: 500, accident: 260 },
+    civilianUnlocks: ['constable', 'sergeant'],
+  },
+  {
+    id: 'of-medical-corps', code: '60A', title: 'medical corps officer', field: 'medical',
+    branch: 'land-forces', combatWeight: 400, minAptitude: 75,
+    sceneTags: ['med_masscas', 'med_treat_under_fire', 'combat_rescue', 'base_defense'],
+    exposure: { directCombat: 200, convoy: 240, baseAttack: 360, accident: 240 },
+    civilianUnlocks: ['doctor', 'nurse'],
+  },
+
+  // --- the naval service --------------------------------------------------
+  {
+    id: 'of-surface-warfare', code: '1110', title: 'surface warfare officer', field: 'combat',
+    branch: 'naval-service', combatWeight: 450,
+    sceneTags: ['sea_general_quarters', 'sea_smallboat_attack', 'sea_fire_aboard', 'sea_manoverboard'],
+    exposure: { directCombat: 300, convoy: 40, baseAttack: 480, accident: 520 },
+    civilianUnlocks: ['manager'],
+  },
+  {
+    id: 'of-naval-aviator', code: '1310', title: 'naval aviator', field: 'aviation',
+    branch: 'naval-service', combatWeight: 550, competitive: true, minAptitude: 75,
+    sceneTags: ['air_emergency_landing', 'air_crash', 'sea_flightdeck_hazard', 'air_hardlanding'],
+    exposure: { directCombat: 280, convoy: 0, baseAttack: 300, accident: 760 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-flight-officer', code: '1320', title: 'naval flight officer', field: 'aviation',
+    branch: 'naval-service', combatWeight: 500, minAptitude: 70,
+    sceneTags: ['air_emergency_landing', 'sea_flightdeck_hazard', 'air_hardlanding', 'ops_center_crisis'],
+    exposure: { directCombat: 260, convoy: 0, baseAttack: 300, accident: 700 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-submarine', code: '1120', title: 'submarine officer', field: 'technical',
+    branch: 'naval-service', combatWeight: 300, minAptitude: 85,
+    sceneTags: ['sea_fire_aboard', 'sea_general_quarters', 'work_critical_repair', 'comms_blackout'],
+    exposure: { directCombat: 140, convoy: 0, baseAttack: 380, accident: 560 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-special-warfare', code: '1130', title: 'special warfare officer', field: 'combat',
+    branch: 'naval-service', combatWeight: 850, competitive: true, minAptitude: 75,
+    sceneTags: ['combat_firefight', 'combat_breach', 'combat_rescue', 'sea_smallboat_attack'],
+    exposure: { directCombat: 880, convoy: 220, baseAttack: 300, accident: 420 },
+    civilianUnlocks: ['constable'],
+  },
+  {
+    id: 'of-supply-corps', code: '3100', title: 'supply corps officer', field: 'logistics',
+    branch: 'naval-service', combatWeight: 200,
+    sceneTags: ['sea_fire_aboard', 'ops_center_crisis', 'work_maint_fault', 'sea_general_quarters'],
+    exposure: { directCombat: 60, convoy: 60, baseAttack: 400, accident: 320 },
+    civilianUnlocks: ['accountant', 'bookkeeper'],
+  },
+  {
+    id: 'of-naval-intelligence', code: '1830', title: 'naval intelligence officer', field: 'intel',
+    branch: 'naval-service', combatWeight: 250, minAptitude: 80,
+    sceneTags: ['ops_center_crisis', 'cyber_incident', 'comms_blackout', 'sea_general_quarters'],
+    exposure: { directCombat: 60, convoy: 20, baseAttack: 400, accident: 220 },
+    civilianUnlocks: ['clerk'],
+  },
+  {
+    id: 'of-cryptologic-warfare', code: '1810', title: 'cryptologic warfare officer', field: 'intel',
+    branch: 'naval-service', combatWeight: 200, minAptitude: 85,
+    sceneTags: ['cyber_incident', 'comms_blackout', 'ops_center_crisis', 'sea_fire_aboard'],
+    exposure: { directCombat: 40, convoy: 20, baseAttack: 380, accident: 200 },
+    civilianUnlocks: ['engineer', 'clerk'],
+  },
+
+  // --- the air service ----------------------------------------------------
+  {
+    id: 'of-pilot', code: '11X', title: 'pilot', field: 'aviation',
+    branch: 'air-guard', combatWeight: 600, competitive: true, minAptitude: 78,
+    sceneTags: ['air_emergency_landing', 'air_crash', 'air_hardlanding', 'air_flightline_fire'],
+    exposure: { directCombat: 300, convoy: 0, baseAttack: 280, accident: 780 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-combat-systems', code: '12X', title: 'combat systems officer', field: 'aviation',
+    branch: 'air-guard', combatWeight: 520, minAptitude: 72,
+    sceneTags: ['air_emergency_landing', 'air_hardlanding', 'ops_center_crisis', 'air_flightline_fire'],
+    exposure: { directCombat: 260, convoy: 0, baseAttack: 300, accident: 700 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-air-battle-manager', code: '13B', title: 'air battle manager', field: 'technical',
+    branch: 'air-guard', combatWeight: 300, minAptitude: 70,
+    sceneTags: ['ops_center_crisis', 'comms_blackout', 'air_emergency_landing', 'base_defense'],
+    exposure: { directCombat: 120, convoy: 0, baseAttack: 340, accident: 440 },
+    civilianUnlocks: ['manager'],
+  },
+  {
+    id: 'of-air-intelligence', code: '14N', title: 'intelligence officer', field: 'intel',
+    branch: 'air-guard', combatWeight: 250, minAptitude: 80,
+    sceneTags: ['ops_center_crisis', 'cyber_incident', 'comms_blackout', 'base_defense'],
+    exposure: { directCombat: 60, convoy: 40, baseAttack: 380, accident: 180 },
+    civilianUnlocks: ['clerk'],
+  },
+  {
+    id: 'of-cyber-ops', code: '17X', title: 'cyberspace operations officer', field: 'technical',
+    branch: 'air-guard', combatWeight: 180, minAptitude: 82,
+    sceneTags: ['cyber_incident', 'comms_blackout', 'ops_center_crisis', 'work_critical_repair'],
+    exposure: { directCombat: 20, convoy: 20, baseAttack: 340, accident: 160 },
+    civilianUnlocks: ['engineer'],
+  },
+  {
+    id: 'of-security-forces', code: '31P', title: 'security forces officer', field: 'combat',
+    branch: 'air-guard', combatWeight: 480,
+    sceneTags: ['base_defense', 'combat_firefight', 'combat_patrol_ied', 'ops_center_crisis'],
+    exposure: { directCombat: 400, convoy: 200, baseAttack: 600, accident: 260 },
+    civilianUnlocks: ['constable', 'sergeant'],
+  },
+  {
+    id: 'of-logistics-readiness', code: '21R', title: 'logistics readiness officer', field: 'logistics',
+    branch: 'air-guard', combatWeight: 220,
+    sceneTags: ['work_maint_fault', 'base_defense', 'ops_center_crisis', 'air_flightline_fire'],
+    exposure: { directCombat: 60, convoy: 300, baseAttack: 360, accident: 340 },
+    civilianUnlocks: ['manager', 'bookkeeper'],
+  },
+  {
+    id: 'of-flight-surgeon', code: '48G', title: 'flight surgeon', field: 'medical',
+    branch: 'air-guard', combatWeight: 300, minAptitude: 78,
+    sceneTags: ['med_masscas', 'combat_rescue', 'air_hardlanding', 'med_treat_under_fire'],
+    exposure: { directCombat: 120, convoy: 100, baseAttack: 340, accident: 380 },
+    civilianUnlocks: ['doctor'],
+  },
+]
+
+export function officerRoleById(id: string): OfficerRole | undefined {
+  return OFFICER_ROLES.find((role) => role.id === id)
+}
 
 /**
  * What to call this trade for the person holding it. One resolver, so the
