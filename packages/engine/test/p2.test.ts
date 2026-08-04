@@ -502,7 +502,7 @@ describe('spending stance', () => {
     const world = createWorld(makeSeed(2024), 100)
     const { wife } = findCouple(world)
     const events = world.events.length
-    setSpendStance(world, world.tick, wife.householdId!, null, wife.id)
+    setSpendStance(world, world.tick, wife.id, null)
     expect(world.events.length).toBe(events)
   })
 })

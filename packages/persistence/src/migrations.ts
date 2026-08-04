@@ -1156,7 +1156,45 @@ const V34_TO_V35: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35]
+/**
+ * M-MONEY2. THE PURSE BECOMES THE PERSON'S.
+ *
+ * Spend stance moves from the household to the person. Every living member
+ * inherits the roof's posture, which is the honest reading: that IS how
+ * they were carrying their money the day before, and Law 3 says a record
+ * should say what happened rather than what would be tidy.
+ */
+const V35_TO_V36: Migration = {
+  from: 35,
+  to: 36,
+  describe: 'give every person their own way of carrying money',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const households = Array.isArray(world['households']) ? world['households'] : []
+    const stanceOf = new Map<number, unknown>()
+    for (const entry of households) {
+      const record = requireObject(entry, 'save.world.households[]')
+      const members = Array.isArray(record['memberIds']) ? record['memberIds'] : []
+      for (const memberId of members) {
+        if (typeof memberId === 'number') stanceOf.set(memberId, record['spendStance'] ?? null)
+      }
+    }
+    const people = (Array.isArray(world['people']) ? world['people'] : []).map((entry) => {
+      const record = requireObject(entry, 'save.world.people[]')
+      const id = typeof record['id'] === 'number' ? record['id'] : -1
+      return { ...record, spendStance: stanceOf.get(id) ?? null }
+    })
+    const nextWorld = { ...world, people }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 36, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

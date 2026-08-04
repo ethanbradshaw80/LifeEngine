@@ -105,7 +105,7 @@ describe('round trip', () => {
     expect(save.header.checksum).toMatch(/^[0-9a-f]{8}$/)
   })
 
-  it('a chosen spending stance survives save and load (v18)', () => {
+  it('a chosen spending stance survives save and load (v18, per person from v36)', () => {
     // The stance is the one field only a PLAYER ever sets, so the ordinary
     // round-trip tests never exercise it non-null. If hydration ever stopped
     // spreading households wholesale, the loss would be silent — the exact
@@ -119,7 +119,8 @@ describe('round trip', () => {
     expect(result.set).toBe(true)
 
     const restored = fromSaveFile(throughStorage(toSaveFile(original)), SIMULATION_VERSION).world
-    expect(restored.households.get(anyone.householdId!)?.spendStance).toBe('thrifty')
+    // M-MONEY2: the posture belongs to the PERSON now, not the roof.
+    expect(restored.people.get(anyone.id)?.spendStance).toBe('thrifty')
   })
 })
 
@@ -142,7 +143,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(34) // v1 through v35, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(35) // v1 through v36, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household

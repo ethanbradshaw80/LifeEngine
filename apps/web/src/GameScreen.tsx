@@ -50,6 +50,7 @@ import {
   livingPeople,
   monthlyNetOf,
   personalMonthlyNet,
+  partnerOf,
   moveBar,
   newsSince,
   OCCUPATIONS,
@@ -988,28 +989,49 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               return (
                 <>
                   <div className={ledger.inArrears ? 'balance behind' : 'balance'}>
-                    {/* The household balance is OBLIGATIONS since M-ECON §1
-                        — it is at or below zero by construction, so "has
-                        -$606,276.09" is the wrong sentence. Behind, it OWES,
-                        and the sum is written as a plain positive amount. */}
+                    {/* M-MONEY2. YOUR MONEY, AND YOUR PARTNER'S — not the
+                        roof's (owner: "It should show just your money, if
+                        you have a wife then your wife's money"). The roof's
+                        obligations are still shown, underneath, where they
+                        belong: they are a fact about the building. */}
                     <span className="balance-label">
-                      {ledger.inArrears
-                        ? age < 18
-                          ? 'The family owes'
-                          : 'The household owes'
-                        : age < 18
-                          ? 'The family is square'
-                          : 'The household is square'}
+                      {age < 18 ? 'The family has' : 'You have'}
                     </span>
                     <span className="balance-value">
-                      {formatMoney(Math.abs(ledger.savings) as Money)}
+                      {formatMoney(moneyOnHand(world, person.id))}
                     </span>
                     <span className="balance-sub">
-                      {ledger.inArrears
-                        ? 'behind — nothing goes on lifestyle until it is clear'
-                        : ledger.net < 0
-                          ? `${formatMoney(-ledger.net as Money)} a month more goes out than comes in`
-                          : `${formatMoney(ledger.net)} a month is staying put`}
+                      {(() => {
+                        // The partner's own money, on its own line — one
+                        // purse, two people, and both of them can see it.
+                        const partnerId = partnerOf(world, person.id)
+                        const partner = partnerId === null ? undefined : world.people.get(partnerId)
+                        const theirs =
+                          partner === undefined ? null : moneyOnHand(world, partner.id)
+                        const mine = personalMonthlyNet(world, person.id)
+                        return (
+                          <>
+                            {partner !== undefined && theirs !== null && (
+                              <>
+                                {partner.givenName} has {formatMoney(theirs)}
+                                <br />
+                              </>
+                            )}
+                            {mine < 0
+                              ? `${formatMoney(-mine as Money)} a month more goes out than comes in`
+                              : `${formatMoney(mine)} a month is staying put`}
+                            {ledger.inArrears && (
+                              <>
+                                <br />
+                                <span className="bad">
+                                  The roof owes {formatMoney(Math.abs(ledger.savings) as Money)} —
+                                  nothing goes on lifestyle until it is clear
+                                </span>
+                              </>
+                            )}
+                          </>
+                        )
+                      })()}
                     </span>
                   </div>
 

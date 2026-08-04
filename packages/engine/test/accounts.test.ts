@@ -8,6 +8,8 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { ageAt } from '../src/clock.js'
+import { chooseSpendStance, setPlayer } from '../src/player.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
@@ -16,6 +18,8 @@ import {
   householdWealth,
   netWorthOf,
   personalIncome,
+  unitCosts,
+  unitsUnder,
 } from '../src/finances.js'
 import type { World } from '../src/types.js'
 
@@ -142,5 +146,88 @@ describe('determinism holds through the split', () => {
     for (const household of a.households.values()) {
       expect(b.households.get(household.id)?.savings).toBe(household.savings)
     }
+  })
+})
+
+describe('a household is a building, not a purse (M-MONEY2)', () => {
+  it('makes a grown earner their own unit, and leaves a child in their parents’', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 300)
+    let checkedGrown = 0
+    let checkedChild = 0
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null) continue
+      for (const unit of unitsUnder(world, household)) {
+        for (const memberId of unit) {
+          const member = world.people.get(memberId)
+          if (!member) continue
+          const age = ageAt(member.birthTick, world.tick)
+          // A CHILD, or a grown adult with no wage of their own, is in a
+          // unit with a parent. Dependency is about income, not birthdays.
+          if (age < 18) {
+            const withParent = unit.some((id) => member.parentIds.includes(id))
+            if (member.parentIds.some((id) => household.memberIds.includes(id))) {
+              expect(withParent, `a child of the house in nobody's unit`).toBe(true)
+              checkedChild++
+            }
+          }
+          // A grown EARNER is never a dependant of their parents.
+          if (age >= 18 && personalIncome(world, memberId) > 0) {
+            expect(
+              unit.some((id) => member.parentIds.includes(id)),
+              'a grown earner is still in their parents’ purse',
+            ).toBe(false)
+            checkedGrown++
+          }
+        }
+      }
+    }
+    expect(checkedGrown).toBeGreaterThan(0)
+    expect(checkedChild).toBeGreaterThan(0)
+  })
+
+  it('splits the roof between the units and never charges it twice', () => {
+    const world = createWorld(makeSeed(4141), 100)
+    advanceTicks(world, 240)
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null || household.memberIds.length === 0) continue
+      const units = unitsUnder(world, household)
+      // Every living member is in exactly one unit.
+      const seen = new Set<number>()
+      for (const unit of units) {
+        for (const id of unit) {
+          expect(seen.has(id), 'somebody is in two units at once').toBe(false)
+          seen.add(id)
+        }
+      }
+      for (const memberId of household.memberIds) {
+        if (world.people.get(memberId)?.deathTick !== null) continue
+        expect(seen.has(memberId), 'a living member is in no unit').toBe(true)
+      }
+      // And the parts sum to the whole, to the cent.
+      const summed = units.reduce((total, unit) => total + unitCosts(world, household, unit), 0)
+      expect(Math.abs(summed - householdCosts(world, household))).toBeLessThanOrEqual(units.length)
+    }
+  })
+
+  it('lets a grown adult set their own posture under their parents’ roof', () => {
+    const world = createWorld(makeSeed(777), 100)
+    advanceTicks(world, 360)
+    const grown = [...world.people.values()].find(
+      (p) =>
+        p.deathTick === null &&
+        ageAt(p.birthTick, world.tick) >= 18 &&
+        p.householdId !== null &&
+        p.parentIds.some((id) => world.households.get(p.householdId!)?.memberIds.includes(id)),
+    )
+    if (!grown) return
+    setPlayer(world, grown.id)
+    // The old rule refused this outright: "the purse is your parents' to
+    // carry". It is their own money now.
+    expect(chooseSpendStance(world, 'thrifty').set).toBe(true)
+    expect(world.people.get(grown.id)?.spendStance).toBe('thrifty')
+    // And it did NOT change their parents'.
+    const parent = grown.parentIds.map((id) => world.people.get(id)).find((p) => p !== undefined)
+    if (parent) expect(world.people.get(parent.id)?.spendStance).not.toBe('thrifty')
   })
 })

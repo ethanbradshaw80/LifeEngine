@@ -57,6 +57,17 @@ export interface Person {
   readonly tier: Tier
   readonly traits: Traits
   readonly householdId: EntityId | null
+  /**
+   * M-MONEY2. HOW THIS PERSON CARRIES THEIR OWN MONEY, or null for the
+   * character-driven default.
+   *
+   * It used to live on the HOUSEHOLD, which meant a parent's posture
+   * governed the spending of every grown adult under the roof (owner:
+   * "why would my parents control my spending when I'm a grown man after
+   * 18"). It is a person's own now, and a couple share theirs — see
+   * financialUnitOf — because a couple genuinely do.
+   */
+  readonly spendStance: SpendStance | null
   /** Empty for the founding generation, whose parents are outside the sim. */
   readonly parentIds: readonly EntityId[]
 }

@@ -52,6 +52,7 @@ import {
 } from './tax.js'
 import type {
   Accounts,
+  SpendStance,
   Bankruptcy,
   BankruptcyChapter,
   Holding,
@@ -656,6 +657,165 @@ export function householdCosts(world: World, household: Household): Money {
 }
 
 /**
+ * M-MONEY2. The posture a unit carries its money at: the eldest adult's,
+ * because a couple share one and somebody has to have set it.
+ */
+export function stanceOfUnit(world: World, unit: readonly EntityId[]): SpendStance | null {
+  const adults = unit
+    .map((id) => world.people.get(id))
+    .filter((person): person is Person => person !== undefined && person.deathTick === null)
+    .filter((person) => ageAt(person.birthTick, world.tick) >= ADULT_COST_AGE)
+    .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+  for (const adult of adults) {
+    if (adult.spendStance !== null) return adult.spendStance
+  }
+  return null
+}
+
+/**
+ * M-MONEY2. THE PEOPLE WHOSE MONEY IS GENUINELY SHARED.
+ *
+ * OWNER, PLAYING: "It should show just your money, if you have a wife then
+ * your wife's money. This is a life simulator — why would my parents
+ * control my spending when I'm a grown man after 18?"
+ *
+ * He is right, and it was a modelling shortcut rather than a decision: the
+ * HOUSEHOLD was the only economic unit in the world, so a twenty-six-year-
+ * old still at home had his lifestyle spending governed by his father's
+ * spend stance and his month reported as the roof's month.
+ *
+ * A household is a BUILDING. The unit that actually shares money is a
+ * person, their spouse or partner, and the children who depend on them.
+ * Three adults under one roof are three units if none of them are married
+ * to each other, and they split the rent between them rather than pooling
+ * their lives.
+ *
+ * Returns the unit's members, the person first, ALWAYS non-empty.
+ */
+export function financialUnitOf(world: World, personId: EntityId): readonly EntityId[] {
+  const person = world.people.get(personId)
+  if (!person) return [personId]
+  const unit: EntityId[] = [personId]
+
+  // A partner shares it. Anybody else's marriage does not.
+  //
+  // Read inline off the relationship graph rather than through
+  // relationships.ts: that module already reads finances (arrears strains a
+  // marriage), and the import ratchet is right to refuse the edge back.
+  // Same reasoning as health reading homelessness inline.
+  for (const tie of world.relationships.values()) {
+    if (tie.endedAtTick !== null) continue
+    if (tie.type !== 'spouse' && tie.type !== 'courting') continue
+    const other = tie.a === personId ? tie.b : tie.b === personId ? tie.a : null
+    if (other === null) continue
+    if (world.people.get(other)?.deathTick !== null) continue
+    if (!unit.includes(other)) unit.push(other)
+  }
+
+  // AND THE CHILDREN WHO DEPEND ON THEM — their own, in the same house,
+  // and not yet standing on their own money.
+  //
+  // "Dependent" is about INCOME, not only about age. The first version cut
+  // at ADULT_COST_AGE, which is sixteen — so a sixteen-year-old at school
+  // became their own economic unit carrying an adult's living costs against
+  // no income at all, and every household with a teenager in it went short
+  // every single month. MEASURED: the town fell from 159 people at a
+  // hundred and fifty years to 50, with marriages halved, because families
+  // were quietly starving. A child at home with no wage is their parents'
+  // to feed at sixteen exactly as at six.
+  //
+  // The moment they earn — a job, service pay, a pension of their own —
+  // they become their own unit, which is the thing the owner actually
+  // asked for: at eighteen with a wage, your money is yours.
+  for (const other of world.people.values()) {
+    if (other.deathTick !== null) continue
+    if (other.householdId !== person.householdId) continue
+    if (!other.parentIds.some((parentId) => unit.includes(parentId))) continue
+    const grown = ageAt(other.birthTick, world.tick) >= 18
+    if (grown && personalIncome(world, other.id) > 0) continue
+    unit.push(other.id)
+  }
+  return unit
+}
+
+/**
+ * M-MONEY2. Every unit under one roof, each listed once, in a stable order.
+ * The settle walks these rather than the household as a whole.
+ */
+export function unitsUnder(world: World, household: Household): readonly (readonly EntityId[])[] {
+  const seen = new Set<EntityId>()
+  const units: (readonly EntityId[])[] = []
+  for (const memberId of [...household.memberIds].sort((a, b) => a - b)) {
+    const member = world.people.get(memberId)
+    if (!member || member.deathTick !== null || seen.has(memberId)) continue
+    const unit = financialUnitOf(world, memberId).filter(
+      (id) => household.memberIds.includes(id) && !seen.has(id),
+    )
+    if (unit.length === 0) continue
+    for (const id of unit) seen.add(id)
+    units.push(unit)
+  }
+  return units
+}
+
+/** What this unit earns in a month, net of tax and including the floors. */
+export function unitIncome(world: World, unit: readonly EntityId[]): Money {
+  let total = 0
+  for (const id of unit) {
+    const gross = personalIncome(world, id)
+    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille) + supportOf(world, id, world.tick)
+  }
+  return total as Money
+}
+
+/**
+ * M-MONEY2. WHAT THIS UNIT OWES THIS MONTH.
+ *
+ * Its own mouths, plus its share of the rent. The rent is split between the
+ * units under the roof BY INCOME, which is how a house of adults actually
+ * works — the one earning most carries most of it — and it means a grown
+ * child at home contributes without being absorbed.
+ */
+export function unitCosts(world: World, household: Household, unit: readonly EntityId[]): Money {
+  if (household.homelessSinceTick !== null) {
+    let shelter = 0
+    for (const id of unit) {
+      const member = world.people.get(id)
+      if (member && member.deathTick === null) shelter += shelterCostFor(world)
+    }
+    return shelter as Money
+  }
+
+  let mouths = 0
+  for (const id of unit) {
+    const member = world.people.get(id)
+    if (!member || member.deathTick !== null) continue
+    const criminal = world.criminal.get(id)
+    if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
+      continue
+    }
+    mouths +=
+      ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
+        ? livingCostAt(world, LIVING_COST_ADULT)
+        : livingCostAt(world, LIVING_COST_CHILD)
+  }
+
+  const place = world.places.get(household.placeId)
+  const rent = place ? rentAt(world, place.desirability) : 0
+  const units = unitsUnder(world, household)
+  if (units.length === 0) return mouths as Money
+  let totalIncome = 0
+  for (const other of units) totalIncome += unitIncome(world, other)
+  const mine = unitIncome(world, unit)
+  // Nobody earning: the rent splits evenly rather than falling on one head.
+  const share =
+    totalIncome > 0
+      ? Math.floor((rent * mine) / totalIncome)
+      : Math.floor(rent / units.length)
+  return (mouths + share) as Money
+}
+
+/**
  * Discretionary spending: the life between rent and the bank.
  *
  * M-GAME's stat chip exposed what the ledger had been doing quietly: with
@@ -674,6 +834,28 @@ export function householdCosts(world: World, household: Household): Money {
  * belts, which is also what makes digging out of debt possible at all.
  */
 export function discretionaryFor(world: World, household: Household): Money {
+  // The roof's total, which is the sum of what the units under it spend.
+  // Kept because the ledger and the arrears rule both want a household
+  // figure; the DECISION lives one level down now.
+  let total = 0
+  for (const unit of unitsUnder(world, household)) {
+    total += discretionaryForUnit(world, household, unit)
+  }
+  return total as Money
+}
+
+/**
+ * M-MONEY2. WHAT ONE UNIT SPENDS ON ITSELF.
+ *
+ * Its own surplus, at its own posture. A grown son's spending is decided by
+ * HIS diligence and HIS stance, not his father's — which is the whole point
+ * of there being units at all.
+ */
+export function discretionaryForUnit(
+  world: World,
+  household: Household,
+  unit: readonly EntityId[],
+): Money {
   if (household.savings < 0) return 0 as Money
   // M-SAFETY §2. A HOUSEHOLD UNDER A PLAN IS ON A COURT-SUPERVISED BUDGET.
   //
@@ -682,18 +864,18 @@ export function discretionaryFor(world: World, household: Household): Money {
   // it ate the very surplus the plan was computed from. 155 plans were
   // dismissed against 2 completed. A chapter 13 budget is supervised
   // precisely so that this cannot happen.
-  for (const memberId of household.memberIds) {
+  for (const memberId of unit) {
     if (underStay(world, memberId, world.tick)) return 0 as Money
   }
 
-  const income = householdIncome(world, household)
-  const basics = householdCosts(world, household)
+  const income = unitIncome(world, unit)
+  const basics = unitCosts(world, household, unit)
   const surplus = income - basics
   if (surplus <= 0) return 0 as Money
 
   let diligenceTotal = 0
   let adults = 0
-  for (const memberId of household.memberIds) {
+  for (const memberId of unit) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
     if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) {
@@ -707,43 +889,49 @@ export function discretionaryFor(world: World, household: Household): Money {
   // P2: a chosen posture moves the rate the way character otherwise would —
   // a bounded lean, not a cheat code. Null (every NPC household) keeps the
   // formula exactly as it was.
-  if (household.spendStance === 'thrifty') spendPerMille = Math.max(690, spendPerMille - 150)
-  else if (household.spendStance === 'loose') spendPerMille = Math.min(975, spendPerMille + 55)
+  // THE UNIT'S OWN POSTURE — the eldest adult in it sets it, and a couple
+  // share one. This read `household.spendStance`, which is how a father's
+  // thrift came to govern a grown son's money.
+  const stance = stanceOfUnit(world, unit)
+  if (stance === 'thrifty') spendPerMille = Math.max(690, spendPerMille - 150)
+  else if (stance === 'loose') spendPerMille = Math.min(975, spendPerMille + 55)
 
   return Math.floor((surplus * spendPerMille) / 1000) as Money
 }
 
 /**
- * P2. The player sets the household's spending posture. Finances owns the
- * write (single writer of household money behaviour); the caller owns the
- * story. Null returns the household to its character-driven default.
+ * M-MONEY2. The player sets how THEY carry their money.
+ *
+ * P2 put this on the household, which is how a father's posture came to
+ * govern a grown son's spending. Finances still owns the write; the caller
+ * still owns the story. Null returns them to the character-driven default.
  */
 export function setSpendStance(
   world: World,
   tick: Tick,
-  householdId: EntityId,
-  stance: Household['spendStance'],
-  subjectId: EntityId,
+  personId: EntityId,
+  stance: SpendStance | null,
 ): void {
-  const household = world.households.get(householdId)
-  if (!household || household.spendStance === stance) return
-  world.households.set(householdId, { ...household, spendStance: stance })
+  const person = world.people.get(personId)
+  if (!person || person.spendStance === stance) return
+  world.people.set(personId, { ...person, spendStance: stance })
+  const household = person.householdId === null ? undefined : world.households.get(person.householdId)
   recordEvent(world, tick, {
     type: 'changed-spending',
-    subjectId,
+    subjectId: personId,
     detail: stance ?? 'as-it-comes',
   })
   recordDecision(world, tick, {
-    subjectId,
+    subjectId: personId,
     decision: 'spending',
     significance: 'notable',
     inputs: [
       factor('own-choice', 1000),
-      ...(household.savings < 0 ? [factor('in-arrears', 700)] : []),
+      ...((household?.savings ?? 0) < 0 ? [factor('in-arrears', 700)] : []),
     ],
     chosen:
       stance === 'thrifty'
-        ? 'tightened the household belt'
+        ? 'tightened their belt'
         : stance === 'loose'
           ? 'let the money breathe'
           : 'let the money find its own level',
@@ -971,21 +1159,37 @@ export function monthlyNetOf(world: World, household: Household): Money {
 }
 
 /**
+ * M-MONEY2. The same figure for ONE UNIT — what these people, and only
+ * these people, clear this month. This is what a screen should show a
+ * grown adult about their own life.
+ */
+export function unitMonthlyNet(world: World, household: Household, unit: readonly EntityId[]): Money {
+  const spending = discretionaryForUnit(world, household, unit)
+  return (unitIncome(world, unit) -
+    unitCosts(world, household, unit) -
+    spending -
+    salesTaxOn(spending)) as Money
+}
+
+/**
  * WHAT ONE PERSON'S OWN MONEY DOES THIS MONTH.
  *
- * Found by playing, twice.
+ * Found by playing, three times now.
  *
- * FIRST: the glance chip stacked a person's balance on top of the household's
- * monthly net, so it read "$1,337.58, +$804 a month" to a man whose own money
- * was growing by about a tenth of that. Two different subjects in one chip is
- * not a rounding problem, it is the wrong number.
+ * FIRST: the glance chip stacked a person's balance on the household's
+ * monthly net, so it read "$1,337.58, +$804 a month" to a man whose own
+ * money was growing by a tenth of that.
  *
- * SECOND: a retired man of 66 with no wages read "+$0.00 a month" while his
- * savings drained every month to cover the roof. Wages are collected pro rata
- * by income — so somebody with none contributes none — but whatever the wages
- * cannot cover is then drawn from the members' own money, ELDEST FIRST, and a
- * retiree is usually the eldest. Both halves of the settle are mirrored here,
- * because showing only the first is what made the zero.
+ * SECOND: a retired man of 66 read "+$0.00 a month" while his savings paid
+ * the roof, because only the wage half of the settle was mirrored.
+ *
+ * THIRD, and the reason this reads off a UNIT now (owner: "why would my
+ * parents control my spending when I'm a grown man"): it was computed
+ * against the whole household, so a grown child at home was shown a month
+ * that belonged to his parents.
+ *
+ * The unit's income, less the unit's costs and its own lifestyle, split
+ * inside the unit by who earned it.
  */
 export function personalMonthlyNet(world: World, personId: EntityId): Money {
   const person = world.people.get(personId)
@@ -993,34 +1197,20 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
   const household = world.households.get(person.householdId)
   if (!household) return 0 as Money
 
+  const unit = financialUnitOf(world, personId)
+  const income = unitIncome(world, unit)
+  const spending = discretionaryForUnit(world, household, unit)
+  const owed = (unitCosts(world, household, unit) + spending + salesTaxOn(spending)) as Money
+  const left = income - owed
+
+  // Inside the unit, split by who brought it in — a couple where one earns
+  // everything is one purse, and the number shown to either of them is the
+  // purse's. A unit of one is the whole of it.
   const gross = personalIncome(world, personId)
-  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille)) as Money
-  const income = householdIncome(world, household)
-  const spending = discretionaryFor(world, household)
-  const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
-
-  // What the wages carry, taken by share of the household's income.
-  const fromWages = income > 0 ? Math.floor((owed * mine) / income) : 0
-
-  // What the wages cannot carry comes out of what people have put by, eldest
-  // first — the same order runFinances walks, so the same person bears it.
-  let shortfall = Math.max(0, owed - Math.min(owed, income))
-  let fromSavings = 0
-  if (shortfall > 0) {
-    const members = [...household.memberIds]
-      .map((id) => world.people.get(id))
-      .filter((member): member is Person => member !== undefined && member.deathTick === null)
-      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
-    for (const member of members) {
-      if (shortfall <= 0) break
-      const held = moneyOnHand(world, member.id)
-      const taken = Math.min(shortfall, held)
-      if (member.id === personId) fromSavings = taken
-      shortfall -= taken
-    }
-  }
-
-  return (mine - fromWages - fromSavings) as Money
+  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille) +
+    supportOf(world, personId, world.tick)) as Money
+  if (income <= 0) return (left > 0 ? left : Math.floor(left / Math.max(1, unit.length))) as Money
+  return Math.floor((left * mine) / income) as Money
 }
 
 /**
@@ -1127,10 +1317,20 @@ export function runFinances(world: World, tick: Tick): void {
       income += earned
     }
 
-    // M-ECON §3. SALES TAX rides on what the household spends on ITSELF —
+    // M-ECON §3. SALES TAX rides on what a household spends on ITSELF —
     // not on the rent or the food-and-warmth it cannot choose not to buy.
-    const spending = discretionaryFor(world, household)
-    const owed = (householdCosts(world, household) + spending + salesTaxOn(spending)) as Money
+    //
+    // M-MONEY2: SUMMED OVER THE UNITS UNDER THE ROOF, each charged for its
+    // own mouths, its own share of the rent and its own lifestyle. It used
+    // to be one figure for the whole house, which is what pooled a grown
+    // adult's money with his parents'.
+    let spending = 0
+    let owed = 0
+    for (const unit of unitsUnder(world, household)) {
+      const theirs = discretionaryForUnit(world, household, unit)
+      spending += theirs
+      owed += unitCosts(world, household, unit) + theirs + salesTaxOn(theirs as Money)
+    }
 
     // Taken pro rata, in integer cents, with the rounding remainder on the
     // largest earner so the shares always sum to exactly what is owed.

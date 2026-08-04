@@ -1614,6 +1614,7 @@ export function deliverChild(
     },
     householdId: household.id,
     parentIds: [motherId, partnerId],
+    spendStance: null,
   })
 
   world.education.set(childId, {

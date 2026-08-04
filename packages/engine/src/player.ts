@@ -25,7 +25,15 @@ import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { educationRank, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
-import { canAfford, creditPerson, householdCosts, householdIncome, inArrears, monthlyNetOf, setSpendStance } from './finances.js'
+import {
+  canAfford,
+  creditPerson,
+  householdCosts,
+  householdIncome,
+  inArrears,
+  monthlyNetOf,
+  setSpendStance,
+} from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
   answerSupportDeployment,
@@ -1228,19 +1236,28 @@ export function chooseSpendStance(
   if (person.householdId === null) return { set: false, reason: 'There is no household to steer.' }
   const household = world.households.get(person.householdId)
   if (!household) return { set: false, reason: 'There is no household to steer.' }
-  // A child under the parents' roof does not set the family's posture
-  // (review S4 — the verb must not outrank the model's own idea of whose
-  // house it is).
-  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+  // A CHILD does not set a posture; a grown adult does, even under their
+  // parents' roof.
+  //
+  // This used to bar anybody living with a parent, which was right when a
+  // household was the only economic unit and wrong the moment it stopped
+  // being one (owner: "why would my parents control my spending when I'm a
+  // grown man after 18"). Their money is their own now; so is the decision
+  // about how they carry it.
+  if (ageAt(person.birthTick, world.tick) < 18) {
     return { set: false, reason: "The purse is your parents' to carry." }
   }
-  if (household.spendStance === stance) return { set: false, reason: 'That is already how the money is carried.' }
+  // M-MONEY2. THEIR OWN POSTURE, not the roof's. A grown adult sets how
+  // they carry their money; their parents do not set it for them.
+  if (person.spendStance === stance) {
+    return { set: false, reason: 'That is already how the money is carried.' }
+  }
   if (world.player.log.some((entry) => entry.kind === 'spend-stance' && entry.tick === world.tick)) {
     return { set: false, reason: 'The purse was already settled this month.' }
   }
 
   logVerb(world, 'spend-stance', stance ?? 'as-it-comes')
-  setSpendStance(world, world.tick, person.householdId, stance, person.id)
+  setSpendStance(world, world.tick, person.id, stance)
   return { set: true, reason: '' }
 }
 

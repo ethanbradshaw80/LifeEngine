@@ -336,6 +336,7 @@ function makePerson(world: World, genRng: Rng, spec: PersonSpec): EntityId {
     traits,
     householdId: spec.householdId,
     parentIds: spec.parentIds,
+    spendStance: null,
   }
   world.people.set(id, person)
 

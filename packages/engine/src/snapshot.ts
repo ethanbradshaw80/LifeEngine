@@ -28,6 +28,17 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v90 — M-MONEY2: A HOUSEHOLD IS A BUILDING, NOT A PURSE. The owner: "why
+ *      would my parents control my spending when I'm a grown man after 18?"
+ *      He was right — the household was the only economic unit in the
+ *      world, so a grown child's lifestyle spending was governed by his
+ *      father's posture and his month was reported as the roof's. A unit is
+ *      now a person, their partner, and the children who actually depend on
+ *      them; units split the rent by income and each spends its own
+ *      surplus at its own posture. Spend stance moved to the person.
+ *      Dependency is about INCOME, not age — measured, cutting at sixteen
+ *      made every teenager their own unit with an adult's costs and no
+ *      wage, and the town fell from 159 people to 50.
  * v89 — CAPTURE MADE REACHABLE. The owner had never seen a prisoner of war
  *      in any playthrough, and measurement agreed: six worlds of a century
  *      each produced exactly ONE capture. Widened from severity 650 and one
@@ -568,7 +579,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 89
+export const SIMULATION_VERSION = 90
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
