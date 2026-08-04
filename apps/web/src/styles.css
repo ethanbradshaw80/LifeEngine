@@ -3335,3 +3335,228 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .career-tabs button.is-active {
   color: var(--accent);
 }
+
+/* ---------------------------------------------------------------------------
+   CITY HALL — the civic record.
+
+   A hub, not a records page: your own file on top, the departments as a
+   grid, the docket underneath. The counters that do not exist yet say so.
+   ------------------------------------------------------------------------- */
+.hall {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hall-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.hall-seal {
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  color: var(--muted);
+  font-size: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.hall-head .k {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hall-head .t {
+  font-size: 1.05rem;
+  font-weight: 800;
+  margin-top: 0.1rem;
+}
+
+.hall-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+}
+
+.hall-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.hall-name {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.hall-status {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+  line-height: 1.5;
+}
+
+.hall-status b {
+  color: #e3c06a;
+}
+
+.hall-btnrow {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+
+.hall-btn {
+  flex: 1 1 0;
+  text-align: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.hall-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.hall-btn:disabled {
+  color: var(--muted);
+  opacity: 0.65;
+}
+
+.hall-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.hall-dept {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.65rem;
+  color: inherit;
+}
+
+.hall-dept:hover:not(.is-soon) {
+  border-color: var(--accent);
+}
+
+.hall-dept .ic {
+  font-size: 1.15rem;
+}
+
+.hall-dept .n {
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin-top: 0.3rem;
+}
+
+.hall-dept .d {
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.hall-dept.is-soon {
+  opacity: 0.72;
+}
+
+.hall-dept .soon {
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.hall-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hall-feed li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.hall-feed li:last-child {
+  border-bottom: none;
+}
+
+.hall-feed .s {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  margin-top: 0.1rem;
+}
+
+.hall-tag {
+  display: inline-block;
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fff;
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  margin-right: 0.4rem;
+}
+
+.hall-tag.v {
+  background: #8f231d;
+}
+
+.hall-tag.a {
+  background: #256b45;
+}
+
+.hall-tag.c {
+  background: #3d5a86;
+}
+
+.hall-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin: 0;
+}
+
+.hall-back {
+  align-self: flex-start;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.75rem;
+  color: var(--accent);
+}

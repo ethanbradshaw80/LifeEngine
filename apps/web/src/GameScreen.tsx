@@ -20,7 +20,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { sentenceInWords } from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
-import { CountyRecords } from './CountyRecords.js'
+import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
   activeWars,
@@ -202,12 +202,6 @@ type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'record'
  * office — anybody's public convictions, the recent docket, and your own
  * rap sheet with the one action that is yours to take.
  */
-type CrimeTab = 'acts' | 'records'
-
-const CRIME_TABS: readonly { readonly id: CrimeTab; readonly label: string }[] = [
-  { id: 'acts', label: 'Crime' },
-  { id: 'records', label: 'County Records' },
-]
 
 /**
  * C3 §18. The charges, grouped, because fifty-nine of them in one list is
@@ -230,7 +224,20 @@ const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
   { id: 'record', label: 'Record' },
 ]
 
-type Tab = 'story' | 'home' | 'money' | 'family' | 'people' | 'career' | 'jobs' | 'news' | 'stats' | 'service' | 'health' | 'record'
+type Tab =
+  | 'story'
+  | 'home'
+  | 'money'
+  | 'family'
+  | 'people'
+  | 'career'
+  | 'jobs'
+  | 'news'
+  | 'stats'
+  | 'service'
+  | 'health'
+  | 'record'
+  | 'cityhall'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -246,6 +253,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'service', icon: '🪖', label: 'Service' },
   { id: 'health', icon: '🩺', label: 'Health' },
   { id: 'record', icon: '⚖️', label: 'Crime' },
+  { id: 'cityhall', icon: '🏛️', label: 'City Hall' },
   { id: 'stats', icon: '📊', label: 'Town' },
 ]
 
@@ -542,7 +550,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   const [tab, setTab] = useState<Tab>('story')
   const [moneyView, setMoneyView] = useState<'month' | 'bank'>('month')
   const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
-  const [crimeTab, setCrimeTab] = useState<CrimeTab>('acts')
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -1192,6 +1199,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             busy={busy}
             onApplyJob={onApplyJob}
             onAct={onAct}
+          />
+        </div>
+      )}
+
+      {tab === 'cityhall' && (
+        <div className="panel" aria-label="City Hall">
+          <CityHall
+            world={world}
+            person={person}
+            busy={busy}
+            onPetition={() => onAct({ verb: 'petition-expungement' })}
           />
         </div>
       )}
@@ -2199,37 +2217,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   </p>
                 )}
 
-                <div className="sub-tabs" role="tablist" aria-label="Crime">
-                  {CRIME_TABS.map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={crimeTab === entry.id}
-                      className={crimeTab === entry.id ? 'active' : ''}
-                      onClick={() => setCrimeTab(entry.id)}
-                    >
-                      {entry.label}
-                    </button>
-                  ))}
-                </div>
-
-                {crimeTab === 'records' && <CountyRecords
-                    world={world}
-                    person={person}
-                    busy={busy}
-                    onPetition={() => onAct({ verb: 'petition-expungement' })}
-                  />}
-
-                {crimeTab === 'records' && record !== undefined && record.convictions.length > 0 && (
-                  <p className="muted small">
-                    A conviction gates hardest when it is fresh, softens with the years, and
-                    eventually stops being read at all — a violent felony never does. It never
-                    leaves the record either way.
-                  </p>
-                )}
-
-                {crimeTab === 'acts' && <h3>What you could do</h3>}
+                {/* THE DOING ONLY. The record of having done it moved to
+                    City Hall, which is where a town actually keeps it —
+                    this tab used to be both, behind two sub-tabs. */}
+                <h3>What you could do</h3>
                 <p className="muted small">
                   The town has a courthouse and it works. Every one of these can end in a
                   cell, and what you take is real money out of somebody's real ledger.
