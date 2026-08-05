@@ -3560,3 +3560,48 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   font-size: 0.75rem;
   color: var(--accent);
 }
+
+/* M-ENLIST §7 — the recruiter's wall. A board of jobs has to be readable on
+   a phone, so the table scrolls inside its own box rather than pushing the
+   page sideways. */
+.recruiting-station {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.job-board {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.job-board caption {
+  text-align: left;
+  padding-bottom: 0.25rem;
+}
+
+.job-board th,
+.job-board td {
+  text-align: left;
+  padding: 0.3rem 0.6rem 0.3rem 0;
+  border-bottom: 1px solid var(--rule, rgba(128, 128, 128, 0.25));
+}
+
+.job-board th {
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* A trade their schooling shuts. Greyed, never hidden: knowing what you
+   cannot have yet is the reason the board is on the wall. */
+.job-board tr.locked td {
+  opacity: 0.45;
+}
+
+.job-board .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

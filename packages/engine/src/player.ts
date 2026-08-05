@@ -2988,6 +2988,42 @@ function askEntryPath(world: World, tick: PendingDecision['tick'], personId: Ent
 }
 
 /**
+ * M-ENLIST §1/§4. WHICH SERVICES WOULD ACTUALLY TAKE THIS PERSON.
+ *
+ * Every branch gates its jobs on the entry test, and the gates are not the
+ * same height: the ground service will take a 31, the air service starts at
+ * 40. Offering a service that has nothing open is offering a door into a
+ * blank wall — the player picks it, sits the test, and the trade menu comes
+ * back empty with nothing to say for itself.
+ *
+ * The score is a pure function of the seed and the person, so it can be
+ * asked BEFORE the test is shown without the test being a formality: the
+ * player still does not know it, and the menu is only ever narrowed by it.
+ */
+function branchesOpenTo(
+  world: World,
+  personId: EntityId,
+  track: 'enlisted' | 'officer',
+): readonly ServiceBranchSpec[] {
+  const level = world.education.get(personId)?.level ?? 'none'
+  const aptitude = entryTestScore(world, personId)
+  return world.spec.branches.filter((branch) => {
+    if (track === 'officer' && (branch.officerRanks?.length ?? 0) === 0) return false
+    if (track === 'officer') {
+      // An officer's trade comes from the role, and the roles have their own
+      // gates — so the question is whether any role here is open to them.
+      return officerRolesOf(OFFICER_ROLES, branch.id).some(
+        (role) => aptitude >= (role.minAptitude ?? 0),
+      )
+    }
+    return world.spec.specialties.some(
+      (specialty) =>
+        specialty.branch === branch.id && mosBar(specialty, aptitude, level) === null,
+    )
+  })
+}
+
+/**
  * M-ENLIST §1. STEP ONE — WHICH SERVICE.
  *
  * The pipeline is branch, then the entry test, then a job you actually
@@ -3010,9 +3046,7 @@ function isOfficerPending(pending: PendingDecision): boolean {
 }
 
 function askBranch(world: World, tick: Tick, personId: EntityId, track: 'enlisted' | 'officer'): void {
-  const options = world.spec.branches
-    .filter((branch) => track !== 'officer' || (branch.officerRanks?.length ?? 0) > 0)
-    .map((branch) => branch.id)
+  const options = branchesOpenTo(world, personId, track).map((branch) => branch.id)
   if (options.length === 0) return
   raisePending(world, {
     tick,

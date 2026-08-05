@@ -66,10 +66,11 @@ import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
-import { specialtyTitleCased } from './content.js'
+import { officerRoleById, specialtyTitleCased } from './content.js'
+import { sceneTagsFor } from './enlistment.js'
 import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
 import { performDeath } from './systems.js'
-import type { Deployment, GeoRelation, Nation, Person, World } from './types.js'
+import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 import { bareName } from './text.js'
 
@@ -954,6 +955,33 @@ function isDeployedAndFree(world: World, personId: EntityId): boolean {
   return isDeployed(world, personId) && !isCaptive(world, personId)
 }
 
+/**
+ * M-ENLIST §5b. The scene pool this record can meet — the officer's role
+ * first, then the trade, then the branch's own flavour.
+ *
+ * Wrapped here rather than called inline so the deployment month has one
+ * answer to "whose day is this", and `sceneTagsFor` keeps its three
+ * arguments for the places that already have the pieces in hand.
+ */
+function sceneTagsForRecord(world: World, record: ServiceRecord): readonly string[] {
+  return sceneTagsFor(
+    world.spec.specialties.find((sp) => sp.id === record.specialtyId),
+    record.officerRoleId === undefined ? undefined : officerRoleById(record.officerRoleId),
+    world.spec.branches.find((b) => b.id === record.branch),
+  )
+}
+
+/**
+ * M-ENLIST §5. The odds a month's contact arrives as the player's decision,
+ * per mille. See the note at the call site for why this is not the same
+ * question as how dangerous the job is.
+ */
+function momentChanceFor(world: World, specialtyId: string): number {
+  const weight = world.spec.specialties.find((sp) => sp.id === specialtyId)?.combatWeight
+  if (weight === undefined) return 600
+  return 400 + Math.floor((Math.max(0, Math.min(1000, weight)) * 400) / 1000)
+}
+
 export function fieldAidWillBeOffered(
   world: World,
   casualtyId: EntityId,
@@ -1363,10 +1391,22 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       // Owner: "not very many interactive scenes where it's life or death
       // and me choosing." A contact is exactly that moment, and most of
       // them should reach the player rather than resolving over their head.
+      // M-ENLIST §5. HOW MUCH OF THIS JOB IS FIGHTING (`combatWeight`).
+      //
+      // The exposure vector already decides how OFTEN a trade meets the
+      // enemy; this decides how often meeting them is a decision the person
+      // makes rather than a month that happens around them. A rifleman's
+      // contact is nearly always his to answer. A supply clerk in the same
+      // convoy is mostly a passenger, and pretending otherwise made every
+      // trade feel like the infantry.
+      //
+      // 400-800 per mille, landing on the old flat 600 at combatWeight 500,
+      // so the average trade is unchanged and the ends are honest. NOBODY
+      // reaches zero: a clerk who is shot at still gets asked sometimes.
       if (
         personId === world.player.personId &&
         world.player.pending === null &&
-        rng.chance(3, 5)
+        rng.chance(momentChanceFor(world, record.specialtyId), 1_000)
       ) {
         // THE SCENE, AND HOW BAD IT IS (owner's combat plan §2). The
         // channel that found them picks the scene — the threat vector
@@ -1379,12 +1419,11 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         // M-ENLIST §5b. The trade the person actually holds decides which of
         // the channel's scenes is theirs. A signaller's worst day and a
         // rifleman's are not the same day.
-        const specialty = world.spec.specialties.find((sp) => sp.id === record.specialtyId)
         const scene = pickScene(
           channel,
           unitId,
           rng,
-          specialty?.sceneTags ?? [],
+          sceneTagsForRecord(world, record),
           record.commissioned,
         )
         if (scene !== undefined) {
@@ -1422,8 +1461,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       world.player.pending === null &&
       rng.chance(3, 5)
     ) {
-      const specialty = world.spec.specialties.find((sp) => sp.id === record.specialtyId)
-      const tags = specialty?.sceneTags ?? []
+      const tags = sceneTagsForRecord(world, record)
       const scene = pickScene(channel, record.unitId, rng, tags, record.commissioned)
       if (scene !== undefined && scene.tags.some((tag) => tags.includes(tag))) {
         const weight = channels.find((c) => c.id === channel)?.weight ?? 0

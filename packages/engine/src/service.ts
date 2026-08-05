@@ -715,7 +715,10 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     } else if (badges.includes(school.badge)) {
       reason = 'Already earned.'
     } else if (!meetsRankGate(record, school.minRank)) {
-      reason = `Opens at ${rankTitle(world, record.branch, school.minRank)}.`
+      // M-ENLIST §5. THE LADDER THEY ARE ON, not the enlisted one. A
+      // lieutenant was being told a course "opens at SGT", which is a rank
+      // he will never hold and a sentence that means nothing to him.
+      reason = `Opens at ${rankTitle(world, record.branch, school.minRank, record.commissioned === true)}.`
     } else if (record.performance < school.minPerformance) {
       reason = 'The work is not there yet.'
     } else if (record.schoolId !== null) {
@@ -759,7 +762,7 @@ export function unitOptionsFor(
     } else if (unit.feederUnitId !== null && record.unitId !== unit.feederUnitId) {
       reason = `Selection draws from ${unitFor(world, unit.feederUnitId)?.name ?? 'the feeder unit'}.`
     } else if (!meetsRankGate(record, unit.minRank)) {
-      reason = `Looks at ${rankTitle(world, record.branch, unit.minRank)} and above.`
+      reason = `Looks at ${rankTitle(world, record.branch, unit.minRank, record.commissioned === true)} and above.`
     } else if (unit.requiredBadges.some((b) => !badges.includes(b))) {
       reason = `Wants ${unit.requiredBadges.filter((b) => !badges.includes(b)).join(', ')} first.`
     } else if (record.performance < unit.minPerformance) {

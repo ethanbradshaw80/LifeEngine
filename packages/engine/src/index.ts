@@ -437,6 +437,7 @@ export {
   meritScoreFor,
   mosBar,
   officerRolesOf,
+  recruitingStationFor,
   sceneTagsFor,
 } from './enlistment.js'
 export { OFFICER_ROLES, officerRoleById } from './content.js'

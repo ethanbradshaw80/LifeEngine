@@ -1236,7 +1236,38 @@ const V36_TO_V37: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37]
+/**
+ * v37 -> v38. M-ENLIST phases 4 and 5. NOTHING IN THE SAVE CHANGES.
+ *
+ * This exists because DETERMINISM.md §7 puts PLAYER-PATH changes on the
+ * schema version rather than the simulation version, and phases 4 and 5 are
+ * exactly that: which scene a trade meets, how often a contact arrives as a
+ * decision, and which services the branch menu offers. An unplayed world is
+ * byte identical — the goldens confirm it — so SIMULATION_VERSION stays put
+ * and this stamp is what makes the divergence notice fire on a save
+ * continued under the new code.
+ *
+ * A migration that rewrites no data still recomputes the checksum, because
+ * the checksum is over the world and the world is unchanged; doing it the
+ * same way as every other migration is cheaper than explaining why this one
+ * is special.
+ */
+const V37_TO_V38: Migration = {
+  from: 37,
+  to: 38,
+  describe: 'stamp the player-path changes of M-ENLIST phases 4 and 5',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 38, checksum: checksumOf(world) },
+      world,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

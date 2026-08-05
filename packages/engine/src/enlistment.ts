@@ -25,7 +25,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { educationRank } from './content.js'
+import { educationRank, OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec, ServiceSpecialty, World } from './types.js'
 import { openStream, Stream } from './rng.js'
 
@@ -297,4 +297,74 @@ export function sceneTagsFor(
   if (flavor === 'sea') return ['sea_general_quarters', 'sea_fire_aboard', 'sea_manoverboard']
   if (flavor === 'air') return ['air_flightline_fire', 'base_defense', 'work_maint_fault']
   return ['combat_firefight', 'combat_patrol_ied', 'base_defense']
+}
+
+// ---------------------------------------------------------------------------
+// §7. The recruiting station — what is on the wall before you sign anything.
+// ---------------------------------------------------------------------------
+
+/** One job on the recruiter's board. */
+export interface StationJob {
+  readonly id: string
+  readonly code: string
+  readonly title: string
+  readonly field: string
+  readonly needsScore: number
+  readonly needsSchooling: string
+  /** Why this person could not take it TODAY, or null. Schooling only. */
+  readonly bar: string | null
+}
+
+/** One service on the recruiter's board. */
+export interface StationBranch {
+  readonly id: string
+  readonly name: string
+  readonly accession: string
+  readonly accessionWords: string
+  readonly jobs: readonly StationJob[]
+  readonly officerRoles: readonly { id: string; code: string; title: string; needsScore: number }[]
+}
+
+/**
+ * M-ENLIST §7. THE BOARD ON THE RECRUITER'S WALL.
+ *
+ * Everything a person could see before they walk in: the three services,
+ * what each one calls its jobs, what each job wants on the test, and what
+ * an officer road looks like there.
+ *
+ * IT DOES NOT SHOW THEIR SCORE, and that is deliberate rather than an
+ * oversight. They have not sat the test yet. What it CAN say honestly is
+ * the schooling bar, because a person knows whether they have a degree —
+ * so a job that needs one is greyed here, and a job that needs a 75 just
+ * says it needs a 75.
+ */
+export function recruitingStationFor(world: World, personId: EntityId): readonly StationBranch[] {
+  const level = world.education.get(personId)?.level ?? 'none'
+  const order = ['none', 'primary', 'secondary', 'trade', 'college']
+  return world.spec.branches.map((branch) => ({
+    id: branch.id,
+    name: branch.name,
+    accession: accessionOf(branch),
+    accessionWords: accessionWords(accessionOf(branch)),
+    jobs: jobsOfBranch(world.spec.specialties, branch.id).map((specialty) => ({
+      id: specialty.id,
+      code: specialty.code ?? '',
+      title: specialty.title,
+      field: specialty.field ?? '',
+      needsScore: specialty.minAptitude ?? 0,
+      needsSchooling: specialty.requires,
+      bar:
+        order.indexOf(level) < order.indexOf(specialty.requires)
+          ? specialty.requires === 'college'
+            ? 'Needs a degree.'
+            : `Needs ${specialty.requires} schooling.`
+          : null,
+    })),
+    officerRoles: officerRolesOf(OFFICER_ROLES, branch.id).map((role) => ({
+      id: role.id,
+      code: role.code,
+      title: role.title,
+      needsScore: role.minAptitude ?? 0,
+    })),
+  }))
 }

@@ -104,6 +104,7 @@ import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
+import { RecruitingStationView } from './RecruitingStation.js'
 import { Bank } from './Bank.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
@@ -1783,21 +1784,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {(() => {
             const record = world.service.get(person.id)
             if (!record) {
-              const bar = enlistmentBar(world, person, world.tick)
+              // M-ENLIST §7. The wall, not a bare refusal — see
+              // RecruitingStation.tsx for why one button was not enough.
               return (
-                <div className="feed-empty">
-                  <p>No service record.</p>
-                  {bar === null ? (
-                    <>
-                      <p className="muted small">The recruiting office is open, and you qualify.</p>
-                      <button type="button" className="enlist-now" disabled={busy} onClick={onRequestEnlist}>
-                        🪖 Enlist
-                      </button>
-                    </>
-                  ) : (
-                    <p className="muted small">{bar}</p>
-                  )}
-                </div>
+                <RecruitingStationView
+                  world={world}
+                  personId={person.id}
+                  bar={enlistmentBar(world, person, world.tick)}
+                  busy={busy}
+                  onEnlist={onRequestEnlist}
+                />
               )
             }
             const tours = deploymentsOf(world, person.id)
