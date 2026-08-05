@@ -94,6 +94,21 @@ export interface CombatScene {
   readonly unitId: string | null
   /** Units take the sharper jobs: bias the threat roll upward. */
   readonly biasToward: Threat | null
+  /**
+   * M-ENLIST §5b. WHICH TRADES THIS MOMENT BELONGS TO, in the same
+   * vocabulary the specialties carry (`Specialty.sceneTags`).
+   *
+   * The channel says what FOUND them — a road, a wire, a doorway. This says
+   * whose day it is. A signaller and a rifleman can both be in the same
+   * ambush, and until now they got the same scene text; a crew chief has
+   * never been in a doorway in his life and was being handed one.
+   */
+  readonly tags: readonly string[]
+  /**
+   * M-ENLIST §5c. Officers only, where the moment is a command decision.
+   * A private does not choose whether the platoon flanks.
+   */
+  readonly officersOnly?: true
 }
 
 /**
@@ -104,6 +119,7 @@ export interface CombatScene {
 export const COMBAT_SCENES: readonly CombatScene[] = [
   {
     id: 'pinned',
+    tags: ['combat_firefight'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'A few rounds crack overhead — harassing fire. The squad is still moving.',
@@ -125,6 +141,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'convoy-ambush',
+    tags: ['combat_convoy_ambush', 'combat_patrol_ied'],
     channels: ['convoy-exposure'],
     tell: {
       light: 'A single blast behind the lead truck. The column is still rolling.',
@@ -146,6 +163,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'base-attack',
+    tags: ['base_defense'],
     channels: ['base-attack-exposure'],
     tell: {
       light: 'A few rounds come in somewhere across the camp. The alarm goes anyway.',
@@ -167,6 +185,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'the-breach',
+    tags: ['combat_breach'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'The door is closed and the house is quiet. It is probably nothing.',
@@ -188,6 +207,88 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
 
   // -------------------------------------------------------------------------
+  // TRADE SCENES (M-ENLIST §5b). Non-unit, anybody's-rank moments for the
+  // jobs that were only ever getting a rifleman's day.
+  //
+  // Phase 1 made twenty-two real trades out of eight; this is the other
+  // half of that. A medic in a firefight is not deciding whether to charge
+  // a position — he is deciding who he can reach — and until these existed
+  // the scene text said he was.
+  // -------------------------------------------------------------------------
+  {
+    // The medic's moment. The same spectrum, but what it costs is the man
+    // on the ground rather than the ground itself.
+    id: 'treat-under-fire',
+    tags: ['med_treat_under_fire', 'combat_rescue', 'med_masscas'],
+    channels: ['direct-combat-exposure', 'base-attack-exposure'],
+    tell: {
+      light: 'Somebody is down twenty metres out and calling for you. The fire is high and sporadic.',
+      heavy: 'He is in the open and he has stopped shouting. Whatever hit him is still shooting.',
+      overrun: 'There are three of them down between you and the wire, and the position is about to be on top of all of you.',
+    },
+    labels: {
+      push: 'Go to him now',
+      hold: 'Work from cover and drag him back',
+      cover: 'Wait for the fire to lift',
+    },
+    did: {
+      push: 'crossed open ground to reach a casualty under fire',
+      hold: 'worked from cover and pulled the casualty back',
+      cover: 'held until the fire lifted before treating the casualty',
+    },
+    unitId: null,
+    biasToward: null,
+  },
+  {
+    // The signaller's. Nothing here is a rifle problem: the platoon is
+    // deaf, and the antenna is the highest thing on the position.
+    id: 'the-net-is-down',
+    tags: ['comms_blackout', 'cyber_incident', 'ops_center_crisis'],
+    channels: ['direct-combat-exposure', 'base-attack-exposure'],
+    tell: {
+      light: 'The net has gone scratchy. It is probably the antenna, and the antenna is on the roof.',
+      heavy: 'The company net is dead and the relay is fifty metres away across ground somebody is watching.',
+      overrun: 'Nobody outside this position knows what is happening here, and the only thing that can tell them is on the roof.',
+    },
+    labels: {
+      push: 'Go up and fix the antenna',
+      hold: 'Work the backup from here',
+      cover: 'Send it by runner',
+    },
+    did: {
+      push: 'went up to the antenna to restore the net',
+      hold: 'brought the backup net up from cover',
+      cover: 'sent the traffic by runner instead',
+    },
+    unitId: null,
+    biasToward: null,
+  },
+  {
+    // The mechanic's, and the closest to what most of the trade jobs
+    // actually are: something broken, somewhere it should not be broken.
+    id: 'dead-track',
+    tags: ['work_critical_repair', 'work_maint_fault', 'munitions_mishap'],
+    channels: ['convoy-exposure', 'direct-combat-exposure', 'battlefield-accident'],
+    tell: {
+      light: 'The vehicle has thrown a track short of the wire. The road is quiet and there is daylight left.',
+      heavy: 'It is down in the open with the column stopped behind it, and stopped columns get shot at.',
+      overrun: 'It is dead where it sits, the fire has started, and the crew are still inside it.',
+    },
+    labels: {
+      push: 'Get out and fix it',
+      hold: 'Rig a tow and drag it clear',
+      cover: 'Strip it and burn it',
+    },
+    did: {
+      push: 'repaired the vehicle where it stood',
+      hold: 'rigged a tow and pulled the vehicle clear',
+      cover: 'stripped the vehicle and destroyed it in place',
+    },
+    unitId: null,
+    biasToward: null,
+  },
+
+  // -------------------------------------------------------------------------
   // UNIT SCENES (owner's combat plan §4). These raise only while the person
   // is serving in that unit, and they lean heavy or overrun — the unit takes
   // the sharpest jobs, which is why both the danger and the valor run high
@@ -201,6 +302,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   // --- the Pathfinder Battalion: raids, airfields, landing zones -----------
   {
     id: 'airfield-seizure',
+    tags: ['combat_firefight', 'combat_breach'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'The strip is dark and the guards are somewhere else. It might stay that way.',
@@ -222,6 +324,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'mark-the-lz',
+    tags: ['combat_firefight', 'base_defense'],
     channels: ['direct-combat-exposure', 'base-attack-exposure'],
     tell: {
       light: 'The field is quiet. Marking it is a two-minute job.',
@@ -243,6 +346,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'hold-the-block',
+    tags: ['combat_firefight'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'Something is moving toward the blocking position, unhurried.',
@@ -266,6 +370,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   // --- the Trident Detachment: maritime, dive, boarding --------------------
   {
     id: 'over-the-beach',
+    tags: ['combat_firefight', 'sea_smallboat_attack'],
     channels: ['direct-combat-exposure', 'battlefield-accident'],
     tell: {
       light: 'The swim was long and the beach is empty. So far this is just cold.',
@@ -287,6 +392,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'ship-takedown',
+    tags: ['sea_smallboat_attack', 'combat_breach'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'The deck is dark and nobody is looking over the side.',
@@ -308,6 +414,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'last-swimmer-out',
+    tags: ['sea_smallboat_attack', 'sea_manoverboard'],
     channels: ['direct-combat-exposure', 'battlefield-accident'],
     tell: {
       light: 'Everyone is accounted for and the water is fifty metres away.',
@@ -331,6 +438,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   // --- the Guardian Flight: combat rescue ----------------------------------
   {
     id: 'reach-the-downed',
+    tags: ['combat_rescue', 'air_hardlanding'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'The wreck is close and the field is quiet. This should be quick.',
@@ -352,6 +460,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'hoist-under-fire',
+    tags: ['combat_rescue', 'med_treat_under_fire'],
     channels: ['direct-combat-exposure', 'base-attack-exposure'],
     tell: {
       light: 'The hoist is turning and nothing is coming up at you yet.',
@@ -375,6 +484,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   // --- the Grey Section: precise, deniable, and quiet about it -------------
   {
     id: 'compromised-on-infil',
+    tags: ['combat_firefight'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'Somebody saw the team go past. They kept walking.',
@@ -396,6 +506,7 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
   },
   {
     id: 'the-quiet-job',
+    tags: ['combat_breach', 'combat_firefight'],
     channels: ['direct-combat-exposure'],
     tell: {
       light: 'The house is quiet and the team has time. Nobody outside knows you are here.',
@@ -414,6 +525,69 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
     },
     unitId: 'grey-section',
     biasToward: 'overrun',
+  },
+
+  // -------------------------------------------------------------------------
+  // OFFICER MOMENTS (M-ENLIST §5c, written out in full by the owner). The
+  // same three-option spectrum, but the decision belongs to somebody whose
+  // answer moves other people — which is the difference between being in a
+  // firefight and running one.
+  //
+  // Written to the same hard line as everything else here: sober, never
+  // graphic, never triumphal. A platoon leader's worst day is not an action
+  // sequence.
+  // -------------------------------------------------------------------------
+  {
+    // "THE CALL." The platoon is in contact and the radio is asking the
+    // lieutenant what the platoon is going to do about it. Every answer is
+    // defensible; that is the point of putting it on one man.
+    id: 'the-call',
+    tags: ['combat_firefight'],
+    channels: ['direct-combat-exposure'],
+    officersOnly: true,
+    tell: {
+      light: 'First squad is taking fire from a treeline and has gone to ground. Nobody is hurt. Your platoon sergeant is on the net waiting for you to say something.',
+      heavy: 'Two squads are pinned in the open and the fire is coming from a position nobody has eyes on. The net has gone quiet, and everybody on it is waiting for you.',
+      overrun: 'First squad has casualties, the enemy is closer than the map says, and your platoon sergeant is asking for a decision in a voice you have not heard him use before.',
+    },
+    labels: {
+      push: 'Send second squad around the flank',
+      hold: 'Suppress and work it out from here',
+      cover: 'Pull back to the last covered position',
+    },
+    did: {
+      push: 'sent a squad around the flank while the platoon was in contact',
+      hold: 'held the platoon in place and fought it out on the guns',
+      cover: 'pulled the platoon back to cover under fire',
+    },
+    unitId: null,
+    biasToward: null,
+  },
+  {
+    // "ENGINE OUT." Not enemy contact at all — but it kills people, and the
+    // three answers are a real spectrum of how much aircraft you are
+    // willing to gamble to keep it. A pilot's job, and only a pilot's.
+    id: 'engine-out',
+    tags: ['air_emergency_landing', 'air_crash'],
+    channels: ['battlefield-accident', 'direct-combat-exposure'],
+    officersOnly: true,
+    tell: {
+      light: 'A caution light and a rough note in the number two. You have altitude, you have a field in sight, and you have time to think.',
+      heavy: 'Number two is gone and number one is not happy about carrying the load. The nearest strip is further away than you would like.',
+      overrun: 'Both are out. You are a glider now, the ground is coming up, and there is no version of this that ends on a runway.',
+    },
+    labels: {
+      push: 'Try the restart',
+      hold: 'Deadstick it in',
+      cover: 'Get everyone out',
+    },
+    did: {
+      push: 'stayed with the aircraft and ran the restart',
+      hold: 'brought the aircraft down without power',
+      cover: 'got the crew out and let the aircraft go',
+    },
+    unitId: null,
+    biasToward: 'heavy',
   },
 ]
 
@@ -437,13 +611,28 @@ export function pickScene(
   channel: string,
   unitId: string | null,
   rng: Rng,
+  /** M-ENLIST §5b. The trade's own scene tags — see `CombatScene.tags`. */
+  tags: readonly string[] = [],
+  /** M-ENLIST §5c. Command moments are only offered to people in command. */
+  isOfficer = false,
 ): CombatScene | undefined {
-  const unitScenes = COMBAT_SCENES.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
-  const pool = unitScenes.length > 0 ? unitScenes : COMBAT_SCENES.filter((scene) => scene.unitId === null)
+  const eligible = COMBAT_SCENES.filter((scene) => isOfficer || scene.officersOnly !== true)
+  const unitScenes = eligible.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
+  const pool = unitScenes.length > 0 ? unitScenes : eligible.filter((scene) => scene.unitId === null)
   const matching = pool.filter((scene) => scene.channels.includes(channel))
   const choices = matching.length > 0 ? matching : pool
   if (choices.length === 0) return undefined
-  return choices[rng.nextInt(0, choices.length)]
+  // THE TRADE NARROWS, IT DOES NOT DECIDE. A crew chief in an ambush is
+  // still in an ambush — the channel already said so — but between two
+  // scenes the channel allows, his own job wins.
+  //
+  // The last-resort fallback stays "some scene rather than none", which is
+  // right for enemy contact: the player is in something whatever their job
+  // is. An ACCIDENT is the opposite, so deployment.ts checks the tag itself
+  // there rather than trusting this fallback.
+  const own = choices.filter((scene) => scene.tags.some((tag) => tags.includes(tag)))
+  const finalPool = own.length > 0 ? own : choices
+  return finalPool[rng.nextInt(0, finalPool.length)]
 }
 
 /**

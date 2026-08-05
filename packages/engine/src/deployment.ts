@@ -1375,8 +1375,18 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         // so "overrun" means the war is going badly rather than that a die
         // came up. The player is TOLD which before answering: it is a
         // read, not a coin flip.
-        const unitId = world.service.get(personId)?.unitId ?? null
-        const scene = pickScene(channel, unitId, rng)
+        const unitId = record.unitId
+        // M-ENLIST §5b. The trade the person actually holds decides which of
+        // the channel's scenes is theirs. A signaller's worst day and a
+        // rifleman's are not the same day.
+        const specialty = world.spec.specialties.find((sp) => sp.id === record.specialtyId)
+        const scene = pickScene(
+          channel,
+          unitId,
+          rng,
+          specialty?.sceneTags ?? [],
+          record.commissioned,
+        )
         if (scene !== undefined) {
           const weight = channels.find((c) => c.id === channel)?.weight ?? 0
           const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)
@@ -1393,6 +1403,45 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           })
           continue
         }
+      }
+    }
+
+    // M-ENLIST §5b. THE ACCIDENT CAN BE A MOMENT TOO, but only where the
+    // person's own trade has one written for it.
+    //
+    // Accidents used to resolve entirely over the player's head, which for
+    // most trades is right — a rollover is not a decision anybody gets to
+    // make. For an aviator it is exactly backwards: accidents are what
+    // actually kills them, and the one month their job puts a real choice
+    // in front of them was the one month they were never asked. So the gate
+    // is the tag, not the channel: no tagged scene, no moment, same as
+    // before.
+    if (
+      isAccident &&
+      personId === world.player.personId &&
+      world.player.pending === null &&
+      rng.chance(3, 5)
+    ) {
+      const specialty = world.spec.specialties.find((sp) => sp.id === record.specialtyId)
+      const tags = specialty?.sceneTags ?? []
+      const scene = pickScene(channel, record.unitId, rng, tags, record.commissioned)
+      if (scene !== undefined && scene.tags.some((tag) => tags.includes(tag))) {
+        const weight = channels.find((c) => c.id === channel)?.weight ?? 0
+        const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)
+        raisePending(world, {
+          tick,
+          kind: 'combat-moment',
+          personId,
+          // Nobody is shooting: the moment has no enemy on the other side of
+          // it, and the record must not invent one.
+          otherId: null,
+          occupationId: encodeScene(scene.id, threat),
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: [...SCENE_OPTIONS],
+        })
+        continue
       }
     }
 

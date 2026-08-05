@@ -12,6 +12,7 @@ import { COMBAT_SCENES, decodeScene, encodeScene, outcomeFor, pickScene, rollThr
 import type { Threat } from '../src/scenes.js'
 import { openStream, Stream } from '../src/rng.js'
 import { seed as makeSeed } from '@life-engine/shared'
+import { SPECIALTIES } from '../src/content.js'
 
 const THREATS: readonly Threat[] = ['light', 'heavy', 'overrun']
 
@@ -154,7 +155,10 @@ describe('unit scenes', () => {
     }
     // And the ordinary scenes do not: an ordinary contact is an ordinary
     // contact whoever is standing in it.
-    for (const scene of COMBAT_SCENES.filter((s) => s.unitId === null)) {
+    // An officer moment is exempt: "engine out" leans heavy because an
+    // engine going out is not a light day, which is a fact about the moment
+    // rather than about who is standing in it.
+    for (const scene of COMBAT_SCENES.filter((s) => s.unitId === null && s.officersOnly !== true)) {
       expect(scene.biasToward).toBeNull()
     }
   })
@@ -169,5 +173,100 @@ describe('unit scenes', () => {
       const picked = pickScene('direct-combat-exposure', null, rng)
       expect(picked?.unitId, 'a line soldier got a unit scene').toBeNull()
     }
+  })
+})
+
+/**
+ * M-ENLIST §5b/§5c — the scene follows the trade, and command moments
+ * follow the commission.
+ *
+ * Before this, a signaller and a rifleman in the same ambush got the same
+ * words, and a crew chief who has never been in a doorway was being handed
+ * one. The tags are how a job gets its own worst day.
+ */
+describe('the trade picks the scene', () => {
+  it('every scene is tagged in the vocabulary the specialties use', () => {
+    // The two vocabularies have to be ONE vocabulary, or the filter
+    // silently never matches and every trade quietly falls back to the
+    // same pool — which is the bug this whole phase exists to fix.
+    const fromSpecialties = new Set(SPECIALTIES.flatMap((sp) => sp.sceneTags ?? []))
+    for (const scene of COMBAT_SCENES) {
+      expect(scene.tags.length, `${scene.id} is untagged`).toBeGreaterThan(0)
+      for (const tag of scene.tags) {
+        expect(fromSpecialties.has(tag), `no specialty claims "${tag}"`).toBe(true)
+      }
+    }
+  })
+
+  it('gives the medic the casualty and the rifleman the doorway', () => {
+    const rng = openStream(makeSeed(7), Stream.CombatResolution, 7, 7)
+    const medic = SPECIALTIES.find((sp) => sp.id === 'medic')
+    const infantry = SPECIALTIES.find((sp) => sp.id === 'rifleman')
+    if (!medic || !infantry) throw new Error('the two trades this asserts on are gone')
+
+    // Both are in the same firefights on the same channel; what they are
+    // DOING in them is the whole difference.
+    const ground = new Set<string>()
+    for (let i = 0; i < 120; i++) {
+      const picked = pickScene('direct-combat-exposure', null, rng, infantry.sceneTags ?? [])
+      if (picked) ground.add(picked.id)
+      expect(
+        picked?.tags.some((tag) => (infantry.sceneTags ?? []).includes(tag)),
+        `a rifleman got ${picked?.id ?? 'nothing'}`,
+      ).toBe(true)
+    }
+    expect(ground.has('the-breach'), 'the rifleman never sees a doorway').toBe(true)
+    // Rescue is not his trade — the tags say so, so the pool must too.
+    expect(ground.has('reach-the-downed')).toBe(false)
+    expect(ground.has('treat-under-fire')).toBe(false)
+
+    const aid = new Set<string>()
+    for (let i = 0; i < 120; i++) {
+      const picked = pickScene('direct-combat-exposure', null, rng, medic.sceneTags ?? [])
+      if (picked) aid.add(picked.id)
+    }
+    expect(aid.has('treat-under-fire'), 'the medic never reaches anybody').toBe(true)
+    expect(aid.has('the-breach'), 'the medic took the door').toBe(false)
+  })
+
+  it('offers a command moment to an officer and never to a private', () => {
+    const rng = openStream(makeSeed(11), Stream.CombatResolution, 11, 11)
+    const infantryTags = ['combat_firefight']
+
+    const enlisted = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      const picked = pickScene('direct-combat-exposure', null, rng, infantryTags, false)
+      if (picked) enlisted.add(picked.id)
+    }
+    expect(enlisted.has('the-call'), 'a private was asked to manoeuvre the platoon').toBe(false)
+
+    const officer = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      const picked = pickScene('direct-combat-exposure', null, rng, infantryTags, true)
+      if (picked) officer.add(picked.id)
+    }
+    expect(officer.has('the-call'), 'the platoon leader is never asked').toBe(true)
+  })
+
+  it('reaches the aviator’s own emergency, which nobody else can see', () => {
+    const rng = openStream(makeSeed(13), Stream.CombatResolution, 13, 13)
+    const aviator = SPECIALTIES.find((sp) => sp.id === 'aviator')
+    if (!aviator) throw new Error('the aviator is gone')
+
+    const seen = new Set<string>()
+    for (let i = 0; i < 200; i++) {
+      const picked = pickScene('battlefield-accident', null, rng, aviator.sceneTags ?? [], true)
+      if (picked) seen.add(picked.id)
+    }
+    expect(seen.has('engine-out')).toBe(true)
+
+    // A rifleman has no aircraft to lose. `pickScene` may still RETURN one
+    // — its last-resort fallback is "some scene rather than none", which is
+    // right for enemy contact. An accident is the opposite: no scene for
+    // your trade means there was no decision to make, so the accident path
+    // in deployment.ts checks the tag itself. This is that gate.
+    const groundTags = ['combat_firefight']
+    const fallback = pickScene('battlefield-accident', null, rng, groundTags, true)
+    expect(fallback?.tags.some((tag) => groundTags.includes(tag))).toBe(false)
   })
 })
