@@ -1,5 +1,15 @@
 # Milestone Plan
 
+> **HISTORICAL, as of 2026-08-04.** Milestones 0–5 are **complete**. The project
+> outgrew this numbering: work since Milestone 5 has run as named vertical
+> milestones (M-MONEY, M-DEPTH, L4-M1…M5, C1–C2, M-ECON, M-SAFETY, M-CAREER,
+> M-MONEY2, M-ENLIST) recorded in `docs/DECISION_LOG.md` and `RESUME.md`
+> rather than here. Milestone 6 (accounts and cloud saves) is the only entry
+> below that is still ahead of the project.
+>
+> This document is kept for the reasoning behind the sequencing, which still
+> holds. **For where the project actually is, read `RESUME.md`.**
+
 **Revision 2 — web application, TypeScript.** Supersedes the desktop/C# plan.
 
 Small vertical milestones. Each one produces something executable and inspectable.

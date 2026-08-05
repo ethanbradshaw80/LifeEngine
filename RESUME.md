@@ -24,7 +24,7 @@ That is all you need to type. Everything below is for Claude, not for you.
   design docs unless the current task actually requires them. This file plus
   the code is usually enough. Do not re-verify settled decisions.
 - `CLAUDE.md` is the constitution and `docs/DECISION_LOG.md` outranks
-  `LIFE_ENGINE_BOOTSTRAP.md`. All 15 ADRs are Accepted; nothing is pending.
+  `LIFE_ENGINE_BOOTSTRAP.md`. All 31 ADRs are Accepted or superseded; nothing is pending.
 
 ## Environment notes that will otherwise waste your time
 
@@ -63,110 +63,109 @@ Push normally with `git push`.
 
 ---
 
-## START HERE (handoff, end of 2026-08-02)
+## START HERE (handoff, end of 2026-08-04)
 
 **STATE:** clean tree, everything pushed.
-SIMULATION_VERSION **50** · Classic golden **e3061487** · Heartland golden
-**1bb337ad** · SCHEMA_VERSION **26** · **541 tests**, all green.
+SIMULATION_VERSION **92** · SCHEMA_VERSION **38** · Classic golden
+**3a841a5c** · Heartland golden **8dd02d85** · **852 tests** across 73
+files, all green. Full suite ~6 minutes.
 
-**THE MILITARY MODULE IS FINISHED.** Everything the owner asked for is
-built, reviewed and pushed. What follows is the record of it; the queue for
-new work is below that.
+**THE MILITARY MODULE, THE ECONOMY, THE SAFETY NET AND CIVILIAN CAREERS ARE
+ALL FINISHED.** What follows is the record of the last four arcs; the queue
+for new work is below that.
 
-### What landed, and the one design call behind each
+### What landed since 2026-08-02, and the one design call behind each
 
-- **The combat plan, all five steps** (`docs/MILITARY_COMBAT_PLAN.md`).
-  Service sub-tabs, Drop a Packet, the three-option scene system, the shared
-  unit cutscenes, the per-unit mission scenes.
-  - THE CALL: unit moments are NOT combat scenes. They have their own
-    pending kind, `'unit-moment'`, and never route through
-    `resolveMomentCasualty` — that is the enemy-contact resolver, and a ramp
-    ceremony is not enemy contact.
-  - Selection stopped being a silent coin flip: it is played, and the answer
-    moves the odds off the same stream and the same margin as before.
-- **The awards pack in full** (ADR-0024). Real decoration names, tiered
-  valour, combat badge by trade, seven new grants.
-  - THE CALL: the top valour tier is **the Distinguished Service Cross**,
-    not the Medal of Honor — the owner's own change.
-- **Capture and the Prisoner of War Medal** (ADR-0025). The third thing a
-  bad month can end in. A captive's tour stops running on the calendar; the
-  medal grants at capture, so the man who dies held earns it too.
-  - MEASURED AND RETUNED: the first numbers ran 33% home / 67% dead, median
-    31 months. Now ~75% home, ~25% dead, median 15 months.
-- **Aviation and the Air Medal** (ADR-0026). Two flying trades, Flight
-  School, the Nighthawk Squadron. The awards pack's HOLD list is now empty,
-  and the earnability test asserts it in both directions.
-- **The ribbon rack and a drawn mark for every badge**
-  (`apps/web/src/BadgeMark.tsx`).
-  - THE CALL: none of the ribbon colours or badge marks reproduces real
-    insignia. A branch may be NAMED; its insignia may not be drawn
-    (charter §3). The marks are invented shapes built from the plain object
-    each badge is about.
-- **Senior Parachutist**, and the field it needed: `unitSinceTick` on the
-  service record. Months in the UNIT is not months enlisted. Null means
-  unknown, so a migrated record's clock starts where the knowledge starts.
+- **M-ECON — money belongs to people, the economy is weather** (ADR-0027).
+  A market with cycles, credit and debt, mortgages, financial shocks, a Bank
+  tab.
+  - THE CALL: the economy is not a difficulty setting. It moves on its own
+    and the player rides it.
+- **M-SAFETY — bankruptcy, homelessness and three floors** (ADR-0028).
+  Means tests, repayment plans, unemployment insurance, assistance, a state
+  pension.
+  - THE CALL: this **supersedes the Law-7 arrears write-off**, with the
+    owner's explicit authorization. Failure creates a chapter; it no longer
+    creates a miracle.
+  - MEASURED: arrears ran $606,276 across a long save. Four separate fixes
+    later it is $25,344.
+- **M-CAREER — civilian work brought up to the military's depth** (ADR-0029).
+  Nine tracks, twenty-nine rungs, annual reviews, ten work moments,
+  interviews, five kinds of business, a Career tab.
+  - MEASURED AND RETUNED: business survival was 93 per cent, which no small
+    trade has ever had. It is 58 per cent now.
+- **Pay repriced against real wage data**, twice. The first pass did only
+  civilian jobs, which made things WORSE — an E-8 earned less than a shop
+  clerk until the owner caught it. Then calibrated to the 1970 start year,
+  so in-game 2025 salaries land within a few percent of real medians.
+- **Capture was unreachable, not rare.** The POW medal existed and nobody
+  had ever earned it. Now reachable in 5 of 12 test worlds.
+- **M-MONEY2 — a household is a building, not a purse** (ADR-0030). Money
+  belongs to a financial unit: you, your partner, and dependants — where
+  dependency is about INCOME, not age.
+- **M-ENLIST — the recruiting station** (ADR-0031). All five phases. The
+  pipeline, 22 trades with real job codes, 26 officer roles, three accession
+  models, trade-tagged scenes, two written officer moments, the recruiter's
+  wall.
 
-### Reviews
+### Recurring failure shapes, worth knowing before writing more
 
-Every military change went through `military-scope-reviewer`, which is
-mandatory. Across this window it produced **sixteen must-fixes**, all fixed
-in-session. The recurring shapes, worth knowing before writing more:
+These have each cost real time more than once:
 
-1. **A cutscene must not assert a fact the world has not produced.** Losing
-   one of the team shipped as a scripted casualty — nobody had died. It
-   waits on a real death now.
-2. **A player-log dedupe must be SCOPED.** The log is never cleared on
-   succession, so an unscoped "has this played" check silently denied every
-   heir for the rest of the save.
-3. **A new event must be made VISIBLE** — `story.ts` case,
+1. **A follow-up pending must be raised AFTER `commit()`** in
+   `resolvePending`, or `raisePending` silently refuses it. Hit **about
+   seven times now**. The single-slot pending model is the root cause; a
+   queue would make the whole class impossible and is the highest-value
+   refactor on the board.
+2. **A new event must be made VISIBLE** — `story.ts` case,
    `EVENT_EXPLAINED_BY` entry, and an icon — or it is written to the ledger
    and appears nowhere in the game.
-4. **A follow-up pending must be raised AFTER `commit()`** in
-   `resolvePending`, or `raisePending` silently refuses it. This has shipped
-   broken three times.
+3. **A cutscene must not assert a fact the world has not produced.**
+4. **A player-log dedupe must be SCOPED**, or it silently denies every heir
+   for the rest of the save.
 5. **A system that runs for the serving must ask whether they are a
-   prisoner.** The schoolhouse did not, and pinned medals on a man in a cell.
+   prisoner.**
+6. **Import cycles are caught by `imports.test.ts` and are usually avoidable
+   by reading state inline** rather than importing the module that owns it.
 
-### THE QUEUE — CRIME AND JUSTICE (C3)
+### THE QUEUE
 
-**The military module is closed.** The three loose ends the reviewers logged
-as out-of-scope are fixed too: nothing reaches a prisoner (one guard in
-`raisePending`, not fifteen at the raise sites), a cell is not a term of
-service, and nobody graduates a course from a theatre.
+**The owner's standing preference is that he writes the design doc.** It
+worked for the combat plan, the awards pack, the career overhaul and the
+enlistment rework — his specs make the calls that would otherwise be
+guessed. If a doc has not arrived, ask rather than inventing scope.
 
-**THE OWNER IS WRITING THE DESIGN DOC.** He did this for the military
-module — the combat plan and the awards pack — and it worked: his specs made
-the design calls that would otherwise have been guessed at. Do not draft a
-C3 plan over the top of his. If the doc has not arrived, ask for it rather
-than inventing scope.
-
-What exists already, so nothing gets built twice
-(`packages/engine/src/crime.ts`, `OFFENCES` in `content.ts`):
-
-- 23 graded offences, 12 misdemeanors and 11 felonies, each with a sentence
-  range, fine, clearance rate and payoff
-- motive to offence to clearance to arrest to the plea question to verdict
-  to a fine or months; jail is absent, and the household takes the strain
-- a criminal record that hiring and `enlistmentBar` both read
-- the desperation moment, with both roads real
-- victims are real households and the money actually moves
-- crime in the news
-
-What `docs/CRIME_PLAN.md` scoped as C3 and nobody has built: sentencing
-variety, probation, the constable as an occupation, town crime pressure as a
-force rather than a per-person roll, record-fade beyond the flat gate, and
-the victim's side as player experience. Violent crime against the player,
-organized crime, civil disputes and juvenile justice were deliberately
-deferred beyond C3 — do not pull them forward without the owner saying so.
-
-### Still open, and honest about it
+Assessed 2026-08-04, in rough order of value:
 
 1. **A veteran's second act.** Discharge is modelled; the years after it are
    thin — pension, disability, the civilian career the trade unlocked.
-2. **Performance:** `unitOptionsFor` scans `world.events` linearly per unit
+   Now that civilian careers are deep, this is a much better payoff than it
+   was.
+2. **Authored content, not systems.** ~19 combat scenes, 10 work moments, 32
+   crime scenes. For eighty years across generations, a player sees repeats
+   fast. Systems make content possible; they are not content.
+3. **The pending queue** (see failure shape 1).
+4. **Ordinary life is thinner than the uniform.** A player who never enlists
+   is playing a much smaller game. Relationships, parenting and the middle
+   years deserve what the military got.
+5. **C3 — crime and justice**, scoped in `docs/CRIME_PLAN.md`: sentencing
+   variety, probation, the constable as an occupation, town crime pressure
+   as a force, record-fade, the victim's side. Violent crime against the
+   player, organized crime, civil disputes and juvenile justice are
+   deliberately deferred beyond C3.
+6. **Test runtime.** 362 seconds clean, 590 under load, with real timeout
+   flakiness in the war suites. Grows linearly with every milestone.
+
+### Still open, and honest about it
+
+1. **Performance:** `unitOptionsFor` scans `world.events` linearly per unit
    per month for the player. Not hot yet; measure before touching it.
-3. **Nobody has played the new surfaces at length.** The orders sheet, the
-   ribbon rack and the badge marks are built, typechecked and tested, but
+2. **`player.ts` is 4,191 lines.** It is the biggest module by a wide margin
+   and it is where the pending trap lives.
+3. **`combatWeight`'s effect on how often a moment fires has not been
+   measured in a long war** — only verified arithmetically and by tests.
+4. **Nobody has played the newest surfaces at length.** The recruiter's
+   wall, the Career tab and the Bank are built, typechecked and tested, but
    only the owner can say whether they read right on his screen.
 
 ## Rules that cannot be bent

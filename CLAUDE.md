@@ -5,11 +5,21 @@ repository. The original specification is preserved in `LIFE_ENGINE_BOOTSTRAP.md
 where the two disagree, this file and `docs/DECISION_LOG.md` win.
 
 Current phase: **Player-experience-first (ADR-0018, 2026-08-01).** Layers 1–3
-plus two Layer 4 institutions (military, crime C1) are built and playable.
-New simulation institutions are paused; the active arcs are the demographic
-repair (ADR-0019, `docs/DEMOGRAPHICS_AUDIT.md`), the player-agency redesign
-(`docs/PLAYER_EXPERIENCE_AUDIT.md`), then world presets (ADR-0020,
-`docs/WORLD_MODES_PLAN.md`).
+are complete. Three Layer 4 institutions are built and playable: military and
+war, crime and justice (through C2), and the economy — money, credit, markets,
+bankruptcy and the safety net. Civilian careers now carry the same depth as
+military ones (ADR-0029).
+
+New simulation institutions remain paused. The arcs that ADR-0018 opened are
+closed: the demographic repair (ADR-0019), the player-agency redesign, and
+world presets (ADR-0020) all shipped, the last as milestone W2 on 2026-08-02.
+Work since has been depth in what a player touches — the economy (ADR-0027),
+the floors under a life (ADR-0028), careers (ADR-0029), personal money
+(ADR-0030), and enlistment (ADR-0031).
+
+**For where the project actually is, read `RESUME.md`.** It carries the live
+state, the queue, and the recurring failure shapes. Last updated 2026-08-04 at
+SIMULATION_VERSION 92, SCHEMA_VERSION 38, 852 tests green.
 
 ---
 

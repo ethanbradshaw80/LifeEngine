@@ -2,6 +2,14 @@
 
 Every technical specification the project will eventually need.
 
+> **Note, 2026-08-04.** The code ran ahead of this index, deliberately. Most of
+> the systems these documents would describe are **built and tested** — the
+> tests and the commented code are the specification, and writing the document
+> afterwards would describe rather than decide. This index remains a map of the
+> territory; a `Planned` row means the DOCUMENT does not exist, not that the
+> system does not. `RESUME.md` and `docs/DECISION_LOG.md` are the accurate
+> record of what is built.
+
 Companion to `DESIGN_INDEX.md`: design documents say *what the world does*, technical
 documents say *how the software works*.
 

@@ -36,6 +36,17 @@ Reversibility · Review trigger.
 | 0018 | **Simulation institutions paused; player experience is the arc** | **Accepted** |
 | 0019 | **Demographics repaired by modelled decisions, not rates** | **Accepted** |
 | 0020 | **World presets; Real World Mode alongside Classic** | **Accepted** |
+| 0021 | **Real foreign nations and generated wars in a real-world preset** | **Accepted** |
+| 0022 | **Coalitions: the call to arms, and who decides a nation's war** | **Accepted** |
+| 0023 | **Real school names; units stay fictional** | **Accepted** |
+| 0024 | **Real decoration and badge names, with earnability enforced** | **Accepted** |
+| 0025 | **Capture, captivity, and the Prisoner of War Medal** | **Accepted** |
+| 0026 | **Aviation, the Air Medal, and the end of the HOLD list** | **Accepted** |
+| 0027 | **M-ECON: money belongs to people; the economy is weather** | **Accepted** |
+| 0028 | **Bankruptcy, homelessness, and the floors under a life** | **Accepted** |
+| 0029 | **Civilian careers brought up to the military's depth** | **Accepted** |
+| 0030 | **A grown adult's money is his own; the household is a building** | **Accepted** |
+| 0031 | **Enlistment is a recruiting station, not a menu** | **Accepted** |
 
 ---
 
@@ -1161,3 +1172,105 @@ seventeen years.
 which only runs when a death empties a household — so a business went on
 trading for decades under an owner who had died with somebody still in the
 house. It now passes on every death.
+
+---
+
+## ADR-0030 — A grown adult's money is his own; the household is a building
+
+**Date.** 2026-08-03. **Status.** Accepted (owner direction).
+
+**Context.** The owner, playing: *"I hate how our money is displayed. It
+should show just your money, if you have a wife then your wife's money. This
+is a life simulator — why would my parents control my spending when I'm a
+grown man after 18?"*
+
+He was right, and the bug was structural rather than cosmetic. Money was
+owned by the HOUSEHOLD. A twenty-six-year-old with a job, living at home,
+had his wages pooled with his father's and his spending stance set by
+whoever the household head was. The screen was reporting the model
+accurately; the model was wrong.
+
+**Decision.** The unit of money is the **financial unit**, not the
+household. A financial unit is a person, plus a spouse or partner where one
+exists, plus dependants — and dependency is decided by INCOME, not by age or
+by address.
+
+1. **A household is a building.** It keeps the roof, the rent and who lives
+   under it. It no longer keeps a purse.
+2. **A partner shares.** Spouses and courting partners are one unit;
+   marrying merges two units and separation splits them.
+3. **A dependant is somebody with no income of their own.** A child under 18
+   is a dependant. So is a grown child with no job. A grown child WITH a job
+   is his own unit under his father's roof — which is the case the owner was
+   complaining about.
+4. **Rent splits by income share**, so a working adult at home contributes
+   rather than either paying nothing or paying everything.
+5. **The spend stance belongs to the person**, and each unit sets its own.
+
+**Consequences.** SIMULATION_VERSION 90, SCHEMA_VERSION 36, one migration
+(the stance moves from household to person). Every seed's balances differ.
+
+**The measurement that caught the real bug.** The first cut used the
+existing `ADULT_COST_AGE` of 16 to decide dependency, and the founding town
+collapsed from 159 people to 50 inside a century: sixteen-year-olds became
+their own financial units, carrying adult living costs against no income,
+and starved. Dependency is about income, not age — that is not a tuning
+detail, it is the whole distinction the ADR is about.
+
+---
+
+## ADR-0031 — Enlistment is a recruiting station, not a menu
+
+**Date.** 2026-08-04. **Status.** Accepted (owner spec: `enlistment_branches_master.md`,
+`officer_moments_written.md`).
+
+**Context.** Enlisting was one question with eight answers. Every trade was
+open to everybody, a degree silently commissioned you, and the branch was
+whatever the trade happened to belong to. The most consequential decision in
+the game was one click, and a rifleman and a signals operator had the same
+career and read the same words in the same firefight.
+
+**Decision.** Model the actual pipeline, and let the job matter afterwards.
+
+1. **A pipeline, not a menu.** Commission fork → which service → the entry
+   test → a trade the score opens. Each step is its own pending, so a player
+   who closes the tab half way through comes back to the same question.
+2. **Twenty-two enlisted trades with real job codes** (11B, 68W, BM, 15A),
+   each with an aptitude gate, a schooling requirement, a scene pool and an
+   exposure profile. **Real codes and titles are permitted; named units stay
+   fictional** — the charter §3 line is about units, not job titles.
+3. **An entry test, deterministic from the seed and the person.** Schooling
+   is most of it, temperament is the rest, and a seeded ten either way is
+   the day they had. It is asked for repeatedly and always answers the same,
+   which is what makes an eligible-job list replayable.
+4. **Twenty-six officer roles across three accession models** — the naval
+   service selects a community, the ground service branches on merit, the
+   air service assigns by need and competes the rated seats. Same screen,
+   three different weights behind the same question.
+5. **The trade decides which moment you meet.** Every combat scene carries
+   the same tags the trades do. A medic reaches a casualty; a signaller has
+   a dead net and an antenna on the roof; a mechanic has a vehicle down in
+   the open. Two officer moments are command decisions and are offered only
+   to people in command.
+6. **An accident can be a decision.** Accidents used to resolve entirely
+   over the player's head, which is right for a rollover and exactly wrong
+   for the thing that actually kills aviators. The gate is the trade's own
+   tag: no scene for your job still means no moment.
+7. **The Service tab before enlistment is the recruiter's wall** — every
+   trade with its code and what it wants on the test. It shows no score,
+   because they have not sat it; it does grey what their schooling shuts,
+   because they already know whether they have a degree.
+
+**Consequences.** SIMULATION_VERSION 92, SCHEMA_VERSION 38. One migration
+back-fills an entry score of 55 and a track onto every existing record — a
+flat number rather than a derived one, because a derived score would be a
+claim about a test this person never sat, and Law 3 says the record holds
+what happened. Officer and enlisted pay tables were repriced in the same
+arc, after the owner caught that only civilian pay had been fixed and an E-8
+was earning less than a shop clerk.
+
+**One bug the acceptance tests caught.** The branches do not gate equally at
+the bottom — the air service starts at 40 and the ground service at 31 —
+so somebody scoring 35 who picked the air service walked into a blank wall:
+empty trade menu, no record written, pending consumed. The branch menu now
+only offers a service with something open.
