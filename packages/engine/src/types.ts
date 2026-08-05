@@ -1307,6 +1307,12 @@ export type PendingKind =
   | 'retirement-certificate'
   /** Which uniform: the specialty choice on enlistment. */
   | 'specialty'
+  /** M-ENLIST §1. Which service. The first step of the new pipeline. */
+  | 'branch-choice'
+  /** M-ENLIST §4. The entry test's result, read before the jobs open. */
+  | 'entry-test'
+  /** M-ENLIST §5c. What an officer candidate asks the branch for. */
+  | 'officer-preference'
   /** Term's end: sign again, or hang it up. */
   | 'reenlist'
   /** The board meets (M-SERVICE-PLAY): put your name in, or let it go by.
@@ -1497,6 +1503,7 @@ export type EventType =
   | 'opened-business'
   | 'business-closed'
   | 'inherited-business'
+  | 'commissioned'
   | 'promoted-at-work'
   | 'passed-over'
   | 'work-moment'

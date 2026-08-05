@@ -38,6 +38,7 @@ import {
 } from './awards.js'
 import { ageAt } from './clock.js'
 import { atTodaysPrices } from './economy.js'
+import { entryTestScore } from './enlistment.js'
 import {
   BOARD_CUTOFF_BASE,
   BOARD_CUTOFF_STEP,
@@ -1114,6 +1115,8 @@ export function enlistPerson(
   specialty: ServiceSpecialty,
   extraInputs: readonly CausalFactor[],
   commissionElected?: boolean,
+  /** M-ENLIST §5c. The officer job the branch assigned, where there is one. */
+  officerRoleId?: string,
 ): void {
   const bases = basesFor(world, specialty.branch)
   const base = bases[Math.abs(person.id) % Math.max(1, bases.length)]
@@ -1170,6 +1173,11 @@ export function enlistPerson(
     schoolStartsAtTick: null,
     fitnessScore: 0,
     fitnessTestedAtTick: null,
+    // M-ENLIST §4. The score they sat for, kept for ever. Written once,
+    // here, and never recomputed — see the field's own note.
+    aptitude: entryTestScore(world, person.id),
+    track: commissioned ? 'officer' : 'enlisted',
+    ...(officerRoleId !== undefined ? { officerRoleId } : {}),
   })
 
   recordEvent(world, tick, {

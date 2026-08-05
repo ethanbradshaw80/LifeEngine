@@ -17,6 +17,7 @@ import { ageAt } from '../src/clock.js'
 import { contractFor } from '../src/contract.js'
 import { createWorld } from '../src/index.js'
 import { requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
+import { signUp, walkToSpecialty } from './enlisthelper.js'
 import { oathAdministratorsFor } from '../src/service.js'
 import { SPECIALTIES } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
@@ -58,9 +59,9 @@ describe('the commission fork', () => {
 
     const other = aWalkIn(4141, false)
     expect(requestEnlistment(other.world).asked).toBe(true)
-    // No degree, no question — the officer ladder is closed at entry and a
-    // menu with one item on it is not a choice.
-    expect(other.world.player.pending?.kind).toBe('specialty')
+    // No degree, no fork — the officer ladder is closed at entry and a menu
+    // with one item on it is not a choice. They start at the branch instead.
+    expect(other.world.player.pending?.kind).toBe('branch-choice')
   })
 
   it('is a real fork: the same graduate ends up on either ladder', () => {
@@ -70,9 +71,11 @@ describe('the commission fork', () => {
     for (const path of ['officer', 'enlisted'] as const) {
       const { world, personId } = aWalkIn(4141, true)
       requestEnlistment(world)
-      resolvePending(world, path)
-      expect(world.player.pending?.kind).toBe('specialty')
-      resolvePending(world, walkIn.id)
+      // The fork, then the branch and the test behind it, then the trade.
+      expect(walkToSpecialty(world, { path })).toBe(
+        path === 'officer' ? 'service-contract' : 'specialty',
+      )
+      if (path === 'enlisted') resolvePending(world, world.player.pending?.options[0] ?? '')
 
       const record = world.service.get(personId)
       expect(record).toBeDefined()
@@ -85,8 +88,7 @@ describe('the commission fork', () => {
     if (!walkIn) throw new Error('no walk-in specialty')
     const { world, personId } = aWalkIn(4141, true)
     requestEnlistment(world)
-    resolvePending(world, 'officer')
-    resolvePending(world, walkIn.id)
+    signUp(world, { path: 'officer' })
 
     // Law 3: the record explains it, in the words that are true of it.
     const decision = world.causalRecords.find(
@@ -106,7 +108,8 @@ describe('the commission fork', () => {
     if (!walkIn) throw new Error('no walk-in specialty')
     const { world } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
+    walkToSpecialty(world)
+    resolvePending(world, world.player.pending?.options[0] ?? walkIn.id)
 
     const pending = world.player.pending
     expect(pending?.kind).toBe('service-contract')
@@ -122,8 +125,7 @@ describe('the contract document', () => {
   function aSignedGraduate(): { world: World; personId: EntityId } {
     const { world, personId } = aWalkIn(4141, true)
     requestEnlistment(world)
-    resolvePending(world, 'officer')
-    resolvePending(world, walkIn.id)
+    signUp(world, { path: 'officer' })
     return { world, personId }
   }
 
@@ -216,7 +218,7 @@ describe('the contract document', () => {
   it('keeps the enlisted forms and the enlisted words for enlisted members', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
+    signUp(world, { specialtyId: walkIn.id })
 
     const first = contractFor(world, world.tick, personId, 'enlistment', noTerms)
     expect(first?.commissioned).toBe(false)
@@ -249,7 +251,7 @@ describe('the contract document', () => {
   it('§6: an empty posting has nobody to swear it, and a manned one does', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
+    signUp(world, { specialtyId: walkIn.id, stopAtOath: true })
 
     // This world's station holds nobody else, so the ceremony is the plain
     // button — the honest answer when there is no one to choose between.
@@ -274,8 +276,7 @@ describe('the contract document', () => {
   it('§6: nobody junior, nobody discharged, and nobody dead is offered', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
-    resolvePending(world, 'take-the-oath')
+    signUp(world, { specialtyId: walkIn.id })
 
     const juniorId = postASenior(world, personId, 0)
     expect(oathAdministratorsFor(world, personId).map((m) => m.personId)).not.toContain(juniorId)
@@ -292,8 +293,7 @@ describe('the contract document', () => {
   it('§6: the chosen name reaches the paper, and a vanished one does not', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
-    resolvePending(world, 'take-the-oath')
+    signUp(world, { specialtyId: walkIn.id })
 
     const seniorId = postASenior(world, personId, 6)
     const senior = oathAdministratorsFor(world, personId).find((m) => m.personId === seniorId)
@@ -323,8 +323,7 @@ describe('the contract document', () => {
   it('counts terms past the words it has', () => {
     const { world, personId } = aWalkIn(4141, false)
     requestEnlistment(world)
-    resolvePending(world, walkIn.id)
-    resolvePending(world, 'take-the-oath')
+    signUp(world, { specialtyId: walkIn.id })
 
     // No reenlistments yet: signing again makes this the SECOND term.
     expect(contractFor(world, world.tick, personId, 'reenlistment', noTerms)?.headline).toContain(

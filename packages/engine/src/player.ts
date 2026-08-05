@@ -131,6 +131,17 @@ import {
 } from './interview.js'
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
+import {
+  accessionOf,
+  accessionWords,
+  aptitudeWords,
+  assignOfficerRole,
+  entryTestScore,
+  mosBar,
+  officerRolesOf,
+} from './enlistment.js'
+import { OFFICER_ROLES } from './content.js'
+import type { OfficerRole, ServiceBranchSpec } from './types.js'
 import { businessBar, businessKindById } from './business.js'
 import { openBusiness } from './finances.js'
 import { atTodaysPrices } from './economy.js'
@@ -1561,6 +1572,15 @@ export function resolvePending(world: World, choice: string): void {
     kind: 'reenlist-term' | 'reenlist-option' | 'service-contract'
     state: string
   } | null = null
+  // M-ENLIST §5c. THE COMMISSION, carried out of the switch for the same
+  // reason as everything else here: enlistPerson can raise the contract,
+  // and a raise while this pending still holds the slot is refused.
+  let officerNext: {
+    role: OfficerRole
+    branch: ServiceBranchSpec
+    assignment: { wasFirstChoice: boolean; reason: string }
+    aptitude: number
+  } | null = null
   // M-CAREER §4. The OFFER, carried out of the switch below for the same
   // reason everything else here is: raisePending refuses while the answered
   // interview still holds the slot, so a job won in the room would vanish.
@@ -1822,8 +1842,44 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'commission': {
-      // Answered by the specialty question raised behind it — nothing is
-      // written until the trade is chosen, because a record needs both.
+      // Answered by the branch question raised behind it — nothing is
+      // written until the job is chosen, because a record needs all of it.
+      break
+    }
+
+    case 'branch-choice':
+      // M-ENLIST §1. The service is remembered on the next pending rather
+      // than written down: there is no record to write it to yet.
+      break
+
+    case 'entry-test':
+      // A gate, not a decision. The score is a pure function of the seed
+      // and the person, so nothing has to be carried out of here.
+      break
+
+    case 'officer-preference': {
+      // M-ENLIST §5c. WHAT THEY ASKED FOR, and what the service does with
+      // it. The assignment happens here because this is the answer; the
+      // record is written by commissionPerson below.
+      const branchId = pending.occupationId ?? ''
+      const branch = world.spec.branches.find((b) => b.id === branchId)
+      const aptitude = world.service.get(person.id)?.aptitude ?? entryTestScore(world, person.id)
+      if (branch) {
+        // Their pick first, then the rest of the list in its own order —
+        // "ranked preferences" without making the player drag rows about.
+        const preferences = [choice, ...(pending.options ?? []).filter((id) => id !== choice)]
+        const assignment = assignOfficerRole(
+          world,
+          person.id,
+          branch,
+          OFFICER_ROLES,
+          preferences,
+          aptitude,
+        )
+        if (assignment.role) {
+          officerNext = { role: assignment.role, branch, assignment, aptitude }
+        }
+      }
       break
     }
 
@@ -1852,9 +1908,9 @@ export function resolvePending(world: World, choice: string): void {
             factor('own-choice', 1000),
             ...(servedParent !== null ? [factor('service-tradition', 300, servedParent)] : []),
             ...(recruitingDriveActive(world, pending.tick) ? [factor('recruiting-drive', 550)] : []),
-            ...(pending.occupationId === 'officer' ? [factor('holds-a-degree', 700)] : []),
+            ...(isOfficerPending(pending) ? [factor('holds-a-degree', 700)] : []),
           ],
-          pending.occupationId === 'officer',
+          isOfficerPending(pending),
         )
       }
       break
@@ -2464,6 +2520,40 @@ export function resolvePending(world: World, choice: string): void {
     openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
   }
 
+  // M-ENLIST §5c. THE COMMISSION, with the slot free.
+  //
+  // An officer's TRADE is the enlisted specialty their role sits over —
+  // an infantry officer commands infantry — so the record keeps both: the
+  // specialty for everything already built on it (exposure, schools, the
+  // veteran's civilian unlocks) and the officer role for what is new.
+  if (officerNext !== null) {
+    const { role, branch, assignment, aptitude } = officerNext
+    const specialty =
+      world.spec.specialties.find(
+        (sp) => sp.branch === branch.id && sp.field === role.field,
+      ) ?? world.spec.specialties.find((sp) => sp.branch === branch.id)
+    if (specialty) {
+      enlistPerson(
+        world,
+        pending.tick,
+        person,
+        specialty,
+        [
+          factor('own-choice', assignment.wasFirstChoice ? 1000 : 400),
+          factor('holds-a-degree', 700),
+          factor('qualified-for-role', Math.min(1000, aptitude * 10)),
+        ],
+        true,
+        role.id,
+      )
+      recordEvent(world, pending.tick, {
+        type: 'commissioned',
+        subjectId: person.id,
+        detail: assignment.wasFirstChoice ? role.title : `${role.title} (not first choice)`,
+      })
+    }
+  }
+
   // M-CAREER §4. THE OFFER, with the slot free. Shown as a job-offer, which
   // is the pending the town already uses when it comes to you — the same
   // card, reached by having gone and asked.
@@ -2565,9 +2655,22 @@ export function resolvePending(world: World, choice: string): void {
   if (pending.kind === 'education' && choice === 'enlist') {
     askEntryPath(world, pending.tick, person.id)
   }
-  // And the commission's answer carries into the specialty menu behind it.
+  // M-ENLIST §1. THE PIPELINE, each step raised after the last one commits
+  // — the slot has to be free or raisePending refuses, which is the trap
+  // every chained question in this file has fallen into at least once.
   if (pending.kind === 'commission') {
-    askSpecialty(world, pending.tick, person.id, choice === 'officer')
+    askBranch(world, pending.tick, person.id, choice === 'officer' ? 'officer' : 'enlisted')
+  }
+  if (pending.kind === 'branch-choice') {
+    askEntryTest(world, pending.tick, person.id, choice, pending.occupationId ?? 'enlisted')
+  }
+  if (pending.kind === 'entry-test') {
+    const [branchId, track] = (pending.occupationId ?? ':').split(':')
+    if (track === 'officer') {
+      askOfficerPreference(world, pending.tick, person.id, branchId ?? '')
+    } else {
+      askSpecialty(world, pending.tick, person.id, false, branchId)
+    }
   }
   // THE SHEET, WHEN THE ANSWER ITSELF ENDED THE CAREER. `discharge()` raises
   // it for every tick-driven separation, but answering "come home" runs the
@@ -2625,7 +2728,13 @@ export function resolvePending(world: World, choice: string): void {
   // nothing; it is the ceremony over a term that has begun. That asymmetry
   // with reenlistment is deliberate: a first-termer signs at the office and
   // swears at the station, and there is nothing to undo in between.
-  if (pending.kind === 'specialty' && isServing(world, person.id)) {
+  // M-ENLIST §5c: an officer candidate never sees the trade menu — the
+  // branch assigns the role — so the officer road reaches the paper from
+  // its own last step instead.
+  if (
+    (pending.kind === 'specialty' || pending.kind === 'officer-preference') &&
+    isServing(world, person.id)
+  ) {
     raisePending(world, {
       tick: pending.tick,
       kind: 'service-contract',
@@ -2861,7 +2970,8 @@ function oathOptionsFor(world: World, personId: EntityId): readonly string[] {
 function askEntryPath(world: World, tick: PendingDecision['tick'], personId: EntityId): void {
   const anyOfficers = world.spec.branches.some((b) => (b.officerRanks?.length ?? 0) > 0)
   if (!anyOfficers || !commissionsOnEntry(world, personId)) {
-    askSpecialty(world, tick, personId, false)
+    // M-ENLIST §1: no fork to offer, so straight to the first real step.
+    askBranch(world, tick, personId, 'enlisted')
     return
   }
   raisePending(world, {
@@ -2878,6 +2988,95 @@ function askEntryPath(world: World, tick: PendingDecision['tick'], personId: Ent
 }
 
 /**
+ * M-ENLIST §1. STEP ONE — WHICH SERVICE.
+ *
+ * The pipeline is branch, then the entry test, then a job you actually
+ * qualify for. Each step is its own pending so it saves and resumes: a
+ * player who closes the tab half way through enlisting comes back to the
+ * same question.
+ *
+ * `track` rides on occupationId because nothing else remembers it yet —
+ * the record is not written until the job comes back, three steps later.
+ */
+/**
+ * M-ENLIST §1. Was this menu raised on the officer road?
+ *
+ * The pending carries "branch:track" in occupationId because there is no
+ * record to hang it on yet — the record is not written until the trade
+ * comes back. One reader, so the format lives in one place.
+ */
+function isOfficerPending(pending: PendingDecision): boolean {
+  return (pending.occupationId ?? '').endsWith(':officer')
+}
+
+function askBranch(world: World, tick: Tick, personId: EntityId, track: 'enlisted' | 'officer'): void {
+  const options = world.spec.branches
+    .filter((branch) => track !== 'officer' || (branch.officerRanks?.length ?? 0) > 0)
+    .map((branch) => branch.id)
+  if (options.length === 0) return
+  raisePending(world, {
+    tick,
+    kind: 'branch-choice',
+    personId,
+    otherId: null,
+    occupationId: track,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options,
+  })
+}
+
+/**
+ * M-ENLIST §4. STEP TWO — THE TEST.
+ *
+ * No input: it is a gate, not a decision. The score is not carried on the
+ * pending because it does not need to be — `entryTestScore` is a pure
+ * function of the seed and the person, so every step downstream can ask for
+ * it again and get the same number.
+ */
+function askEntryTest(world: World, tick: Tick, personId: EntityId, branchId: string, track: string): void {
+  raisePending(world, {
+    tick,
+    kind: 'entry-test',
+    personId,
+    otherId: null,
+    occupationId: `${branchId}:${track}`,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: ['continue'],
+  })
+}
+
+/**
+ * M-ENLIST §5c. STEP THREE, OFFICER ROAD — what they ask the branch for.
+ *
+ * What the asking MEANS depends on the service, which is the point: the
+ * naval service is choosing a community, the ground service is listing a
+ * preference it may not honour, the air service is stating one before being
+ * assigned. Same screen, three different weights.
+ */
+function askOfficerPreference(world: World, tick: Tick, personId: EntityId, branchId: string): void {
+  const aptitude = world.service.get(personId)?.aptitude ?? entryTestScore(world, personId)
+  const options = officerRolesOf(OFFICER_ROLES, branchId)
+    .filter((role) => aptitude >= (role.minAptitude ?? 0))
+    .map((role) => role.id)
+  if (options.length === 0) return
+  raisePending(world, {
+    tick,
+    kind: 'officer-preference',
+    personId,
+    otherId: null,
+    occupationId: branchId,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options,
+  })
+}
+
+/**
  * The specialty menu: every branch role this person's schooling admits.
  *
  * `commissioned` rides on the pending's occupationId because it was decided
@@ -2889,13 +3088,19 @@ function askSpecialty(
   tick: PendingDecision['tick'],
   personId: EntityId,
   commissioned: boolean,
+  branchId?: string,
 ): void {
   const person = world.people.get(personId)
   if (!person) return
   const education = world.education.get(personId)
   const level = education?.level ?? 'none'
+  // M-ENLIST §4. THE TEST IS THE GATE. The menu is this branch's jobs that
+  // the score AND the schooling both open — the locked ones are drawn on
+  // the screen with the reason, but they are not options.
+  const aptitude = world.service.get(personId)?.aptitude ?? entryTestScore(world, personId)
   const options = world.spec.specialties
-    .filter((sp) => meetsRequirement(level, sp.requires))
+    .filter((sp) => branchId === undefined || sp.branch === branchId)
+    .filter((sp) => mosBar(sp, aptitude, level) === null)
     // A commission needs a ladder to stand on: a branch with no officer
     // corps cannot be joined as an officer, whatever the degree says.
     .filter(
@@ -2910,7 +3115,7 @@ function askSpecialty(
     kind: 'specialty',
     personId,
     otherId: null,
-    occupationId: commissioned ? 'officer' : null,
+    occupationId: `${branchId ?? ''}:${commissioned ? 'officer' : 'enlisted'}`,
     workplaceId: null,
     monthlyPay: null,
     placeId: null,
@@ -3052,10 +3257,26 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'retirement-certificate':
       // The country is the PRESET'S, never a name typed into engine prose.
       return `Twenty years. ${sentenceCase(homelandName(world))} has something to say about that.`
-    case 'specialty':
+    case 'branch-choice':
       return pending.occupationId === 'officer'
-        ? 'Which branch will you be commissioned into? Your degree opens these doors.'
-        : 'Which uniform? Your schooling opens these doors.'
+        ? 'A commission is a service, not a job. Which one?'
+        : 'Three services are recruiting. Which one do you walk into?'
+    case 'entry-test': {
+      const score = world.service.get(pending.personId)?.aptitude ?? entryTestScore(world, pending.personId)
+      return `The entry test comes back: ${String(score)}. ${sentenceCase(aptitudeWords(score))}`
+    }
+    case 'officer-preference': {
+      const branch = world.spec.branches.find((b) => b.id === pending.occupationId)
+      return branch === undefined
+        ? 'What do you want to do?'
+        : accessionWords(accessionOf(branch))
+    }
+    case 'specialty':
+      // M-ENLIST §2. The branch is already answered by the time this is
+      // asked, so the question is only ever about the trade.
+      return isOfficerPending(pending)
+        ? 'Which trade will you be commissioned into? Your degree opens these doors.'
+        : 'What will you do in the uniform? Your test and your schooling open these doors.'
     case 'promotion-board': {
       const standing = boardStandingFor(world, pending.personId)
       return `The ${standing?.targetTitle ?? 'promotion'} board meets. Put your name in?`
@@ -3542,7 +3763,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
 
     case 'specialty': {
       // An officer does not go to basic, and their trade has its own name.
-      const asOfficer = pending.occupationId === 'officer'
+      const asOfficer = isOfficerPending(pending)
       for (const id of pending.options) {
         const sp = world.spec.specialties.find((x) => x.id === id)
         if (!sp) continue

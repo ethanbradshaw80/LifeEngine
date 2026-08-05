@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v92 — M-ENLIST PHASES 2/3: THE RECRUITING STATION. Enlisting is a
+ *      pipeline now — the commission fork, then which service, then the
+ *      entry test, then a trade the score actually opens — and an officer
+ *      candidate states a preference the branch may or may not honour.
+ *      Every service record carries the score it was written with and the
+ *      track it entered on, so an unplayed world's bytes move even where
+ *      nobody's history did.
  * v91 — M-ENLIST PHASE 1: THE JOBS BECOME REAL JOBS. Twenty-two enlisted
  *      trades with real codes, aptitude gates, signing bonuses and their
  *      own scene pools, and twenty-six officer roles beside them. An entry
@@ -586,7 +593,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 91
+export const SIMULATION_VERSION = 92
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

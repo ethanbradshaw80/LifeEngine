@@ -85,14 +85,15 @@ export const GOLDEN_TICKS = 120
 // The hash moves whenever the unplayed world's bytes move, which includes
 // the version field itself; the changelog in snapshot.ts is the full story
 // and this comment records only the last reason. LATEST: SIMULATION_VERSION
-// 39 — census names (300/500/1000, weighted by real frequency), which
-// changed who everybody is called and nothing else.
+// 92 — M-ENLIST phases 2/3: every service record now carries the entry
+// score it was written with and the track it entered on, so the unplayed
+// world's bytes move even though nobody's history did.
 //
 // NOT bumped for C2's review fixes: the desperation moment, the plea and
 // the charge sheet are player-path only, so an unplayed world is byte
 // identical and DETERMINISM.md §7 puts player-path changes on the schema
 // version instead.
-export const GOLDEN_HASH_HEX = '52de71c3'
+export const GOLDEN_HASH_HEX = '3a841a5c'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -165,7 +166,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":91')
+    expect(text).toContain('"simulationVersion":92')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

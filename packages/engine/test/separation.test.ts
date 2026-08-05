@@ -13,6 +13,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { raisePending, requestEnlistment, resolvePending, setPlayer } from '../src/player.js'
+import { signUp } from './enlisthelper.js'
 import {
   retirementCertificateFor,
   separationFor,
@@ -50,8 +51,7 @@ function aServingPlayer(seed = 4141): { world: World; personId: EntityId } {
   const walkIn = SPECIALTIES.find((sp) => sp.requires === 'none')
   if (!walkIn) throw new Error('no walk-in specialty')
   requestEnlistment(world)
-  resolvePending(world, walkIn.id)
-  resolvePending(world, 'take-the-oath')
+  signUp(world, { specialtyId: walkIn.id })
   return { world, personId: person.id }
 }
 

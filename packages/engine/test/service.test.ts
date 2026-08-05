@@ -18,6 +18,7 @@ import { BRANCH_RANKS,
 import type { ServiceBranch } from '../src/content.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, resolvePending, setPlayer } from '../src/player.js'
+import { signUp, walkToSpecialty } from './enlisthelper.js'
 import { isServing, isVeteran, veteranUnlocks } from '../src/service.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -113,7 +114,7 @@ describe('the peacetime career', () => {
 
     for (let i = 0; i < 200 && !awaitingPlayer(world); i++) advanceTick(world)
     resolvePending(world, 'enlist')
-    resolvePending(world, world.player.pending?.options[0] ?? 'rifleman')
+    signUp(world)
     const enlistedAt = world.service.get(teen.id)?.enlistedAtTick ?? world.tick
 
     // Serve nine months, answering nothing else the safest way.
@@ -293,12 +294,14 @@ describe('the player in uniform', () => {
     expect(world.player.pending?.options).toContain('enlist')
 
     resolvePending(world, 'enlist')
-    // The follow-up question is immediate: which uniform.
-    expect(world.player.pending?.kind).toBe('specialty')
+    // The follow-up questions are immediate: which service, the test, then
+    // which trade — the recruiting station, not one menu.
+    expect(world.player.pending?.kind).toBe('branch-choice')
+    expect(walkToSpecialty(world)).toBe('specialty')
     const options = world.player.pending?.options ?? []
     expect(options.length).toBeGreaterThan(0)
 
-    resolvePending(world, options[0] ?? 'rifleman')
+    resolvePending(world, options[0] ?? '')
     expect(isServing(world, teen.id)).toBe(true)
     expect(world.employment.has(teen.id)).toBe(false)
 
@@ -316,7 +319,7 @@ describe('the player in uniform', () => {
 
     for (let i = 0; i < 200 && !awaitingPlayer(world); i++) advanceTick(world)
     resolvePending(world, 'enlist')
-    resolvePending(world, world.player.pending?.options[0] ?? 'rifleman')
+    signUp(world)
     expect(isServing(world, teen.id)).toBe(true)
 
     // Serve out the term, answering anything else with its safest option.

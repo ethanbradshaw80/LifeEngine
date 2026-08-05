@@ -31,6 +31,8 @@ import {
   decodeWorkMoment,
   isStretchFor,
   occupationById,
+  officerRoleById,
+  sentenceCase,
   standingWords,
   workMomentById,
   specialtyTitleFor,
@@ -326,6 +328,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     reclass: '🔧 Retrain into another trade',
   },
   'service-contract': { 'take-the-oath': 'Raise your right hand' },
+  'entry-test': { continue: 'See what it opens' },
   // M-ECON §8. The bill happens either way; the choice is whether it comes
   // out of what you have or is carried as a debt at your own rate.
   'money-shock': {
@@ -398,6 +401,16 @@ export function optionLabel(world: World, pending: PendingDecision, option: stri
       return moment.labels[option]
     }
   }
+  // M-ENLIST §1/§5c. A branch id and an officer role id are both ids; the
+  // button says what the thing is called.
+  if (pending.kind === 'branch-choice') {
+    const branch = world.spec.branches.find((b) => b.id === option)
+    if (branch) return sentenceCase(branch.name)
+  }
+  if (pending.kind === 'officer-preference') {
+    const role = officerRoleById(option)
+    if (role) return `${role.code} · ${sentenceCase(role.title)}`
+  }
   // Specialty ids become their titles (also fixes the long-standing raw-id
   // labels on the enlistment specialty menu).
   // "3yr" is the engine's id for a term; it is not a label.
@@ -412,10 +425,12 @@ export function optionLabel(world: World, pending: PendingDecision, option: stri
       // trade two ways, on the screen where the player picks it.
       const commissioned =
         pending.kind === 'specialty'
-          ? pending.occupationId === 'officer'
+          ? (pending.occupationId ?? '').endsWith(':officer')
           : world.service.get(pending.personId)?.commissioned === true
       const title = specialtyTitleFor(specialty, commissioned)
-      return pending.kind === 'retrain' ? `Retrain as ${title}` : title
+      if (pending.kind === 'retrain') return `Retrain as ${title}`
+      // M-ENLIST §2: the code is half of what a job IS called.
+      return specialty.code === undefined ? title : `${specialty.code} · ${sentenceCase(title)}`
     }
   }
   return OPTION_LABELS[pending.kind]?.[option] ?? option

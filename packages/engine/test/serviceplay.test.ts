@@ -25,6 +25,7 @@ import {
   resolvePending,
   setPlayer,
 } from '../src/player.js'
+import { walkToSpecialty } from './enlisthelper.js'
 import { isDeployed } from '../src/deployment.js'
 import { isVeteran } from '../src/service.js'
 import { BRANCH_GRADES } from '../src/content.js'
@@ -325,9 +326,9 @@ describe('tab verbs', () => {
 
     const result = requestEnlistment(world)
     if (result.asked) {
-      expect(world.player.pending?.kind).toBe('specialty')
+      expect(walkToSpecialty(world)).toBe('specialty')
       expect(world.player.log.some((entry) => entry.kind === 'walk-in-enlist')).toBe(true)
-      resolvePending(world, world.player.pending?.options[0] ?? 'rifleman')
+      resolvePending(world, world.player.pending?.options[0] ?? '')
       expect(world.service.has(teen.id)).toBe(true)
     } else {
       expect(result.reason.length).toBeGreaterThan(0)
