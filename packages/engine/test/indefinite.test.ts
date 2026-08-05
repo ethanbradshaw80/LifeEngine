@@ -18,6 +18,8 @@ import { BRANCH_GRADES, BRANCH_RANKS } from '../src/content.js'
 import {
   INDEFINITE_AT_YEARS,
   INDEFINITE_MIN_GRADE,
+  INDEFINITE_RETIRE_AT_YEARS,
+  SERVICE_MAX_YEARS,
   indefiniteStandingFor,
   reenlistEligibility,
 } from '../src/reenlistment.js'
@@ -153,5 +155,40 @@ describe('the town lives under the same rule', () => {
     // The assertion above is vacuous if nobody got that far, so prove
     // somebody did — long careers must still exist.
     expect(checked, 'no long enlisted career in any seed').toBeGreaterThan(0)
+  })
+})
+
+/**
+ * WHAT INDEFINITE BUYS (owner: "by indefinite I meant like must serve to 20
+ * years and up to 30 if they choose, not the rest of their life").
+ *
+ * A commitment to the pension point, then an option past it.
+ */
+describe('indefinite is a commitment, not a life sentence', () => {
+  it('runs to thirty years and no further', () => {
+    expect(SERVICE_MAX_YEARS).toBe(30)
+    expect(INDEFINITE_RETIRE_AT_YEARS).toBe(20)
+    expect(INDEFINITE_RETIRE_AT_YEARS).toBeGreaterThan(INDEFINITE_AT_YEARS)
+  })
+
+  it('does not force a sergeant out the moment the pension exists', () => {
+    // The bug this fixes: careerCeilingMonths retired grade 5 at exactly
+    // twenty, so somebody who had just committed to indefinite service was
+    // discharged at the point the choice was supposed to become theirs.
+    let pastTwenty = 0
+    let stoppedByThirty = true
+    for (const seed of [4141, 9001, 31337]) {
+      const world = createWorld(makeSeed(seed), 400)
+      advanceTicks(world, 45 * 12)
+      for (const record of world.service.values()) {
+        const end = record.dischargedAtTick ?? world.tick
+        const years = Math.floor((end - record.enlistedAtTick) / 12)
+        if (record.commissioned === true) continue
+        if (years > 20) pastTwenty++
+        if (years > SERVICE_MAX_YEARS) stoppedByThirty = false
+      }
+    }
+    expect(pastTwenty, 'nobody ever serves past twenty years').toBeGreaterThan(0)
+    expect(stoppedByThirty, 'somebody served past thirty years').toBe(true)
   })
 })

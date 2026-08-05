@@ -15,11 +15,12 @@ closed: the demographic repair (ADR-0019), the player-agency redesign, and
 world presets (ADR-0020) all shipped, the last as milestone W2 on 2026-08-02.
 Work since has been depth in what a player touches — the economy (ADR-0027),
 the floors under a life (ADR-0028), careers (ADR-0029), personal money
-(ADR-0030), and enlistment (ADR-0031, ADR-0032, ADR-0033).
+(ADR-0030), enlistment (ADR-0031 to ADR-0033), and the fixes and the
+Article 15 that playing turned up (ADR-0034 to ADR-0037).
 
 **For where the project actually is, read `RESUME.md`.** It carries the live
 state, the queue, and the recurring failure shapes. Last updated 2026-08-04 at
-SIMULATION_VERSION 93, SCHEMA_VERSION 39, 865 tests green.
+SIMULATION_VERSION 95, SCHEMA_VERSION 40, 890 tests green.
 
 ---
 

@@ -17,7 +17,14 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, createWorld } from '../src/index.js'
-import { awaitingPlayer, hasAnswered, jobBar, resolvePending, setPlayer } from '../src/player.js'
+import {
+  awaitingPlayer,
+  describePending,
+  hasAnswered,
+  jobBar,
+  resolvePending,
+  setPlayer,
+} from '../src/player.js'
 import { isTrustSensitive, TRUST_SENSITIVE_OCCUPATIONS, OCCUPATIONS } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -172,5 +179,62 @@ describe('an heir gets their own life', () => {
     setPlayer(world, person.id)
     world.player.log.push({ decisionId: 1, tick: world.tick, kind: 'education', choice: 'college' })
     expect(hasAnswered(world, 'education')).toBe(false)
+  })
+})
+
+/**
+ * ADR-0034 (owner: "when you get the job it just says the 'job opened up'
+ * — it should really be saying congrats they have extended a job offer and
+ * it tells you to accept, decline, or wait").
+ */
+describe('a job offer is an offer', () => {
+  function anOfferedPlayer(): { world: World; personId: EntityId } {
+    const world = createWorld(makeSeed(12345), 100)
+    const teen = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) < 18)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (!teen) throw new Error('no teenager')
+    setPlayer(world, teen.id)
+    for (let i = 0; i < 400; i++) {
+      if (world.player.pending?.kind === 'job-offer') break
+      if (awaitingPlayer(world)) {
+        resolvePending(world, world.player.pending?.kind === 'education' ? 'work' : (world.player.pending?.options[0] ?? ''))
+      } else advanceTick(world)
+    }
+    if (world.player.pending?.kind !== 'job-offer') throw new Error('no offer arrived')
+    return { world, personId: teen.id }
+  }
+
+  it('reads like somebody chose you, and offers a third answer', () => {
+    const { world } = anOfferedPlayer()
+    const words = describePending(world, world.player.pending!)
+    // Not a noticeboard: no "there is an opening".
+    expect(words.toLowerCase()).not.toContain('there is an opening')
+    expect(words.toLowerCase()).toContain('offer')
+    expect(world.player.pending?.options).toContain('wait')
+  })
+
+  it('holds the offer while you think, then stops holding it', () => {
+    const { world } = anOfferedPlayer()
+    const job = world.player.pending?.occupationId
+    const pay = world.player.pending?.monthlyPay
+
+    // Sleep on it: the same job, the same money, still there.
+    resolvePending(world, 'wait')
+    expect(world.player.pending?.kind).toBe('job-offer')
+    expect(world.player.pending?.occupationId).toBe(job)
+    expect(world.player.pending?.monthlyPay).toBe(pay)
+    // And the words say they are waiting on you.
+    expect(describePending(world, world.player.pending!).toLowerCase()).toContain('time')
+
+    // The last time of asking drops the option rather than pretending.
+    resolvePending(world, 'wait')
+    expect(world.player.pending?.kind).toBe('job-offer')
+    expect(world.player.pending?.options).not.toContain('wait')
+    expect(world.player.pending?.options).toEqual(['accept', 'decline'])
+
+    // Taking it still works after the thinking.
+    resolvePending(world, 'accept')
+    expect(world.employment.get(world.player.personId!)?.occupationId).toBe(job)
   })
 })

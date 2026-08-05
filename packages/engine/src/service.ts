@@ -85,6 +85,8 @@ import {
   optionsFor,
   reenlistEligibility,
   indefiniteStandingFor,
+  INDEFINITE_RETIRE_AT_YEARS,
+  SERVICE_MAX_YEARS,
   srbFor,
   STABILITY_MONTHS,
 } from './reenlistment.js'
@@ -142,11 +144,40 @@ export const RETIREMENT_ELIGIBLE_MONTHS = 240
  * (review S2: with no ceiling at all, a thirty-year SGT reads wrong to
  * anyone who wore the rank).
  */
-function careerCeilingMonths(grade: number): number {
+function careerCeilingMonths(grade: number, indefinite: boolean): number {
+  // ADR-0032, corrected. AN INDEFINITE CAREER RUNS TO THIRTY. The grade-5
+  // ceiling of twenty was written when nothing else capped a sergeant, and
+  // under the twelve-year wall it did the opposite of what it should:
+  // somebody who had just committed to indefinite service was force-retired
+  // at exactly the point the choice was supposed to become theirs.
+  if (indefinite) return SERVICE_MAX_YEARS * 12
   return grade <= 5 ? RETIREMENT_ELIGIBLE_MONTHS : 360
 }
 /** Mandatory retirement age. Nobody serves past it, rank regardless. */
 const SERVICE_RETIREMENT_AGE = 62
+
+/**
+ * ADR-0037. Was this serving person convicted THIS month of something the
+ * court did not send them away for? Returns the offence in words, or null.
+ *
+ * Read-only on `world.criminal`, which crime.ts owns. Confinement is
+ * excluded deliberately: a soldier in a cell is a separation problem, not
+ * an orderly-room one, and the existing path already handles them.
+ */
+function convictionToAnswerFor(world: World, personId: EntityId, tick: Tick): string | null {
+  const record = world.criminal.get(personId)
+  if (!record) return null
+  // THE MONTH AFTER, because runService runs before runCrime in the tick —
+  // a conviction handed down this month is not on the commander's desk
+  // until next month, which is also how it works. Checking the previous
+  // month exactly, once, is what keeps it from firing twice.
+  for (const conviction of record.convictions) {
+    if (conviction.tick !== tick - 1) continue
+    if (conviction.sentenceMonths > 0) return null
+    return offenceById(conviction.kind)?.title ?? conviction.kind
+  }
+  return null
+}
 
 // --- M-ARMY2 misconduct ----------------------------------------------------
 /**
@@ -1520,6 +1551,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     const served = tick - record.enlistedAtTick
     const ceiling = careerCeilingMonths(
       branchSpecFor(world, record.branch).grades[record.rank] ?? 9,
+      record.indefinite === true,
     )
     if (served >= ceiling) {
       discharge(
@@ -1774,13 +1806,35 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // inside five years ends the career — which is also the honest removal
   // path for the ranks up-or-out no longer touches. Not in a theatre
   // (deployment owns those months), not during basic.
-  if (!deployed && monthsIn > 2 && rng.chance(misconductChance(person, performance), 1_000)) {
+  // ADR-0037. THE BRIDGE: a civilian conviction is a military matter.
+  //
+  // The services punish members for civilian offences under the UCMJ, and
+  // this world had the two systems standing side by side saying nothing to
+  // each other. A conviction that ends in a fine or probation produces an
+  // Article 15; one that ends in confinement does NOT, because confinement
+  // already removes the soldier from duty and that path belongs to
+  // discharge.
+  //
+  // SINGLE WRITER PRESERVED (DOMAIN_MAP §2): crime.ts owns `world.criminal`
+  // and never touches rank; this reads it and writes the service record,
+  // which is service.ts's own.
+  // Not `!deployed && ...`: that yields `false` rather than null on a
+  // deployed member, and `false !== null` would fire the whole block.
+  const convictedThisMonth = deployed ? null : convictionToAnswerFor(world, person.id, tick)
+  if (convictedThisMonth !== null || (!deployed && monthsIn > 2 && rng.chance(misconductChance(person, performance), 1_000))) {
     const priorStrikes = eventsFor(world, person.id).filter(
       (e) => e.type === 'disciplined' && tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
     ).length
-    const severe = rng.chance(1, 6)
+    // A conviction the court took seriously enough to convict on is severe
+    // by definition; a careless month rolls for it.
+    const severe = convictedThisMonth !== null || rng.chance(1, 6)
     const willBust = severe && rank > 0 && priorStrikes + 1 < MISCONDUCT_STRIKES
-    const infraction = severe ? rng.pick(SEVERE_INFRACTIONS) : rng.pick(MINOR_INFRACTIONS)
+    const infraction =
+      convictedThisMonth !== null
+        ? `civilian conviction — ${convictedThisMonth}`
+        : severe
+          ? rng.pick(SEVERE_INFRACTIONS)
+          : rng.pick(MINOR_INFRACTIONS)
     // The stripe lost is in the event's own words — a demotion must never
     // be silent (the P1 principle).
     recordEvent(world, tick, {
@@ -1803,6 +1857,22 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // the same stroke.
       rank -= 1
       rankSinceTick = tick
+      world.service.set(person.id, { ...world.service.get(person.id)!, rank, rankSinceTick })
+    }
+    // ADR-0037 §3. THE PAPER, and only for the ones that cost something.
+    // A stripe, or a conviction. Late off leave stays the quiet line it is.
+    if (person.id === world.player.personId && (willBust || convictedThisMonth !== null)) {
+      raisePending(world, {
+        tick,
+        kind: 'article15',
+        personId: person.id,
+        otherId: null,
+        occupationId: String(tick),
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: ['acknowledge'],
+      })
     }
   }
 
@@ -2085,12 +2155,56 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // they serve until retirement, high-year tenure or age, and asking a
   // first sergeant every four years whether he would like to stay is the
   // kind of prompt that teaches a player to stop reading them.
+  //
+  // AND IT IS NOT A LIFE SENTENCE (owner: "must serve to 20 years and up to
+  // 30 if they choose"). Under twenty the commitment is the whole point and
+  // nothing is asked. At twenty the pension exists, and from there on the
+  // question is real again — draw it, or serve on toward the thirty-year
+  // stop. So the silence has an end date rather than being permanent.
   if (record.indefinite === true) {
-    world.service.set(person.id, {
-      ...record,
-      termMonthsLeft: record.termMonths ?? SERVICE_TERM_MONTHS,
-      termPerformanceSum: 0,
-    })
+    const yearsIn = Math.floor((tick - record.enlistedAtTick) / 12)
+    if (yearsIn < INDEFINITE_RETIRE_AT_YEARS) {
+      world.service.set(person.id, {
+        ...record,
+        termMonthsLeft: record.termMonths ?? SERVICE_TERM_MONTHS,
+        termPerformanceSum: 0,
+      })
+      return
+    }
+    if (person.id === world.player.personId) {
+      const landed = raisePending(world, {
+        tick,
+        kind: 'reenlist',
+        personId: person.id,
+        otherId: null,
+        occupationId: 'RE-1',
+        workplaceId: null,
+        monthlyPay: servicePayOn(branchSpecFor(world, branch), rank),
+        placeId: null,
+        options: ['stay', 'retire'],
+      })
+      // The clock halts on the pending; a refused raise holds one more
+      // month and the office asks again (P1: no silent loss of it).
+      world.service.set(person.id, {
+        ...world.service.get(person.id)!,
+        termMonthsLeft: landed ? 0 : 1,
+      })
+      return
+    }
+    // The town answers the same question with its own weighting: most take
+    // the pension at twenty, and the ones who stay are the ones the service
+    // has been good to.
+    if (rng.chance(300 + record.performance / 5, 1_000)) {
+      world.service.set(person.id, {
+        ...record,
+        termMonthsLeft: record.termMonths ?? SERVICE_TERM_MONTHS,
+        termPerformanceSum: 0,
+      })
+    } else {
+      discharge(world, tick, person, record, 'twenty years served', [
+        factor('term-ended', 700),
+      ])
+    }
     return
   }
 

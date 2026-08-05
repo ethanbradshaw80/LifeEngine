@@ -99,7 +99,7 @@ export type VerbRequest =
   | { readonly verb: 'invest'; readonly sectorId: string; readonly cents: number; readonly retirement: boolean }
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
-  | { readonly verb: 'buy-home' }
+  | { readonly verb: 'buy-home'; readonly method: 'cash' | 'mortgage' }
   | { readonly verb: 'start-business'; readonly kindId: string }
 
 export type WorkerRequest =
@@ -414,7 +414,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             break
           }
           case 'buy-home': {
-            const r = buyHomePlayer(world)
+            const r = buyHomePlayer(world, a.method)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

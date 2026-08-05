@@ -34,7 +34,7 @@ import {
   homeValueOf,
   householdCosts,
   incomeTaxFor,
-  loanBar,
+  homePurchaseBar,
   marginalRatePerMille,
   marketLevel,
   monthlyNetOf,
@@ -339,28 +339,34 @@ export function Bank({
                       : world.places.get(household.placeId)
                   if (!place) return <p className="bank-note">Nowhere to buy just yet.</p>
                   const price = homePriceFor(atTodaysPrices(world, rentFor(place.desirability)) as Money)
-                  const bar = loanBar(
-                    world,
-                    'mortgage',
-                    credit,
-                    accounts.loans,
-                    (accounts.savings + accounts.checking) as Money,
-                    price,
-                  )
+                  // ADR-0035. TWO WAYS TO BUY A HOUSE. Cash was not one of
+                  // them: the mortgage check ran first and refused people
+                  // holding the full price. Both bars come from the engine,
+                  // so the greyed button and the refusal always agree.
+                  const cashBar = homePurchaseBar(world, person.id, place.id, 'cash')
+                  const loanRefusal = homePurchaseBar(world, person.id, place.id, 'mortgage')
                   return (
                     <>
                       <Row label={`Buy in ${place.name}`} value={formatMoney(price)} />
-                      <Row label="Deposit needed" value={formatMoney(depositFor(price))} tone="muted" />
-                      {bar !== null && <p className="bank-note bad">{bar}</p>}
+                      <Row label="Deposit if financed" value={formatMoney(depositFor(price))} tone="muted" />
                       <div className="bank-actions">
                         <button
                           type="button"
-                          disabled={bar !== null}
-                          onClick={() => onAct({ verb: 'buy-home' })}
+                          disabled={cashBar !== null}
+                          onClick={() => onAct({ verb: 'buy-home', method: 'cash' })}
                         >
-                          Buy this home
+                          Pay outright
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loanRefusal !== null}
+                          onClick={() => onAct({ verb: 'buy-home', method: 'mortgage' })}
+                        >
+                          Take a mortgage
                         </button>
                       </div>
+                      {cashBar !== null && <p className="bank-note">{cashBar}</p>}
+                      {loanRefusal !== null && <p className="bank-note bad">{loanRefusal}</p>}
                     </>
                   )
                 })()

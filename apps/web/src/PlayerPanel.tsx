@@ -54,8 +54,9 @@ import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
 import { InterviewView } from './Interview.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
+import { Article15Sheet } from './Article15Sheet.js'
 import { Avatar } from './Avatar.js'
-import type { EntityId, Money } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { CreateLifeSpec } from './engine.worker.js'
 
@@ -246,7 +247,12 @@ export function CharacterPicker({ world, onPlay, onCreate, onCancel }: PickerPro
 /** Plain-words labels for the engine's option ids, per decision kind. */
 const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   education: { college: 'Go to college', trade: 'Trade school', work: 'Go straight to work', enlist: 'Enlist' },
-  'job-offer': { accept: 'Take the job', decline: 'Turn it down' },
+  'job-offer': {
+    accept: '🤝 Accept the offer',
+    decline: 'Turn it down',
+    // ADR-0034. Not a refusal — the offer stands while you think.
+    wait: '⏳ Ask for time to think',
+  },
   'move-out': { accept: 'Move out', decline: 'Stay home' },
   courtship: { accept: 'See where it goes', decline: 'Stay friends' },
   marriage: { accept: 'Marry them', decline: 'Not yet' },
@@ -332,6 +338,9 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'service-contract': { 'take-the-oath': 'Raise your right hand' },
   'entry-test': { continue: 'See what it opens' },
+  // ADR-0037. Signing is acknowledging, not agreeing — the punishment is
+  // already imposed. The button must not imply a choice that is not there.
+  article15: { acknowledge: 'Sign & acknowledge' },
   // M-ECON §8. The bill happens either way; the choice is whether it comes
   // out of what you have or is carried as a debt at your own rate.
   'money-shock': {
@@ -559,6 +568,26 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
         </div>
       )
     }
+  }
+
+  // ADR-0037. THE ARTICLE 15. Signing is not agreeing — the punishment is
+  // already imposed by the time this reaches the screen — so there is one
+  // button and it says so.
+  if (pending.kind === 'article15') {
+    return (
+      <div className="overlay" role="dialog" aria-modal="true" aria-label="Record of nonjudicial punishment">
+        <Article15Sheet
+          world={world}
+          personId={pending.personId}
+          disciplineTick={Number(pending.occupationId ?? 0) as Tick}
+        />
+        <div className="dd-actions">
+          <button type="button" onClick={() => onChoose(pending.options[0] ?? 'acknowledge')}>
+            Sign &amp; acknowledge
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // THE LAST TWO DOCUMENTS. A career ends with paperwork, and the sheet is

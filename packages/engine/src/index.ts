@@ -229,6 +229,7 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 export {
   accountsOf,
   buyHome,
+  homePurchaseBar,
   buyInvestment,
   applyMoneyShock,
   creditOf,
@@ -440,6 +441,9 @@ export {
   recruitingStationFor,
   sceneTagsFor,
 } from './enlistment.js'
+export type { HomePurchaseMethod } from './finances.js'
+export { article15For } from './article15.js'
+export type { Article15 } from './article15.js'
 export { OFFICER_ROLES, officerRoleById } from './content.js'
 export type { MosField, OfficerAccession, OfficerRole } from './types.js'
 export { contractFor } from './contract.js'

@@ -65,6 +65,23 @@ export const INDEFINITE_AT_YEARS = 12
 export const INDEFINITE_MIN_GRADE = 5
 
 /**
+ * WHAT INDEFINITE ACTUALLY BUYS THE SERVICE (owner: "by indefinite I meant
+ * like must serve to 20 years and up to 30 if they choose, not the rest of
+ * their life").
+ *
+ * It is not a life sentence and it is not a blank cheque. It is a
+ * commitment to the pension point and an option past it:
+ *
+ *   12 → 20   COMMITTED. No question is asked, and there is no leaving
+ *             short of discharge, disability, misconduct or death. That
+ *             commitment is what the service is buying.
+ *   20 → 30   THEIRS. Asked at each term's end: draw the pension now, or
+ *             serve on. Thirty years is the hard stop for everybody.
+ */
+export const INDEFINITE_RETIRE_AT_YEARS = 20
+export const SERVICE_MAX_YEARS = 30
+
+/**
  * Where a record stands against the wall.
  *
  *   'contract'  under twelve years — ordinary terms, ordinary questions

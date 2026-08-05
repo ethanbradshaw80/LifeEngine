@@ -1308,6 +1308,14 @@ export type PendingKind =
   /** Which uniform: the specialty choice on enlistment. */
   | 'specialty'
   /** M-ENLIST §1. Which service. The first step of the new pipeline. */
+  /**
+   * ADR-0037. The Article 15 paper, player-only. Raised only for the
+   * punishments that actually cost something — a stripe, or a civilian
+   * conviction — because the careless-month infractions are already a
+   * quiet story line and papering all of them is the base-popup spam the
+   * service module has been warned about twice.
+   */
+  | 'article15'
   | 'branch-choice'
   /** M-ENLIST §4. The entry test's result, read before the jobs open. */
   | 'entry-test'

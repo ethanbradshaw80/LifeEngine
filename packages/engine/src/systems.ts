@@ -672,7 +672,12 @@ export function runEmployment(world: World, tick: Tick): void {
         workplaceId: workplace.id,
         monthlyPay: pay,
         placeId: null,
-        options: ['accept', 'decline'],
+        // ADR-0034, owner: "when you get the job it just says the job
+        // opened up — it should really be saying congrats they have
+        // extended a job offer and it tells you to accept, decline, or
+        // wait." SLEEPING ON IT IS A REAL ANSWER: the offer stands, and
+        // it stands for a while rather than for ever.
+        options: ['accept', 'decline', 'wait'],
       })
       continue
     }
@@ -1041,7 +1046,22 @@ export function runHouseholds(world: World, tick: Tick): void {
   const neighbourhoods = placesOfKind(world, 'neighbourhood')
   if (neighbourhoods.length === 0) return
 
-  for (const person of livingPeople(world)) {
+  for (const stale of livingPeople(world)) {
+    // THE LIST IS A SNAPSHOT AND THIS LOOP MOVES PEOPLE (invariant sweep).
+    //
+    // `moveInWithPartner` writes the PARTNER's householdId as well as the
+    // mover's. When that partner's own turn came round, the loop was still
+    // holding the object captured before the move — so `householdOf` read
+    // the household they had already left, `leaveHome` built them a third
+    // household out of it, and the one they had just moved into went on
+    // listing them for ever.
+    //
+    // Measured at seed 4141, tick 533: household 626 held [502, 505] while
+    // 505 lived in 627. A phantom member is not cosmetic — rent splits,
+    // household income and costs, the financial unit and the estate all
+    // count that list.
+    const person = world.people.get(stale.id)
+    if (!person || person.deathTick !== null) continue
     const age = ageAt(person.birthTick, tick)
     if (age < LEAVE_HOME_AGE) continue
 

@@ -66,9 +66,16 @@ Push normally with `git push`.
 ## START HERE (handoff, end of 2026-08-04)
 
 **STATE:** clean tree, everything pushed.
-SIMULATION_VERSION **93** · SCHEMA_VERSION **39** · Classic golden
-**3cb03921** · Heartland golden **841ebc52** · **865 tests** across 75
-files, all green. Full suite ~6 minutes.
+SIMULATION_VERSION **95** · SCHEMA_VERSION **40** · Classic golden
+**967a2f7e** · Heartland golden **48030648** · **890 tests** across 77
+files, all green. Full suite ~7 minutes on a quiet machine.
+
+**RUN ONE SUITE AT A TIME.** Two concurrent runs on this box starve each
+other, and a killed or starved vitest run reports its in-flight files as
+FAIL with no assertion text. That cost real time twice in one session,
+including an hour spent suspecting the engine of non-determinism it does
+not have. The tell: failures cluster in the slowest files and the reason
+line is missing. If there is no AssertionError, suspect the process.
 
 **THE MILITARY MODULE, THE ECONOMY, THE SAFETY NET AND CIVILIAN CAREERS ARE
 ALL FINISHED.** What follows is the record of the last four arcs; the queue
@@ -103,6 +110,16 @@ for new work is below that.
 - **M-MONEY2 — a household is a building, not a purse** (ADR-0030). Money
   belongs to a financial unit: you, your partner, and dependants — where
   dependency is about INCOME, not age.
+- **The Article 15** (ADR-0037), from the owner's spec. Nonjudicial
+  punishment is a paper you sign, and a civilian conviction with no
+  confinement now reaches a serving member. Court-martial fork deliberately
+  not built.
+- **The phantom household member** (ADR-0036), found by a new invariant
+  sweep: `runHouseholds` iterated a snapshot of people while moving them.
+  Rent splits, household income, the financial unit and the estate all
+  counted a list that could name somebody who had left.
+- **A house can be bought with money** (ADR-0035) and **a job offer is an
+  offer** (ADR-0034), both owner-reported while playing.
 - **The twelve-year wall** (ADR-0032). Indefinite or out at twelve years,
   and indefinite wants SGT. No more career corporals.
 - **A conviction reaches the hiring desk** (ADR-0033), and an heir gets
@@ -163,8 +180,12 @@ Assessed 2026-08-04, in rough order of value:
    as a force, record-fade, the victim's side. Violent crime against the
    player, organized crime, civil disputes and juvenile justice are
    deliberately deferred beyond C3.
-6. **Test runtime.** 362 seconds clean, 590 under load, with real timeout
-   flakiness in the war suites. Grows linearly with every milestone.
+6. **Test runtime.** ~400 seconds clean and climbing; the invariant sweep
+   alone is 145 of them. Worth splitting into a fast tier (every change)
+   and a slow tier (sweeps, wars, goldens — before commits only) before it
+   stops being run at all. Long tests now carry explicit timeouts and build
+   their fixtures in `beforeAll`, so a slow machine no longer reports a
+   timeout as an assertion failure.
 
 ### Still open, and honest about it
 

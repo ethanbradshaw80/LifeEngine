@@ -85,16 +85,16 @@ export const GOLDEN_TICKS = 120
 // The hash moves whenever the unplayed world's bytes move, which includes
 // the version field itself; the changelog in snapshot.ts is the full story
 // and this comment records only the last reason. LATEST: SIMULATION_VERSION
-// 93 — the twelve-year wall (ADR-0032): a career stops being a series of
-// contracts at twelve years, and a corporal cannot make one at all, so
-// every town's serving population differs. A criminal record now closes
-// the trusted work for everybody (ADR-0033), which moves hiring too.
+// 95 — the Article 15 (ADR-0037): a civilian conviction with no
+// confinement now reaches a serving member as a company punishment, and
+// NPCs take the mark like anybody else — so the towns' service records
+// genuinely differ, not just the version field.
 //
 // NOT bumped for C2's review fixes: the desperation moment, the plea and
 // the charge sheet are player-path only, so an unplayed world is byte
 // identical and DETERMINISM.md §7 puts player-path changes on the schema
 // version instead.
-export const GOLDEN_HASH_HEX = '3cb03921'
+export const GOLDEN_HASH_HEX = '967a2f7e'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -167,7 +167,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":93')
+    expect(text).toContain('"simulationVersion":95')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

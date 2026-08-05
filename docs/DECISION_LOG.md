@@ -49,6 +49,10 @@ Reversibility · Review trigger.
 | 0031 | **Enlistment is a recruiting station, not a menu** | **Accepted** |
 | 0032 | **The twelve-year wall: indefinite or out, and it wants SGT** | **Accepted** |
 | 0033 | **A conviction reaches the hiring desk; an heir gets their own life** | **Accepted** |
+| 0034 | **A job offer is an offer — accept, decline, or ask for time** | **Accepted** |
+| 0035 | **A house can be bought with money, not only with a mortgage** | **Accepted** |
+| 0036 | **The phantom household member: a loop that mutated what it iterated** | **Accepted** |
+| 0037 | **The Article 15: a paper you sign, and a bridge from the courthouse** | **Accepted** |
 
 ---
 
@@ -1379,3 +1383,146 @@ time an unscoped read of that log has produced a bug.
 
 **Consequences.** Folded into SIMULATION_VERSION 93 and SCHEMA_VERSION 39
 with ADR-0032. Hiring differs in every seed.
+
+---
+
+## ADR-0034 — A job offer is an offer
+
+**Date.** 2026-08-05. **Status.** Accepted (owner, playing).
+
+**Context.** *"When you get the job it just says the 'job opened up' — it
+should really be saying congrats they have extended a job offer and it tells
+you to accept, decline, or wait."*
+
+The prompt read "There is an opening for a shop clerk", which is what the
+newspaper says, not what somebody says to you after they have decided they
+want you. And the two answers were take it or lose it.
+
+**Decision.** The words say somebody chose you. A third answer, `wait`, holds
+the offer — the same job, the same money, the same employer — for
+`OFFER_WAITS_ALLOWED` months, after which the option disappears from the
+menu rather than silently failing. An employer waits, but not indefinitely,
+and the screen says which month it is.
+
+**Consequences.** Player-path only; rides the schema version.
+
+---
+
+## ADR-0035 — A house can be bought with money
+
+**Date.** 2026-08-05. **Status.** Accepted (owner, playing).
+
+**Context.** *"When you go to the bank to buy a house it makes you buy it as
+a mortgage no matter what and then it forces you into a repayment plan and
+there is no way to pay for the actual house. This is a real issue."*
+
+It was worse than an omission. `buyHome` took a mortgage unconditionally,
+and the mortgage's **eligibility check ran before any money changed hands** —
+so somebody sitting on the full price in savings could be refused the house
+entirely, because the bank would not lend to them.
+
+**Decision.** `buyHome` takes a method: `cash` pays the whole price and
+creates no loan; `mortgage` is what it always did. `homePurchaseBar` answers
+why either is shut, in the bar pattern, so the greyed button and the refusal
+cannot disagree — and the cash refusal says how many dollars short they are
+rather than "the purchase did not go through". The Bank offers both.
+
+**Consequences.** Player-path only. Existing callers default to `mortgage`,
+which is what they meant.
+
+---
+
+## ADR-0036 — The phantom household member
+
+**Date.** 2026-08-05. **Status.** Accepted (found by the invariant sweep).
+
+**Context.** A new invariant sweep over five seeds and sixty years found
+households listing people who lived somewhere else. Reproduced at seed 4141,
+tick 533: household 626 held `[502, 505]` while 505 lived in 627.
+
+**Cause.** `runHouseholds` iterates `livingPeople(world)` — a snapshot — and
+`moveInWithPartner` writes the **partner's** householdId as well as the
+mover's. When that partner's own turn came round the loop was still holding
+the object captured before the move, so `householdOf` read the household
+they had already left, `leaveHome` built them a third household out of it,
+and the one they had just moved into went on listing them for ever.
+
+This is not cosmetic. Rent splits by income share, household income and
+costs, the financial unit (ADR-0030) and the estate all count that list.
+
+**Decision.** Re-read the person from the world at the top of each
+iteration. Two lines, and the sweep that found it stays in the suite.
+
+**Consequences.** SIMULATION_VERSION 94. Both goldens held across the fix
+itself — the collision does not occur inside their 240-tick horizon — and
+moved only because the version field is part of the hashed bytes.
+
+**The lesson worth keeping.** Every other invariant in that sweep passed.
+This class of bug — a loop mutating what it iterates — produces no error, no
+test failure and no visible symptom; it just quietly makes the numbers
+wrong. The sweep is the only thing that would ever have caught it.
+
+---
+
+## ADR-0037 — The Article 15: a paper you sign, and a bridge from the courthouse
+
+**Date.** 2026-08-05. **Status.** Accepted (owner spec: `article15_paper_spec.md`,
+`article15_paper.html`).
+
+**Context.** The M-ARMY2 misconduct pass already produced everything a
+company punishment needs: the `'disciplined'` event, the busted stripe, the
+third-mark discharge, and real infraction text. What it had never had was a
+document. The single most consequential thing that can happen to a serving
+player short of a wound arrived as one line in the story log — less ceremony
+than a promotion board.
+
+And the crime system and the service system stood side by side saying nothing
+to each other. A soldier could be convicted in the town's courthouse and the
+orderly room would never hear about it, which is exactly backwards: the
+services punish members for civilian offences, and that is what nonjudicial
+punishment is *for*.
+
+**Decision.** One new paper, one player-only pending, one read-only bridge.
+The discipline maths, the three-strike discharge and `crime.ts`'s ownership
+of `world.criminal` are untouched.
+
+1. **`article15For(world, personId, tick)`** returns plain data, like
+   `contractFor` — command, station, name, the grade before and after a
+   bust, the offence, the numbered findings, the mark number, the control
+   number. The component writes nothing. Returns `undefined` when no such
+   punishment exists, so a rewritten record cannot produce a document about
+   a thing that did not happen.
+2. **`Article15Sheet.tsx`** in the paper family, reusing the `.contract-*`
+   classes. No new look: a service life accumulates documents and they
+   should read like documents from the same office. The crest is an
+   invented device, never a seal (charter §3).
+3. **Anti-spam, which the owner asked for explicitly.** The paper is raised
+   only for a **stripe bust** or a **civilian conviction**. Late off leave
+   stays the quiet story line it already was, and NPCs never get the paper —
+   it is a player surface, the record is everybody's.
+4. **The bridge lives in `service.ts`**, not `crime.ts`. Single writer
+   preserved (DOMAIN_MAP §2): `crime.ts` owns the criminal record and never
+   touches rank; this reads it and writes the service record, which is its
+   own. A conviction with **no confinement** becomes a company punishment
+   and counts as a strike like any other. A conviction **with** confinement
+   does not — the soldier is already off duty and that belongs to the
+   separation path.
+5. **Signing is not agreeing.** One option, `acknowledge`. Nonjudicial
+   punishment is imposed by the commander; the stripe is gone before the
+   paper reaches the screen, consistent with the module's own rule that the
+   punishments are never a choice. The accept-vs-demand-court-martial fork
+   the spec flagged as optional is deliberately **not** built: it opens a
+   court-martial branch and shifts that philosophy.
+
+**Consequences.** SIMULATION_VERSION 95, SCHEMA_VERSION 40. Both goldens
+move for a real reason this time — NPCs take the mark too, so every seed's
+service records differ.
+
+**Two traps hit while building it.** The bridge fires **the month after**
+the conviction, because `runService` runs before `runCrime` in the tick — a
+conviction handed down this month is not on the commander's desk until next
+month, which is also how it works. And `article15.ts` could not import
+`rankTitle` from `service.ts`: that module imports `player.ts`, which
+imports this one to render the paper, and the import ratchet caught the
+cycle immediately. The ladder is read inline instead, the same trick
+`health.ts` and `finances.ts` already use.

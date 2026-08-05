@@ -5,7 +5,7 @@ application built on top of it.
 
 > **Current phase: playable.** Layers 1–3 are complete and two Layer 4 institutions
 > (military service, crime and justice) plus an economy are built and playable.
-> ~46,000 lines across 51 engine modules and 23 UI components, with **865 tests**
+> ~46,000 lines across 51 engine modules and 23 UI components, with **890 tests**
 > covering them.
 
 ---
@@ -100,7 +100,7 @@ results. This is an engineering requirement, not an aspiration, and it is enforc
 - **Migrations.** Every persisted-field change gets a numbered migration with a test
   that loads a real old save.
 
-Current: `SIMULATION_VERSION` **93** · `SCHEMA_VERSION` **39** · 865 tests green.
+Current: `SIMULATION_VERSION` **95** · `SCHEMA_VERSION` **40** · 890 tests green.
 
 Full rules: [docs/DETERMINISM.md](docs/DETERMINISM.md).
 
@@ -115,7 +115,7 @@ LifeEngine/
 ├── LIFE_ENGINE_BOOTSTRAP.md     # Original specification, preserved unchanged
 ├── packages/
 │   ├── engine/                  # Pure TypeScript simulation. THE PRODUCT. 51 modules.
-│   ├── persistence/             # Save serialization, schema versions, 38 migrations
+│   ├── persistence/             # Save serialization, schema versions, 39 migrations
 │   └── shared/                  # EntityId, Tick, Money, Seed — types only
 ├── apps/
 │   └── web/                     # React + Vite. Owns all I/O. 23 components.
@@ -142,7 +142,7 @@ npm run dev
 
 Dev server at http://localhost:5173.
 
-The full suite takes roughly six minutes. `npx vitest run <path>` runs a single file.
+The full suite takes roughly seven minutes. Run one at a time — two concurrent runs starve each other and report timeouts as failures. `npx vitest run <path>` runs a single file.
 
 ---
 
@@ -192,7 +192,7 @@ with no dial for it.
 | Layer 4 — economy and finance | **Complete** |
 | Layer 4 — government, healthcare, media, transport | Not started |
 | Accounts and cloud saves | Milestone 6, not started |
-| Tests | 865 across 75 files, green |
+| Tests | 890 across 77 files, green |
 
 The current arc is player-experience-first (ADR-0018): depth in what a player actually
 touches, rather than new institutions. See [RESUME.md](RESUME.md) for the live queue.

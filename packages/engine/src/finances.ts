@@ -242,26 +242,63 @@ export function takeLoan(
  * the other is not a purchase. Returns false when it cannot be done, which
  * the caller reports rather than pretending.
  */
+/** How the house is being paid for. */
+export type HomePurchaseMethod = 'cash' | 'mortgage'
+
+/**
+ * ADR-0035, owner: "when you go to the bank to buy a house it makes you buy
+ * it as a mortgage no matter what and then it forces you into a repayment
+ * plan and there is no way to pay for the actual house."
+ *
+ * He is right and it was worse than an omission. `buyHome` took a mortgage
+ * unconditionally, and the mortgage's own eligibility check ran BEFORE any
+ * money changed hands — so somebody sitting on the full price in savings
+ * could be refused the house entirely because the bank would not lend to
+ * them. Cash is not a lesser way to buy a house.
+ *
+ * The bar pattern, as everywhere else: the buttons and the refusals read
+ * this, so a greyed row and an honest "no" cannot disagree.
+ */
+export function homePurchaseBar(
+  world: World,
+  personId: EntityId,
+  placeId: EntityId,
+  method: HomePurchaseMethod,
+): string | null {
+  const place = world.places.get(placeId)
+  if (!place) return 'No such address.'
+  const accounts = accountsOf(world, personId)
+  if (accounts.homePlaceId !== null) return 'You already own a home.'
+  const price = homePriceFor(rentAt(world, place.desirability))
+  const cash = (accounts.savings + accounts.checking) as Money
+  if (method === 'cash') {
+    return cash >= price
+      ? null
+      : `Outright costs ${String(Math.ceil((price - cash) / 100))} dollars more than you have.`
+  }
+  return loanBar(world, 'mortgage', creditOf(world, personId), accounts.loans, cash, price)
+}
+
 export function buyHome(
   world: World,
   tick: Tick,
   personId: EntityId,
   placeId: EntityId,
+  /** Defaults to a mortgage, which is what every existing caller meant. */
+  method: HomePurchaseMethod = 'mortgage',
 ): boolean {
   const place = world.places.get(placeId)
   if (!place) return false
   const accounts = accountsOf(world, personId)
-  if (accounts.homePlaceId !== null) return false
+  if (homePurchaseBar(world, personId, placeId, method) !== null) return false
   const price = homePriceFor(rentAt(world, place.desirability))
-  const deposit = depositFor(price)
-  const cash = (accounts.savings + accounts.checking) as Money
-  if (loanBar(world, 'mortgage', creditOf(world, personId), accounts.loans, cash, price) !== null) {
-    return false
-  }
+  // PAYING CASH PAYS THE WHOLE PRICE. A mortgage pays the deposit now and
+  // owes the rest; there is no third thing.
+  const nowDue = method === 'cash' ? price : depositFor(price)
 
-  // The deposit comes out of savings first, then checking.
-  const fromSavings = Math.min(deposit, accounts.savings)
-  const fromChecking = deposit - fromSavings
+  // The money comes out of savings first, then checking.
+  const fromSavings = Math.min(nowDue, accounts.savings)
+  const fromChecking = nowDue - fromSavings
   setAccounts(world, {
     ...accounts,
     savings: (accounts.savings - fromSavings) as Money,
@@ -269,12 +306,14 @@ export function buyHome(
     homePlaceId: placeId,
     homePurchasePrice: price,
   })
-  const borrowed = (price - deposit) as Money
-  takeLoan(world, tick, personId, 'mortgage', borrowed)
-  // takeLoan credits savings with the principal; a mortgage never touches
-  // the buyer's hands, so it goes straight back out to the seller.
-  const after = accountsOf(world, personId)
-  setAccounts(world, { ...after, savings: (after.savings - borrowed) as Money })
+  if (method === 'mortgage') {
+    const borrowed = (price - nowDue) as Money
+    takeLoan(world, tick, personId, 'mortgage', borrowed)
+    // takeLoan credits savings with the principal; a mortgage never touches
+    // the buyer's hands, so it goes straight back out to the seller.
+    const after = accountsOf(world, personId)
+    setAccounts(world, { ...after, savings: (after.savings - borrowed) as Money })
+  }
 
   recordEvent(world, tick, {
     type: 'bought-home',
@@ -287,8 +326,11 @@ export function buyHome(
     decision: 'move',
     significance: 'major',
     inputs: [factor('own-choice', 1000)],
-    chosen: 'bought a home in ' + place.name,
-    rejected: ['renting'],
+    chosen:
+      method === 'cash'
+        ? `bought a home outright in ${place.name}`
+        : `bought a home in ${place.name}`,
+    rejected: method === 'cash' ? ['renting', 'a mortgage'] : ['renting'],
     streamId: Stream.Economy,
   })
   return true

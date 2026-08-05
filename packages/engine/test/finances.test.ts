@@ -30,7 +30,15 @@ import {
   monthlyNetOf,
   rentFor,
 } from '../src/index.js'
-import { distributeEstate, netWorthOf, personalIncome, personalMonthlyNet } from '../src/finances.js'
+import {
+  accountsOf,
+  buyHome,
+  distributeEstate,
+  homePurchaseBar,
+  netWorthOf,
+  personalIncome,
+  personalMonthlyNet,
+} from '../src/finances.js'
 import { atTodaysPrices } from '../src/economy.js'
 import { salesTaxOn } from '../src/tax.js'
 import type { World } from '../src/types.js'
@@ -604,5 +612,68 @@ describe('arrears never becomes a trap', () => {
     for (const event of written) {
       expect(Number.isFinite(Number(event.detail))).toBe(true)
     }
+  })
+})
+
+/**
+ * ADR-0035 (owner: "when you go to the bank to buy a house it makes you buy
+ * it as a mortgage no matter what and then it forces you into a repayment
+ * plan and there is no way to pay for the actual house").
+ */
+describe('a house can be bought with money', () => {
+  function aBuyer(seed: number, cents: number) {
+    const world = createWorld(makeSeed(seed), 100)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 25)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    const place = [...world.places.values()].find((p) => p.kind === 'neighbourhood')
+    if (!place) throw new Error('no neighbourhood')
+    world.accounts.set(person.id, {
+      personId: person.id,
+      checking: 0 as Money,
+      savings: cents as Money,
+      brokerage: 0 as Money,
+      retirement: 0 as Money,
+      holdings: [],
+      loans: [],
+      monthsPaid: 0,
+      missedPayments: 0,
+      defaults: 0,
+      homePlaceId: null,
+      homePurchasePrice: 0 as Money,
+      monthsWorked: 0,
+      lastMonthlyPay: 0 as Money,
+      unemploymentUntilTick: null,
+    } as never)
+    return { world, personId: person.id, placeId: place.id }
+  }
+
+  it('pays outright and takes on no debt at all', () => {
+    const { world, personId, placeId } = aBuyer(4141, 100_000_000)
+    expect(homePurchaseBar(world, personId, placeId, 'cash')).toBeNull()
+    expect(buyHome(world, world.tick, personId, placeId, 'cash')).toBe(true)
+
+    const after = accountsOf(world, personId)
+    expect(after.homePlaceId).toBe(placeId)
+    // THE WHOLE POINT: no loan, no repayment plan, nothing owed.
+    expect(after.loans.length).toBe(0)
+    // And the whole price actually left the account.
+    expect(after.savings + after.checking).toBe(100_000_000 - after.homePurchasePrice)
+  })
+
+  it('says how much more is needed rather than silently refusing', () => {
+    const { world, personId, placeId } = aBuyer(4141, 1_000)
+    const bar = homePurchaseBar(world, personId, placeId, 'cash')
+    expect(bar).not.toBeNull()
+    expect(bar).toContain('dollars more')
+    expect(buyHome(world, world.tick, personId, placeId, 'cash')).toBe(false)
+    expect(accountsOf(world, personId).homePlaceId).toBeNull()
+  })
+
+  it('still finances for somebody who wants the mortgage', () => {
+    const { world, personId, placeId } = aBuyer(4141, 100_000_000)
+    expect(buyHome(world, world.tick, personId, placeId, 'mortgage')).toBe(true)
+    expect(accountsOf(world, personId).loans.length).toBe(1)
   })
 })

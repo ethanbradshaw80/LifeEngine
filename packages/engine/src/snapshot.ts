@@ -28,6 +28,23 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v95 — THE ARTICLE 15 (ADR-0037). Nonjudicial punishment becomes a paper
+ *      the player signs, and a civilian conviction with no confinement now
+ *      reaches a serving member as a company punishment — a bridge the
+ *      crime and service systems never had. NPCs take the mark too, so
+ *      every seed's service records differ from v94.
+ * v94 — A PHANTOM HOUSEHOLD MEMBER, and what indefinite actually means.
+ *      `runHouseholds` iterated a SNAPSHOT of people while moving them:
+ *      a partner moved by somebody else's turn was then processed against
+ *      the household they had already left, so the one they moved into
+ *      went on listing them for ever. Rent splits, household income and
+ *      costs, the financial unit and the estate all count that list.
+ *      Measured at seed 4141 tick 533. Indefinite service also stopped
+ *      meaning "for ever": twenty years committed, thirty at most.
+ *      THE GOLDENS HELD ACROSS THE FIX ITSELF — the collision does not
+ *      occur inside their 240-tick horizon — and moved only because the
+ *      version field is part of the bytes. Behaviour changed regardless,
+ *      so the version had to move (DETERMINISM.md §7).
  * v93 — THE TWELVE-YEAR WALL (ADR-0032) and two things playing caught
  *      (ADR-0033). Twelve years is where a career stops being a series of
  *      contracts: indefinite or out, and indefinite wants SGT. A corporal
@@ -600,7 +617,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 93
+export const SIMULATION_VERSION = 95
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

@@ -113,6 +113,7 @@ import {
   applyMoneyShock,
   fileBankruptcy,
   buyHome,
+  homePurchaseBar,
   buyInvestment,
   creditOf,
   moveBetweenOwnAccounts,
@@ -132,6 +133,7 @@ import {
 } from './interview.js'
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
+import { article15For } from './article15.js'
 import {
   accessionOf,
   accessionWords,
@@ -143,6 +145,7 @@ import {
 } from './enlistment.js'
 import { OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec } from './types.js'
+import type { HomePurchaseMethod } from './finances.js'
 import { businessBar, businessKindById } from './business.js'
 import { openBusiness } from './finances.js'
 import { atTodaysPrices } from './economy.js'
@@ -625,14 +628,22 @@ export function borrowPlayer(
     : { done: false, reason: 'The bank would not write it.' }
 }
 
-export function buyHomePlayer(world: World): { done: boolean; reason: string } {
+export function buyHomePlayer(
+  world: World,
+  /** ADR-0035. Cash or a mortgage — both are real ways to buy a house. */
+  method: HomePurchaseMethod = 'mortgage',
+): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
   if (person.householdId === null) return { done: false, reason: 'You have no address to buy.' }
   const household = world.households.get(person.householdId)
   if (!household) return { done: false, reason: 'You have no address to buy.' }
-  logVerb(world, 'buy-home', String(household.placeId))
-  return buyHome(world, world.tick, person.id, household.placeId)
+  // The refusal the button was greyed with, said out loud — rather than
+  // "the purchase did not go through", which explains nothing.
+  const bar = homePurchaseBar(world, person.id, household.placeId, method)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'buy-home', `${String(household.placeId)}:${method}`)
+  return buyHome(world, world.tick, person.id, household.placeId, method)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The purchase did not go through.' }
 }
@@ -1597,6 +1608,9 @@ export function resolvePending(world: World, choice: string): void {
     kind: 'reenlist-term' | 'reenlist-option' | 'service-contract'
     state: string
   } | null = null
+  // ADR-0034. THE OFFER SLEPT ON, re-raised after commit for the usual
+  // reason: raisePending refuses while this pending still holds the slot.
+  let offerAgain: PendingDecision | null = null
   // M-ENLIST §5c. THE COMMISSION, carried out of the switch for the same
   // reason as everything else here: enlistPerson can raise the contract,
   // and a raise while this pending still holds the slot is refused.
@@ -1653,6 +1667,15 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'job-offer': {
+      // ADR-0034. WAITING KEEPS IT ALIVE, for a while. The offer is
+      // re-raised after commit — the trap this file has fallen into seven
+      // times — and lapses once the employer has waited long enough.
+      if (choice === 'wait') {
+        if (waitsOnOffer(world, person.id) < OFFER_WAITS_ALLOWED) {
+          offerAgain = pending
+        }
+        break
+      }
       if (choice === 'accept' && pending.occupationId && pending.workplaceId !== null && pending.monthlyPay !== null) {
         const occupation = occupationById(pending.occupationId)
         hirePerson(world, pending.tick, person, occupation, pending.workplaceId, pending.monthlyPay, [
@@ -1905,6 +1928,14 @@ export function resolvePending(world: World, choice: string): void {
           officerNext = { role: assignment.role, branch, assignment, aptitude }
         }
       }
+      break
+    }
+
+    case 'article15': {
+      // ADR-0037. SIGNING IS NOT AGREEING. Nonjudicial punishment is
+      // imposed by the commander — the stripe is already gone by the time
+      // this paper reaches the player, exactly as the module's own rule
+      // says the punishments are never a choice. Acknowledging closes it.
       break
     }
 
@@ -2409,16 +2440,20 @@ export function resolvePending(world: World, choice: string): void {
           // straight to the oath, which is still a ceremony and still the
           // thing that executes it. No term also means no term bonus, which
           // the scene says out loud rather than quietly not paying.
+          // NO TERMS ON OFFER MEANS INDEFINITE, whichever word the button
+          // used. At twelve years that word is "go indefinite"; at twenty,
+          // for somebody already indefinite, it is "stay on" — and both
+          // have to reach the oath, because the oath is what resets the
+          // term. Returning null here left termMonthsLeft at zero and the
+          // office asked again every single month.
           const terms = termsOfferedTo(world, person, pending.tick)
           contractNext =
-            choice === 'indefinite'
+            choice === 'indefinite' || terms.length === 0
               ? {
                   kind: 'service-contract',
                   state: encodeContract(pending.occupationId ?? 'RE-1', 0, 'none', 0),
                 }
-              : terms.length === 0
-                ? null
-                : {
+              : {
                     kind: 'reenlist-term',
                     state: encodeContract(
                       pending.occupationId ?? 'RE-1',
@@ -2563,6 +2598,25 @@ export function resolvePending(world: World, choice: string): void {
   // The trial opens with the slot free, for the same reason.
   if (trialOpens !== null) {
     openCase(world, pending.tick, person.id, trialOpens.offence, trialOpens.taken)
+  }
+
+  // ADR-0034. THE OFFER AGAIN, with the slot free. Same job, same pay,
+  // same employer — a month older, which the words say.
+  if (offerAgain !== null) {
+    raisePending(world, {
+      tick: pending.tick,
+      kind: 'job-offer',
+      personId: offerAgain.personId,
+      otherId: null,
+      occupationId: offerAgain.occupationId,
+      workplaceId: offerAgain.workplaceId,
+      monthlyPay: offerAgain.monthlyPay,
+      placeId: null,
+      options:
+        waitsOnOffer(world, person.id) >= OFFER_WAITS_ALLOWED
+          ? ['accept', 'decline']
+          : ['accept', 'decline', 'wait'],
+    })
   }
 
   // M-ENLIST §5c. THE COMMISSION, with the slot free.
@@ -3231,6 +3285,43 @@ export function hasAnswered(world: World, kind: PendingKind): boolean {
 }
 
 /**
+ * ADR-0034. How many times this offer has already been slept on, and what
+ * that leaves. An employer waits, but not indefinitely.
+ */
+export const OFFER_WAITS_ALLOWED = 2
+
+function held_of(world: World, pending: PendingDecision): string {
+  const waited = waitsOnOffer(world, pending.personId)
+  if (waited === 0) return ''
+  const left = OFFER_WAITS_ALLOWED - waited
+  return left <= 0
+    ? ' They want an answer this time.'
+    : ` You have already asked for time once; they will hold it ${String(left)} more month${left === 1 ? '' : 's'}.`
+}
+
+/**
+ * How many times the player has deferred the offer standing right now.
+ *
+ * The log records the CHOICE, not what it was about, so this counts the
+ * unbroken run of waits at the end — which is the same thing, because only
+ * one offer is ever open at a time and accepting or declining closes it.
+ */
+function waitsOnOffer(world: World, personId: EntityId): number {
+  let waits = 0
+  for (let i = world.player.log.length - 1; i >= 0; i--) {
+    const entry = world.player.log[i]
+    if (entry === undefined) break
+    if (entry.kind !== 'job-offer') continue
+    if (entry.personId !== personId) continue
+    // Only the unbroken run of waits at the end counts: an accepted or
+    // declined offer closes the book on the ones before it.
+    if (entry.choice !== 'wait') break
+    waits++
+  }
+  return waits
+}
+
+/**
  * Human-readable prompt for a pending decision. Lives in the engine so the
  * text comes from the same facts as the records — the UI renders, it does not
  * author.
@@ -3244,11 +3335,21 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'education':
       return `You are ${age} and finished with secondary school. What next?`
     case 'job-offer': {
+      // ADR-0034. AN OFFER, NOT A NOTICEBOARD. This used to read "there is
+      // an opening for a shop clerk" — which is what the newspaper says,
+      // not what somebody says to you after they have decided they want
+      // you. The difference is the whole feeling of getting a job.
       const role = pending.occupationId
         ? withArticle(occupationById(pending.occupationId).title)
         : 'a job'
-      const where = pending.workplaceId === null ? '' : ` at ${world.places.get(pending.workplaceId)?.name ?? 'a workplace'}`
-      return `There is an opening for ${role}${where}. Take it?`
+      const where =
+        pending.workplaceId === null
+          ? ''
+          : ` ${world.places.get(pending.workplaceId)?.name ?? 'a workplace'}`
+      const held = held_of(world, pending)
+      return where === ''
+        ? `Good news — they want to offer you ${role}.${held}`
+        : `Good news —${where} has offered you ${role}.${held}`
     }
     case 'move-out': {
       const where = pending.placeId === null ? 'town' : (world.places.get(pending.placeId)?.name ?? 'town')
@@ -3341,6 +3442,14 @@ export function describePending(world: World, pending: PendingDecision): string 
       return sheet === undefined
         ? 'Your service is at an end.'
         : `${sheet.totalService} in ${sheet.branch}. This is your discharge record — everything the service will say about you from here.`
+    }
+    case 'article15': {
+      const sheet = article15For(world, pending.personId, Number(pending.occupationId ?? 0) as Tick)
+      return sheet === undefined
+        ? 'The orderly room has paperwork for you.'
+        : sheet.reduced
+          ? `The company commander has imposed nonjudicial punishment. You have lost a grade. Sign for it.`
+          : `The company commander has imposed nonjudicial punishment: ${sheet.offence}. Sign for it.`
     }
     case 'retirement-certificate':
       // The country is the PRESET'S, never a name typed into engine prose.
@@ -3535,6 +3644,14 @@ export function describePending(world: World, pending: PendingDecision): string 
         return servedYears >= 20
           ? `Twelve years and more, ${title}. Indefinite status, or retire on the pension you have earned?`
           : `Twelve years, ${title}. The service stops writing terms here — go indefinite and serve on, or take off the uniform. Indefinite carries no term, and no term bonus.`
+      }
+      // Already indefinite and past twenty: the commitment is served and
+      // the choice is genuinely theirs again, up to the thirty-year stop.
+      if (record?.indefinite === true && servedYears >= 20) {
+        const left = 30 - servedYears
+        return left <= 0
+          ? `Thirty years, ${title}. That is the end of it.`
+          : `${String(servedYears)} years, ${title}. The pension is yours whenever you want it — or serve on. ${String(left)} year${left === 1 ? '' : 's'} left before the service retires you regardless.`
       }
       return servedYears >= 20
         ? `Twenty years in, ${title}. Sign for another term, or retire on the pension you have earned?`
