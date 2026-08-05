@@ -967,6 +967,36 @@ export function servicePayOn(branch: ServiceBranchSpec, rank: number): Money {
 }
 
 /** Standard enlistment term, months. */
+/**
+ * THE JOBS A CRIMINAL RECORD CLOSES (ADR-0033, owner: "it also doesn't seem
+ * like convictions are affecting people's ability to get jobs").
+ *
+ * He was right. The record dragged the odds that an opportunity turned up
+ * at all, and did nothing else — so a convicted felon could still be hired
+ * as the town constable, teach its children, or count its money.
+ *
+ * These are the roles that in practice require a clean record: a licence, a
+ * badge, a duty of care, or somebody else's money. Everything NOT on this
+ * list stays open, which is the important half — Law 7 says failure creates
+ * a chapter, not a dead end, and a man with a conviction can still lay
+ * bricks, cook, drive, and run a crew.
+ */
+export const TRUST_SENSITIVE_OCCUPATIONS: readonly string[] = [
+  // Sworn. A conviction and a badge do not go together anywhere.
+  'constable', 'sergeant', 'police-chief',
+  // Children.
+  'teacher', 'department-head', 'assistant-principal', 'principal',
+  // Licensed care. The licence is the gate, not the employer.
+  'nurse', 'charge-nurse', 'nurse-manager', 'aide',
+  'doctor', 'resident', 'chief-of-medicine', 'pharmacist',
+  // Other people's money.
+  'bookkeeper', 'accountant', 'senior-accountant', 'partner',
+]
+
+export function isTrustSensitive(occupationId: string): boolean {
+  return TRUST_SENSITIVE_OCCUPATIONS.includes(occupationId)
+}
+
 export const SERVICE_TERM_MONTHS = 48
 
 /**

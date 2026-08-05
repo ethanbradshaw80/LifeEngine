@@ -1431,6 +1431,21 @@ export interface PlayerChoice {
   readonly tick: Tick
   readonly kind: PendingKind
   readonly choice: string
+  /**
+   * WHOSE CHOICE IT WAS (ADR-0033).
+   *
+   * The log is never cleared on succession — deliberately, because it is the
+   * dynasty's record and Law 6 keeps history. But `hasAnswered` read it
+   * unscoped, so an heir inherited every once-in-a-life flag their parent
+   * had set: the fork at eighteen was never offered to them, and neither
+   * was the walk into the recruiting office. They graduated secondary
+   * school and the employment system simply handed them a job.
+   *
+   * Absent means "written before this field existed, owner unknown", and
+   * an unknown entry answers for nobody — which re-offers a missed question
+   * to an existing save's heir rather than leaving them stuck.
+   */
+  readonly personId?: EntityId
 }
 
 export interface PlayerState {

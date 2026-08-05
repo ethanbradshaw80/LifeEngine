@@ -66,8 +66,8 @@ Push normally with `git push`.
 ## START HERE (handoff, end of 2026-08-04)
 
 **STATE:** clean tree, everything pushed.
-SIMULATION_VERSION **92** · SCHEMA_VERSION **38** · Classic golden
-**3a841a5c** · Heartland golden **8dd02d85** · **852 tests** across 73
+SIMULATION_VERSION **93** · SCHEMA_VERSION **39** · Classic golden
+**3cb03921** · Heartland golden **841ebc52** · **865 tests** across 75
 files, all green. Full suite ~6 minutes.
 
 **THE MILITARY MODULE, THE ECONOMY, THE SAFETY NET AND CIVILIAN CAREERS ARE
@@ -103,6 +103,13 @@ for new work is below that.
 - **M-MONEY2 — a household is a building, not a purse** (ADR-0030). Money
   belongs to a financial unit: you, your partner, and dependants — where
   dependency is about INCOME, not age.
+- **The twelve-year wall** (ADR-0032). Indefinite or out at twelve years,
+  and indefinite wants SGT. No more career corporals.
+- **A conviction reaches the hiring desk** (ADR-0033), and an heir gets
+  their own life — `hasAnswered` was unscoped, so an heir inherited every
+  once-in-a-life flag their parent set and was never asked the fork at
+  eighteen at all. **That is the fourth bug from an unscoped read of the
+  player log.** See failure shape 2.
 - **M-ENLIST — the recruiting station** (ADR-0031). All five phases. The
   pipeline, 22 trades with real job codes, 26 officer roles, three accession
   models, trade-tagged scenes, two written officer moments, the recruiter's
@@ -117,12 +124,15 @@ These have each cost real time more than once:
    seven times now**. The single-slot pending model is the root cause; a
    queue would make the whole class impossible and is the highest-value
    refactor on the board.
-2. **A new event must be made VISIBLE** — `story.ts` case,
+2. **A read of `world.player.log` must be SCOPED — by person, by tick, or
+   both.** The log is never cleared on succession because it is the
+   dynasty's record, so any "has this happened" question asked against it
+   unscoped is really asking about the whole lineage. Four bugs so far.
+   `PlayerChoice.personId` now exists; use it.
+3. **A new event must be made VISIBLE** — `story.ts` case,
    `EVENT_EXPLAINED_BY` entry, and an icon — or it is written to the ledger
    and appears nowhere in the game.
-3. **A cutscene must not assert a fact the world has not produced.**
-4. **A player-log dedupe must be SCOPED**, or it silently denies every heir
-   for the rest of the save.
+4. **A cutscene must not assert a fact the world has not produced.**
 5. **A system that runs for the serving must ask whether they are a
    prisoner.**
 6. **Import cycles are caught by `imports.test.ts` and are usually avoidable

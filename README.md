@@ -5,7 +5,7 @@ application built on top of it.
 
 > **Current phase: playable.** Layers 1–3 are complete and two Layer 4 institutions
 > (military service, crime and justice) plus an economy are built and playable.
-> ~46,000 lines across 51 engine modules and 23 UI components, with **852 tests**
+> ~46,000 lines across 51 engine modules and 23 UI components, with **865 tests**
 > covering them.
 
 ---
@@ -38,7 +38,7 @@ The guiding idea: **nothing exists in isolation.**
 | **Money** | Wages, rent, living costs, savings, credit, debt, mortgages, a market with cycles and shocks, and inflation indexed to the start year |
 | **The floors under a life** | Bankruptcy with means tests and repayment plans, homelessness, unemployment insurance, assistance, a state pension |
 | **Business** | Five kinds of small business, opened with capital, run monthly, inherited or wound up on death |
-| **Military service** | A recruiting station with an entry test, 22 enlisted trades with real job codes, 26 officer roles, three accession models, schools, special-unit selection, promotion boards, and a service contract |
+| **Military service** | A recruiting station with an entry test, 22 enlisted trades with real job codes, 26 officer roles, three accession models, schools, special-unit selection, promotion boards, indefinite status at twelve years, and a service contract |
 | **War** | Nations, alliances and coalitions, wars that start and end for reasons; deployment, exposure by trade, combat scenes, wounds, capture and captivity, awards, and separation paperwork |
 | **Crime and justice** | 23 graded offences, 32 authored crime scenes, motive → clearance → arrest → plea → verdict, fines and sentences, a criminal record that hiring and enlistment both read |
 | **The town's memory** | Causal records for every important outcome, a news desk that reports what the simulation produced, obituaries, and a county records office |
@@ -100,7 +100,7 @@ results. This is an engineering requirement, not an aspiration, and it is enforc
 - **Migrations.** Every persisted-field change gets a numbered migration with a test
   that loads a real old save.
 
-Current: `SIMULATION_VERSION` **92** · `SCHEMA_VERSION` **38** · 852 tests green.
+Current: `SIMULATION_VERSION` **93** · `SCHEMA_VERSION` **39** · 865 tests green.
 
 Full rules: [docs/DETERMINISM.md](docs/DETERMINISM.md).
 
@@ -115,7 +115,7 @@ LifeEngine/
 ├── LIFE_ENGINE_BOOTSTRAP.md     # Original specification, preserved unchanged
 ├── packages/
 │   ├── engine/                  # Pure TypeScript simulation. THE PRODUCT. 51 modules.
-│   ├── persistence/             # Save serialization, schema versions, 37 migrations
+│   ├── persistence/             # Save serialization, schema versions, 38 migrations
 │   └── shared/                  # EntityId, Tick, Money, Seed — types only
 ├── apps/
 │   └── web/                     # React + Vite. Owns all I/O. 23 components.
@@ -192,7 +192,7 @@ with no dial for it.
 | Layer 4 — economy and finance | **Complete** |
 | Layer 4 — government, healthcare, media, transport | Not started |
 | Accounts and cloud saves | Milestone 6, not started |
-| Tests | 852 across 73 files, green |
+| Tests | 865 across 75 files, green |
 
 The current arc is player-experience-first (ADR-0018): depth in what a player actually
 touches, rather than new institutions. See [RESUME.md](RESUME.md) for the live queue.

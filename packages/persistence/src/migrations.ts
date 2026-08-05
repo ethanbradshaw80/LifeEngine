@@ -1267,7 +1267,39 @@ const V37_TO_V38: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38]
+/**
+ * v38 -> v39. ADR-0032 and ADR-0033.
+ *
+ * NOTHING IN THE SAVE IS REWRITTEN, and both new fields are absent-means-
+ * something-correct by design:
+ *
+ * - `PlayerChoice.personId` — a log entry with no owner answers for nobody,
+ *   which is what re-offers the fork at eighteen to an heir who was wrongly
+ *   denied it. Back-filling the CURRENT player would have been the tidier
+ *   edit and would have left every existing save's heir still stuck, which
+ *   is the bug rather than a migration of it.
+ * - `ServiceRecord.indefinite` — already optional, already false where
+ *   absent, and the twelve-year wall elects it at the next term's end.
+ *
+ * The stamp exists because behaviour moved and DETERMINISM.md §7 says a
+ * player-path change rides the schema version.
+ */
+const V38_TO_V39: Migration = {
+  from: 38,
+  to: 39,
+  describe: 'stamp the twelve-year wall and the per-life decision log',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 39, checksum: checksumOf(world) },
+      world,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

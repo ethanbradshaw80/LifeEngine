@@ -47,6 +47,8 @@ Reversibility · Review trigger.
 | 0029 | **Civilian careers brought up to the military's depth** | **Accepted** |
 | 0030 | **A grown adult's money is his own; the household is a building** | **Accepted** |
 | 0031 | **Enlistment is a recruiting station, not a menu** | **Accepted** |
+| 0032 | **The twelve-year wall: indefinite or out, and it wants SGT** | **Accepted** |
+| 0033 | **A conviction reaches the hiring desk; an heir gets their own life** | **Accepted** |
 
 ---
 
@@ -1274,3 +1276,106 @@ the bottom — the air service starts at 40 and the ground service at 31 —
 so somebody scoring 35 who picked the air service walked into a blank wall:
 empty trade menu, no record written, pending consumed. The branch menu now
 only offers a service with something open.
+
+---
+
+## ADR-0032 — The twelve-year wall: indefinite or out, and it wants SGT
+
+**Date.** 2026-08-04. **Status.** Accepted (owner direction).
+
+**Context.** The owner: *"after 12 years of service you must either become
+indefinite or get out. This is how they do it in real life. And SGT is the
+rank that should be the safe spot — if you make SGT and have 12 years+ you
+can be indefinite. CPLs can not become career CPLs."*
+
+The game had none of this. A career was an unbounded series of four-year
+contracts, and the only up-or-out rule was high-year tenure, which measures
+time IN GRADE — so a corporal promoted at year eight was clear of it and
+could draw a wage as a corporal until the thirty-year ceiling. Indefinite
+status existed but was keyed on grade 7 alone, with no reference to years.
+
+**Decision.** Twelve years is a wall, and grade 5 is the gate through it.
+
+1. **`INDEFINITE_AT_YEARS = 12`.** There is no thirteenth year on a term.
+2. **`INDEFINITE_MIN_GRADE = 5`** — SGT on the ground ladder, PO2 at sea,
+   SSgt in the air. The owner's rule is about a RANK; the code enforces a
+   GRADE, because that is the one number all three ladders share, and a
+   test pins SGT to it so the two cannot drift apart. CPL is grade 4,
+   sitting alongside SPC, which is exactly why a corporal cannot pass.
+3. **`indefiniteStandingFor(grade, years)`** returns `contract`, `elect` or
+   `barred` — one function, so the screen offering the choice and the
+   handler enforcing it cannot disagree about who gets through.
+4. **At the wall there are no terms to choose.** `reenlistEligibility`
+   returns an empty term list for the eligible and RE-4 for everybody else,
+   with a reason that says it is the grade and not the conduct.
+5. **The player's verb changes.** "Sign on again" becomes "Go indefinite",
+   and the scene says out loud that indefinite carries no term and
+   therefore no term bonus, rather than quietly not paying one.
+
+**Consequences.** SIMULATION_VERSION 93, SCHEMA_VERSION 39. Both goldens
+move: every town's serving population differs, because the careers that used
+to run out to thirty years at grade 4 now end at twelve.
+
+**Verified, not assumed.** A forty-year run across three seeds contains no
+serving enlisted member past twelve years below grade 5, and still contains
+long careers above it — the test asserts both, because the first claim alone
+would pass in a world where nobody served twelve years at all.
+
+**One trap worth recording.** The indefinite contract carries a term of
+zero. Passing that through to `reenlist` set `termMonthsLeft` to zero and
+fired the term's end again the same month, for ever; the call site sends
+`undefined` instead, which keeps the standing term as a heartbeat nobody is
+ever asked about.
+
+---
+
+## ADR-0033 — A conviction reaches the hiring desk; an heir gets their own life
+
+**Date.** 2026-08-04. **Status.** Accepted (owner, playing).
+
+**Context.** Two complaints, one of which turned out to be a symptom of
+something worse.
+
+*"It also doesn't seem like convictions are affecting people's ability to
+get jobs either."* True. A criminal record dragged the odds that an
+opportunity turned up at all — and did nothing else. A convicted felon could
+still be hired as the town constable, teach its children, or keep its books,
+and the player's own applications through the Career tab never read the
+record at all.
+
+*"Can we change the when you graduate high school you instantly get offered
+a job? It should ask you the go to college question with the enlist option
+and stuff that comes after that first."* Also true, and the cause was not
+the employment system. `hasAnswered` — the check behind every once-in-a-life
+question — scanned the player's decision log unscoped. **The log is never
+cleared on succession**, deliberately, because it is the dynasty's record.
+So an heir inherited every flag their parent had set: the fork at eighteen
+was never offered to them, nor was the walk into the recruiting office, and
+the employment system simply handed them a job instead. This is the fourth
+time an unscoped read of that log has produced a bug.
+
+**Decision.**
+
+1. **`PlayerChoice.personId`.** A once-in-a-life question belongs to one
+   life. `hasAnswered` scopes to the person being played.
+   **An entry with no owner answers for nobody** — the deliberate choice
+   over back-filling the current player, which would have been tidier and
+   would have left every existing save's heir still stuck. The questions
+   carry their own age and level gates, so a stale one simply never fires.
+2. **`TRUST_SENSITIVE_OCCUPATIONS`** — the roles that in practice require a
+   clean record: sworn positions, children, licensed care, other people's
+   money. A hard record gate shuts these and **nothing else**. Law 7 is the
+   reason for the second half: a man with a conviction can still lay
+   bricks, cook, drive and run a crew, and a record that closed the whole
+   labour market would be a dead end rather than a chapter.
+3. **The town lives under the same rule** (Law 1). The NPC hiring path
+   filters the same list, so the world does not quietly staff its school
+   and its police station with people the player is refused alongside.
+4. **The fork at eighteen comes first.** No job offer is raised for a
+   player who still owes the education question. Once answered — including
+   answered with "work" — offers resume normally. One reader,
+   `educationForkPending`, so the employment system cannot decide the fork
+   is over while the schoolhouse still intends to ask.
+
+**Consequences.** Folded into SIMULATION_VERSION 93 and SCHEMA_VERSION 39
+with ADR-0032. Hiring differs in every seed.

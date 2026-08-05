@@ -61,9 +61,10 @@ import {
   describePleaDeal,
   isJailed,
   pleaDealFor,
+  recordGateOf,
   resolveCourt,
 } from './crime.js'
-import { GRADE_TITLES, offenceById } from './content.js'
+import { GRADE_TITLES, isTrustSensitive, offenceById } from './content.js'
 import type { Offence } from './content.js'
 import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
@@ -299,6 +300,8 @@ export function createCustomLife(world: World, spec: CustomLifeSpec): EntityId |
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'custom-birth',
     choice: `${cleanName}|${cleanFamily}|${spec.sex ?? ''}|${String(spec.motherId)}`,
@@ -366,6 +369,14 @@ export function jobBar(world: World, occupationId: string): string | null {
     return `${sentenceCase(occupation.title)} asks for ${asks} — the papers are not there.`
   }
   if (placesOfKind(world, 'workplace').length === 0) return 'No workplace stands in town.'
+  // ADR-0033. THE RECORD IS READ AT THE DOOR, and only for the work that
+  // genuinely turns on it. A hard gate — a serious conviction, still recent
+  // — shuts a badge, a classroom, a ward and a ledger. It shuts nothing
+  // else: the drag on an ordinary job is in the interview, where a real
+  // employer's doubt lives, not in a refusal at the door.
+  if (isTrustSensitive(occupationId) && recordGateOf(world, person.id, tick) === 'hard') {
+    return `${sentenceCase(occupation.title)} will not take a conviction still on the record.`
+  }
   return null
 }
 
@@ -436,6 +447,8 @@ export function applyForJob(world: World, occupationId: string): { applied: bool
   // walks the same road.
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick,
     kind: 'job-application',
     choice: occupationId,
@@ -634,6 +647,8 @@ export function requestEnlistment(world: World): { asked: boolean; reason: strin
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'walk-in-enlist',
     choice: 'asked',
@@ -679,6 +694,8 @@ export function requestSchool(world: World, schoolId: string): { attended: boole
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'school-request',
     choice: schoolId,
@@ -759,6 +776,8 @@ export function tryOutForUnit(world: World, unitId: string): { joined: boolean; 
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'unit-tryout',
     choice: unitId,
@@ -882,6 +901,8 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'fitness-test',
     choice: 'trained',
@@ -911,6 +932,8 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind: 'volunteer-deploy',
     choice: 'walk-in',
@@ -962,6 +985,8 @@ function verbPerson(world: World): { person: Person } | { reason: string } {
 export function logVerb(world: World, kind: PendingKind, choice: string): void {
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
+    // ADR-0033: whose life this choice belonged to.
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
     tick: world.tick,
     kind,
     choice,
@@ -2135,7 +2160,17 @@ export function resolvePending(world: World, choice: string): void {
         ? (Number(choice.slice(3)) as EntityId)
         : null
       if (state.code === 'enlist') break // the first term already began
-      reenlistService(world, pending.tick, person, state.termYears * 12, administratorId)
+      // A zero term is the INDEFINITE contract (ADR-0032). Passing 0 through
+      // would set termMonthsLeft to zero and fire the term's end again the
+      // same month, for ever — undefined keeps the standing term, which for
+      // an indefinite record is only a heartbeat nobody is asked about.
+      reenlistService(
+        world,
+        pending.tick,
+        person,
+        state.termYears > 0 ? state.termYears * 12 : undefined,
+        administratorId,
+      )
       applyReenlistmentOption(world, pending.tick, person, state.option)
       // The money is moved here, where the ledger is reachable.
       if (state.option === 'bonus' && state.bonus > 0) {
@@ -2366,28 +2401,38 @@ export function resolvePending(world: World, choice: string): void {
     case 'reenlist': {
       const record = world.service.get(person.id)
       if (record && record.dischargedAtTick === null) {
-        if (choice === 'reenlist' || choice === 'stay') {
+        if (choice === 'reenlist' || choice === 'stay' || choice === 'indefinite') {
           // §1. THE ANSWER OPENS THE CONTRACT rather than signing it. Term,
           // then option, then the oath — and the oath is what executes it.
+          //
+          // INDEFINITE SKIPS THE TERM (ADR-0032), because there is no term:
+          // straight to the oath, which is still a ceremony and still the
+          // thing that executes it. No term also means no term bonus, which
+          // the scene says out loud rather than quietly not paying.
           const terms = termsOfferedTo(world, person, pending.tick)
           contractNext =
-            terms.length === 0
-              ? null
-              : {
-                  kind: 'reenlist-term',
-                  state: encodeContract(
-                    pending.occupationId ?? 'RE-1',
-                    terms[terms.length - 1] ?? 4,
-                    'none',
-                    0,
-                  ),
+            choice === 'indefinite'
+              ? {
+                  kind: 'service-contract',
+                  state: encodeContract(pending.occupationId ?? 'RE-1', 0, 'none', 0),
                 }
+              : terms.length === 0
+                ? null
+                : {
+                    kind: 'reenlist-term',
+                    state: encodeContract(
+                      pending.occupationId ?? 'RE-1',
+                      terms[terms.length - 1] ?? 4,
+                      'none',
+                      0,
+                    ),
+                  }
           recordDecision(world, pending.tick, {
             subjectId: person.id,
             decision: 'enlistment',
             significance: 'major',
             inputs: [factor('own-choice', 1000), factor('steady-pay', Math.floor(record.monthlyPay / 1000))],
-            chosen: 'agreed to sign again',
+            chosen: choice === 'indefinite' ? 'went indefinite' : 'agreed to sign again',
             rejected: ['to leave the service'],
             streamId: Stream.Employment,
           })
@@ -3162,6 +3207,10 @@ function commit(world: World, pending: PendingDecision, choice: string): void {
     decisionId: pending.id,
     tick: pending.tick,
     kind: pending.kind,
+    // ADR-0033. The pending's OWN subject, not whoever is being played when
+    // it commits — they are the same person in every case that exists
+    // today, and if that ever stops being true the pending is right.
+    personId: pending.personId,
     // A unit moment logs WHICH cutscene it was ("losing-one:hold"), because
     // "has this one already played" is asked every month and the log is the
     // cheap place to ask it. The event ledger would answer too, and it grows
@@ -3173,7 +3222,12 @@ function commit(world: World, pending: PendingDecision, choice: string): void {
 
 /** Has the player already answered a decision of this kind? */
 export function hasAnswered(world: World, kind: PendingKind): boolean {
-  return world.player.log.some((entry) => entry.kind === kind)
+  // SCOPED TO THIS LIFE (ADR-0033). See PlayerChoice.personId: an heir must
+  // be asked the questions their parent already answered, because they are
+  // a different person having a different life.
+  const who = world.player.personId
+  if (who === null) return false
+  return world.player.log.some((entry) => entry.kind === kind && entry.personId === who)
 }
 
 /**
@@ -3473,6 +3527,15 @@ export function describePending(world: World, pending: PendingDecision): string 
       const servedYears = record === undefined
         ? 0
         : Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
+      // THE WALL SAYS ITS OWN NAME (ADR-0032). At twelve years there is no
+      // term on the table, and a prompt that said "sign on for another
+      // term" would be describing a thing the service does not offer.
+      const atTheWall = (pending.options ?? []).includes('indefinite')
+      if (atTheWall) {
+        return servedYears >= 20
+          ? `Twelve years and more, ${title}. Indefinite status, or retire on the pension you have earned?`
+          : `Twelve years, ${title}. The service stops writing terms here — go indefinite and serve on, or take off the uniform. Indefinite carries no term, and no term bonus.`
+      }
       return servedYears >= 20
         ? `Twenty years in, ${title}. Sign for another term, or retire on the pension you have earned?`
         : `Your term is up, ${title}. Sign on for another term?`

@@ -28,6 +28,13 @@ export const SCHEMA_VERSION = 1
  *      theatres; danger computed monthly from the geopolitical state crossed
  *      with specialty exposure; wounds land on the health model; deaths run
  *      through performDeath. Lives differ from v9 wherever the Republic fought.
+ * v93 — THE TWELVE-YEAR WALL (ADR-0032) and two things playing caught
+ *      (ADR-0033). Twelve years is where a career stops being a series of
+ *      contracts: indefinite or out, and indefinite wants SGT. A corporal
+ *      no longer draws a wage for twenty years. A criminal record now
+ *      closes the trusted work — the badge, the classroom, the ward, the
+ *      ledger — for the whole town and not only the player. Every seed's
+ *      service careers and hiring differ from v92.
  * v92 — M-ENLIST PHASES 2/3: THE RECRUITING STATION. Enlisting is a
  *      pipeline now — the commission fork, then which service, then the
  *      entry test, then a trade the score actually opens — and an officer
@@ -593,7 +600,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 92
+export const SIMULATION_VERSION = 93
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

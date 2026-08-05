@@ -263,6 +263,9 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   // ids — the player was reading "reenlist" and "separate" as labels.
   reenlist: {
     reenlist: '✍️ Sign on again',
+    // ADR-0032. Not "sign on again": at twelve years there is no term to
+    // sign for, and the button must not promise one.
+    indefinite: '♾️ Go indefinite',
     separate: '🏠 Come home',
     retire: '🎖️ Retire on the pension',
     stay: '✍️ Sign again',

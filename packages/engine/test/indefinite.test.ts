@@ -1,0 +1,157 @@
+/**
+ * THE TWELVE-YEAR WALL (ADR-0032, owner: "after 12 years of service you must
+ * either become indefinite or get out... SGT is the rank that should be the
+ * safe spot... CPLs can not become career CPLs").
+ *
+ * Three claims:
+ *   under twelve years nothing changes;
+ *   at twelve years with the stripes there is no term left to sign, only
+ *     indefinite or the door;
+ *   at twelve years without them the service writes nothing at all — and
+ *     that applies to the town, not only to the player.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { seed as makeSeed } from '@life-engine/shared'
+import { advanceTicks, createWorld } from '../src/index.js'
+import { BRANCH_GRADES, BRANCH_RANKS } from '../src/content.js'
+import {
+  INDEFINITE_AT_YEARS,
+  INDEFINITE_MIN_GRADE,
+  indefiniteStandingFor,
+  reenlistEligibility,
+} from '../src/reenlistment.js'
+import type { ServiceRecord } from '../src/types.js'
+
+const CLEAN = {
+  strikes: 0,
+  endsCareerAt: 3,
+  criminalGate: 'none' as const,
+  hitHighYearTenure: false,
+  age: 34,
+}
+
+function aRecord(rank: number): ServiceRecord {
+  return {
+    personId: 1,
+    branch: 'land-forces',
+    specialtyId: 'rifleman',
+    unitSinceTick: null,
+    commissioned: false,
+    rank,
+    rankSinceTick: 0,
+    qualifications: [],
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
+    enlistedAtTick: 0,
+    baseId: null,
+    monthlyPay: 200_000,
+    performance: 620,
+    termMonthsLeft: 0,
+    termMonths: 48,
+    dischargedAtTick: null,
+    dischargeReason: null,
+    termPerformanceSum: 0,
+    unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
+    fitnessScore: 600,
+    fitnessTestedAtTick: null,
+  } as unknown as ServiceRecord
+}
+
+describe('where the wall stands', () => {
+  it('is grade 5 in all three branches — SGT, PO2, SSgt', () => {
+    // The owner's rule is about a RANK; the code enforces a GRADE, because
+    // that is the one number the three ladders share. If they ever drift
+    // apart this test is the thing that notices.
+    const ground = BRANCH_RANKS['land-forces'].indexOf('SGT')
+    expect(BRANCH_GRADES['land-forces'][ground]).toBe(INDEFINITE_MIN_GRADE)
+
+    // And the corporal sits BELOW it, which is the whole point.
+    const corporal = BRANCH_RANKS['land-forces'].indexOf('CPL')
+    expect(corporal).toBeGreaterThan(-1)
+    expect(BRANCH_GRADES['land-forces'][corporal]).toBeLessThan(INDEFINITE_MIN_GRADE)
+
+    for (const branch of ['naval-service', 'air-guard'] as const) {
+      // Every branch must have SOMETHING at the line, or its people would
+      // hit a wall none of them could ever pass.
+      expect(BRANCH_GRADES[branch].some((g) => g >= INDEFINITE_MIN_GRADE)).toBe(true)
+    }
+  })
+
+  it('lets nobody through early and everybody senior through at twelve', () => {
+    for (let years = 0; years < INDEFINITE_AT_YEARS; years++) {
+      expect(indefiniteStandingFor(9, years)).toBe('contract')
+      expect(indefiniteStandingFor(1, years)).toBe('contract')
+    }
+    expect(indefiniteStandingFor(INDEFINITE_MIN_GRADE, INDEFINITE_AT_YEARS)).toBe('elect')
+    expect(indefiniteStandingFor(INDEFINITE_MIN_GRADE - 1, INDEFINITE_AT_YEARS)).toBe('barred')
+    // And it does not un-bar later: a corporal at twenty is still a corporal.
+    expect(indefiniteStandingFor(INDEFINITE_MIN_GRADE - 1, 20)).toBe('barred')
+  })
+})
+
+describe('what the retention desk says at the wall', () => {
+  it('offers the usual menu of terms under twelve years', () => {
+    const eligibility = reenlistEligibility(aRecord(5), {
+      ...CLEAN,
+      yearsServed: 8,
+      grade: 5,
+    })
+    expect(eligibility.code).toBe('RE-1')
+    expect(eligibility.terms.length).toBeGreaterThan(1)
+  })
+
+  it('offers a sergeant no terms at all, because there are none left', () => {
+    const eligibility = reenlistEligibility(aRecord(5), {
+      ...CLEAN,
+      yearsServed: 12,
+      grade: 5,
+    })
+    // Still welcome — but welcome to something that is not a contract.
+    expect(eligibility.code).toBe('RE-1')
+    expect(eligibility.terms).toEqual([])
+    expect(eligibility.reason).toContain('indefinitely')
+  })
+
+  it('bars a corporal at twelve years, on a clean file', () => {
+    const eligibility = reenlistEligibility(aRecord(4), {
+      ...CLEAN,
+      yearsServed: 12,
+      grade: 4,
+    })
+    // Nothing he did: no strikes, no convictions, no high-year tenure. The
+    // service simply does not carry a career at that grade.
+    expect(eligibility.code).toBe('RE-4')
+    expect(eligibility.reason).toContain('stripes')
+    expect(eligibility.terms).toEqual([])
+  })
+})
+
+describe('the town lives under the same rule', () => {
+  it('has nobody serving past twelve years below the line', () => {
+    // Law 1: the rule is the simulation's, not a screen the player sees.
+    // A career corporal anywhere in a long-run world means the wall leaks.
+    let checked = 0
+    for (const seed of [4141, 9001, 31337]) {
+      const world = createWorld(makeSeed(seed), 400)
+      advanceTicks(world, 40 * 12)
+      for (const record of world.service.values()) {
+        if (record.dischargedAtTick !== null) continue
+        if (record.commissioned === true) continue
+        const years = Math.floor((world.tick - record.enlistedAtTick) / 12)
+        if (years < INDEFINITE_AT_YEARS) continue
+        checked++
+        const grade = BRANCH_GRADES[record.branch as 'land-forces'][record.rank] ?? 0
+        expect(
+          grade,
+          `${record.branch} rank ${String(record.rank)} still serving at ${String(years)} years`,
+        ).toBeGreaterThanOrEqual(INDEFINITE_MIN_GRADE)
+      }
+    }
+    // The assertion above is vacuous if nobody got that far, so prove
+    // somebody did — long careers must still exist.
+    expect(checked, 'no long enlisted career in any seed').toBeGreaterThan(0)
+  })
+})

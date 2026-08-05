@@ -42,21 +42,43 @@ const MARGINAL_PERFORMANCE = 450
 const BARRED_PERFORMANCE = 300
 
 /**
- * Grade at which a career stops being a series of contracts.
+ * THE TWELVE-YEAR WALL (owner: "after 12 years of service you must either
+ * become indefinite or get out. This is how they do it in real life. And
+ * SGT is the rank that should be the safe spot... CPLs can not become
+ * career CPLs.").
  *
- * INDEFINITE (§7). Past this the reenlistment question is not a question:
- * senior NCOs serve on until retirement, high-year tenure, or age. Asking
- * a first sergeant every four years whether he would like to stay in the
- * army is the kind of prompt that teaches a player to stop reading them.
+ * Twelve years is where a career stops being a series of contracts. There
+ * is no thirteenth year on a four-year term: you either pass into
+ * indefinite status or you take off the uniform.
  */
-export const INDEFINITE_FROM_GRADE = 7
+export const INDEFINITE_AT_YEARS = 12
 
 /**
- * Whether this record has passed into indefinite service. The term-end
- * handler stops raising the question for them.
+ * And the stripes that let you through it.
+ *
+ * Grade 5 is SGT on the ground ladder, PO2 at sea, SSgt in the air — which
+ * is the owner's rule expressed in the one number all three branches share.
+ * CPL is grade 4, sitting alongside SPC, so a corporal is BELOW this line
+ * and cannot make a career of it. That is the point: the game had people
+ * drawing a wage as a corporal for twenty years, which no service allows.
  */
-export function servesIndefinitely(grade: number): boolean {
-  return grade >= INDEFINITE_FROM_GRADE
+export const INDEFINITE_MIN_GRADE = 5
+
+/**
+ * Where a record stands against the wall.
+ *
+ *   'contract'  under twelve years — ordinary terms, ordinary questions
+ *   'elect'     twelve years and the stripes: indefinite, or leave
+ *   'barred'    twelve years without them: the service writes no more
+ *
+ * One function, so the screen that offers the choice and the handler that
+ * enforces it cannot disagree about who is allowed through.
+ */
+export type IndefiniteStanding = 'contract' | 'elect' | 'barred'
+
+export function indefiniteStandingFor(grade: number, yearsServed: number): IndefiniteStanding {
+  if (yearsServed < INDEFINITE_AT_YEARS) return 'contract'
+  return grade >= INDEFINITE_MIN_GRADE ? 'elect' : 'barred'
 }
 
 /**
@@ -80,6 +102,10 @@ export function reenlistEligibility(
     readonly criminalGate: 'none' | 'waiver' | 'bar'
     readonly hitHighYearTenure: boolean
     readonly age: number
+    /** Whole years in uniform, for the twelve-year wall. */
+    readonly yearsServed: number
+    /** Pay grade, for the same. */
+    readonly grade: number
   },
 ): Eligibility {
   if (args.hitHighYearTenure) {
@@ -91,6 +117,17 @@ export function reenlistEligibility(
   }
   if (args.age >= 60) {
     return { code: 'RE-4', reason: 'Past the age the service contracts to.', terms: [] }
+  }
+  // THE TWELVE-YEAR WALL, for the people it stops. A corporal at twelve
+  // years is not barred for anything he did — the service simply does not
+  // carry a career at that grade, and there is no term left to write.
+  if (indefiniteStandingFor(args.grade, args.yearsServed) === 'barred') {
+    return {
+      code: 'RE-4',
+      reason:
+        'Twelve years without the stripes for indefinite status. The service writes no further contract at this grade.',
+      terms: [],
+    }
   }
   // THE SERVICE DECLINES, and the player does not get a vote — but only for
   // a conviction it will genuinely not carry.
@@ -150,6 +187,17 @@ export function reenlistEligibility(
       code: 'RE-3',
       reason: 'A marginal file: another term is allowed, on a waiver. No bonus, and two years only.',
       terms: [2],
+    }
+  }
+  // AT THE WALL THERE IS NO TERM TO CHOOSE. Indefinite is not a longer
+  // contract, it is the end of contracts — so the menu of years is empty
+  // and the only question left is whether to stay at all.
+  if (indefiniteStandingFor(args.grade, args.yearsServed) === 'elect') {
+    return {
+      code: 'RE-1',
+      reason:
+        'Twelve years. The service will carry you indefinitely from here — there are no more terms to sign.',
+      terms: [],
     }
   }
   return { code: 'RE-1', reason: 'The file is clean. The service will write any term.', terms: [2, 3, 4, 6] }

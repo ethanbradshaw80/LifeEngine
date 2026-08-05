@@ -262,10 +262,23 @@ describe('a selected unit is a unit', () => {
     advanceTicks(world, 480)
     const serving = [...world.service.values()].filter((r) => r.dischargedAtTick === null)
     expect(serving.length).toBeGreaterThan(2)
-    const [a, b, c] = serving
-    if (!a || !b || !c) return
+    // THREE PEOPLE WHO ACTUALLY SHARE A ROSTER. Taking the first three in
+    // map order used to work by luck — a roster is base plus branch, and
+    // the twelve-year wall changed who is still serving, so the first three
+    // stopped being posted together. The test is about what selection does
+    // to a roster, so it has to start with people who are on one.
+    const a = serving.find(
+      (r) => (unitRosterOf(world, r.personId)?.members.length ?? 0) >= 3,
+    )
+    if (!a) throw new Error('no posting in this world holds three people')
+    const roster = unitRosterOf(world, a.personId)
+    const [b, c] = (roster?.members ?? [])
+      .filter((m) => m.personId !== a.personId)
+      .map((m) => serving.find((r) => r.personId === m.personId))
+      .filter((r): r is NonNullable<typeof r> => r !== undefined)
+    if (!b || !c) throw new Error('the posting lost its people')
 
-    const before = unitRosterOf(world, a.personId)
+    const before = roster
     expect(before?.members.some((m) => m.personId === b.personId)).toBe(true)
 
     world.service.set(a.personId, { ...a, unitId: 'pathfinders' })

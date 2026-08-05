@@ -51,6 +51,7 @@ import type {
 import { withArticle } from './text.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
+import { isTrustSensitive } from './content.js'
 import type { CausalFactor, Occupation } from './types.js'
 import {
   canAfford,
@@ -255,6 +256,22 @@ export function runEducation(world: World, tick: Tick): void {
       enrol(world, tick, person, choice, rng)
     }
   }
+}
+
+/**
+ * ADR-0033. Is the fork at eighteen still owed to this person?
+ *
+ * The same window `runEducation` raises it in. One function, so the
+ * employment system cannot decide the fork is over while the schoolhouse
+ * still intends to ask.
+ */
+function educationForkPending(world: World, person: Person, tick: Tick): boolean {
+  if (person.id !== world.player.personId) return false
+  if (hasAnswered(world, 'education')) return false
+  const record = world.education.get(person.id)
+  if (record === undefined || record.level !== 'secondary') return false
+  const age = ageAt(person.birthTick, tick)
+  return age >= 18 && age <= 24
 }
 
 /** Player answer applied through the same enrolment code NPCs use. */
@@ -597,9 +614,16 @@ export function runEmployment(world: World, tick: Tick): void {
     // Unemployed: look for work. A veteran's specialty opens doors their
     // schooling alone would not — the mechanic comes home a machinist.
     const unlocked = veteranUnlocks(world, person.id)
+    // ADR-0033. A HARD RECORD CLOSES THE TRUSTED WORK for everybody, not
+    // just the player — Law 1, and otherwise the town would quietly staff
+    // its school and its police station with people the player is refused
+    // alongside. Ordinary work stays open; the drag below is the rest.
+    const gate = recordGateOf(world, person.id, world.tick)
     const eligible = OCCUPATIONS.filter(
       (o) => meetsRequirement(education.level, o.requires) || unlocked.includes(o.id),
-    ).filter((o) => o.id !== 'constable' || constableSeatOpen(world))
+    )
+      .filter((o) => o.id !== 'constable' || constableSeatOpen(world))
+      .filter((o) => gate !== 'hard' || !isTrustSensitive(o.id))
     if (eligible.length === 0) continue
 
     // Hiring is not guaranteed — ambition and diligence improve the odds,
@@ -610,7 +634,6 @@ export function runEmployment(world: World, tick: Tick): void {
     // next. A hard gate is the wall it always was, a soft one is a door
     // that got heavier, and an old conviction is not read at all.
     const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
-    const gate = recordGateOf(world, person.id, world.tick)
     const recordDrag = gate === 'hard' ? 120 : gate === 'soft' ? 45 : 0
     if (!rng.chance(Math.max(40, 250 + Math.floor(drive / 4) - recordDrag), 1000)) continue
 
@@ -630,6 +653,16 @@ export function runEmployment(world: World, tick: Tick): void {
     // The roll decided an opportunity exists this month. For the player it
     // becomes an offer they can refuse; refused, it is gone (Law 5).
     if (person.id === world.player.personId) {
+      // ADR-0033, owner: "can we change the when you graduate high school
+      // you instantly get offered a job? it should ask you the go to
+      // college question with the enlist option... first".
+      //
+      // THE FORK AT EIGHTEEN COMES FIRST. A school leaver with the question
+      // still unanswered is not on the job market yet — college, a trade,
+      // the uniform and work are all still live, and a job offer arriving
+      // ahead of that menu quietly answers it for them. Once they have
+      // chosen (including choosing work), offers resume normally.
+      if (educationForkPending(world, person, tick)) continue
       raisePending(world, {
         tick,
         kind: 'job-offer',

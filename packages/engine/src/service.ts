@@ -84,7 +84,7 @@ import type { CausalFactor, Person, Place, World } from './types.js'
 import {
   optionsFor,
   reenlistEligibility,
-  servesIndefinitely,
+  indefiniteStandingFor,
   srbFor,
   STABILITY_MONTHS,
 } from './reenlistment.js'
@@ -2121,10 +2121,16 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       placeId: null,
       // §8. At twenty years the fork is not stay-or-go, it is another term
       // or a pension — and the player should be told that is what it is.
-      options:
-        Math.floor((tick - record.enlistedAtTick) / 12) >= 20
-          ? ['reenlist', 'retire']
-          : ['reenlist', 'separate'],
+      //
+      // THE WALL COMES FIRST (ADR-0032). At twelve years there is no
+      // "another term" to offer: the verb becomes GO INDEFINITE, and it is
+      // the same word whether the alternative is separating or drawing a
+      // pension. A record already indefinite never reaches here at all.
+      options: (() => {
+        const years = Math.floor((tick - record.enlistedAtTick) / 12)
+        const stay = indefiniteStandingFor(grade, years) === 'elect' ? 'indefinite' : 'reenlist'
+        return years >= 20 ? [stay, 'retire'] : [stay, 'separate']
+      })(),
     })
     if (landed) {
       // The clock halts on the pending; the term is settled by the answer.
@@ -2199,6 +2205,10 @@ export function eligibilityOf(
     hitHighYearTenure:
       grade < HYT_BELOW_GRADE && tick - record.rankSinceTick >= highYearTenureMonthsFor(record),
     age: ageAt(person.birthTick, tick),
+    // The twelve-year wall (ADR-0032). Whole years, so the month a career
+    // turns twelve is the month the question changes.
+    yearsServed: Math.floor((tick - record.enlistedAtTick) / 12),
+    grade,
   })
 }
 
@@ -2321,8 +2331,13 @@ export function reenlist(
     termMonthsLeft: chosen,
     termMonths: chosen,
     termPerformanceSum: 0,
-    // §7. Past this grade the question stops being asked at all.
-    indefinite: servesIndefinitely(grade),
+    // THE WALL (ADR-0032). Signing again at twelve years IS electing
+    // indefinite — there is nothing else on offer, so the record simply
+    // says so rather than asking a second question with one answer. Once
+    // set it never clears: a career does not go back on the clock.
+    indefinite:
+      record.indefinite === true ||
+      indefiniteStandingFor(grade, Math.floor((tick - record.enlistedAtTick) / 12)) === 'elect',
   })
   const reenlisted = recordEvent(world, tick, {
     type: 'reenlisted',
