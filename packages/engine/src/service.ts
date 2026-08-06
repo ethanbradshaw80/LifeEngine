@@ -771,17 +771,31 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     const failed = (record.schoolAttempts ?? []).filter(
       (a) => a.schoolId === school.id && a.outcome === 'failed',
     ).length
-    if (flag.flagged) {
+    // STRUCTURAL FIRST, SITUATIONAL SECOND — and the order is load-bearing.
+    //
+    // The tab hides a course by matching the words "does not send people
+    // here", which is how a soldier avoids reading a catalogue of other
+    // services' schools. Putting the flag check above the branch check
+    // meant a FLAGGED soldier never got those words: his reason was
+    // "Ineligible — flagged", the filter stopped matching, and every
+    // course in the game appeared on his screen (owner, playing: "you
+    // should only see schools that you are eligible for"). The wash-out cap
+    // had the same shape.
+    //
+    // Branch and trade are facts about who you are; a flag and a spent
+    // attempt are facts about where you are today. The permanent ones
+    // decide whether the course is on your list at all.
+    if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
+      reason = `${branchName(world, specialty.branch)} does not send people here.`
+    } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
+      reason = 'Not this trade.'
+    } else if (flag.flagged) {
       reason = flag.words
     } else if (failed >= school.maxAttempts) {
       // THE UNIT WILL NOT FUND A THIRD SEAT. A wash-out is a setback, not a
       // wall — but the seats are finite, and this is where that stops being
       // free (M-SCHOOL §5).
       reason = `Washed out ${String(failed)} time${failed === 1 ? '' : 's'}. The unit will not fund another seat.`
-    } else if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
-      reason = `${branchName(world, specialty.branch)} does not send people here.`
-    } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
-      reason = 'Not this trade.'
     } else if (badges.includes(school.badge)) {
       reason = 'Already earned.'
     } else if (!meetsRankGate(record, school.minRank)) {

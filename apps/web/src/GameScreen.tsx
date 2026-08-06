@@ -2024,8 +2024,26 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         scarce the seat is, which gates are met, and what this
                         soldier has already tried here. */}
                     {(() => {
+                      // ONLY THE COURSES THAT ARE ACTUALLY YOURS (owner:
+                      // "you should only see schools that you are eligible
+                      // for, not every school there is").
+                      //
+                      // Hidden: another service's schools, and another
+                      // trade's. Those are facts about who this soldier is
+                      // and no amount of work changes them, so listing them
+                      // with a refusal is a catalogue of other people's
+                      // careers.
+                      //
+                      // STILL SHOWN, deliberately: the ones held up by
+                      // something that can move — standing not there yet, a
+                      // rank still to make, a full class, a flag. Those are
+                      // the ones worth working toward, and the owner's own
+                      // mockup shows exactly that card ("Not yet — raise
+                      // your standing to earn a seat").
                       const all = schoolOptionsFor(world, person.id).filter(
-                        (option) => !option.reason.includes('does not send people here'),
+                        (option) =>
+                          !option.reason.includes('does not send people here') &&
+                          option.reason !== 'Not this trade.',
                       )
                       const groups: readonly {
                         readonly key: 'pme' | 'skill' | 'selection'

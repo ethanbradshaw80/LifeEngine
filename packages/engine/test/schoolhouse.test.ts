@@ -295,3 +295,40 @@ describe('a hard course can say no', () => {
     expect(strong.wash, 'the strong washed out at least as often as the weak').toBeLessThan(weak.wash)
   }, 900_000)
 })
+
+describe('the list is this soldier’s own', () => {
+  it('keeps another service’s schools off the list even when flagged', () => {
+    // THE BUG THIS PINS (owner: "you should only see schools that you are
+    // eligible for, not every school there is"). The tab hides a course by
+    // matching the words "does not send people here". The flag check was
+    // put ABOVE the branch check, so a flagged soldier's reason became
+    // "Ineligible — flagged", the filter stopped matching, and every course
+    // in the game appeared on his screen.
+    //
+    // Branch and trade are facts about who you are. A flag is a fact about
+    // today. The permanent ones decide whether a course is on your list.
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id) // land-forces
+
+    const naval = (): number =>
+      schoolOptionsFor(world, person.id).filter(
+        (o) => o.reason.includes('does not send people here'),
+      ).length
+
+    const beforeFlag = naval()
+    expect(beforeFlag, 'no other-service courses in the catalogue to hide').toBeGreaterThan(0)
+
+    recordEvent(world, world.tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'late for duty',
+    })
+    expect(flagStatus(world, person.id, world.tick).flagged).toBe(true)
+    // The same courses must still say the same thing about themselves.
+    expect(naval(), 'a flag made another service’s schools look reachable').toBe(beforeFlag)
+  })
+})
