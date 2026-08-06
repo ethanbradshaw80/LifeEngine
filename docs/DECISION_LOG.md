@@ -1611,3 +1611,63 @@ This moved both goldens (Classic `967a2f7e` → `d7cbcfc7`, Heartland
 `48030648` → `a04a7a51`), which is the proof it was reachable in ordinary
 play rather than only in theory: NPC filings in the seeded towns were
 carrying the wrong number.
+
+---
+
+## ADR-0039 — The career corporal came back through the orderly room
+
+**Status:** Accepted · **Date:** 2026-08-05
+
+**Context.** ADR-0032 built the twelve-year wall: indefinite or out, and
+indefinite wants SGT. No career corporals — the owner's rule.
+
+The wall guards the term's end, which is the door everybody was thinking
+about. There is a second door. An indefinite **sergeant** who is busted a
+stripe for misconduct becomes a **corporal still flagged indefinite**, and
+the term-end handler returns early for anybody indefinite — so he is never
+asked the wall's question again. Combined with the thirty-year ceiling
+ADR-0032 gave indefinite careers, he serves to thirty years as a career
+corporal.
+
+Worth stating plainly: ADR-0032 made this worse. Before it raised the
+ceiling, the same soldier was force-retired at twenty.
+
+**Decision.** Losing the stripes loses indefinite status. Below
+`INDEFINITE_MIN_GRADE`, the flag clears and the member goes back on
+contracts; the next term's end asks the wall, which at twelve years and
+grade four has one answer.
+
+The bust is the only demotion path — promotion boards only promote, and the
+court-martial fork was never built — so one guard closes it.
+
+**The first version of this fix did not work, and that is the useful part.**
+
+It wrote `indefinite: false` straight to the record at the bust. Measured
+afterwards: 92 busts across five seeds and forty years, and **two career
+corporals still standing.**
+
+The service month ends with a single write that spreads `...record` — the
+snapshot taken before any of the month ran. Every field NOT in that write's
+explicit list is silently reverted. `rank` survives because it is listed;
+`indefinite` was not, so the fix was undone the same month it was applied.
+
+**Anything a service month decides must travel in a local**, not a write.
+This is the second time a stale snapshot has produced a silent revert in
+this codebase — ADR-0036 was the same shape in `runHouseholds`. It is worth
+treating as a known trap rather than a surprise.
+
+Re-measured after the real fix: **zero** below-line indefinite records.
+Indefinite records fell 59 → 56, which is the three who now meet the wall
+instead of coasting past it.
+
+**And the test that should have caught it was already there, passing.** The
+town-level rule test ran three seeds; both career corporals were in the
+other two. It now runs five, and asserts on the `indefinite` flag directly
+rather than inferring from years served — the bust reached the record
+without going near the wall, so the years-based check was looking at the
+wrong thing.
+
+**Consequences.** SIMULATION_VERSION 96 → 97. Classic `d7cbcfc7` →
+`ba7ac6ac`, Heartland `a04a7a51` → `9d5b5da6`. A busted senior NCO now has
+a real cliff under him, which is the honest consequence of losing a stripe
+late in a career.

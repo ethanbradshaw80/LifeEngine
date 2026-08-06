@@ -85,6 +85,7 @@ import {
   optionsFor,
   reenlistEligibility,
   indefiniteStandingFor,
+  INDEFINITE_MIN_GRADE,
   INDEFINITE_RETIRE_AT_YEARS,
   SERVICE_MAX_YEARS,
   srbFor,
@@ -1603,6 +1604,8 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // is a thing that happens. The old annual review promoted straight past
   // ranks; the owner noticed from inside the uniform.
   let rank = record.rank
+  // Carried, not written: see the bust below.
+  let indefinite = record.indefinite
   let rankSinceTick = record.rankSinceTick
   const timeInGrade = tick - record.rankSinceTick
   const isPlayer = person.id === world.player.personId
@@ -1857,6 +1860,30 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // the same stroke.
       rank -= 1
       rankSinceTick = tick
+      // AND LOSING THE STRIPES LOSES INDEFINITE STATUS (ADR-0032).
+      //
+      // THE CAREER CORPORAL CAME BACK THROUGH THE ORDERLY ROOM. The wall
+      // stops a corporal signing on past twelve years, but nothing stopped
+      // an indefinite SERGEANT being busted down to corporal and keeping
+      // the flag: the term-end handler returns early for anybody
+      // indefinite, so he was never asked the wall's question again and
+      // `careerCeilingMonths` carried him to thirty years as a career
+      // corporal — the exact thing the owner's rule exists to prevent,
+      // reached by the one door that was not checked.
+      //
+      // He goes back on contracts. The next term's end asks the wall, and
+      // at twelve years and grade four the wall has one answer.
+      //
+      // AND IT IS CARRIED IN A LOCAL, NOT WRITTEN HERE. The first version of
+      // this fix wrote `indefinite: false` straight to the record and it was
+      // silently reverted: the single write at the end of this month spreads
+      // `...record`, the snapshot taken before any of this ran, so every
+      // field NOT in its explicit list goes back to what it was. Measured
+      // with the mid-tick write in place — two below-line indefinite records
+      // still standing across five seeds and forty years, which is what sent
+      // me looking. Anything this month decides must travel in a local.
+      const bustedGrade = branchSpecFor(world, record.branch).grades[rank] ?? 1
+      if (indefinite === true && bustedGrade < INDEFINITE_MIN_GRADE) indefinite = false
       world.service.set(person.id, { ...world.service.get(person.id)!, rank, rankSinceTick })
     }
     // ADR-0037 §3. THE PAPER, and only for the ones that cost something.
@@ -2123,6 +2150,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // The term's running ledger: good conduct is judged on the average of
     // every served month, not the last month's noise.
     termPerformanceSum: held ? record.termPerformanceSum : record.termPerformanceSum + performance,
+    // Undefined on a record that never had it, and left that way — writing
+    // `false` where there was nothing changes the saved shape for no gain.
+    ...(indefinite === undefined ? {} : { indefinite }),
   })
 
   if (termMonthsLeft > 0) return

@@ -135,8 +135,16 @@ describe('the town lives under the same rule', () => {
   it('has nobody serving past twelve years below the line', () => {
     // Law 1: the rule is the simulation's, not a screen the player sees.
     // A career corporal anywhere in a long-run world means the wall leaks.
+    //
+    // THE SEEDS ARE FIVE, AND THAT IS DELIBERATE. This test passed over
+    // three seeds while two career corporals stood in the other two: an
+    // indefinite sergeant busted a stripe kept the flag, and the term-end
+    // handler returns early for anybody indefinite, so he was never asked
+    // the wall's question again. Measured — 92 busts across five seeds and
+    // forty years, two of them landing here.
     let checked = 0
-    for (const seed of [4141, 9001, 31337]) {
+    let indefiniteSeen = 0
+    for (const seed of [4141, 9001, 31337, 777, 12345]) {
       const world = createWorld(makeSeed(seed), 400)
       advanceTicks(world, 40 * 12)
       for (const record of world.service.values()) {
@@ -150,11 +158,21 @@ describe('the town lives under the same rule', () => {
           grade,
           `${record.branch} rank ${String(record.rank)} still serving at ${String(years)} years`,
         ).toBeGreaterThanOrEqual(INDEFINITE_MIN_GRADE)
+        // The flag itself, not only the years — the bust reached the record
+        // without going near the wall, so check the state the wall sets.
+        if (record.indefinite === true) {
+          indefiniteSeen++
+          expect(
+            grade,
+            `indefinite at grade ${String(grade)} — a career corporal by the back door`,
+          ).toBeGreaterThanOrEqual(INDEFINITE_MIN_GRADE)
+        }
       }
     }
     // The assertion above is vacuous if nobody got that far, so prove
     // somebody did — long careers must still exist.
     expect(checked, 'no long enlisted career in any seed').toBeGreaterThan(0)
+    expect(indefiniteSeen, 'nobody reached indefinite status at all').toBeGreaterThan(0)
   })
 })
 
