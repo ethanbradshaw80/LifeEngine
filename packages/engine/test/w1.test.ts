@@ -41,7 +41,10 @@ function aServingPlayer(world: World, performance = 800): Person {
     personId: person.id,
     branch: 'land-forces',
     specialtyId: 'rifleman',
-    rank: 3,
+    // CPL. Corporal is where the competitive ladder starts since M-PROMO:
+    // a specialist's next step is a lateral appointment, so boardStandingFor
+    // has no gates to report and returns null.
+    rank: 4,
     rankSinceTick: world.tick as never,
     qualifications: [],
     enlistedAtTick: (world.tick - 30) as never,

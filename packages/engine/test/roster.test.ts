@@ -21,7 +21,15 @@ describe('unit rosters', () => {
       const roster = unitRosterOf(world, record.personId)
       if (!roster) continue
       rostersSeen++
-      expect(roster.unitName).toMatch(/^(1st|2nd|3rd|4th) Squad, [ABCD] Company$/)
+      // A LINE SQUAD, OR A NAMED UNIT SOMEBODY WAS SELECTED FOR. This
+      // asserted the squad pattern for everybody, which held only while
+      // NPCs never went to school: since M-PROMO the town's soldiers earn
+      // badges, and a badge is what a special unit selects on. The first
+      // air-guard soldier to make the Guardian Flight turned this red.
+      const special = world.spec.units.some((u) => u.name === roster.unitName)
+      if (!special) {
+        expect(roster.unitName).toMatch(/^(1st|2nd|3rd|4th) Squad, [ABCD] Company$/)
+      }
       // Everyone listed is alive, serving, and at the same posting.
       for (const member of roster.members) {
         const theirs = world.service.get(member.personId)

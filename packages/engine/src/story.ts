@@ -533,6 +533,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         : `${year} — Fought off an intruder.`
     }
     // ---- the uniform ------------------------------------------------
+    // M-PROMO. A billet is a job, not a rank — and the taking and the
+    // handing on are both worth a line, because the title changes on both.
+    case 'billet-taken':
+      return `${year} — Made ${event.detail ?? 'a leadership billet'}.`
+    case 'billet-ended':
+      return `${year} — Handed on the ${event.detail ?? 'billet'} and went back to the rank.`
     case 'commissioned':
       // A COMMISSION LEFT NO TRACE AT ALL. The one thing that changes what
       // a service career even is, and the story did not mention it.

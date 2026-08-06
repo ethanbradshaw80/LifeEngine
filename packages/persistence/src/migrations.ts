@@ -1320,7 +1320,129 @@ const V39_TO_V40: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40]
+
+/**
+ * v40 -> v41. M-PROMO — THE BACK-FILL, and it is the whole reason this
+ * migration exists rather than being a version stamp.
+ *
+ * Professional military education now GATES promotion: you cannot pin on a
+ * grade without the course that gates it. Every soldier in an existing save
+ * earned their grade under rules where those courses did not exist, so
+ * without this every serving NCO in every save is instantly and permanently
+ * un-promotable — a staff sergeant who has done everything right, frozen
+ * for the rest of his career by a rule invented after he was promoted.
+ *
+ * So the courses they would have been through are stamped as done. Not
+ * generously: only the ones gating grades AT OR BELOW the one they already
+ * hold, because that is the claim being made — that a serving E-6 has been
+ * to the E-5 and E-6 schools. The next grade up is still theirs to earn.
+ *
+ * The badge goes on the awards ledger, which is where `schoolOwedFor` reads
+ * it from, and it is stamped with the enlistment tick rather than today:
+ * saying somebody finished a leader course the month the save was upgraded
+ * would be writing a fact that never happened (Law 3).
+ */
+const V40_TO_V41: Migration = {
+  from: 40,
+  to: 41,
+  describe: 'back-fill professional military education so no serving NCO is frozen',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    // The collections sit at the top of the world object, not under a
+    // `body` — that nesting exists in the runtime snapshot's TYPE, not in
+    // what is written to disk. Every migration before this one reads them
+    // this way; the first draft of this one did not, and nine save tests
+    // said so.
+    const service = Array.isArray(world['service']) ? world['service'] : []
+    const awards = Array.isArray(world['awards']) ? [...world['awards']] : []
+
+    // Grade ladders, kept here rather than imported: persistence must read a
+    // save the same way in ten years' time, and content tables move.
+    const GRADES: Record<string, readonly number[]> = {
+      'land-forces': [1, 2, 3, 4, 4, 5, 6, 7, 8, 9],
+      'naval-service': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      'air-guard': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+    }
+    // Badge granted by the course gating each grade, per branch.
+    const PME: Record<string, Record<number, string>> = {
+      'land-forces': {
+        5: 'basic leader', 6: 'advanced leader', 7: 'senior leader',
+        8: 'master leader', 9: 'sergeants major course',
+      },
+      'naval-service': {
+        4: 'foundational leader', 5: 'intermediate leader',
+        6: 'advanced leader development', 7: 'chief petty officer course',
+        8: 'senior enlisted academy',
+      },
+      'air-guard': {
+        5: 'airman leadership', 7: 'nco academy', 8: 'senior nco academy',
+        9: 'chief leadership',
+      },
+    }
+
+    const byPerson = new Map<number, Record<string, unknown>>()
+    for (const entry of awards) {
+      if (typeof entry !== 'object' || entry === null) continue
+      const row = entry as Record<string, unknown>
+      const id = row['personId']
+      if (typeof id === 'number') byPerson.set(id, row)
+    }
+
+    for (const raw of service) {
+      if (typeof raw !== 'object' || raw === null) continue
+      const record = raw as Record<string, unknown>
+      if (record['commissioned'] === true) continue
+      if (record['dischargedAtTick'] !== null && record['dischargedAtTick'] !== undefined) continue
+      const personId = record['personId']
+      const branch = record['branch']
+      const rank = record['rank']
+      if (typeof personId !== 'number' || typeof branch !== 'string' || typeof rank !== 'number') {
+        continue
+      }
+      const grades = GRADES[branch]
+      const courses = PME[branch]
+      if (grades === undefined || courses === undefined) continue
+      const grade = grades[rank] ?? 0
+      const enlisted = typeof record['enlistedAtTick'] === 'number' ? record['enlistedAtTick'] : 0
+
+      let row = byPerson.get(personId)
+      if (row === undefined) {
+        row = { personId, decorations: [] }
+        byPerson.set(personId, row)
+        awards.push(row)
+      }
+      const decorations = Array.isArray(row['decorations']) ? [...row['decorations']] : []
+      for (const [gateKey, badge] of Object.entries(courses)) {
+        if (Number(gateKey) > grade) continue
+        const already = decorations.some((d) => {
+          if (typeof d !== 'object' || d === null) return false
+          const award = d as Record<string, unknown>
+          return award['kind'] === 'qualification-badge' && award['title'] === badge
+        })
+        if (already) continue
+        decorations.push({
+          personId,
+          kind: 'qualification-badge',
+          title: badge,
+          tick: enlisted,
+          count: 1,
+          qualifyingEventIds: [],
+        })
+      }
+      row['decorations'] = decorations
+    }
+
+    const nextWorld = { ...world, awards }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 41, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

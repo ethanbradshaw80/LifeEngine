@@ -266,10 +266,25 @@ export const BRANCH_NAMES: Readonly<Record<ServiceBranch, string>> = {
  * A record stores an INDEX into its branch's ladder; titles resolve through
  * rankTitle(branch, rank). No rank is ever skipped.
  */
+/**
+ * M-PROMO phase 1 (owner's `promotions_all_branches.md`).
+ *
+ * THE LADDERS STOPPED SHORT. The land forces topped out at MSG (E-8) and
+ * the other two at their E-7 — so a naval career ended at Chief and an air
+ * career at Master Sergeant, with the two grades above them simply absent.
+ * The spec's tables run every branch to E-9, and every later phase of the
+ * promotions work (the senior selection boards, the PME that gates each
+ * step, the command billets) needs those rungs to exist before it has
+ * anything to gate.
+ *
+ * Nothing here reads a hardcoded length — the promotion path, the pay
+ * lookup and the article 15 paper all work off `ranks.length`, so the
+ * ladders can grow without chasing constants.
+ */
 export const BRANCH_RANKS: Readonly<Record<ServiceBranch, readonly string[]>> = {
-  'land-forces': ['PVT', 'PV2', 'PFC', 'SPC', 'CPL', 'SGT', 'SSG', 'SFC', 'MSG'],
-  'naval-service': ['SR', 'SA', 'SN', 'PO3', 'PO2', 'PO1', 'CPO'],
-  'air-guard': ['AB', 'Amn', 'A1C', 'SrA', 'SSgt', 'TSgt', 'MSgt'],
+  'land-forces': ['PVT', 'PV2', 'PFC', 'SPC', 'CPL', 'SGT', 'SSG', 'SFC', 'MSG', 'SGM'],
+  'naval-service': ['SR', 'SA', 'SN', 'PO3', 'PO2', 'PO1', 'CPO', 'SCPO', 'MCPO'],
+  'air-guard': ['AB', 'Amn', 'A1C', 'SrA', 'SSgt', 'TSgt', 'MSgt', 'SMSgt', 'CMSgt'],
 }
 
 /**
@@ -287,15 +302,16 @@ export const BRANCH_RANKS: Readonly<Record<ServiceBranch, readonly string[]>> = 
 export const BRANCH_RANKS_SPELLED: Readonly<Record<ServiceBranch, readonly string[]>> = {
   'land-forces': [
     'Private', 'Private Second Class', 'Private First Class', 'Specialist', 'Corporal',
-    'Sergeant', 'Staff Sergeant', 'Sergeant First Class', 'Master Sergeant',
+    'Sergeant', 'Staff Sergeant', 'Sergeant First Class', 'Master Sergeant', 'Sergeant Major',
   ],
   'naval-service': [
     'Seaman Recruit', 'Seaman Apprentice', 'Seaman', 'Petty Officer Third Class',
     'Petty Officer Second Class', 'Petty Officer First Class', 'Chief Petty Officer',
+    'Senior Chief Petty Officer', 'Master Chief Petty Officer',
   ],
   'air-guard': [
     'Airman Basic', 'Airman', 'Airman First Class', 'Senior Airman', 'Staff Sergeant',
-    'Technical Sergeant', 'Master Sergeant',
+    'Technical Sergeant', 'Master Sergeant', 'Senior Master Sergeant', 'Chief Master Sergeant',
   ],
 }
 
@@ -317,9 +333,12 @@ export const BRANCH_OFFICER_RANKS_SPELLED: Readonly<Record<ServiceBranch, readon
  * index: SPC and CPL are both E-4, exactly as in life.
  */
 export const BRANCH_GRADES: Readonly<Record<ServiceBranch, readonly number[]>> = {
-  'land-forces': [1, 2, 3, 4, 4, 5, 6, 7, 8],
-  'naval-service': [1, 2, 3, 4, 5, 6, 7],
-  'air-guard': [1, 2, 3, 4, 5, 6, 7],
+  // SPC and CPL share E-4 — the corporal is the same grade wearing the
+  // stripes of an NCO, which is why the twelve-year wall reads GRADE and
+  // not rank index (ADR-0032).
+  'land-forces': [1, 2, 3, 4, 4, 5, 6, 7, 8, 9],
+  'naval-service': [1, 2, 3, 4, 5, 6, 7, 8, 9],
+  'air-guard': [1, 2, 3, 4, 5, 6, 7, 8, 9],
 }
 
 /**
@@ -403,16 +422,41 @@ const PAY_BY_GRADE: readonly number[] = [
   dollars(625), // E-6
   dollars(738), // E-7
   dollars(850), // E-8
+  // E-9. EXTRAPOLATED, NOT PRICED. Every figure above it was set against
+  // real compensation data; this one continues the curve those figures
+  // make (the step from E-8 grows the way E-6→E-7→E-8 grew) because the
+  // grade did not exist when the table was repriced. It wants checking
+  // against a real senior-enlisted figure before anybody leans on it.
+  dollars(985), // E-9
 ]
 
 /**
  * The first ladder index that takes a promotion board. Everything below is
  * time-in-grade — near-automatic, the way junior enlisted promotion works.
  */
+/**
+ * The first rung that has to be COMPETED for. Below it, promotion is time
+ * and a commander's signature.
+ *
+ * M-PROMO (owner's `army_promotions_fix.md`, headline correction): "No
+ * board for Specialist/Corporal (E-4)." The land forces sat at 4, which is
+ * CPL — so making corporal meant clearing a promotion-points cutoff, a
+ * board in all but name. The doc is explicit that E-2 through E-4 are
+ * automatic on time and that CORPORAL IS A LATERAL APPOINTMENT the
+ * commander names you into. Sergeant is the first rung anybody competes
+ * for. The doc is master and overrides the earlier billet-timing direction
+ * that put CPL on the competitive path.
+ *
+ * THE THREE BRANCHES GENUINELY DIFFER HERE, which is the whole point of
+ * the promotions work: the navy's E-4 (PO3) really is won on an
+ * advancement exam, so 3 is correct for it; the air force's E-4 (SrA) is
+ * automatic and its E-5 (SSgt) is the first WAPS rung, so 4 is correct
+ * there. Only the land forces were wrong.
+ */
 export const COMPETITIVE_FROM: Readonly<Record<ServiceBranch, number>> = {
-  'land-forces': 4, // CPL and above
-  'naval-service': 3, // PO3 and above
-  'air-guard': 4, // SSgt and above
+  'land-forces': 5, // SGT and above — E-4 is time, not a board
+  'naval-service': 3, // PO3 and above — the advancement exam starts at E-4
+  'air-guard': 4, // SSgt and above — SrA is automatic
 }
 
 /**
@@ -422,7 +466,11 @@ export const COMPETITIVE_FROM: Readonly<Record<ServiceBranch, number>> = {
  * performance.
  */
 export const JUNIOR_TIG_MONTHS: Readonly<Record<ServiceBranch, readonly number[]>> = {
-  'land-forces': [6, 6, 12],
+  // Indexed by the rank being promoted OUT of. The fourth entry is the one
+  // the CPL correction needs: SPC → CPL is now a junior step and would
+  // otherwise fall to the six-month default, making corporal arrive faster
+  // than specialist did.
+  'land-forces': [6, 6, 12, 12],
   'naval-service': [6, 6],
   'air-guard': [6, 6, 16],
 }
@@ -1161,7 +1209,152 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     category: 'selection', difficulty: 620, seatScarcity: 780, maxAttempts: 2, recycleAllowed: true,
     minTimeInServiceMonths: 36, minAptitude: 620, minFitness: 540, pointsBonus: 50,
   },
+  // ---- PROFESSIONAL MILITARY EDUCATION (M-PROMO) ----------------------
+  //
+  // The schools that gate PROMOTION, as distinct from the accession schools
+  // that get you in and the skill courses that pin a badge on. Each one
+  // gates its own pay grade, the classic mapping the owner's spec
+  // recommends (see ServiceSchool.gatesGrade for why, and for the 2024
+  // caveat).
+  //
+  // Real course names are nominative use and fine per charter §3. Their
+  // crests and patches are NOT reproduced — the marks are invented, the way
+  // every other badge in this game is.
+  //
+  // Low difficulty by design: the spec is explicit that PME rarely washes
+  // anybody out, and that the real challenge is getting the seat in time to
+  // promote. The scarcity is where the pressure lives.
+  //
+  // AND THE ENTRY BAR SITS BELOW THE PROMOTION IT GATES. MEASURED, and the
+  // first numbers were a death spiral: a course needing 470 performance to
+  // walk into gated a rank that used to be won on promotion POINTS, where
+  // seniority, badges and decorations could carry a middling evaluation. So
+  // the ordinary soldier could no longer make sergeant at all, sat at
+  // corporal until high-year tenure removed him, and the town's NCO ranks
+  // emptied — 45 tenure discharges in one forty-year run, and one sergeant
+  // left standing out of fifteen serving. A school is education. The
+  // selection happens at the board, which is where it belongs.
+
+  // Army — the NCO Professional Development System.
+  {
+    id: 'blc', title: 'the Basic Leader Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 4, minPerformance: 400, badge: 'basic leader', performanceBoost: 45,
+    courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
+    category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
+  },
+  {
+    id: 'alc', title: 'the Advanced Leader Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 5, minPerformance: 470, badge: 'advanced leader', performanceBoost: 50,
+    courseMonths: 2, classCadenceMonths: 3, seatsPerClass: 4,
+    category: 'pme', difficulty: 70, seatScarcity: 260, maxAttempts: 4, gatesGrade: 6,
+  },
+  {
+    id: 'slc', title: 'the Senior Leader Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 6, minPerformance: 530, badge: 'senior leader', performanceBoost: 55,
+    courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 3,
+    category: 'pme', difficulty: 80, seatScarcity: 340, maxAttempts: 3, gatesGrade: 7,
+  },
+  {
+    id: 'mlc', title: 'the Master Leader Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 7, minPerformance: 580, badge: 'master leader', performanceBoost: 60,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
+    category: 'pme', difficulty: 90, seatScarcity: 430, maxAttempts: 3, gatesGrade: 8,
+  },
+  {
+    id: 'smc', title: 'the Sergeants Major Course', branches: ['land-forces'], specialtyIds: [],
+    minRank: 8, minPerformance: 630, badge: 'sergeants major course', performanceBoost: 70,
+    courseMonths: 10, classCadenceMonths: 12, seatsPerClass: 1,
+    category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
+  },
+
+  // Navy — the Leader Development continuum, then the academy.
+  {
+    id: 'fldc', title: 'the Foundational Leader Development Course', branches: ['naval-service'], specialtyIds: [],
+    minRank: 2, minPerformance: 380, badge: 'foundational leader', performanceBoost: 40,
+    courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
+    category: 'pme', difficulty: 50, seatScarcity: 180, maxAttempts: 4, gatesGrade: 4,
+  },
+  {
+    id: 'ildc', title: 'the Intermediate Leader Development Course', branches: ['naval-service'], specialtyIds: [],
+    minRank: 3, minPerformance: 400, badge: 'intermediate leader', performanceBoost: 45,
+    courseMonths: 1, classCadenceMonths: 3, seatsPerClass: 5,
+    category: 'pme', difficulty: 60, seatScarcity: 240, maxAttempts: 4, gatesGrade: 5,
+  },
+  {
+    id: 'aldc', title: 'the Advanced Leader Development Course', branches: ['naval-service'], specialtyIds: [],
+    minRank: 4, minPerformance: 470, badge: 'advanced leader development', performanceBoost: 50,
+    courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 4,
+    category: 'pme', difficulty: 70, seatScarcity: 300, maxAttempts: 4, gatesGrade: 6,
+  },
+  {
+    id: 'cpo-ldc', title: 'the Chief Petty Officer Leader Development Course', branches: ['naval-service'], specialtyIds: [],
+    minRank: 5, minPerformance: 540, badge: 'chief petty officer course', performanceBoost: 60,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 3,
+    category: 'pme', difficulty: 85, seatScarcity: 400, maxAttempts: 3, gatesGrade: 7,
+  },
+  {
+    id: 'sea', title: 'the Senior Enlisted Academy', branches: ['naval-service'], specialtyIds: [],
+    minRank: 6, minPerformance: 590, badge: 'senior enlisted academy', performanceBoost: 70,
+    courseMonths: 3, classCadenceMonths: 6, seatsPerClass: 2,
+    category: 'pme', difficulty: 95, seatScarcity: 500, maxAttempts: 3, gatesGrade: 8,
+  },
+
+  // Air — Airman Leadership School, then the academies.
+  {
+    id: 'als', title: 'Airman Leadership School', branches: ['air-guard'], specialtyIds: [],
+    minRank: 3, minPerformance: 400, badge: 'airman leadership', performanceBoost: 45,
+    courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
+    category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
+  },
+  {
+    id: 'ncoa', title: 'the NCO Academy', branches: ['air-guard'], specialtyIds: [],
+    minRank: 5, minPerformance: 520, badge: 'nco academy', performanceBoost: 55,
+    courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 4,
+    category: 'pme', difficulty: 75, seatScarcity: 320, maxAttempts: 3, gatesGrade: 7,
+  },
+  {
+    id: 'sncoa', title: 'the Senior NCO Academy', branches: ['air-guard'], specialtyIds: [],
+    minRank: 6, minPerformance: 570, badge: 'senior nco academy', performanceBoost: 65,
+    courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
+    category: 'pme', difficulty: 90, seatScarcity: 440, maxAttempts: 3, gatesGrade: 8,
+  },
+  {
+    id: 'clc', title: 'the Chief Leadership Course', branches: ['air-guard'], specialtyIds: [],
+    minRank: 7, minPerformance: 620, badge: 'chief leadership', performanceBoost: 70,
+    courseMonths: 2, classCadenceMonths: 12, seatsPerClass: 1,
+    category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
+  },
 ]
+
+/**
+ * M-PROMO. THE LEADERSHIP BILLETS — a title over a pay grade, not a rank.
+ *
+ * Keyed by branch, then by the pay grade the billet sits at. Held for a
+ * tour and then given up, at which point the holder is a master sergeant
+ * again (owner's spec §3: "revert on leaving the billet").
+ *
+ * The air force's First Sergeant is a special duty rather than a command
+ * seat and is held lower down the ladder, which is why it sits at E-7 here
+ * while the command billets sit at the top of each ladder.
+ */
+export const BRANCH_BILLETS: Readonly<
+  Record<ServiceBranch, Readonly<Record<number, { readonly abbr: string; readonly title: string }>>>
+> = {
+  'land-forces': {
+    8: { abbr: '1SG', title: 'First Sergeant' },
+    9: { abbr: 'CSM', title: 'Command Sergeant Major' },
+  },
+  'naval-service': {
+    9: { abbr: 'CMC', title: 'Command Master Chief' },
+  },
+  'air-guard': {
+    7: { abbr: 'First Sergeant', title: 'First Sergeant' },
+    9: { abbr: 'CCM', title: 'Command Chief Master Sergeant' },
+  },
+}
+
+/** How long a billet is held before it goes to somebody else. */
+export const BILLET_TOUR_MONTHS = 36
 
 export function schoolById(id: string): ServiceSchool | undefined {
   return SERVICE_SCHOOLS.find((s) => s.id === id)

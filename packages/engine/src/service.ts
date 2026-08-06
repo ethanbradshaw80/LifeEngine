@@ -42,6 +42,8 @@ import { entryTestScore } from './enlistment.js'
 import {
   BOARD_CUTOFF_BASE,
   BOARD_CUTOFF_STEP,
+  BILLET_TOUR_MONTHS,
+  BRANCH_BILLETS,
   HIGH_YEAR_TENURE_TIG,
   MAX_DECORATION_POINTS,
   MAX_FITNESS_POINTS,
@@ -79,7 +81,7 @@ import { hasAnswered, raisePending } from './player.js'
 import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
-import { hash32, openStream, Stream, type StreamId } from './rng.js'
+import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
 import type { CausalFactor, Person, Place, World } from './types.js'
 import {
   optionsFor,
@@ -257,6 +259,9 @@ export function branchName(world: World, branchId: string): string {
 export function rankTitleOf(world: World, personId: EntityId): string {
   const record = world.service.get(personId)
   if (!record) return ''
+  // THE BILLET SHOWS OVER THE GRADE while it is held. A first sergeant is
+  // addressed as one, not as the master sergeant he is on the pay table.
+  if (typeof record.billet === 'string' && record.billet !== '') return record.billet
   return rankTitle(world, record.branch, record.rank, record.commissioned === true)
 }
 
@@ -900,6 +905,14 @@ export function boardStandingFor(
   readonly priorPassOvers: number
   /** What those non-selections actually add to the cutoff, capped. */
   readonly filePenalty: number
+  /**
+   * M-PROMO. The course still owed for the next grade, or null when the
+   * way is clear. The Service tab reads this to say "requires the Advanced
+   * Leader Course" instead of leaving somebody at the cutoff wondering why
+   * nothing happens — the bar pattern, one function feeding both the screen
+   * and the decision.
+   */
+  readonly schoolOwed: { readonly id: string; readonly title: string } | null
 } | null {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
@@ -908,8 +921,10 @@ export function boardStandingFor(
   const gates = competitiveGates(world, specialty, record.rank, commissioned)
   if (!gates) return null
   const targetTitle = rankTitle(world, record.branch, gates.targetRank, commissioned)
+  const owed = schoolOwedFor(world, personId, record.branch, gates.targetRank, commissioned)
   return {
     targetTitle,
+    schoolOwed: owed === undefined ? null : { id: owed.id, title: owed.title },
     targetRank: gates.targetRank,
     timeInGrade: world.tick - record.rankSinceTick,
     tigNeeded: gates.tigNeeded,
@@ -1272,6 +1287,11 @@ export function recruitingDriveActive(world: World, tick: Tick): boolean {
 }
 
 export function runService(world: World, tick: Tick): void {
+  // BAND 3 CONVENES BEFORE THE MONTH IS SERVED. The annual boards are a
+  // cross-person comparison — a fixed number of seats competed for — so
+  // they cannot live inside the per-person pass the way the points path
+  // does. Once a year, and a no-op every other month.
+  runSelectionBoards(world, tick)
   const drive = recruitingDriveActive(world, tick)
   // The season's first active month goes on the record — the event IS the
   // history the news reads (review S7).
@@ -1625,6 +1645,9 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
   }
 
+  // Carried to the single write at the end of the month, for the same
+  // reason `indefinite` is (ADR-0039).
+  let seat: { readonly schoolId: string; readonly startsAtTick: Tick } | null = null
   let promotedThisMonth = false
   if (rank < ladder.length - 1) {
     // AN OFFICER'S FIRST STEPS ARE SLOW AND THE REST ARE A BOARD. Two
@@ -1636,6 +1659,28 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     if (rank + 1 < competitiveFrom) {
       const due = commissioned ? OFFICER_TIG_MONTHS[rank] ?? 24 : branchSpec.juniorTigMonths[rank] ?? 6
       promote = timeInGrade >= due && performance >= 300
+      // A SAME-GRADE LATERAL IS NOT AUTOMATIC (owner's
+      // `army_promotions_fix.md`: "Corporal — lateral appointment, the NCO
+      // version of SPC; commander names you"). SPC and CPL are both E-4;
+      // the corporal is the one handed an NCO's job, and most specialists
+      // never are.
+      //
+      // MEASURED, AND THIS IS WHY IT MATTERS BEYOND FLAVOUR: making it
+      // automatic on time marched every specialist to corporal at twelve
+      // months, which RESET the time-in-grade clock — so high-year tenure,
+      // which is the up-or-out rule for everybody below sergeant, could
+      // never fire again. Soldiers who should have been let go at six
+      // years in grade sailed on to the twelve-year wall instead, and two
+      // tests that had been guarding that rule went red.
+      if (promote && (branchSpec.grades[rank + 1] ?? 0) === (branchSpec.grades[rank] ?? 0)) {
+        promote = performance >= 520 && rng.chance(1, 30)
+      }
+    } else if (isSeniorBand(branchSpec.grades[rank + 1] ?? 0) && !commissioned) {
+      // BAND 3 IS THE BOARD'S, NOT THIS MONTH'S. A senior grade is a fixed
+      // number of seats competed for once a year (runSelectionBoards); if
+      // the monthly points path also filled them, the seats would mean
+      // nothing and the pyramid would flatten again.
+      promote = false
     } else if (!isPlayer) {
       // The board ranks, NPC path: PROMOTION POINTS against the trade's
       // cutoff — evaluation, fitness, badges, decorations, seniority. The
@@ -1650,6 +1695,19 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
         const margin = points - gates.cutoff
         promote = margin >= 0 && (margin >= 150 || rng.chance(6 + Math.floor(margin / 15), 24))
       }
+    }
+    // THE UNIT SPENDS A SEAT. Not on the player — theirs is a choice they
+    // make from the schoolhouse — but on everybody else, or the gate below
+    // would empty every NCO rank in the world.
+    if (!isPlayer && seat === null) seat = seatDueFor(world, tick, person.id, rng)
+
+    // M-PROMO. THE SCHOOL IS A HARD GATE, and it sits on top of whatever
+    // the branch's own engine decided. A soldier who has cleared the cutoff
+    // but never been to the course does not pin the grade on — he waits for
+    // a seat, which is exactly the pressure the spec wants PME to create.
+    // Applies to player and NPC alike (Law 1).
+    if (promote && schoolOwedFor(world, person.id, branch, rank + 1, commissioned) !== undefined) {
+      promote = false
     }
     if (promote) {
       promotedThisMonth = true
@@ -1966,7 +2024,19 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       const askedRecently = world.player.log.some(
         (entry) => entry.kind === 'promotion-board' && tick - entry.tick < 10,
       )
-      if (over >= 0 && over % 12 <= 2 && !askedRecently) {
+      // AND THE SCHOOL IS OWED FIRST. Asking somebody to put in for a
+      // grade they cannot pin on is a question with one real answer, and
+      // the Service tab already states the reason (`schoolOwed` on the
+      // board standing). The question waits for the seat.
+      const owesSchool =
+        schoolOwedFor(world, person.id, branch, gates.targetRank, commissioned) !== undefined
+      // AND NOBODY PUTS IN FOR A CENTRALIZED BOARD. At the senior grades
+      // the file competes whether its owner submits it or not — that is
+      // what "centralized" means — so the question would be a button with
+      // no alternative. The player is selected, or passed over, like
+      // everybody else.
+      const senior = !commissioned && isSeniorBand(branchSpec.grades[gates.targetRank] ?? 0)
+      if (over >= 0 && over % 12 <= 2 && !askedRecently && !owesSchool && !senior) {
         raisePending(world, {
           tick,
           kind: 'promotion-board',
@@ -2153,6 +2223,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // Undefined on a record that never had it, and left that way — writing
     // `false` where there was nothing changes the saved shape for no gain.
     ...(indefinite === undefined ? {} : { indefinite }),
+    ...(seat === null ? {} : { schoolId: seat.schoolId, schoolStartsAtTick: seat.startsAtTick }),
   })
 
   if (termMonthsLeft > 0) return
@@ -2618,6 +2689,346 @@ export function addServiceQualification(world: World, personId: EntityId, qualif
     ...record,
     qualifications: [...record.qualifications, qualification],
   })
+}
+
+/**
+ * M-PROMO BAND 3 — THE CENTRALIZED SELECTION BOARD.
+ *
+ * From the owner's `army_promotions_fix.md` §1: "E-7 → E-9: a centralized
+ * HQDA selection board. Once a year a Department-of-the-Army board convenes,
+ * reads your entire file, and selects a fixed number. No points — it's your
+ * record vs. everyone else's."
+ *
+ * THE FIXED NUMBER IS THE WHOLE POINT, and it is what was missing. Running
+ * the E-5/E-6 points logic all the way up meant every senior grade was an
+ * individual test against a cutoff: clear it and you promote, and so does
+ * everybody else who cleared it. Measured with the PME gate in and this
+ * band still absent — seventeen of thirty-three serving sat at E-7 or
+ * above. An army shaped like that has no privates in it.
+ *
+ * A selection board is not a test. It is a competition for a set number of
+ * seats, and the seats are what make the ladder a pyramid.
+ */
+const SENIOR_BAND_FROM_GRADE = 7
+
+/**
+ * How much of an enlisted force each senior grade is allowed to be, per
+ * thousand. A pyramid: plenty of sergeants, few sergeants major.
+ *
+ * TUNED, NOT SOURCED. Real force structures publish grade tables and these
+ * are not them — they are the shape (each rung a fraction of the one below)
+ * at numbers that produce a believable town. Worth replacing with real
+ * proportions if anybody wants to look them up.
+ */
+const SENIOR_SHARE_PER_MILLE: Readonly<Record<number, number>> = { 7: 130, 8: 55, 9: 20 }
+
+/** Whether this grade is filled by the annual board rather than by points. */
+export function isSeniorBand(grade: number): boolean {
+  return grade >= SENIOR_BAND_FROM_GRADE
+}
+
+/**
+ * What the board reads: the whole file, weighted. Not promotion points —
+ * the spec is explicit that there are none at this level — but the same
+ * evidence a real board sees, in one comparable number.
+ */
+function fileStrengthOf(world: World, personId: EntityId): number {
+  const record = world.service.get(personId)
+  if (!record) return 0
+  const decorations = world.awards.get(personId) ?? []
+  const valour = decorations.filter((a) => a.kind === 'valor').length
+  const merit = decorations.filter(
+    (a) => a.kind === 'meritorious-service' || a.kind === 'commendation',
+  ).length
+  const badges = decorations.filter((a) => a.kind === 'qualification-badge').length
+  return (
+    record.performance * 2 +
+    Math.min(240, world.tick - record.rankSinceTick) +
+    valour * 300 +
+    merit * 90 +
+    badges * 40 +
+    Math.min(200, record.fitnessScore / 3)
+  )
+}
+
+/**
+ * The annual boards, one per branch per senior grade.
+ *
+ * Runs on a fixed month off the epoch grid so a replay convenes it in the
+ * same month every time, the way the school class dates already work.
+ */
+export function runSelectionBoards(world: World, tick: Tick): void {
+  if (tick % 12 !== 7) return
+
+  const serving = [...world.service.values()]
+    .filter((r) => r.dischargedAtTick === null && r.commissioned !== true)
+    .sort((a, b) => a.personId - b.personId)
+  if (serving.length === 0) return
+
+  const branches = [...new Set(serving.map((r) => r.branch))].sort()
+  for (const branch of branches) {
+    const spec = branchSpecFor(world, branch)
+    const force = serving.filter((r) => r.branch === branch)
+    if (force.length === 0) continue
+    const gradeOf = (rank: number): number => spec.grades[rank] ?? 0
+
+    for (const grade of [7, 8, 9]) {
+      const share = SENIOR_SHARE_PER_MILLE[grade] ?? 0
+      const seats = Math.floor((force.length * share) / 1000)
+      const sitting = force.filter((r) => gradeOf(r.rank) === grade).length
+      const vacancies = seats - sitting
+      if (vacancies <= 0) continue
+
+      // Everybody one rung below who could actually pin it on.
+      const candidates = force
+        .filter((r) => {
+          const next = r.rank + 1
+          if (next >= spec.ranks.length) return false
+          if (gradeOf(next) !== grade) return false
+          if (world.tick - r.rankSinceTick < 24) return false
+          if (isDeployed(world, r.personId) || isCaptive(world, r.personId)) return false
+          // The school is a hard gate here too — a board does not select
+          // somebody who cannot be promoted when the list publishes.
+          return schoolOwedFor(world, r.personId, branch, next, false) === undefined
+        })
+        .map((r) => ({ record: r, strength: fileStrengthOf(world, r.personId) }))
+        // Strongest file first; the id breaks ties so a replay selects the
+        // same people in the same order.
+        .sort((a, b) => b.strength - a.strength || a.record.personId - b.record.personId)
+
+      const selected = candidates.slice(0, vacancies)
+      for (const { record } of selected) {
+        const person = world.people.get(record.personId)
+        if (!person) continue
+        const newRank = applyBoardPromotion(world, tick, record.personId)
+        if (newRank === null) continue
+        recordEvent(world, tick, {
+          type: 'promoted',
+          subjectId: record.personId,
+          detail: rankTitle(world, branch, newRank, false),
+        })
+        recordDecision(world, tick, {
+          subjectId: record.personId,
+          decision: 'promotion',
+          significance: 'major',
+          inputs: [
+            factor('strong-performance', record.performance),
+            factor('time-in-grade', Math.min(1000, world.tick - record.rankSinceTick)),
+          ],
+          chosen: `selected for ${rankTitle(world, branch, newRank, false)}`,
+          rejected: [],
+          streamId: Stream.Employment,
+        })
+      }
+      // THE ONES WHO WERE NOT SELECTED. A passed-over file is already a
+      // thing this game records and reads — the cutoff carries a penalty
+      // for it — so a board that selects silently would be hiding the half
+      // of its work that hurts.
+      for (const { record } of candidates.slice(vacancies)) {
+        recordEvent(world, tick, {
+          type: 'passed-over',
+          subjectId: record.personId,
+          detail: String(record.rank + 1),
+        })
+      }
+    }
+  }
+  runBillets(world, tick)
+}
+
+
+/**
+ * M-PROMO. WHO HOLDS THE COMMAND BILLETS THIS YEAR.
+ *
+ * Runs with the selection boards, after them, so somebody promoted into
+ * E-8 this month can be looked at for First Sergeant in the same sitting.
+ *
+ * A tour ends and the title goes back — that reversion is the part the
+ * spec is most explicit about, and the part a "just add two ranks" model
+ * would have got wrong for good.
+ */
+function runBillets(world: World, tick: Tick): void {
+  const serving = [...world.service.values()]
+    .filter((r) => r.dischargedAtTick === null && r.commissioned !== true)
+    .sort((a, b) => a.personId - b.personId)
+
+  // First, the tours that are over.
+  for (const record of serving) {
+    if (typeof record.billet !== 'string' || record.billet === '') continue
+    const since = record.billetSinceTick ?? tick
+    const spec = branchSpecFor(world, record.branch)
+    const grade = spec.grades[record.rank] ?? 0
+    const stillRates = (BRANCH_BILLETS[record.branch as 'land-forces'] ?? {})[grade] !== undefined
+    if (tick - since < BILLET_TOUR_MONTHS && stillRates) continue
+    // Either the tour ran out or a promotion moved them off the grade the
+    // billet belongs to. Both end it, and both revert the title.
+    world.service.set(record.personId, { ...record, billet: null, billetSinceTick: null })
+    recordEvent(world, tick, {
+      type: 'billet-ended',
+      subjectId: record.personId,
+      detail: record.billet,
+    })
+  }
+
+  // Then the seats that are open.
+  const branches = [...new Set(serving.map((r) => r.branch))].sort()
+  for (const branch of branches) {
+    const spec = branchSpecFor(world, branch)
+    const table = BRANCH_BILLETS[branch as 'land-forces'] ?? {}
+    for (const gradeKey of Object.keys(table).sort()) {
+      const grade = Number(gradeKey)
+      const billet = table[grade]
+      if (billet === undefined) continue
+      const atGrade = serving.filter(
+        (r) => r.branch === branch && (spec.grades[r.rank] ?? 0) === grade,
+      )
+      // ONE SEAT PER FOUR PEOPLE AT THE GRADE, at least one where anybody
+      // holds it at all — a company has one first sergeant, not four.
+      const seats = Math.max(1, Math.floor(atGrade.length / 4))
+      const held = atGrade.filter((r) => typeof r.billet === 'string' && r.billet !== '').length
+      let open = seats - held
+      if (open <= 0) continue
+      const candidates = atGrade
+        .filter((r) => !(typeof r.billet === 'string' && r.billet !== ''))
+        .map((r) => ({ record: r, strength: fileStrengthOf(world, r.personId) }))
+        .sort((a, b) => b.strength - a.strength || a.record.personId - b.record.personId)
+      for (const { record } of candidates) {
+        if (open <= 0) break
+        const current = world.service.get(record.personId)
+        if (!current || current.dischargedAtTick !== null) continue
+        world.service.set(record.personId, {
+          ...current,
+          billet: billet.abbr,
+          billetSinceTick: tick,
+        })
+        recordEvent(world, tick, {
+          type: 'billet-taken',
+          subjectId: record.personId,
+          detail: billet.title,
+        })
+        open -= 1
+      }
+    }
+  }
+}
+
+/**
+ * M-PROMO. THE UNIT SENDS ITS OWN PEOPLE TO SCHOOL.
+ *
+ * FOUND WHILE BUILDING THE PME GATE, and it would have been a disaster on
+ * its own. Before this, the ONLY doors into a schoolhouse were the player's
+ * — a monthly offer, the Service tab's request, and the reenlistment
+ * retention option. An NPC never attended a course in their life. That was
+ * survivable while a school only pinned a badge on; the moment the school
+ * GATES THE GRADE it means every soldier in every town stops dead below the
+ * first NCO rung, and a world with no sergeants in it has no army in it.
+ *
+ * So the unit does what a unit does: when somebody has the time in grade,
+ * the standing and the rank for the course their next grade needs, they get
+ * a seat. Seeded off the service stream like everything else, weighted by
+ * the course's own scarcity, and it runs for the player's NPCs and for the
+ * whole town alike (Law 1 — the rule is the simulation's, not a screen).
+ *
+ * The PLAYER is deliberately excluded. Their seat is theirs to ask for and
+ * accept; the point of the schoolhouse tab is that they choose. Sending
+ * them automatically would take the decision the spec is built around.
+ */
+function seatDueFor(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  rng: Rng,
+): { readonly schoolId: string; readonly startsAtTick: Tick } | null {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) return null
+  if (record.schoolId !== null) return null
+  if (isCaptive(world, personId)) return null
+  if (isDeployed(world, personId)) return null
+
+  // The course the NEXT grade needs, if any is owed.
+  const spec = branchSpecFor(world, record.branch)
+  const nextRank = record.rank + 1
+  const ladder = record.commissioned === true ? (spec.officerRanks ?? spec.ranks) : spec.ranks
+  if (nextRank >= ladder.length) return null
+  const owed = schoolOwedFor(world, personId, record.branch, nextRank, record.commissioned === true)
+  if (owed === undefined) return null
+
+  // The same gates the player's own list applies, so the two cannot drift.
+  const option = schoolOptionsFor(world, personId).find((o) => o.id === owed.id)
+  if (option === undefined || !option.open) return null
+
+  // Scarcity decides how often the quota reaches this soldier. A course
+  // nobody can get near takes years to come round; a leader course comes
+  // round often, because it has to for anybody to make sergeant.
+  // MEASURED. The first formula gave a leader course roughly one month in
+  // two and still produced only fourteen graduations in forty years, because
+  // most of the people who needed it were failing the entry bar rather than
+  // the roll. With the bar corrected the roll is what paces it, so it is
+  // generous for the courses everybody must pass through and stingy for the
+  // ones a career is built on.
+  const chance = Math.max(6, 90 - Math.floor(owed.seatScarcity / 12))
+  if (!rng.chance(chance, 100)) return null
+
+  // RETURNED, NOT WRITTEN — see ADR-0039. The month ends with one write
+  // that spreads the record as it was BEFORE any of this ran, and
+  // `schoolId` is not among the fields that write names. The first version
+  // of this booked the seat straight onto the record and it was reverted
+  // the same month, every month: measured at ZERO school bookings of any
+  // kind across twenty-five years. The trap was documented an hour before
+  // it was walked into.
+  return { schoolId: owed.id, startsAtTick: nextClassTick(owed, tick) }
+}
+
+/**
+ * M-PROMO. THE SCHOOL IS A HARD GATE.
+ *
+ * From the owner's `army_promotions_fix.md` §2: "you cannot promote into an
+ * NCO rank without its school complete. The school is a hard gate, on top
+ * of the points/board." Every branch works the same way here even though
+ * the three promotion ENGINES do not — a grade you have not been to school
+ * for is a grade you do not pin on.
+ *
+ * Returns the course still owed, or undefined when the way is clear. The
+ * caller turns that into the plain reason the bar pattern wants: "requires
+ * the Advanced Leader Course."
+ */
+export function schoolOwedFor(
+  world: World,
+  personId: EntityId,
+  branch: string,
+  targetRank: number,
+  commissioned: boolean,
+): ServiceSchool | undefined {
+  // OFFICERS ARE OUT OF SCOPE HERE. Their PME ladder is real but the spec
+  // scopes it to a later phase, and gating officer promotion on courses
+  // that do not exist yet would stop every officer career dead at O-1.
+  if (commissioned) return undefined
+  const spec = branchSpecFor(world, branch)
+  const grade = spec.grades[targetRank]
+  if (grade === undefined) return undefined
+  // The catalogue is the WORLD's, not the branch's — a preset swaps the
+  // whole list, which is how Heartland gets the same schools by reference.
+  const gating = world.spec.schools.find(
+    (school) => school.gatesGrade === grade && admitsBranch(school, branch),
+  )
+  if (gating === undefined) return undefined
+  return holdsBadge(world, personId, gating.badge) ? undefined : gating
+}
+
+/** Whether a course admits this branch — empty means all of them. */
+function admitsBranch(school: ServiceSchool, branch: string): boolean {
+  return school.branches.length === 0 || school.branches.includes(branch)
+}
+
+/**
+ * Whether the badge is already pinned on. Read off the awards ledger, which
+ * is where graduation puts it — not off the events, which would mean a
+ * linear scan of the whole world's history on every promotion check.
+ */
+function holdsBadge(world: World, personId: EntityId, badge: string): boolean {
+  return (world.awards.get(personId) ?? []).some(
+    (award) => award.kind === 'qualification-badge' && award.title === badge,
+  )
 }
 
 /** The board said yes: one grade up, pay to match. Returns the new rank for

@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { EntityId } from '@life-engine/shared'
+import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { volunteerForDeployment } from '../src/deployment.js'
 import { relationKey } from '../src/geopolitics.js'
@@ -130,11 +130,31 @@ describe("the player's board", () => {
     const person = anAdult(world)
     setPlayer(world, person.id)
     putInUniform(world, person.id, {
-      rank: 3, // SPC: the next step (CPL) is competitive
+      // CPL. THE NEXT STEP IS SERGEANT, which is the first rung anybody
+      // competes for — this said SPC and called the step to corporal
+      // competitive, which M-PROMO corrected: E-4 is a lateral the
+      // commander names you into, never a board.
+      rank: 4,
       rankSinceTick: world.tick - 12, // exactly at the gate — asked this month
       enlistedAtTick: world.tick - 30,
       performance: 700,
     })
+    // AND HE HAS BEEN TO THE LEADER COURSE. The school is a hard gate on
+    // promotion now, so without this the board is never convened and these
+    // tests would be asserting the gate rather than the board. The gate has
+    // its own tests in schoolhouse.test.ts.
+    world.awards.set(person.id, [
+      {
+        personId: person.id,
+        kind: 'qualification-badge',
+        title: 'basic leader',
+        tick: (world.tick - 24) as Tick,
+        count: 1,
+        qualifyingEventIds: [],
+        issuedBy: 'the schoolhouse',
+        citation: 'for completion of the Basic Leader Course',
+      },
+    ])
     return person
   }
 
@@ -185,8 +205,10 @@ describe("the player's board", () => {
       }
       advanceTick(world)
     }
-    // Passed on every board: still an SPC. The stripes wait for the asking.
-    expect(world.service.get(person.id)?.rank).toBe(3)
+    // Passed on every board: still a CPL. The stripes wait for the asking.
+    // (Rank 4 since M-PROMO moved the fixture off SPC — corporal is where
+    // the competitive ladder now starts, because E-4 is not competed for.)
+    expect(world.service.get(person.id)?.rank).toBe(4)
     // And every pass was a choice ON THE RECORD, as the stakes promise.
     expect(
       world.causalRecords.some(

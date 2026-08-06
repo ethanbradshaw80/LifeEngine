@@ -206,8 +206,11 @@ describe('promotion points', () => {
 
   it('cutoffs differ by trade, like the real monthly lists', () => {
     const world = createWorld(makeSeed(12345), 100)
-    const rifleman = competitiveGates(world, specialtyById('rifleman'), 3)
-    const medic = competitiveGates(world, specialtyById('medic'), 3)
+    // RANK 4, NOT 3. Corporal is where the competitive ladder now starts —
+    // M-PROMO made E-4 a lateral appointment, so a specialist's next step
+    // has no gates to compare (the call returns null for a junior step).
+    const rifleman = competitiveGates(world, specialtyById('rifleman'), 4)
+    const medic = competitiveGates(world, specialtyById('medic'), 4)
     expect(rifleman).not.toBeNull()
     expect(medic).not.toBeNull()
     if (!rifleman || !medic) return

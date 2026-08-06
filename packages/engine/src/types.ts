@@ -346,6 +346,27 @@ export interface ServiceSchool {
   readonly prereqBadges?: readonly string[]
   /** Board points beyond POINTS_PER_BADGE, for the courses that carry weight. */
   readonly pointsBonus?: number
+
+  /**
+   * M-PROMO. The PAY GRADE this course gates, if it gates one.
+   *
+   * The classic mapping the owner's `army_promotions_fix.md` recommends:
+   * each rank is earned by finishing ITS school — BLC makes sergeant, ALC
+   * makes staff sergeant, and so on up. Set to 5 on the course that gates
+   * E-5.
+   *
+   * NOTE FOR WHOEVER READS THIS LATER AND THINKS IT IS A BUG: the real
+   * Army's literal prerequisite shifted UP one grade in June 2024, so that
+   * BLC became the requirement for E-6 rather than E-5. The owner's spec
+   * chose the classic mapping deliberately — it is cleaner, it is how the
+   * courses are described to the people taking them, and it will not date
+   * the way a backlog-driven change does. This is a decision, not an
+   * oversight.
+   *
+   * Grade, not rank index, so one number works across three ladders whose
+   * indices do not line up.
+   */
+  readonly gatesGrade?: number
 }
 
 export interface SpecialUnit {
@@ -892,6 +913,22 @@ export interface ServiceRecord {
   /** Qualifications earned, in words ("expert marksman"). Append-only;
    *  L4-M5's award system reads these. */
   readonly qualifications: readonly string[]
+  /**
+   * M-PROMO. A LEADERSHIP BILLET HELD OVER THE PAY GRADE.
+   *
+   * From the owner's `army_promotions_fix.md` §3: "1SG and CSM aren't
+   * missing ranks — they're leadership billets you get selected into." A
+   * First Sergeant is a Master Sergeant appointed as a company's senior
+   * NCO: same E-8 pay, different title, and he REVERTS to Master Sergeant
+   * when he leaves the job. Adding them as pay grades — which is what
+   * "we're missing two ranks" would have meant — would have been wrong.
+   *
+   * Null for almost everybody. The abbreviation is what renders in place
+   * of the rank while it is held.
+   */
+  readonly billet?: string | null
+  /** When the billet was taken up. Null when none is held. */
+  readonly billetSinceTick?: Tick | null
   /**
    * P2. Trades held BEFORE the current one, in order — written when a
    * reenlistment retrain crosses specialties. A twelve-year mechanic who
@@ -1593,6 +1630,12 @@ export type EventType =
   | 'commissioned'
   | 'promoted-at-work'
   | 'passed-over'
+  /** M-PROMO. A leadership billet taken up — First Sergeant, Command
+   *  Sergeant Major and their equivalents. A title over the pay grade. */
+  | 'billet-taken'
+  /** And handed on. The reversion is the part that makes a billet a billet
+   *  rather than a rank. */
+  | 'billet-ended'
   | 'work-moment'
   | 'promoted-at-work'
   | 'passed-over'

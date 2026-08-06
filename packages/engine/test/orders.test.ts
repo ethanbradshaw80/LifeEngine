@@ -145,8 +145,9 @@ describe('orders', () => {
       const sheet = ordersSheetFor(world, world.tick, personId, 'involuntary', enemy.id)
       const grade = branch.grades[rank]
       expect(sheet?.rank, `rank index ${String(rank)}`).toContain(`(E-${String(grade ?? 0)})`)
-      // And never a grade the pay table does not hold.
-      expect(grade).toBeLessThanOrEqual(8)
+      // And never a grade the pay table does not hold. The ladders reach
+      // E-9 since M-PROMO phase 1; the pay table was extended with them.
+      expect(grade).toBeLessThanOrEqual(9)
     }
   })
 })

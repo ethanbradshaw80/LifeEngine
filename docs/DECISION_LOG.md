@@ -1671,3 +1671,92 @@ wrong thing.
 `ba7ac6ac`, Heartland `a04a7a51` → `9d5b5da6`. A busted senior NCO now has
 a real cliff under him, which is the honest consequence of losing a stripe
 late in a career.
+
+---
+
+## ADR-0040 — M-PROMO: three promotion systems, five schools that gate them, and a pyramid
+
+**Status:** Accepted · **Date:** 2026-08-05
+
+**Context.** Three owner specs, delivered as masters that override any
+existing rule: `army_promotions_fix.md`, `promotions_all_branches.md`, and
+the schoolhouse remodel. The headline: "the game currently treats promotion
+as one thing (a board) at every grade. That's wrong."
+
+**What was actually wrong, checked rather than assumed.** The game already
+had two bands — automatic below `competitiveFrom`, points-and-cutoff above —
+so E-2 → E-4 was mostly right already. Three things were not:
+
+1. **`COMPETITIVE_FROM` for the land forces sat at 4, which is CPL.** Making
+   corporal meant clearing a promotion-points cutoff: a board in all but
+   name, and exactly the doc's headline complaint. The navy's 3 and the air
+   force's 4 were already correct, because those branches genuinely differ —
+   a navy E-4 *is* won on an advancement exam.
+2. **No third band.** E-7 → E-9 ran the E-5/E-6 logic: an individual test
+   against a cutoff rather than a competition for a fixed number of seats.
+3. **No school gated any promotion at all.**
+
+**Decision.** All six phases, per the docs.
+
+- **Ladders to E-9** in all three branches. The officer ladders already
+  matched the spec exactly and were left alone.
+- **CPL is a lateral**, selective rather than automatic — "the commander
+  names you."
+- **Fourteen PME courses** with a `gatesGrade` field, using the classic
+  mapping the spec recommends (each rank earned by finishing *its* school),
+  with the post-2024 literal rule noted in code so nobody "corrects" it.
+- **The school is a hard gate**, on the NPC path and the player's, with
+  `schoolOwed` surfaced on the board standing for the bar pattern.
+- **Band 3: the centralized selection board.** Annual, per branch, per
+  grade, a fixed number of seats read off the whole file. Not selected is
+  recorded as `passed-over`, which the cutoff penalty already reads.
+- **Billets**: 1SG and CSM over E-8/E-9, CMC, Command Chief, Air Force First
+  Sergeant. A tour runs 36 months and **reverts** — the part "just add two
+  ranks" would have got permanently wrong.
+- **Migration v40 → v41**, back-filling PME for grades at or below the one
+  already held, dated to enlistment rather than to the upgrade.
+
+**Four things measurement caught that reasoning did not.**
+
+**NPCs had never attended a school in their lives.** The only doors were the
+player's. Harmless while a school pinned a badge on; fatal the moment it
+gates a grade. First measurement: one sergeant left standing out of fifteen
+serving, 45 high-year-tenure discharges as stuck corporals aged out.
+
+**PME entry bars were higher than the promotions they gate.** A
+470-performance bar on the course gating sergeant — a rank won on *points*,
+where seniority and awards carry a middling evaluation. A school is
+education; the selection happens at the board.
+
+**Every school booking was silently reverted.** ADR-0039's stale-snapshot
+trap, walked into an hour after it was written down: `schoolId` is not among
+the fields the month's closing write names. Measured at **zero bookings of
+any kind across twenty-five years**. Carried in a local now, like
+`indefinite`. Two for two on that trap.
+
+**Making CPL automatic disabled high-year tenure.** Every specialist became
+a corporal at twelve months, which reset the time-in-grade clock — so the
+up-or-out rule for everybody below sergeant could never fire. Soldiers who
+should have gone at six years in grade sailed to the twelve-year wall
+instead. Two tests that had been guarding that rule caught it, which is what
+they were for.
+
+**Consequences.** SIMULATION_VERSION 98, SCHEMA_VERSION 41. The force is a
+pyramid again — with the gate in and band 3 absent, seventeen of thirty-three
+serving sat at E-7 or above. Verified at scale (2,500 people, forty years):
+`E1:10 E2:11 E3:37 E4:38 E5:15 E6:25 E7:16 E8:7 E9:2`, with 1SG, CCM and
+First Sergeant billets held.
+
+**Two things left honest rather than tuned.** There is an E-6 bulge — that
+band has no seat cap, so everyone clearing the cutoff piles at the highest
+uncapped grade; in reality the monthly cutoff score moves to control the
+flow, and the game's is fixed. And E-8/E-9 are unreachable in a small town,
+because the seats are a fraction of the force: a four-hundred-person town
+fields about twenty soldiers and rates no sergeant major. Both are correct
+as far as the specs go, and both are worth revisiting.
+
+**Not built:** the officer PME ladder (BOLC/CCC/CGSC and the naval and air
+equivalents) is scoped in `promotions_all_branches.md` and deliberately left
+out — gating officer promotion on courses that do not exist would stop every
+officer career dead at O-1. `schoolOwedFor` returns early for the
+commissioned, with that reason in the code.
