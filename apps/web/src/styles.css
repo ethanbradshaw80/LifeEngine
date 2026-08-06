@@ -3605,3 +3605,52 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .job-board .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
+/* ---- The Schoolhouse (M-SCHOOL §6, from the owner's mockup) ----------
+   A card per course, grouped by what kind of course it is. The dot reads
+   are deliberately not numbers: "difficulty 420" means nothing to anybody,
+   and four dots out of five reads at a glance. */
+.sch-group { margin-bottom: 1rem; }
+.sch-cat {
+  font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin: 0.9rem 0.2rem 0.5rem;
+}
+.sch-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 0.7rem 0.8rem; margin-bottom: 0.55rem;
+}
+.sch-head { display: flex; align-items: flex-start; gap: 0.5rem; }
+.sch-name { font-size: 0.95rem; font-weight: 700; }
+.sch-grants { font-size: 0.75rem; color: var(--muted); margin-top: 0.1rem; }
+.sch-meters {
+  display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap;
+  margin: 0.5rem 0 0.15rem; font-size: 0.68rem; color: var(--muted);
+}
+.sch-dur { margin-left: auto; }
+.sch-dots { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: middle; }
+.sch-dots i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--line);
+  display: inline-block;
+}
+.sch-dots i.hard { background: var(--bad); }
+.sch-dots i.scarce { background: #b8860b; }
+.sch-reqs { list-style: none; margin: 0.5rem 0 0.1rem; padding: 0; display: grid; gap: 0.18rem; }
+.sch-reqs li { font-size: 0.75rem; display: flex; align-items: center; gap: 0.4rem; }
+.sch-reqs li.no { color: var(--muted); }
+.sch-reqs .ck { width: 0.85rem; text-align: center; }
+.sch-reqs li.ok .ck { color: var(--ok); }
+.sch-reqs li.no .ck { color: var(--bad); }
+.sch-status {
+  margin-top: 0.55rem; border-radius: 8px; padding: 0.5rem 0.6rem;
+  font-size: 0.78rem; display: flex; align-items: center; gap: 0.5rem;
+  border: 1px solid var(--line); background: var(--bg);
+}
+.sch-status.eligible { border-color: var(--accent); }
+.sch-status.done { border-color: var(--ok); }
+.sch-status button { margin-left: auto; }
+/* Attempt history reads as a footnote, because that is what it is: the
+   thing that already happened, not the thing you are deciding. */
+.sch-hist {
+  font-size: 0.7rem; color: var(--muted); margin-top: 0.45rem;
+  border-top: 1px dashed var(--line); padding-top: 0.4rem;
+}

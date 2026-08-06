@@ -18,6 +18,7 @@
  */
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactElement } from 'react'
 import { sentenceInWords } from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
 import { CityHall } from './CityHall.js'
@@ -2014,35 +2015,112 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     whether there is a seat in it. */}
                 {record.dischargedAtTick === null && serviceTab === 'schools' && (
                   <>
-                    <h3>School Houses</h3>
-                    <ul className="job-list">
-                      {schoolOptionsFor(world, person.id)
-                        .filter((option) => !option.reason.includes('does not send people here'))
-                        .map((option) => (
-                          <li key={option.id}>
-                            <span className="job-title">{option.title}</span>
-                            <span className="muted small">
-                              {option.open
-                                ? `earns ${option.badge} · ${option.courseMonths} month${option.courseMonths === 1 ? '' : 's'} · ` +
-                                  (option.monthsUntilClass === 0
-                                    ? 'a class starts this month'
-                                    : `next class in ${option.monthsUntilClass} month${option.monthsUntilClass === 1 ? '' : 's'}`) +
-                                  ` · ${option.seatsLeft} seat${option.seatsLeft === 1 ? '' : 's'} left`
-                                : option.reason}
-                            </span>
-                            {option.open && (
-                              <button
-                                type="button"
-                                className="apply"
-                                disabled={busy}
-                                onClick={() => onRequestSchool(option.id)}
-                              >
-                                Request a Seat
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                    </ul>
+                    <h3>The Schoolhouse</h3>
+                    {/* M-SCHOOL §6, from the owner's mockup. Grouped by what
+                        kind of course it is, because "promotion education"
+                        and "a selection you can fail" are different things
+                        with different stakes, and a flat list said neither.
+                        Each card carries what it grants, how hard it is, how
+                        scarce the seat is, which gates are met, and what this
+                        soldier has already tried here. */}
+                    {(() => {
+                      const all = schoolOptionsFor(world, person.id).filter(
+                        (option) => !option.reason.includes('does not send people here'),
+                      )
+                      const groups: readonly {
+                        readonly key: 'pme' | 'skill' | 'selection'
+                        readonly heading: string
+                      }[] = [
+                        { key: 'pme', heading: 'Promotion · Professional Military Education' },
+                        { key: 'skill', heading: 'Skill Schools' },
+                        { key: 'selection', heading: 'Selection' },
+                      ]
+                      const dots = (filled: number, tone: string): ReactElement => (
+                        <span className="sch-dots">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <i key={n} className={n <= filled ? tone : ''} />
+                          ))}
+                        </span>
+                      )
+                      return groups.map(({ key, heading }) => {
+                        const courses = all.filter((option) => option.category === key)
+                        if (courses.length === 0) return null
+                        return (
+                          <section key={key} className="sch-group">
+                            <h4 className="sch-cat">{heading}</h4>
+                            {courses.map((option) => (
+                              <article key={option.id} className="sch-card">
+                                <div className="sch-head">
+                                  <div>
+                                    <div className="sch-name">{option.title}</div>
+                                    <div className="sch-grants">
+                                      {option.gatesGrade !== null
+                                        ? `Required to make E-${option.gatesGrade}`
+                                        : `Earns the ${option.badge} badge`}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="sch-meters">
+                                  <span>Difficulty {dots(option.difficultyDots, 'hard')}</span>
+                                  <span>Seat {dots(option.scarcityDots, 'scarce')}</span>
+                                  <span className="sch-dur">
+                                    {option.courseMonths} month{option.courseMonths === 1 ? '' : 's'}
+                                  </span>
+                                </div>
+                                <ul className="sch-reqs">
+                                  {option.requirements.map((req) => (
+                                    <li key={req.words} className={req.met ? 'ok' : 'no'}>
+                                      <span className="ck">{req.met ? '✓' : '✕'}</span>
+                                      {req.words}
+                                    </li>
+                                  ))}
+                                </ul>
+                                <div className={`sch-status ${option.attempts.graduated ? 'done' : option.open ? 'eligible' : 'locked'}`}>
+                                  <span>
+                                    {option.attempts.graduated
+                                      ? 'Graduated — the badge is yours.'
+                                      : option.open
+                                        ? option.monthsUntilClass === 0
+                                          ? `A class starts this month · ${option.seatsLeft} seat${option.seatsLeft === 1 ? '' : 's'} left`
+                                          : `Eligible · next class in ${option.monthsUntilClass} month${option.monthsUntilClass === 1 ? '' : 's'} · ${option.seatsLeft} seat${option.seatsLeft === 1 ? '' : 's'}`
+                                        : option.reason}
+                                  </span>
+                                  {option.open && !option.attempts.graduated && (
+                                    <button
+                                      type="button"
+                                      className="apply"
+                                      disabled={busy}
+                                      onClick={() => onRequestSchool(option.id)}
+                                    >
+                                      Request a seat
+                                    </button>
+                                  )}
+                                </div>
+                                {(option.attempts.failed > 0 || option.attempts.injured > 0) && (
+                                  <div className="sch-hist">
+                                    {option.attempts.failed > 0 && (
+                                      <>
+                                        Washed out {option.attempts.failed} time
+                                        {option.attempts.failed === 1 ? '' : 's'}.{' '}
+                                      </>
+                                    )}
+                                    {option.attempts.injured > 0 && (
+                                      <>
+                                        Dropped hurt {option.attempts.injured} time
+                                        {option.attempts.injured === 1 ? '' : 's'} — no attempt lost.{' '}
+                                      </>
+                                    )}
+                                    {option.attempts.left > 0
+                                      ? `${option.attempts.left} attempt${option.attempts.left === 1 ? '' : 's'} left.`
+                                      : 'No attempts left.'}
+                                  </div>
+                                )}
+                              </article>
+                            ))}
+                          </section>
+                        )
+                      })
+                    })()}
                     {(() => {
                       const seat = world.service.get(person.id)
                       if (seat?.schoolId === null || seat?.schoolStartsAtTick === null) return null

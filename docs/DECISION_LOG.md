@@ -1833,3 +1833,62 @@ eligibility check gives the career an honest ending.
 invariant caught something well outside its own domain — the population
 sweep found the phantom household member, and fertility found a reenlistment
 trap. That is an argument for more of them.
+
+---
+
+## ADR-0042 — The schoolhouse: a seat you earn, a course you can fail, a tab that says so
+
+**Status:** Accepted · **Date:** 2026-08-05
+
+**Context.** The owner's `schoolhouse_remodel.md`, delivered as a master
+spec. A school was a flat gate: clear the rank and the evaluation, wait for
+a class, take the badge. Nobody was ever turned down for a seat and nobody
+ever washed out.
+
+**Decision.** All of it, in three commits — the model and content
+(ADR pending in M-SCHOOL phase 1), the flag (ADR-0041), the attrition, and
+the tab.
+
+**§5, the failure.** Graduate, recycle, wash out or get hurt, on a seeded
+roll salted by the course and the attempt. Performance and fitness buy
+relief against the course's difficulty, which is what makes those numbers on
+the record mean something. Measured through Ranger School, sixty soldiers:
+41 graduated, 17 washed, 3 hurt, 28 recycled. Airborne passes over 90%.
+Three rules from the spec: a recycle costs time and nothing else, an injury
+drop does not spend an attempt, and a wash-out is a setback rather than a
+wall.
+
+**§6, the tab.** Grouped by category, because a flat list said nothing about
+the difference between the course that makes you a sergeant and a selection
+you can fail. Each card: what it grants or which grade it gates, duration, a
+difficulty read, a scarcity read, a requirement checklist, the slot status,
+and what this soldier has already tried here. The dot reads are deliberately
+not numbers — "difficulty 420" means nothing to anybody.
+
+**What is NOT built, and deliberately.**
+
+*The officer PME ladder.* Scoped in `promotions_all_branches.md`. Gating
+officer promotion on courses that do not exist would stop every officer
+career dead at O-1, so `schoolOwedFor` returns early for the commissioned
+with that reason in the code.
+
+*Body composition as a flag reason.* There is no weight or tape standard in
+this game to read, and inventing one to satisfy a list would be building a
+system nobody asked for.
+
+*NPCs volunteering for elective skill schools.* They attend PME and their
+trade pipeline; Ranger, Sniper and Combat Diver are player-choice only. That
+is pre-existing rather than introduced here, and it means wash-outs will
+mostly be the player's own. The machinery does not care who is in the seat.
+
+**Consequences.** SIMULATION_VERSION 100. 919 tests green.
+
+**A note on numbers, earned the hard way.** Three separate values invented
+in this milestone without checking their distribution turned out badly
+wrong: the PME entry bars (which emptied the NCO ranks), the fitness-failure
+threshold (set above the median of the army, flagging fifteen of seventeen
+soldiers), and the school seat chance. Every one was caught by measuring
+rather than by reasoning, and two were caught by tests in other domains
+entirely. **Measure the distribution before picking the threshold** is not a
+style preference in this codebase; it is the difference between a rule and a
+bug.

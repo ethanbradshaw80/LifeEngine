@@ -680,6 +680,25 @@ export interface SchoolOption {
   readonly monthsUntilClass: number
   /** Seats left in it, after everyone already slotted in. */
   readonly seatsLeft: number
+
+  // ---- M-SCHOOL §6, what the schoolhouse tab needs ------------------
+  /** pme · skill · selection — the tab groups by this. */
+  readonly category: 'pme' | 'skill' | 'selection'
+  /** How hard, 1–5, for a dot read rather than a number nobody can place. */
+  readonly difficultyDots: number
+  /** How scarce a seat is, 1–5, same idea. */
+  readonly scarcityDots: number
+  /** The grade this course gates, if it gates one. */
+  readonly gatesGrade: number | null
+  /** Every gate, met or not, in the words the screen should use. */
+  readonly requirements: readonly { readonly met: boolean; readonly words: string }[]
+  /** What this soldier has already tried here. */
+  readonly attempts: {
+    readonly failed: number
+    readonly graduated: boolean
+    readonly injured: number
+    readonly left: number
+  }
 }
 
 /**
@@ -778,7 +797,58 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
       reason = 'The next class is full.'
     }
 
+    // A dot read, not a number. "Difficulty 420" means nothing to anybody;
+    // four dots out of five reads at a glance, which is what the owner's
+    // mockup asks for.
+    const dots = (value: number): number => Math.max(1, Math.min(5, Math.ceil(value / 200)))
+    const attempts = record.schoolAttempts ?? []
+    const failedHere = attempts.filter((a) => a.schoolId === school.id && a.outcome === 'failed').length
+    const requirements: { met: boolean; words: string }[] = []
+    if (school.minRank > 0) {
+      requirements.push({
+        met: meetsRankGate(record, school.minRank),
+        words: `${rankTitle(world, record.branch, school.minRank, record.commissioned === true)} or above`,
+      })
+    }
+    requirements.push({
+      met: record.performance >= school.minPerformance,
+      words: 'Standing meets the bar',
+    })
+    if (school.minFitness !== undefined) {
+      requirements.push({
+        met: record.fitnessScore >= school.minFitness,
+        words: 'Fitness standard for day zero',
+      })
+    }
+    if (school.minAptitude !== undefined) {
+      requirements.push({
+        met: (record.aptitude ?? 0) >= school.minAptitude,
+        words: 'Aptitude score',
+      })
+    }
+    if (school.minTimeInServiceMonths !== undefined) {
+      requirements.push({
+        met: world.tick - record.enlistedAtTick >= school.minTimeInServiceMonths,
+        words: `${String(Math.round(school.minTimeInServiceMonths / 12))} years in service`,
+      })
+    }
+    for (const prereq of school.prereqBadges ?? []) {
+      requirements.push({ met: badges.includes(prereq), words: `${prereq} badge held` })
+    }
+    requirements.push({ met: !flag.flagged, words: 'Not flagged' })
+
     return {
+      category: school.category,
+      difficultyDots: dots(school.difficulty),
+      scarcityDots: dots(school.seatScarcity),
+      gatesGrade: school.gatesGrade ?? null,
+      requirements,
+      attempts: {
+        failed: failedHere,
+        graduated: badges.includes(school.badge),
+        injured: attempts.filter((a) => a.schoolId === school.id && a.outcome === 'injured').length,
+        left: Math.max(0, school.maxAttempts - failedHere),
+      },
       id: school.id,
       title: school.title,
       badge: school.badge,
