@@ -76,7 +76,7 @@ import type { NewsItem } from './geopolitics.js'
 import type { ServiceSchool, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement } from './content.js'
 import { isDeployed } from './deployment.js'
-import { isSeverelyAiling } from './health.js'
+import { inflictWound, isSeverelyAiling } from './health.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -749,8 +749,16 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     // once and the player deserves the real reason rather than the next
     // one down the list.
     const flag = flagStatus(world, personId, world.tick)
+    const failed = (record.schoolAttempts ?? []).filter(
+      (a) => a.schoolId === school.id && a.outcome === 'failed',
+    ).length
     if (flag.flagged) {
       reason = flag.words
+    } else if (failed >= school.maxAttempts) {
+      // THE UNIT WILL NOT FUND A THIRD SEAT. A wash-out is a setback, not a
+      // wall — but the seats are finite, and this is where that stops being
+      // free (M-SCHOOL §5).
+      reason = `Washed out ${String(failed)} time${failed === 1 ? '' : 's'}. The unit will not fund another seat.`
     } else if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not send people here.`
     } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
@@ -3424,6 +3432,93 @@ export function runSchools(world: World, tick: Tick): void {
     }
     if (tick < record.schoolStartsAtTick + school.courseMonths) continue
 
+    // ---- M-SCHOOL §5. THE COURSE DECIDES, and it can say no. ----------
+    //
+    // "Hard schools are hard — you can wash out. Attrition is real and
+    // varies enormously." Before this, arriving at the last month WAS
+    // graduating: the badge was pinned on for everybody who sat down,
+    // whatever the course and whoever they were.
+    //
+    // The roll is off the service stream, salted by the school and the
+    // attempt, so a second go is a second roll and a replay is the same
+    // story. What moves it is the soldier: the fit, the sharp and the
+    // diligent wash out less, which is the whole reason those numbers are
+    // on the record.
+    const attempts = record.schoolAttempts ?? []
+    const spent = attempts.filter(
+      (a) => a.schoolId === school.id && a.outcome === 'failed',
+    ).length
+    const courseRng = openStream(
+      world.seed,
+      Stream.Employment,
+      record.personId,
+      tick + 61_003 + spent * 977 + school.id.length,
+    )
+
+    // INJURY FIRST, and it is not failure. Weighted by how long the course
+    // runs — a nine-month school has more chances to break somebody than a
+    // three-week one.
+    if (courseRng.chance(Math.min(60, 4 + school.courseMonths * 3), 1_000)) {
+      const wound = inflictWound(world, tick, record.personId, 260 + courseRng.nextInt(0, 220), 'field-accident', courseRng)
+      recordEvent(world, tick, {
+        type: 'was-injured',
+        subjectId: record.personId,
+        detail: `minor:${wound.description}`,
+      })
+      recordEvent(world, tick, {
+        type: 'dropped-from-training',
+        subjectId: record.personId,
+        detail: `${school.title}:injured`,
+      })
+      world.service.set(record.personId, {
+        ...record,
+        schoolId: null,
+        schoolStartsAtTick: null,
+        recyclesUsed: 0,
+        // NOT counted against maxAttempts — see SchoolAttempt.
+        schoolAttempts: [...attempts, { schoolId: school.id, tick, outcome: 'injured' }],
+      })
+      continue
+    }
+
+    // THE ATTRITION ROLL. The course's own weight, moved by the person.
+    const relief =
+      Math.floor(Math.max(0, record.performance - 500) / 6) +
+      Math.floor(Math.max(0, record.fitnessScore - 150) / 3)
+    const washChance = Math.max(0, school.difficulty - relief)
+    if (courseRng.chance(washChance, 1_000)) {
+      // A RECYCLE IS NOT A FAILURE. Repeat the phase: more time, another
+      // roll, and nothing on the record but the months. Limited, then it
+      // becomes a wash-out for real.
+      const recycles = record.recyclesUsed ?? 0
+      if (school.recycleAllowed === true && recycles < 1) {
+        recordEvent(world, tick, {
+          type: 'recycled-in-training',
+          subjectId: record.personId,
+          detail: school.title,
+        })
+        world.service.set(record.personId, {
+          ...record,
+          schoolStartsAtTick: tick as Tick,
+          recyclesUsed: recycles + 1,
+        })
+        continue
+      }
+      recordEvent(world, tick, {
+        type: 'dropped-from-training',
+        subjectId: record.personId,
+        detail: `${school.title}:washed`,
+      })
+      world.service.set(record.personId, {
+        ...record,
+        schoolId: null,
+        schoolStartsAtTick: null,
+        recyclesUsed: 0,
+        schoolAttempts: [...attempts, { schoolId: school.id, tick, outcome: 'failed' }],
+      })
+      continue
+    }
+
     // Graduation: the badge is pinned on through the awards machinery, the
     // same door an NPC's is.
     const graduated = recordEvent(world, tick, {
@@ -3447,6 +3542,11 @@ export function runSchools(world: World, tick: Tick): void {
       ...current,
       schoolId: null,
       schoolStartsAtTick: null,
+      recyclesUsed: 0,
+      schoolAttempts: [
+        ...(current.schoolAttempts ?? []),
+        { schoolId: school.id, tick, outcome: 'graduated' },
+      ],
       performance: Math.max(0, Math.min(1000, current.performance + school.performanceBoost)),
     })
   }

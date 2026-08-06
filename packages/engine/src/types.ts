@@ -369,6 +369,21 @@ export interface ServiceSchool {
   readonly gatesGrade?: number
 }
 
+
+/** One go at one course, and how it ended (M-SCHOOL §5). */
+export interface SchoolAttempt {
+  readonly schoolId: string
+  readonly tick: Tick
+  /**
+   * 'graduated' — the badge was pinned on.
+   * 'failed'    — returned to unit, no badge, an attempt spent.
+   * 'injured'   — a medical drop. Costs the course, NOT the attempt: you
+   *               did not quit, you got hurt, and the spec is explicit
+   *               that this must not count against you.
+   */
+  readonly outcome: 'graduated' | 'failed' | 'injured'
+}
+
 export interface SpecialUnit {
   readonly id: string
   /** Fictional name, authentic weight. */
@@ -929,6 +944,20 @@ export interface ServiceRecord {
   readonly billet?: string | null
   /** When the billet was taken up. Null when none is held. */
   readonly billetSinceTick?: Tick | null
+  /**
+   * M-SCHOOL §5. WHAT THIS SOLDIER HAS ALREADY TRIED, and how it went.
+   *
+   * A wash-out is a real setback and not a game over (Law 7): the unit will
+   * fund another seat if any remain. Recorded per course, because "you have
+   * had your two goes at selection" is a different sentence from "you have
+   * never been".
+   *
+   * Recycles are counted but do NOT spend an attempt — repeating a phase
+   * costs time, not a chance.
+   */
+  readonly schoolAttempts?: readonly SchoolAttempt[]
+  /** Recycles used inside the course currently being attended. */
+  readonly recyclesUsed?: number
   /**
    * P2. Trades held BEFORE the current one, in order — written when a
    * reenlistment retrain crosses specialties. A twelve-year mechanic who
@@ -1636,6 +1665,10 @@ export type EventType =
   /** And handed on. The reversion is the part that makes a billet a billet
    *  rather than a rank. */
   | 'billet-ended'
+  /** M-SCHOOL §5. Returned to unit — washed out, or hurt and dropped. */
+  | 'dropped-from-training'
+  /** A phase repeated. Costs time, costs nothing on the record. */
+  | 'recycled-in-training'
   | 'work-moment'
   | 'promoted-at-work'
   | 'passed-over'

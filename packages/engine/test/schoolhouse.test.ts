@@ -227,3 +227,71 @@ describe('the flag', () => {
     expect(flagged / serving, 'most of the army is flagged').toBeLessThan(0.5)
   }, 300_000)
 })
+
+/**
+ * M-SCHOOL §5 — graduate, recycle, wash out, or get hurt.
+ */
+describe('a hard course can say no', () => {
+  /** Sixty soldiers, sixty seeds, one course. */
+  function runCourse(schoolId: string, performance = 660): {
+    grad: number; wash: number; hurt: number; recycled: number
+  } {
+    let grad = 0
+    let wash = 0
+    let hurt = 0
+    let recycled = 0
+    for (let seed = 1; seed <= 60; seed++) {
+      const world = createWorld(makeSeed(seed * 37), 120)
+      const person = livingPeople(world)
+        .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 35)
+        .sort((a, b) => a.id - b.id)[0]
+      if (!person) continue
+      enlist(world, person.id)
+      const record = world.service.get(person.id)
+      if (!record) continue
+      world.service.set(person.id, {
+        ...record,
+        performance,
+        termMonthsLeft: 60,
+        schoolId,
+        schoolStartsAtTick: (world.tick + 1) as Tick,
+      })
+      const before = world.events.length
+      advanceTicks(world, 14)
+      for (const event of world.events.slice(before)) {
+        if (event.subjectId !== person.id) continue
+        if (event.type === 'completed-training') grad++
+        else if (event.type === 'recycled-in-training') recycled++
+        else if (event.type === 'dropped-from-training') {
+          if ((event.detail ?? '').includes('injured')) hurt++
+          else wash++
+        }
+      }
+    }
+    return { grad, wash, hurt, recycled }
+  }
+
+  it('washes people out of Ranger School, and recycles many of them', () => {
+    const out = runCourse('ranger-school')
+    expect(out.grad, 'nobody graduated').toBeGreaterThan(0)
+    expect(out.wash, 'nobody ever washed out of the hardest course in the catalogue').toBeGreaterThan(0)
+    // "Recycles common" — the spec's words for this course specifically.
+    expect(out.recycled).toBeGreaterThan(0)
+  }, 600_000)
+
+  it('rarely fails anybody out of an airborne course', () => {
+    // The spec's own calibration: a jump course passes the large majority.
+    const out = runCourse('jump-school')
+    const total = out.grad + out.wash
+    expect(total).toBeGreaterThan(20)
+    expect(out.grad / total, 'airborne school should not be hard').toBeGreaterThan(0.9)
+  }, 600_000)
+
+  it('lets the fit and the sharp through more often than the marginal', () => {
+    // The soldier moves the odds, which is the whole reason performance and
+    // fitness sit on the record.
+    const strong = runCourse('ranger-school', 900)
+    const weak = runCourse('ranger-school', 520)
+    expect(strong.wash, 'the strong washed out at least as often as the weak').toBeLessThan(weak.wash)
+  }, 900_000)
+})

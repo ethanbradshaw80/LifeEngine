@@ -535,6 +535,14 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     // ---- the uniform ------------------------------------------------
     // M-PROMO. A billet is a job, not a rank — and the taking and the
     // handing on are both worth a line, because the title changes on both.
+    case 'dropped-from-training': {
+      const [course, how] = (event.detail ?? ':').split(':')
+      return how === 'injured'
+        ? `${year} — Hurt at ${course ?? 'the course'} and sent back to the unit.`
+        : `${year} — Washed out of ${course ?? 'the course'}.`
+    }
+    case 'recycled-in-training':
+      return `${year} — Recycled at ${event.detail ?? 'the course'}; back a phase, and going again.`
     case 'billet-taken':
       return `${year} — Made ${event.detail ?? 'a leadership billet'}.`
     case 'billet-ended':
