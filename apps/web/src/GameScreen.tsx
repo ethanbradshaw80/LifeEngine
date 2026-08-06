@@ -82,6 +82,7 @@ import {
   capturedSince,
   isServing,
   rankTitle,
+  flagStatus,
   schoolOptionsFor,
   servicePayOf,
   annualPay,
@@ -1782,6 +1783,33 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               ))}
             </nav>
           )}
+          {/* THE FLAG, WHERE IT CAN BE SEEN (owner: "is there a way to
+              tell if you are flagged?"). It was readable only as a refusal
+              on a school card, while it silently also stopped promotion,
+              held reenlistment and suspended medals — the player could
+              watch three things not happen and never learn they were the
+              same thing. */}
+          {(() => {
+            const flag = flagStatus(world, person.id, world.tick)
+            if (!flag.flagged) return null
+            const months = flag.liftsAtTick === null ? null : flag.liftsAtTick - world.tick
+            return (
+              <div className="flag-banner" role="status">
+                <div className="flag-head">Flagged</div>
+                <div className="flag-why">{flag.words}</div>
+                <div className="flag-what">
+                  No school, no promotion, no reenlistment and no decoration while it stands.
+                </div>
+                <div className="flag-when">
+                  {months === null
+                    ? 'It lifts when you pass the fitness test — not on a date.'
+                    : months <= 0
+                      ? 'It lifts this month.'
+                      : `It lifts in ${String(months)} month${months === 1 ? '' : 's'}.`}
+                </div>
+              </div>
+            )
+          })()}
           {(() => {
             const record = world.service.get(person.id)
             if (!record) {

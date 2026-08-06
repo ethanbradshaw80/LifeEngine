@@ -2940,6 +2940,17 @@ export interface FlagStatus {
   readonly reasons: readonly FlagReason[]
   /** Plain words for the screen, or '' when the way is clear. */
   readonly words: string
+  /**
+   * The tick this lifts on its own, or null when it lifts on an ACTION
+   * rather than a date.
+   *
+   * The difference matters to the person under it: an adverse action ages
+   * off and there is nothing to do but serve the months, while a fitness
+   * failure clears the next time the test is passed and waiting will not
+   * help. A screen that said only "flagged" would leave them unable to
+   * tell which of those they were living in.
+   */
+  readonly liftsAtTick: Tick | null
 }
 
 /**
@@ -2970,17 +2981,20 @@ const FLAG_WORDS: Readonly<Record<FlagReason, string>> = {
 export function flagStatus(world: World, personId: EntityId, tick: Tick): FlagStatus {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) {
-    return { flagged: false, reasons: [], words: '' }
+    return { flagged: false, reasons: [], words: '', liftsAtTick: null }
   }
   const reasons: FlagReason[] = []
 
   // THE ORDERLY ROOM. A company punishment holds the flag up for a year —
   // this is the Article 15 reaching the schoolhouse, which is the whole
   // point of the interconnection.
-  const recentAction = eventsFor(world, personId).some(
+  const actions = eventsFor(world, personId).filter(
     (e) => e.type === 'disciplined' && tick - e.tick < ADVERSE_ACTION_MONTHS,
   )
-  if (recentAction) reasons.push('adverse-action')
+  // The LAST one decides when it lifts — a second punishment inside the
+  // window extends the flag rather than running alongside the first.
+  const latestAction = actions.reduce((latest, e) => (e.tick > latest ? e.tick : latest), -1)
+  if (actions.length > 0) reasons.push('adverse-action')
 
   // THE BODY'S SHARE. Only once the test has actually been taken — a
   // record whose score has never been set is untested, not failing, and
@@ -2994,6 +3008,13 @@ export function flagStatus(world: World, personId: EntityId, tick: Tick): FlagSt
     flagged: reasons.length > 0,
     reasons,
     words: reasons.map((r) => FLAG_WORDS[r]).join(' '),
+    // Only the dated one gives a date. A fitness failure lifts when the
+    // next test is passed, and pretending otherwise would promise a month
+    // that means nothing.
+    liftsAtTick:
+      latestAction >= 0 && !reasons.includes('fitness-failure')
+        ? ((latestAction + ADVERSE_ACTION_MONTHS) as Tick)
+        : null,
   }
 }
 

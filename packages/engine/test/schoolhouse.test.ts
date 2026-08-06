@@ -378,3 +378,56 @@ describe('an officer is on a different ladder', () => {
     }
   })
 })
+
+describe('the flag says when it lifts', () => {
+  it('gives a date for a punishment and no date for a fitness failure', () => {
+    // Owner: "is there a way to tell if you are flagged?" — the answer was
+    // barely, and only as a refusal on a school card. The distinction below
+    // is what a banner needs to be useful: an adverse action ages off and
+    // there is nothing to do but serve the months, while a fitness failure
+    // clears the next time the test is passed and waiting will not help.
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id)
+
+    recordEvent(world, world.tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'late for duty',
+    })
+    const dated = flagStatus(world, person.id, world.tick)
+    expect(dated.flagged).toBe(true)
+    expect(dated.liftsAtTick, 'a punishment must say when it ends').not.toBeNull()
+
+    // A body that cannot pass the test is not waiting for a date.
+    const record = world.service.get(person.id)
+    if (!record) throw new Error('no record')
+    world.service.set(person.id, { ...record, fitnessScore: 60 })
+    const undated = flagStatus(world, person.id, world.tick)
+    expect(undated.reasons).toContain('fitness-failure')
+    expect(undated.liftsAtTick, 'a fitness failure must not promise a month').toBeNull()
+  })
+
+  it('extends rather than overlaps when a second punishment lands', () => {
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id)
+    recordEvent(world, world.tick, { type: 'disciplined', subjectId: person.id, detail: 'one' })
+    const first = flagStatus(world, person.id, world.tick).liftsAtTick
+    recordEvent(world, (world.tick + 4) as Tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'two',
+    })
+    const second = flagStatus(world, person.id, (world.tick + 4) as Tick).liftsAtTick
+    expect(second).not.toBeNull()
+    expect(first).not.toBeNull()
+    expect(Number(second)).toBeGreaterThan(Number(first))
+  })
+})
