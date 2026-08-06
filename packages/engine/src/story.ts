@@ -107,6 +107,28 @@ function rankWordsFor(world: World, event: WorldEvent): string {
   return record ? rankTitle(world, record.branch, rank, record.commissioned === true) : 'promotion'
 }
 
+/** An offence id as words. Never the raw id — that is a database key. */
+function offenceWords(id: string | null | undefined): string {
+  if (id === null || id === undefined || id === '') return 'a crime'
+  return offenceById(id)?.title ?? id
+}
+
+/**
+ * The conviction handed down on this tick, for the event that reports it.
+ *
+ * `describeOutcome` already did this inline; the life story did not, and
+ * called everything theft. One function now, so the two cannot drift.
+ */
+function convictionAt(
+  world: World,
+  personId: EntityId,
+  tick: Tick,
+): { readonly kind: string; readonly sentenceMonths: number; readonly fine: number } | undefined {
+  return [...(world.criminal.get(personId)?.convictions ?? [])]
+    .reverse()
+    .find((c) => c.tick === tick)
+}
+
 function describeEvent(world: World, person: Person, event: WorldEvent): string | null {
   const year = formatYear(world, event.tick)
   const age = ageAt(person.birthTick, event.tick)
@@ -415,12 +437,116 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — The house was robbed.`
     case 'was-arrested':
       return `${year} — Arrested at ${age}.`
-    case 'was-convicted':
+    case 'was-convicted': {
+      // THE OFFENCE WAS HARDCODED. Every conviction in every life story read
+      // "convicted of theft" — assault, fraud, arson, all of it — while
+      // `describeOutcome` a few hundred lines below did the same job
+      // correctly off the conviction record. Twenty-three graded offences
+      // and the story could name exactly one of them.
+      const crime = convictionAt(world, event.subjectId, event.tick)
+      const named = crime === undefined ? 'a crime' : (offenceById(crime.kind)?.title ?? crime.kind)
       return event.detail?.startsWith('jail:') === true
-        ? `${year} — Convicted of theft; ${event.detail.slice(5)} months at the county's expense.`
-        : `${year} — Convicted of theft; fined.`
+        ? `${year} — Convicted of ${named}; ${event.detail.slice(5)} months at the county's expense.`
+        : `${year} — Convicted of ${named}; fined.`
+    }
     case 'was-acquitted':
       return `${year} — Acquitted at the courthouse.`
+    // ---- THE COURT, WHICH USED TO HAPPEN OFFSTAGE -------------------
+    //
+    // Twenty-eight person-level events were recorded and rendered nowhere:
+    // the whole arc from the charge to the end of probation, the officer's
+    // commission, the refused deployment, and the victim's own choices. The
+    // ledger had all of it and the life story showed none of it. Failure
+    // shape 3, at scale — see the ratchet test that now pins it.
+    case 'charged':
+      return `${year} — Charged with ${offenceWords(event.detail)}.`
+    case 'charge-declined':
+      return `${year} — The prosecutor declined the ${offenceWords(event.detail)} charge. It ended there.`
+    case 'escalated-charge': {
+      const [, worse] = (event.detail ?? '').split(':')
+      return `${year} — The charge was raised to ${offenceWords(worse ?? null)}.`
+    }
+    case 'arraigned':
+      return `${year} — Arraigned on the ${offenceWords(event.detail)} charge.`
+    case 'plea-deal-offered': {
+      const [offence, months] = (event.detail ?? '').split(':')
+      const n = Number(months)
+      return Number.isFinite(n) && n > 0
+        ? `${year} — Offered a deal on the ${offenceWords(offence ?? null)} charge: ${String(n)} months.`
+        : `${year} — Offered a deal on the ${offenceWords(offence ?? null)} charge.`
+    }
+    case 'took-plea-deal': {
+      const [, agreed] = (event.detail ?? '').split(':')
+      return `${year} — Took the deal, and pleaded to ${offenceWords(agreed ?? null)}.`
+    }
+    case 'stood-trial':
+      return `${year} — Went to trial rather than take what was offered.`
+    case 'testified':
+      return `${year} — Took the stand.`
+    case 'stayed-silent':
+      return `${year} — Said nothing at trial, which is a right and costs something to use.`
+    case 'pleaded-self-defense':
+      return `${year} — Argued it was self-defence.`
+    case 'ruled-justified':
+      return `${year} — The court found it justified. No conviction.`
+    case 'verdict':
+      return `${year} — The verdict came in.`
+    // ---- what a sentence is actually made of ------------------------
+    case 'placed-on-probation': {
+      const months = Number(event.detail ?? 0)
+      return Number.isFinite(months) && months > 0
+        ? `${year} — Put on probation for ${String(months)} months.`
+        : `${year} — Put on probation.`
+    }
+    case 'completed-probation':
+      return `${year} — Finished probation clean.`
+    case 'violated-probation': {
+      const [, months] = (event.detail ?? '').split(':')
+      const n = Number(months)
+      return Number.isFinite(n) && n > 0
+        ? `${year} — Broke probation; ${String(n)} months to serve.`
+        : `${year} — Broke probation.`
+    }
+    case 'community-service':
+      return `${year} — Ordered to work it off in the community.`
+    case 'ordered-restitution': {
+      const owed = Number(event.detail ?? 0)
+      return Number.isFinite(owed) && owed > 0
+        ? `${year} — Ordered to pay back ${formatMoney(owed as never)}.`
+        : `${year} — Ordered to pay it back.`
+    }
+    case 'paid-restitution':
+      return `${year} — Paid back what was taken.`
+    case 'conviction-expunged':
+      return `${year} — The record was sealed. It stops answering for itself.`
+    // ---- the other side of a crime ----------------------------------
+    case 'was-assaulted':
+      return `${year} — Assaulted, at ${age}.`
+    case 'reported-crime':
+      return `${year} — Reported it to the police.`
+    case 'declined-to-report':
+      return `${year} — Did not report it.`
+    case 'used-lethal-force': {
+      const [, how] = (event.detail ?? '').split(':')
+      return how === 'lethal'
+        ? `${year} — Killed somebody defending the house.`
+        : `${year} — Fought off an intruder.`
+    }
+    // ---- the uniform ------------------------------------------------
+    case 'commissioned':
+      // A COMMISSION LEFT NO TRACE AT ALL. The one thing that changes what
+      // a service career even is, and the story did not mention it.
+      return event.detail === null
+        ? `${year} — Commissioned.`
+        : `${year} — Commissioned: ${event.detail}.`
+    case 'barred-from-reenlistment':
+      return `${year} — The service would not write another contract. ${event.detail ?? ''}`.trimEnd()
+    case 'refused-orders':
+      return `${year} — Refused the orders. They were for ${event.detail ?? 'the front'}.`
+    case 'wartime-service':
+      return `${year} — Served in wartime.`
+    case 'took-a-seat':
+      return `${year} — Took a seat at ${event.detail ?? 'the schoolhouse'}.`
     case 'released-from-jail':
       return `${year} — Released, at ${age}. The record came home too.`
     case 'fell-behind':
