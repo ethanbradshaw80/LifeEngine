@@ -1892,3 +1892,55 @@ rather than by reasoning, and two were caught by tests in other domains
 entirely. **Measure the distribution before picking the threshold** is not a
 style preference in this codebase; it is the difference between a rule and a
 bug.
+
+---
+
+## ADR-0043 — A major is not a corporal: one grade table, two ladders
+
+**Status:** Accepted · **Date:** 2026-08-06
+
+**Context.** The owner, playing: *"majors should not be getting kicked out if
+they are past 12 years in service... I just got kicked out after 16 years of
+an amazing career because I was a major."*
+
+He was removed by the **career corporal rule**.
+
+`BRANCH_GRADES` is the ENLISTED pay table. It was being indexed with an
+OFFICER's rank index. A major sits at officer index 3, and enlisted index 3
+is E-4. So the twelve-year wall (ADR-0032) looked at a major with sixteen
+years, saw a specialist who had never made sergeant, and did exactly what it
+was built to do. High-year tenure read the same wrong number, so a major with
+six years in grade was up-or-out as well.
+
+**The tables overlap for the first few rungs** — O-4 and E-4 are both "4" —
+which is why the code read as correct and why no test caught it.
+
+**Measured, before and after, across three seeds and forty years:**
+
+| | before | after |
+|---|---|---|
+| officers barred from reenlistment | 21 | 2 |
+| officers removed by high-year tenure | 24 | 0 |
+| of 152 officers | **45 (30%)** | **2** |
+| highest officer rank reached | **Major** | **Lieutenant Colonel** |
+
+Nearly a third of every officer career in the game was ended by a rule
+written for corporals, and **nobody had ever made lieutenant colonel** —
+they were all separated at major first. The owner's sixteen-year career was
+not unlucky; it was the norm. The two that remain are barred for age, a
+conviction, or a misconduct record, which are real reasons.
+
+**Decision.** One function, `gradeOf(world, record)`, reads the ladder its
+owner is actually on. Every grade read goes through it. On top of that, both
+the twelve-year wall and high-year tenure are declared ENLISTED rules and
+skip commissioned careers outright — belt and braces, because the wall has
+no meaning for an officer even with the right number.
+
+**Consequences.** SIMULATION_VERSION 101. Classic `f5f7fa53`, Heartland
+`e68c2f66`. 924 tests green.
+
+**The lesson worth keeping.** Two parallel tables indexed by the same
+variable name is a bug that cannot be seen by reading — it needs a value
+that differs between them to expose it, and the first five rungs of these
+two agree. The fix is not vigilance; it is one accessor that cannot be
+called wrongly.

@@ -348,6 +348,24 @@ export interface ServiceSchool {
   readonly pointsBonus?: number
 
   /**
+   * WHICH LADDER THIS COURSE IS FOR. Undefined means both.
+   *
+   * The NCO professional development courses are enlisted education —
+   * "the Basic Leader Course" is where a specialist learns to be a
+   * sergeant, and no captain has ever attended one. `meetsRankGate`
+   * returns true for every commissioned officer (correctly: a lieutenant
+   * really can go to jump school, and comparing an enlisted rank index
+   * against the officer ladder is meaningless), so without this an officer
+   * cleared every NCO course's gate and read the whole NCOES catalogue as
+   * though it were his (owner, playing: "I'm seeing officers seeing NCO
+   * courses").
+   *
+   * Skill schools leave this undefined on purpose. Airborne, Ranger and
+   * the rest take both.
+   */
+  readonly track?: 'enlisted' | 'officer'
+
+  /**
    * M-PROMO. The PAY GRADE this course gates, if it gates one.
    *
    * The classic mapping the owner's `army_promotions_fix.md` recommends:

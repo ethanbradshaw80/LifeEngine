@@ -2041,9 +2041,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       // mockup shows exactly that card ("Not yet — raise
                       // your standing to earn a seat").
                       const all = schoolOptionsFor(world, person.id).filter(
-                        (option) =>
-                          !option.reason.includes('does not send people here') &&
-                          option.reason !== 'Not this trade.',
+                        (option) => option.onYourList,
                       )
                       const groups: readonly {
                         readonly key: 'pme' | 'skill' | 'selection'

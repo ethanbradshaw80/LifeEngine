@@ -682,6 +682,20 @@ export interface SchoolOption {
   readonly seatsLeft: number
 
   // ---- M-SCHOOL §6, what the schoolhouse tab needs ------------------
+  /**
+   * Whether this course belongs on this soldier's list AT ALL.
+   *
+   * False for another service's schools, another trade's, and the other
+   * ladder's — facts about who they are, which no amount of work changes.
+   * True for everything else, including courses they cannot get into
+   * today: a standing not yet reached is worth seeing.
+   *
+   * THE TAB READS THIS ONE FIELD. It used to filter by matching the reason
+   * TEXT, which broke the moment a flag rewrote the reason — a flagged
+   * soldier saw every course in the game. A boolean cannot be knocked out
+   * by reordering a message.
+   */
+  readonly onYourList: boolean
   /** pme · skill · selection — the tab groups by this. */
   readonly category: 'pme' | 'skill' | 'selection'
   /** How hard, 1–5, for a dot read rather than a number nobody can place. */
@@ -746,6 +760,36 @@ function seatsTaken(world: World, schoolId: string, classTick: Tick): number {
  * them — the branch, the trade, the badge they already hold, the evaluation
  * and the seats.
  */
+/**
+ * THE PAY GRADE THIS PERSON HOLDS, read off the ladder they are actually on.
+ *
+ * OWNER, PLAYING: "majors should not be getting kicked out if they are past
+ * 12 years in service... I just got kicked out after 16 years of an amazing
+ * career because I was a major."
+ *
+ * He was thrown out by the CAREER CORPORAL RULE. `grades` is the enlisted
+ * table, and it was being indexed with an OFFICER's rank index: a major sits
+ * at officer index 3, and enlisted index 3 is E-4. So the twelve-year wall
+ * (ADR-0032) looked at a major with sixteen years, saw a specialist who had
+ * never made sergeant, and separated him — exactly the outcome that rule
+ * exists to produce, applied to exactly the wrong person.
+ *
+ * High-year tenure read the same wrong number, so a major with six years in
+ * grade was up-or-out too. Both are ENLISTED rules; neither has any business
+ * touching a commissioned career, and the guard for that is below.
+ *
+ * Every grade read now goes through here.
+ */
+function gradeOf(
+  world: World,
+  record: { readonly branch: string; readonly rank: number; readonly commissioned?: boolean },
+  fallback = 1,
+): number {
+  const spec = branchSpecFor(world, record.branch)
+  const table = record.commissioned === true ? (spec.officerGrades ?? spec.grades) : spec.grades
+  return table[record.rank] ?? fallback
+}
+
 export function meetsRankGate(
   record: { readonly rank: number; readonly commissioned?: boolean },
   minRank: number,
@@ -785,10 +829,19 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     // Branch and trade are facts about who you are; a flag and a spent
     // attempt are facts about where you are today. The permanent ones
     // decide whether the course is on your list at all.
+    const commissioned = record.commissioned === true
+    const wrongLadder =
+      (school.track === 'enlisted' && commissioned) ||
+      (school.track === 'officer' && !commissioned)
     if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not send people here.`
     } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
       reason = 'Not this trade.'
+    } else if (wrongLadder) {
+      reason =
+        school.track === 'enlisted'
+          ? 'Enlisted professional education. Officers do not attend.'
+          : 'An officer course.'
     } else if (flag.flagged) {
       reason = flag.words
     } else if (failed >= school.maxAttempts) {
@@ -852,6 +905,10 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     requirements.push({ met: !flag.flagged, words: 'Not flagged' })
 
     return {
+      onYourList:
+        (school.branches.length === 0 || school.branches.includes(specialty.branch)) &&
+        (school.specialtyIds.length === 0 || school.specialtyIds.includes(record.specialtyId)) &&
+        !wrongLadder,
       category: school.category,
       difficultyDots: dots(school.difficulty),
       scarcityDots: dots(school.seatScarcity),
@@ -958,7 +1015,11 @@ export function upOrOutStandingFor(
 ): { readonly monthsInGrade: number; readonly monthsAllowed: number; readonly warning: boolean } | null {
   const record = activeRecord(world, personId)
   if (!record) return null
-  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 9
+  // HIGH-YEAR TENURE IS AN ENLISTED RULE. An officer's career is bounded by
+  // selection boards and statute, not by time in grade at the bottom of a
+  // ladder he is not on.
+  if (record.commissioned === true) return null
+  const grade = gradeOf(world, record, 9)
   if (grade >= HYT_BELOW_GRADE) return null
   const monthsAllowed = highYearTenureMonthsFor(record)
   const monthsInGrade = world.tick - record.rankSinceTick
@@ -1669,7 +1730,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     }
     const served = tick - record.enlistedAtTick
     const ceiling = careerCeilingMonths(
-      branchSpecFor(world, record.branch).grades[record.rank] ?? 9,
+      gradeOf(world, record, 9),
       record.indefinite === true,
     )
     if (served >= ceiling) {
@@ -2043,7 +2104,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // with the mid-tick write in place — two below-line indefinite records
       // still standing across five seeds and forty years, which is what sent
       // me looking. Anything this month decides must travel in a local.
-      const bustedGrade = branchSpecFor(world, record.branch).grades[rank] ?? 1
+      const bustedGrade = gradeOf(world, { ...record, rank }, 1)
       if (indefinite === true && bustedGrade < INDEFINITE_MIN_GRADE) indefinite = false
       world.service.set(person.id, { ...world.service.get(person.id)!, rank, rankSinceTick })
     }
@@ -2345,8 +2406,15 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // not offer another term — player and NPC alike, the army's decision,
   // not a question. The term was served in full, so good conduct is still
   // judged (the grant accepts this discharge).
-  const grade = branchSpecFor(world, branch).grades[rank] ?? 9
-  if (grade < HYT_BELOW_GRADE && tick - rankSinceTick >= highYearTenureMonthsFor(world.service.get(person.id)!)) {
+  // THE LADDER THIS PERSON IS ON. Reading the enlisted table with an
+  // officer's rank index made a major look like a specialist, and up-or-out
+  // removed him for it.
+  const grade = gradeOf(world, { branch, rank, commissioned }, 9)
+  if (
+    !commissioned &&
+    grade < HYT_BELOW_GRADE &&
+    tick - rankSinceTick >= highYearTenureMonthsFor(world.service.get(person.id)!)
+  ) {
     discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
       factor('time-in-grade', 1000),
     ])
@@ -2473,7 +2541,10 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // pension. A record already indefinite never reaches here at all.
       options: (() => {
         const years = Math.floor((tick - record.enlistedAtTick) / 12)
-        const stay = indefiniteStandingFor(grade, years) === 'elect' ? 'indefinite' : 'reenlist'
+        // Indefinite status is an enlisted institution; an officer signs
+        // on the way he always has.
+        const stay =
+          !commissioned && indefiniteStandingFor(grade, years) === 'elect' ? 'indefinite' : 'reenlist'
         return years >= 20 ? [stay, 'retire'] : [stay, 'separate']
       })(),
     })
@@ -2539,7 +2610,8 @@ export function eligibilityOf(
     }
     if (years < 3) criminalGate = 'waiver'
   }
-  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 1
+  const commissionedHere = record.commissioned === true
+  const grade = gradeOf(world, record, 1)
   return reenlistEligibility(record, {
     strikes,
     endsCareerAt: MISCONDUCT_STRIKES,
@@ -2547,12 +2619,18 @@ export function eligibilityOf(
     // High-year tenure: the up-or-out rule the career already models.
     // The same up-or-out rule the career already models, asked here as
     // the reason the service will not write another contract.
+    // BOTH OF THESE ARE ENLISTED RULES, and an officer is exempt from
+    // each. Passing his real years with a grade the wall would refuse is
+    // what separated a sixteen-year major; passing zero years tells the
+    // wall there is nothing here for it to judge.
     hitHighYearTenure:
-      grade < HYT_BELOW_GRADE && tick - record.rankSinceTick >= highYearTenureMonthsFor(record),
+      !commissionedHere &&
+      grade < HYT_BELOW_GRADE &&
+      tick - record.rankSinceTick >= highYearTenureMonthsFor(record),
     age: ageAt(person.birthTick, tick),
     // The twelve-year wall (ADR-0032). Whole years, so the month a career
     // turns twelve is the month the question changes.
-    yearsServed: Math.floor((tick - record.enlistedAtTick) / 12),
+    yearsServed: commissionedHere ? 0 : Math.floor((tick - record.enlistedAtTick) / 12),
     grade,
   })
 }
@@ -2670,7 +2748,7 @@ export function reenlist(
   // §3. THE TERM IS CHOSEN, not a constant. A record without one ran the
   // old fixed contract, and reading it as such is the truth about it.
   const chosen = termMonths ?? record.termMonths ?? SERVICE_TERM_MONTHS
-  const grade = branchSpecFor(world, record.branch).grades[record.rank] ?? 1
+  const grade = gradeOf(world, record, 1)
   world.service.set(person.id, {
     ...record,
     termMonthsLeft: chosen,

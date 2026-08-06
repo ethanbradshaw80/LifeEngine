@@ -14,6 +14,9 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { ageAt } from '../src/clock.js'
+import { eligibilityOf } from '../src/service.js'
+import { livingPeople } from '../src/systems.js'
 import { BRANCH_GRADES, BRANCH_RANKS } from '../src/content.js'
 import {
   INDEFINITE_AT_YEARS,
@@ -208,5 +211,81 @@ describe('indefinite is a commitment, not a life sentence', () => {
     }
     expect(pastTwenty, 'nobody ever serves past twenty years').toBeGreaterThan(0)
     expect(stoppedByThirty, 'somebody served past thirty years').toBe(true)
+  })
+})
+
+describe('an officer is not a corporal', () => {
+  it('does not separate a major sixteen years into a good career', () => {
+    // OWNER, PLAYING: "majors should not be getting kicked out if they are
+    // past 12 years in service... I just got kicked out after 16 years of
+    // an amazing career because I was a major."
+    //
+    // He was removed by the CAREER CORPORAL RULE. `grades` is the ENLISTED
+    // table and it was being indexed with an officer's rank index — a major
+    // sits at officer index 3, and enlisted index 3 is E-4. So the
+    // twelve-year wall saw a specialist with sixteen years who had never
+    // made sergeant, and did exactly what it was built to do.
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 30 && ageAt(p.birthTick, world.tick) <= 45)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+
+    const branch = world.spec.branches[0]
+    if (!branch) throw new Error('no branch')
+    const major = 3 // 2LT, 1LT, CPT, MAJ
+    world.service.set(person.id, {
+      personId: person.id,
+      branch: branch.id,
+      specialtyId: 'rifleman',
+      commissioned: true,
+      rank: major,
+      rankSinceTick: (world.tick - 80) as never, // long in grade, on purpose
+      qualifications: [],
+      enlistedAtTick: (world.tick - 16 * 12) as never,
+      baseId: null,
+      monthlyPay: 700_000 as never,
+      performance: 780,
+      termMonthsLeft: 1,
+      dischargedAtTick: null,
+      dischargeReason: null,
+      termPerformanceSum: 780 * 6,
+      unitId: null,
+      unitSinceTick: null,
+      schoolId: null,
+      schoolStartsAtTick: null,
+      fitnessScore: 300,
+      fitnessTestedAtTick: world.tick,
+      priorSpecialtyIds: [],
+    } as never)
+
+    // The service must still want him: no wall, and no up-or-out either.
+    const eligibility = eligibilityOf(world, person, world.service.get(person.id)!, world.tick)
+    expect(eligibility.code, eligibility.reason).not.toBe('RE-4')
+
+    // AND HE MUST NOT BE REMOVED BY AN ENLISTED RULE. He may still choose
+    // to leave — officers resign, and the ordinary retention roll is
+    // allowed to take him — but "barred from reenlistment" and "high-year
+    // tenure" are the two the wall and up-or-out produce, and neither has
+    // any business ending a commissioned career.
+    advanceTicks(world, 24)
+    const after = world.service.get(person.id)
+    expect(after?.dischargeReason).not.toBe('barred from reenlistment')
+    expect(after?.dischargeReason).not.toBe('high-year tenure')
+  })
+
+  it('reads a rank off the ladder its owner is actually on', () => {
+    // The root cause, asserted directly: an officer's grade must not come
+    // from the enlisted table.
+    const world = createWorld(makeSeed(4141), 120)
+    const branch = world.spec.branches[0]
+    if (!branch) throw new Error('no branch')
+    const officerGrades = branch.officerGrades ?? []
+    expect(officerGrades.length, 'no officer grade table to read').toBeGreaterThan(3)
+    // A major is O-4 on his own ladder and E-4 on nobody's.
+    expect(officerGrades[3]).toBe(4)
+    expect(branch.grades[3]).toBe(4)
+    // Same number, different meaning — which is exactly why the bug was
+    // invisible: the tables overlap for the first few rungs.
   })
 })

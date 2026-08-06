@@ -1197,10 +1197,13 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     minTimeInServiceMonths: 24, minFitness: 520, pointsBonus: 40,
   },
   {
+    // Predates the NCOES courses and is effectively BLC by another name
+    // (the owner's spec says so outright). Enlisted education either way —
+    // an officer has no business in it.
     id: 'leaders-course', title: 'the Junior Leaders Course', branches: [], specialtyIds: [],
     minRank: 4, minPerformance: 500, badge: 'small-unit leader', performanceBoost: 50,
     courseMonths: 1, classCadenceMonths: 4, seatsPerClass: 3,
-    category: 'pme', difficulty: 70, seatScarcity: 220, maxAttempts: 4,
+    track: 'enlisted', category: 'pme', difficulty: 70, seatScarcity: 220, maxAttempts: 4,
   },
   {
     id: 'sf-qualification', title: 'the Special Forces Qualification Course', branches: ['land-forces'], specialtyIds: [],
@@ -1240,31 +1243,31 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     id: 'blc', title: 'the Basic Leader Course', branches: ['land-forces'], specialtyIds: [],
     minRank: 4, minPerformance: 400, badge: 'basic leader', performanceBoost: 45,
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
-    category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
+    track: 'enlisted', category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
   },
   {
     id: 'alc', title: 'the Advanced Leader Course', branches: ['land-forces'], specialtyIds: [],
     minRank: 5, minPerformance: 470, badge: 'advanced leader', performanceBoost: 50,
     courseMonths: 2, classCadenceMonths: 3, seatsPerClass: 4,
-    category: 'pme', difficulty: 70, seatScarcity: 260, maxAttempts: 4, gatesGrade: 6,
+    track: 'enlisted', category: 'pme', difficulty: 70, seatScarcity: 260, maxAttempts: 4, gatesGrade: 6,
   },
   {
     id: 'slc', title: 'the Senior Leader Course', branches: ['land-forces'], specialtyIds: [],
     minRank: 6, minPerformance: 530, badge: 'senior leader', performanceBoost: 55,
     courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 3,
-    category: 'pme', difficulty: 80, seatScarcity: 340, maxAttempts: 3, gatesGrade: 7,
+    track: 'enlisted', category: 'pme', difficulty: 80, seatScarcity: 340, maxAttempts: 3, gatesGrade: 7,
   },
   {
     id: 'mlc', title: 'the Master Leader Course', branches: ['land-forces'], specialtyIds: [],
     minRank: 7, minPerformance: 580, badge: 'master leader', performanceBoost: 60,
     courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
-    category: 'pme', difficulty: 90, seatScarcity: 430, maxAttempts: 3, gatesGrade: 8,
+    track: 'enlisted', category: 'pme', difficulty: 90, seatScarcity: 430, maxAttempts: 3, gatesGrade: 8,
   },
   {
     id: 'smc', title: 'the Sergeants Major Course', branches: ['land-forces'], specialtyIds: [],
     minRank: 8, minPerformance: 630, badge: 'sergeants major course', performanceBoost: 70,
     courseMonths: 10, classCadenceMonths: 12, seatsPerClass: 1,
-    category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
+    track: 'enlisted', category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
   },
 
   // Navy — the Leader Development continuum, then the academy.
@@ -1272,31 +1275,31 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     id: 'fldc', title: 'the Foundational Leader Development Course', branches: ['naval-service'], specialtyIds: [],
     minRank: 2, minPerformance: 380, badge: 'foundational leader', performanceBoost: 40,
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
-    category: 'pme', difficulty: 50, seatScarcity: 180, maxAttempts: 4, gatesGrade: 4,
+    track: 'enlisted', category: 'pme', difficulty: 50, seatScarcity: 180, maxAttempts: 4, gatesGrade: 4,
   },
   {
     id: 'ildc', title: 'the Intermediate Leader Development Course', branches: ['naval-service'], specialtyIds: [],
     minRank: 3, minPerformance: 400, badge: 'intermediate leader', performanceBoost: 45,
     courseMonths: 1, classCadenceMonths: 3, seatsPerClass: 5,
-    category: 'pme', difficulty: 60, seatScarcity: 240, maxAttempts: 4, gatesGrade: 5,
+    track: 'enlisted', category: 'pme', difficulty: 60, seatScarcity: 240, maxAttempts: 4, gatesGrade: 5,
   },
   {
     id: 'aldc', title: 'the Advanced Leader Development Course', branches: ['naval-service'], specialtyIds: [],
     minRank: 4, minPerformance: 470, badge: 'advanced leader development', performanceBoost: 50,
     courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 4,
-    category: 'pme', difficulty: 70, seatScarcity: 300, maxAttempts: 4, gatesGrade: 6,
+    track: 'enlisted', category: 'pme', difficulty: 70, seatScarcity: 300, maxAttempts: 4, gatesGrade: 6,
   },
   {
     id: 'cpo-ldc', title: 'the Chief Petty Officer Leader Development Course', branches: ['naval-service'], specialtyIds: [],
     minRank: 5, minPerformance: 540, badge: 'chief petty officer course', performanceBoost: 60,
     courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 3,
-    category: 'pme', difficulty: 85, seatScarcity: 400, maxAttempts: 3, gatesGrade: 7,
+    track: 'enlisted', category: 'pme', difficulty: 85, seatScarcity: 400, maxAttempts: 3, gatesGrade: 7,
   },
   {
     id: 'sea', title: 'the Senior Enlisted Academy', branches: ['naval-service'], specialtyIds: [],
     minRank: 6, minPerformance: 590, badge: 'senior enlisted academy', performanceBoost: 70,
     courseMonths: 3, classCadenceMonths: 6, seatsPerClass: 2,
-    category: 'pme', difficulty: 95, seatScarcity: 500, maxAttempts: 3, gatesGrade: 8,
+    track: 'enlisted', category: 'pme', difficulty: 95, seatScarcity: 500, maxAttempts: 3, gatesGrade: 8,
   },
 
   // Air — Airman Leadership School, then the academies.
@@ -1304,25 +1307,25 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
     id: 'als', title: 'Airman Leadership School', branches: ['air-guard'], specialtyIds: [],
     minRank: 3, minPerformance: 400, badge: 'airman leadership', performanceBoost: 45,
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 6,
-    category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
+    track: 'enlisted', category: 'pme', difficulty: 60, seatScarcity: 200, maxAttempts: 4, gatesGrade: 5,
   },
   {
     id: 'ncoa', title: 'the NCO Academy', branches: ['air-guard'], specialtyIds: [],
     minRank: 5, minPerformance: 520, badge: 'nco academy', performanceBoost: 55,
     courseMonths: 2, classCadenceMonths: 4, seatsPerClass: 4,
-    category: 'pme', difficulty: 75, seatScarcity: 320, maxAttempts: 3, gatesGrade: 7,
+    track: 'enlisted', category: 'pme', difficulty: 75, seatScarcity: 320, maxAttempts: 3, gatesGrade: 7,
   },
   {
     id: 'sncoa', title: 'the Senior NCO Academy', branches: ['air-guard'], specialtyIds: [],
     minRank: 6, minPerformance: 570, badge: 'senior nco academy', performanceBoost: 65,
     courseMonths: 2, classCadenceMonths: 6, seatsPerClass: 2,
-    category: 'pme', difficulty: 90, seatScarcity: 440, maxAttempts: 3, gatesGrade: 8,
+    track: 'enlisted', category: 'pme', difficulty: 90, seatScarcity: 440, maxAttempts: 3, gatesGrade: 8,
   },
   {
     id: 'clc', title: 'the Chief Leadership Course', branches: ['air-guard'], specialtyIds: [],
     minRank: 7, minPerformance: 620, badge: 'chief leadership', performanceBoost: 70,
     courseMonths: 2, classCadenceMonths: 12, seatsPerClass: 1,
-    category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
+    track: 'enlisted', category: 'pme', difficulty: 100, seatScarcity: 560, maxAttempts: 2, gatesGrade: 9,
   },
 ]
 

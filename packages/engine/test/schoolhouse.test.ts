@@ -332,3 +332,49 @@ describe('the list is this soldier’s own', () => {
     expect(naval(), 'a flag made another service’s schools look reachable').toBe(beforeFlag)
   })
 })
+
+describe('an officer is on a different ladder', () => {
+  /** The same soldier, once enlisted and once commissioned. */
+  function listFor(commissioned: boolean): readonly string[] {
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id)
+    const record = world.service.get(person.id)
+    if (!record) throw new Error('no record')
+    world.service.set(person.id, { ...record, rank: 3, commissioned })
+    return schoolOptionsFor(world, person.id)
+      .filter((o) => o.onYourList)
+      .map((o) => o.id)
+  }
+
+  it('keeps NCO professional education off an officer’s list', () => {
+    // THE BUG THIS PINS (owner, playing: "I'm seeing officers seeing NCO
+    // courses"). meetsRankGate returns true for every commissioned officer
+    // — correctly, because a lieutenant really can go to jump school and
+    // comparing an enlisted rank index against the officer ladder is
+    // meaningless. But that meant an officer cleared every NCO course's
+    // gate too, and read the whole NCOES catalogue as though it were his.
+    const officer = listFor(true)
+    const enlisted = listFor(false)
+    for (const course of ['blc', 'alc', 'slc', 'mlc', 'smc', 'leaders-course']) {
+      expect(enlisted, `${course} missing from the enlisted list`).toContain(course)
+      expect(officer, `an officer was offered ${course}`).not.toContain(course)
+    }
+    // And the skill schools still take both — a lieutenant jumps out of
+    // aircraft like everybody else.
+    expect(officer).toContain('jump-school')
+    expect(officer).toContain('ranger-school')
+  })
+
+  it('marks every promotion course as belonging to one ladder', () => {
+    // A PME course with no track is a course both ladders can see, which
+    // for professional military education is always wrong.
+    for (const school of SERVICE_SCHOOLS) {
+      if (school.category !== 'pme') continue
+      expect(school.track, `${school.id} has no ladder`).toBeDefined()
+    }
+  })
+})
