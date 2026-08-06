@@ -110,6 +110,13 @@ for new work is below that.
 - **M-MONEY2 — a household is a building, not a purse** (ADR-0030). Money
   belongs to a financial unit: you, your partner, and dependants — where
   dependency is about INCOME, not age.
+- **A bankruptcy you can see and pay off** (ADR-0038), owner-reported. A
+  chapter 13 plan was **entirely invisible** — no screen said what the
+  payment was or how long it ran — and there was no early payoff. Both
+  fixed: a Bank card and a `payOffPlan` verb. Found a real bug while
+  building it: the discharge figure used a flat 36 months for every plan
+  when plans run 36–60, so a long plan reported a bigger write-off than
+  happened. Moved both goldens, which proves NPC filings carried it too.
 - **The Article 15** (ADR-0037), from the owner's spec. Nonjudicial
   punishment is a paper you sign, and a civilian conviction with no
   confinement now reaches a serving member. Court-martial fork deliberately

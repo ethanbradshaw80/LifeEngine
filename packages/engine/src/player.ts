@@ -114,6 +114,8 @@ import {
   fileBankruptcy,
   buyHome,
   homePurchaseBar,
+  moneyOnHand,
+  payOffPlan,
   buyInvestment,
   creditOf,
   moveBetweenOwnAccounts,
@@ -134,6 +136,7 @@ import {
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
 import { article15For } from './article15.js'
+import { openFilingOf, planPayoffBar } from './bankruptcy.js'
 import {
   accessionOf,
   accessionWords,
@@ -646,6 +649,25 @@ export function buyHomePlayer(
   return buyHome(world, world.tick, person.id, household.placeId, method)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The purchase did not go through.' }
+}
+
+/**
+ * ADR-0038. SETTLE THE CHAPTER 13 PLAN, today, in full.
+ *
+ * The refusal is the bar's own words rather than "that did not work" —
+ * "settling the plan costs 4,200 dollars; you have 900" tells the player
+ * what to go and do about it.
+ */
+export function payOffBankruptcyPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const filing = openFilingOf(world, person.id)
+  const bar = planPayoffBar(filing, moneyOnHand(world, person.id), world.tick)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'pay-off-plan', String(filing?.filedAtTick ?? 0))
+  return payOffPlan(world, world.tick, person.id)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The court did not close the plan.' }
 }
 
 export function requestEnlistment(world: World): { asked: boolean; reason: string } {
@@ -2408,6 +2430,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'divest':
     case 'borrow':
     case 'buy-home':
+    case 'pay-off-plan':
     case 'school-request':
     case 'unit-tryout':
     case 'fitness-test':
@@ -3592,6 +3615,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Took on a debt.' // log-only
     case 'buy-home':
       return 'Bought a home.' // log-only
+    case 'pay-off-plan':
+      return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':
       return 'Asked for a school slot.' // log-only
     case 'unit-tryout':

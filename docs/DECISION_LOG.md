@@ -1526,3 +1526,88 @@ month, which is also how it works. And `article15.ts` could not import
 imports this one to render the paper, and the import ratchet caught the
 cycle immediately. The ladder is read inline instead, the same trick
 `health.ts` and `finances.ts` already use.
+
+---
+
+## ADR-0038 — A bankruptcy plan you can see, and one you can pay off
+
+**Status:** Accepted · **Date:** 2026-08-05
+
+**Context.** The owner, playing: *"There is still no way to payoff your
+bankruptcy."*
+
+He was right, and the gap was bigger than a missing button. A chapter 13
+plan was **entirely invisible** once it started. Nothing on any screen said
+what the payment was, how many months it had left, or what the court was
+holding — the Bank showed accounts, loans and credit and simply omitted the
+filing. The money left the account every month for three to five years and
+the only surfaces the whole bankruptcy system had were the pending that asks
+which chapter to file under, and a line in City Hall recording that you
+filed.
+
+That made the honest complaint hard to even phrase. The owner could not ask
+"why can't I pay this off" until he noticed there was a *this*, and the only
+reason he noticed was that he could not act on it.
+
+The second half is the one he named. A real chapter 13 plan **can** be paid
+off early: pay the plan base and the court discharges you. The engine had no
+such path. The plan ran its 36–60 months and discharged on the calendar, or
+it was dismissed because the household fell far enough behind — and dismissal
+is the bad ending, not a way out. A player who clawed their way back to money
+had nothing to spend it on.
+
+**Decision.**
+
+1. **The Bank shows the filing.** An *Under the court* card: chapter, owed at
+   filing, the monthly payment, months left, and what settling costs today.
+   A chapter 7 shows the first two and stops, because that is all a chapter 7
+   has.
+
+2. **`planPayoffFor` is the plan base still to run** — `planMonthly ×
+   monthsLeft` — not the original `owed`. The months already paid were paid.
+   Settling is settling the *plan*, which is what an early payoff is.
+
+3. **`payOffPlan` takes the money and discharges the filing.** What is
+   discharged is what the plan would have wiped at its natural end, so the
+   record reads the same either way.
+
+4. **The filing itself does not vanish.** It sits on the file for its seven
+   years and the credit penalty runs its course. Paying early buys the months
+   back and stops the money leaving; it does not buy a clean history, because
+   that is not a thing money buys.
+
+5. **One bar function**, `planPayoffBar`, drives both the greyed button and
+   the verb's refusal — the house pattern. The refusal is the bar's own
+   words: *"Settling the plan costs 4,200 dollars; you have 900."*
+
+**Consequences.** A recovery arc that was a waiting room becomes a thing you
+can act on, which is what Law 7 asks of the safety net. The dismissal path is
+unchanged and still bounded — this adds a good ending, it does not remove the
+bad one.
+
+**Two things the tests caught, both worth recording.**
+
+The chapter-7 message was ordered wrong. A chapter 7 is discharged at filing,
+so the `dischargedAtTick !== null` check fired first and a chapter 7 filer was
+told *"No plan is running"* — a true sentence that explains nothing. The
+chapter check now comes first.
+
+And the first fixture had no wage. `planPaymentFor` floors at one cent, so a
+filer with no income got a plan costing 36 cents in total, and the payoff test
+passed while proving nothing. This cannot happen in play — `chaptersOpenTo`
+only offers chapter 13 to somebody with disposable income — but it is a
+standing warning about fixtures that bypass the gate the feature sits behind.
+
+**And a bug in the code this was copied from.** The discharge figure — the
+sum the life story reports as written off — used `PLAN_MONTHS_MIN`, a flat
+36, for every plan. But `planMonthsFor` returns anything from 36 to 60. A
+sixty-month plan credited the filer with 36 months of payments they had
+actually made 60 of, so the story told them a larger sum had been forgiven
+than really was; at the sixty-month end it overstated the write-off by two
+years of payments. It is now computed from the plan's real length,
+`planEndsAtTick - filedAtTick`, in one helper both endings share.
+
+This moved both goldens (Classic `967a2f7e` → `d7cbcfc7`, Heartland
+`48030648` → `a04a7a51`), which is the proof it was reachable in ordinary
+play rather than only in theory: NPC filings in the seeded towns were
+carrying the wrong number.

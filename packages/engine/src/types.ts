@@ -1360,6 +1360,8 @@ export type PendingKind =
   | 'divest'
   | 'borrow'
   | 'buy-home'
+  /** ADR-0038. Settling a chapter 13 plan in full, early. */
+  | 'pay-off-plan'
   /** LOG-ONLY: asked for a school slot from the Service tab. */
   | 'school-request'
   /** LOG-ONLY: put in for a special unit's selection. */

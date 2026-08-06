@@ -26,6 +26,7 @@ import {
   bankTransfer,
   borrowPlayer,
   buyHomePlayer,
+  payOffBankruptcyPlayer,
   startBusiness,
   divestPlayer,
   investPlayer,
@@ -100,6 +101,7 @@ export type VerbRequest =
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
   | { readonly verb: 'buy-home'; readonly method: 'cash' | 'mortgage' }
+  | { readonly verb: 'pay-off-plan' }
   | { readonly verb: 'start-business'; readonly kindId: string }
 
 export type WorkerRequest =
@@ -410,6 +412,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'borrow': {
             const r = borrowPlayer(world, a.kind, a.cents)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'pay-off-plan': {
+            const r = payOffBankruptcyPlayer(world)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

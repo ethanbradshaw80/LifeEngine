@@ -79,6 +79,8 @@ import {
   PLAN_MONTHS_MIN,
   planMonthsFor,
   planPaymentFor,
+  planPayoffBar,
+  planPayoffFor,
   PROPERTY_EXEMPTION,
   totalOwedBy,
   underStay,
@@ -1734,7 +1736,7 @@ function runPlans(world: World, tick: Tick): void {
     const done = {
       ...filing,
       dischargedAtTick: tick,
-      discharged: Math.max(0, filing.owed - filing.planMonthly * PLAN_MONTHS_MIN) as Money,
+      discharged: dischargedAtEndOf(filing),
     }
     world.bankruptcies.set(
       personId,
@@ -1751,6 +1753,100 @@ function runPlans(world: World, tick: Tick): void {
       detail: String(done.discharged),
     })
   }
+}
+
+/**
+ * What a completed plan writes off: everything the plan base did not cover.
+ *
+ * BUG, found while building the early payoff (ADR-0038). This used
+ * `PLAN_MONTHS_MIN` — a flat 36 — for every plan, but `planMonthsFor`
+ * returns anything from 36 to 60. A sixty-month plan therefore credited the
+ * filer with 36 months of payments they had actually made 60 of, and the
+ * life story told them a larger sum had been discharged than really was.
+ * The longer the plan, the bigger the overstatement: at the sixty-month end
+ * it claimed two extra years of payments had been forgiven.
+ *
+ * The plan's real length is on the filing — `planEndsAtTick` minus
+ * `filedAtTick` — and that is what was paid into it.
+ */
+function dischargedAtEndOf(filing: Bankruptcy): Money {
+  const months =
+    filing.planEndsAtTick === null
+      ? PLAN_MONTHS_MIN
+      : Math.max(0, filing.planEndsAtTick - filing.filedAtTick)
+  return Math.max(0, filing.owed - filing.planMonthly * months) as Money
+}
+
+/**
+ * ADR-0038. SETTLE THE PLAN AND WALK OUT OF IT.
+ *
+ * Pays every remaining scheduled payment at once and discharges the filing.
+ * What is discharged is what the plan would have wiped at its natural end,
+ * so the record reads the same either way — the person paid the base and
+ * the court let the rest go.
+ *
+ * THE FILING ITSELF DOES NOT VANISH. It sits on the file for its seven
+ * years exactly as before, and the credit penalty runs its course. Paying
+ * early buys the months back and stops the money leaving; it does not buy
+ * a clean history, because that is not a thing money buys.
+ */
+export function payOffPlan(world: World, tick: Tick, personId: EntityId): boolean {
+  const filings = world.bankruptcies.get(personId) ?? []
+  const index = filings.findIndex(
+    (entry) => entry.dischargedAtTick === null && entry.planEndsAtTick !== null,
+  )
+  if (index < 0) return false
+  const filing = filings[index]
+  if (!filing) return false
+
+  const accounts = accountsOf(world, personId)
+  const cash = (accounts.checking + accounts.savings) as Money
+  if (planPayoffBar(filing, cash, tick) !== null) return false
+
+  const due = planPayoffFor(filing, tick)
+  const fromChecking = Math.min(due, accounts.checking)
+  const fromSavings = due - fromChecking
+  setAccounts(world, {
+    ...accounts,
+    checking: (accounts.checking - fromChecking) as Money,
+    savings: (accounts.savings - fromSavings) as Money,
+    // Settling in full is the strongest month of paying there is.
+    monthsPaid: accounts.monthsPaid + 1,
+  })
+
+  const settled = {
+    ...filing,
+    dischargedAtTick: tick,
+    // The same figure either way: settling early pays the remaining months
+    // up front, so the same plan base was paid and the same balance falls
+    // away. Somebody who pays it off should not read a different number in
+    // their own life story than somebody who waited it out.
+    discharged: dischargedAtEndOf(filing),
+  }
+  world.bankruptcies.set(
+    personId,
+    filings.map((entry, i) => (i === index ? settled : entry)),
+  )
+  recordEvent(world, tick, {
+    type: 'plan-completed',
+    subjectId: personId,
+    detail: String(filing.owed),
+  })
+  recordEvent(world, tick, {
+    type: 'debt-discharged',
+    subjectId: personId,
+    detail: String(settled.discharged),
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'spending',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('steady-pay', Math.floor(due / 1000))],
+    chosen: 'paid the plan off and closed the bankruptcy',
+    rejected: ['serving out the plan'],
+    streamId: Stream.Economy,
+  })
+  return true
 }
 
 /**

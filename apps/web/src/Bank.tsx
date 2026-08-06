@@ -35,6 +35,10 @@ import {
   householdCosts,
   incomeTaxFor,
   homePurchaseBar,
+  openFilingOf,
+  planMonthsLeft,
+  planPayoffBar,
+  planPayoffFor,
   marginalRatePerMille,
   marketLevel,
   monthlyNetOf,
@@ -309,6 +313,50 @@ export function Bank({
               </div>
               {debt > 0 && <Row label="Owed" value={formatMoney(debt)} tone="bad" />}
             </section>
+
+            {/* ADR-0038. THE PLAN, WHICH USED TO BE INVISIBLE. A chapter 13
+                filing took money out of the account every month for three
+                to five years and no screen ever mentioned it — the owner
+                found out by not being able to do anything about it. */}
+            {(() => {
+              const filing = openFilingOf(world, person.id)
+              if (!filing || filing.dischargedAtTick !== null) return null
+              const monthsLeft = planMonthsLeft(filing, world.tick)
+              const payoff = planPayoffFor(filing, world.tick)
+              const bar = planPayoffBar(filing, (accounts.checking + accounts.savings) as Money, world.tick)
+              return (
+                <section className="bank-card">
+                  <h4>Under the court</h4>
+                  <Row label="Filing" value={`Chapter ${String(filing.chapter)}`} />
+                  <Row label="Owed at filing" value={formatMoney(filing.owed)} tone="bad" />
+                  {filing.chapter === 13 && (
+                    <>
+                      <Row label="Plan payment" value={`${formatMoney(filing.planMonthly)}/mo`} />
+                      <Row
+                        label="Months left"
+                        value={monthsLeft === 0 ? 'term served' : String(monthsLeft)}
+                        tone="muted"
+                      />
+                      <Row label="Settle in full" value={formatMoney(payoff)} />
+                      <div className="bank-actions">
+                        <button
+                          type="button"
+                          disabled={bar !== null}
+                          onClick={() => onAct({ verb: 'pay-off-plan' })}
+                        >
+                          Pay the plan off
+                        </button>
+                      </div>
+                      {bar !== null && <p className="bank-note">{bar}</p>}
+                      <p className="bank-note">
+                        Settling ends the payments and discharges what is left. The filing itself
+                        stays on the record either way.
+                      </p>
+                    </>
+                  )}
+                </section>
+              )
+            })()}
 
             {accounts.loans.length > 0 && (
               <section className="bank-card">

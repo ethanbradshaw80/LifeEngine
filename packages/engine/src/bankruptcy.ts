@@ -236,6 +236,67 @@ export function isInsolvent(owed: Money, monthlyIncome: Money, monthlyCosts: Mon
 }
 
 /** In words, for a screen and for the paper. */
+/**
+ * ADR-0038, owner: "there is still no way to payoff your bankruptcy."
+ *
+ * He is right, and the gap was bigger than the missing button. A chapter 13
+ * plan was ENTIRELY INVISIBLE once it started: no screen said what the
+ * payment was, how many months were left, or what the court was holding.
+ * The money simply left the account every month for three to five years and
+ * the only way out was to wait — or to fall far enough behind that the plan
+ * was dismissed, which is the bad ending.
+ *
+ * A real plan can be paid off early — pay the plan base and the court
+ * discharges you. That is the recovery Law 7 asks for, and it is the one
+ * thing a player who has clawed their way back to money should be able to
+ * spend it on.
+ */
+
+/** Months still to run on this plan, or 0 when it is not running. */
+export function planMonthsLeft(filing: Bankruptcy | undefined, tick: Tick): number {
+  if (!filing || filing.dischargedAtTick !== null || filing.planEndsAtTick === null) return 0
+  return Math.max(0, filing.planEndsAtTick - tick)
+}
+
+/**
+ * WHAT IT COSTS TO WALK OUT TODAY: every remaining scheduled payment.
+ *
+ * Not the whole of `owed` — the plan base is what the court asked for, and
+ * the months already paid were paid. Paying the rest is settling the plan,
+ * not the original debt, which is exactly what an early payoff is.
+ */
+export function planPayoffFor(filing: Bankruptcy | undefined, tick: Tick): Money {
+  if (!filing) return 0 as Money
+  return (filing.planMonthly * planMonthsLeft(filing, tick)) as Money
+}
+
+/**
+ * Why the plan cannot be settled today, or null when it can.
+ *
+ * The bar pattern: the Bank's button and the verb's refusal read this one
+ * function, so a greyed row and an honest "no" cannot disagree.
+ */
+export function planPayoffBar(
+  filing: Bankruptcy | undefined,
+  cash: Money,
+  tick: Tick,
+): string | null {
+  if (!filing) return 'No plan is running.'
+  // THE CHAPTER COMES FIRST. A chapter 7 is discharged at filing, so the
+  // discharged check below is true of it — and "no plan is running" is a
+  // true sentence that explains nothing. Say which filing it was.
+  if (filing.chapter === 7) {
+    return 'Chapter 7 discharged at filing. There is no plan to pay off.'
+  }
+  if (filing.dischargedAtTick !== null) return 'No plan is running.'
+  const due = planPayoffFor(filing, tick)
+  if (due <= 0) return 'The plan has run its term. The discharge is due anyway.'
+  if (cash < due) {
+    return `Settling the plan costs ${String(Math.ceil(due / 100))} dollars; you have ${String(Math.floor(cash / 100))}.`
+  }
+  return null
+}
+
 export function chapterWords(chapter: BankruptcyChapter): string {
   return chapter === 7 ? 'a liquidation' : 'a repayment plan'
 }
