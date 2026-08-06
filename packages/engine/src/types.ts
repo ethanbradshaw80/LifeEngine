@@ -284,6 +284,68 @@ export interface ServiceSchool {
   readonly classCadenceMonths: number
   /** Seats in one class. A full class is a real reason to wait. */
   readonly seatsPerClass: number
+
+  // ---- M-SCHOOL (owner's schoolhouse remodel spec) --------------------
+  //
+  // WHAT WAS MISSING. A school was a flat gate: clear the rank and the
+  // evaluation, wait for a class, and the badge was yours. Nobody was ever
+  // turned down for a seat and nobody ever washed out. The three forces the
+  // spec names — the unit decides you have earned a scarce seat, hard
+  // schools are genuinely hard, and a failure has a road back — had nothing
+  // to hang on.
+
+  /**
+   * What kind of school this is, which decides how it behaves.
+   *
+   *  'pme'        promotion education. Rarely washes anybody out — the
+   *               difficulty is GETTING THE SEAT in time to promote.
+   *  'skill'      a badge and a capability. Some are easy, some are hard.
+   *  'selection'  a gateway, not a course. Few seats, heavy attrition,
+   *               and the service is choosing rather than teaching.
+   */
+  readonly category: 'pme' | 'skill' | 'selection'
+
+  /**
+   * Wash-out weight, per thousand, BEFORE the soldier's own fitness,
+   * aptitude and standing move it. Not a probability the player ever sees
+   * as a number — the tab shows it as a difficulty read.
+   *
+   * TUNED RELATIVELY, from the ranges the owner's spec cites: an airborne
+   * course passes the large majority, air assault washes a share at day
+   * zero, a ranger course graduates roughly half on a first attempt with
+   * recycles common, and special-forces selection is more selective still.
+   * Those are the SHAPE. The numbers here are this game's, and they want
+   * measuring against a grown world before anybody trusts them.
+   */
+  readonly difficulty: number
+
+  /**
+   * How rare a seat is, per thousand, as the unit's own quota. Higher is
+   * rarer. This is the "they only send a couple" reality, and it is the
+   * thing that replaced a flat one-in-seventy-two roll for every course in
+   * the catalogue regardless of how precious it was.
+   */
+  readonly seatScarcity: number
+
+  /** Lifetime seats the unit will fund. A wash-out is a setback, not a wall. */
+  readonly maxAttempts: number
+
+  /**
+   * Whether a phase can be repeated before the attempt is called a failure.
+   * Costs time, costs nothing on the record — which is what a recycle is.
+   */
+  readonly recycleAllowed?: boolean
+
+  /** Months in uniform before the unit will spend a seat on somebody. */
+  readonly minTimeInServiceMonths?: number
+  /** The aptitude floor, read off the score the recruiting station set. */
+  readonly minAptitude?: number
+  /** The fitness standard to START. Some courses test you on day zero. */
+  readonly minFitness?: number
+  /** A prior school this one is built on top of. */
+  readonly prereqBadges?: readonly string[]
+  /** Board points beyond POINTS_PER_BADGE, for the courses that carry weight. */
+  readonly pointsBonus?: number
 }
 
 export interface SpecialUnit {
