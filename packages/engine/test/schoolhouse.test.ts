@@ -10,8 +10,39 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
+import type { Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { ageAt } from '../src/clock.js'
+import { recordEvent } from '../src/records.js'
+import { flagStatus, schoolOptionsFor } from '../src/service.js'
+import { livingPeople } from '../src/systems.js'
 import { BRANCH_GRADES, SERVICE_SCHOOLS } from '../src/content.js'
+
+/** A plain serving record, enough for the flag to have something to read. */
+function enlist(world: ReturnType<typeof createWorld>, personId: number): void {
+  world.service.set(personId as never, {
+    personId: personId as never,
+    branch: 'land-forces',
+    specialtyId: 'rifleman',
+    rank: 4,
+    rankSinceTick: world.tick,
+    qualifications: [],
+    enlistedAtTick: world.tick,
+    baseId: null,
+    monthlyPay: 139_000 as never,
+    performance: 700,
+    termMonthsLeft: 40,
+    dischargedAtTick: null,
+    dischargeReason: null,
+    termPerformanceSum: 4_200,
+    unitId: null,
+    unitSinceTick: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
+    fitnessScore: 300,
+    fitnessTestedAtTick: world.tick,
+  } as never)
+}
 
 describe('every course in the catalogue', () => {
   it('carries the fields the schoolhouse will read', () => {
@@ -127,4 +158,72 @@ describe('the town still makes sergeants', () => {
     expect(serving, 'nobody is serving at all').toBeGreaterThan(5)
     expect(top, 'nobody got past the first NCO gate in forty years').toBeGreaterThanOrEqual(7)
   })
+})
+
+/**
+ * M-SCHOOL §3 — the flag. "Suspension of favourable actions": no school, no
+ * promotion, no reenlistment, no medal, until it clears.
+ */
+describe('the flag', () => {
+  it('closes the schoolhouse to a soldier who has just been punished', () => {
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id)
+
+    expect(flagStatus(world, person.id, world.tick).flagged).toBe(false)
+    recordEvent(world, world.tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'late for duty',
+    })
+    const flag = flagStatus(world, person.id, world.tick)
+    expect(flag.flagged).toBe(true)
+    expect(flag.reasons).toContain('adverse-action')
+    // The tab says which, in words, rather than greying a row in silence.
+    expect(flag.words).toContain('flagged')
+    // And every course is shut, with that reason on it.
+    const open = schoolOptionsFor(world, person.id).filter((o) => o.open)
+    expect(open.length, 'a flagged soldier was still offered a seat').toBe(0)
+  })
+
+  it('lifts when the punishment ages off — a suspension is not a discharge', () => {
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    enlist(world, person.id)
+    recordEvent(world, world.tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'late for duty',
+    })
+    expect(flagStatus(world, person.id, world.tick).flagged).toBe(true)
+    expect(flagStatus(world, person.id, (world.tick + 13) as Tick).flagged).toBe(false)
+  })
+
+  it('does not flag most of the army for being averagely fit', () => {
+    // THE BUG THIS PINS. The fitness bar was set at 200 by guesswork and
+    // flagged FIFTEEN OF SEVENTEEN serving soldiers, because the scores
+    // this game produces run 114 to 207 with a median of 180 — the
+    // "failing" bar sat above the middle of the force. Flagged means no
+    // school, no promotion and no reenlistment, so the whole army stalled
+    // below the first senior rung.
+    //
+    // A failure has to be a failure, not an average.
+    const world = createWorld(makeSeed(4141), 400)
+    advanceTicks(world, 40 * 12)
+    let serving = 0
+    let flagged = 0
+    for (const record of world.service.values()) {
+      if (record.dischargedAtTick !== null) continue
+      serving++
+      if (flagStatus(world, record.personId, world.tick).flagged) flagged++
+    }
+    expect(serving, 'no army to measure').toBeGreaterThan(5)
+    expect(flagged / serving, 'most of the army is flagged').toBeLessThan(0.5)
+  }, 300_000)
 })

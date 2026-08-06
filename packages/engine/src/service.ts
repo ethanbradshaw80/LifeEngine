@@ -745,7 +745,13 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     const seatsLeft = Math.max(0, school.seatsPerClass - seatsTaken(world, school.id, classTick))
 
     let reason = ''
-    if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
+    // THE FLAG COMES FIRST, because it is the answer to every course at
+    // once and the player deserves the real reason rather than the next
+    // one down the list.
+    const flag = flagStatus(world, personId, world.tick)
+    if (flag.flagged) {
+      reason = flag.words
+    } else if (school.branches.length > 0 && !school.branches.includes(specialty.branch)) {
       reason = `${branchName(world, specialty.branch)} does not send people here.`
     } else if (school.specialtyIds.length > 0 && !school.specialtyIds.includes(record.specialtyId)) {
       reason = 'Not this trade.'
@@ -1701,6 +1707,11 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     // would empty every NCO rank in the world.
     if (!isPlayer && seat === null) seat = seatDueFor(world, tick, person.id, rng)
 
+    // AND A FLAGGED SOLDIER IS NOT PROMOTED (M-SCHOOL §3). Same rule for
+    // the town as for the player: a suspension of favourable actions
+    // suspends the favourable action.
+    if (promote && flagStatus(world, person.id, tick).flagged) promote = false
+
     // M-PROMO. THE SCHOOL IS A HARD GATE, and it sits on top of whatever
     // the branch's own engine decided. A soldier who has cleared the cutoff
     // but never been to the course does not pin the grade on — he waits for
@@ -2309,6 +2320,33 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     return
   }
 
+  // A FLAG STOPS THE PEN (M-SCHOOL §3). A suspension of favourable actions
+  // covers reenlistment, so the term cannot be signed while one is up.
+  //
+  // BUT ONLY A FLAG THAT WILL LIFT ON ITS OWN. An adverse action ages off
+  // in twelve months, so holding the term for it is a real hold and it
+  // ends. A FITNESS FAILURE DOES NOT age off — it clears when the next
+  // test is passed, and a body that cannot pass never clears it.
+  //
+  // MEASURED, and this was a trap of my own making: holding for ANY flag
+  // meant a permanently unfit soldier could neither reenlist nor leave. He
+  // sat out the rest of his career in limbo — unpromotable, on frozen pay,
+  // his term ending and re-ending every month until the thirty-year
+  // ceiling or age sixty-two finally removed him. The demographic test
+  // caught it from three systems away: completed families went 25.4%
+  // childless against a 25% ceiling, because a stalled career is a life
+  // that does not start.
+  //
+  // So the hold is for the temporary flag only. A soldier who reaches the
+  // end of a term still failing the standard is not held: the service
+  // simply does not write him another contract, which is what the ordinary
+  // eligibility check below already says, honestly and with an ending.
+  const flagAtTerm = flagStatus(world, person.id, tick)
+  if (flagAtTerm.reasons.includes('adverse-action')) {
+    world.service.set(person.id, { ...world.service.get(person.id)!, termMonthsLeft: 1 })
+    return
+  }
+
   // §2. THE SERVICE DECIDES FIRST. Reenlistment is earned: a barred file
   // separates at the end of term whatever the person wants, and that is
   // not the player's choice to make.
@@ -2564,14 +2602,26 @@ export function reenlist(
     // null there, which reads as the anonymous adjutant it always was.
     detail: rankTitle(world, record.branch, record.rank, record.commissioned === true),
   })
-  grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
-  grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
+  // A FLAG SUSPENDS FAVOURABLE ACTIONS, AND A MEDAL IS ONE (M-SCHOOL §3).
+  //
+  // WHICH MEDALS, THOUGH — this is a judgement the spec does not make and
+  // somebody had to. Suspended: the routine, discretionary ones a command
+  // decides to give. NOT suspended, and deliberately: the decorations that
+  // record something that HAPPENED — a wound, a campaign, contact with the
+  // enemy, captivity, an act of valour. Heroism under fire is not a favour
+  // the orderly room grants, and a Purple Heart withheld because somebody
+  // was late to formation would be the game calling a fact a reward.
+  const flagged = flagStatus(world, person.id, tick).flagged
+  if (!flagged) {
+    grantGoodConduct(world, tick, person.id, reenlisted, termAverage)
+    grantMeritoriousService(world, tick, person.id, reenlisted, termAverage)
+  }
   // A commendable term, below the meritorious bar. The merit Bronze Star
   // used to be granted here too and is retired (owner): a Bronze Star means
   // somebody did something under fire, and it was arriving for signing on
   // again. A distinguished term has the Meritorious Service Medal, which is
   // what that medal is for.
-  grantCommendation(world, tick, person.id, reenlisted, termAverage)
+  if (!flagged) grantCommendation(world, tick, person.id, reenlisted, termAverage)
   grantLongService(world, tick, person.id, reenlisted, Math.floor((tick - record.enlistedAtTick) / 12))
 }
 
@@ -2692,6 +2742,92 @@ export function addServiceQualification(world: World, personId: EntityId, qualif
 }
 
 /**
+ * M-SCHOOL §3. THE FLAG — suspension of favourable actions.
+ *
+ * The owner's spec calls this "the gate that ties discipline to schooling
+ * (big interconnection)", and it is: while a soldier is flagged they cannot
+ * be sent to school, be promoted, reenlist, or receive an award. It is the
+ * payoff of the Article 15 work — misconduct now visibly closes the
+ * schoolhouse door rather than costing a number nobody sees.
+ *
+ * DERIVED, NOT STORED. Every reason is owned by the system that causes it
+ * and read from state that system already writes — the discipline events,
+ * the fitness score, the separation on the record. Storing a flag would
+ * mean two owners for one fact and a lifetime of them drifting apart
+ * (DOMAIN_MAP §2, single-writer).
+ *
+ * WHAT THE SPEC ASKS FOR THAT IS NOT HERE, and why: "body composition" is
+ * listed as a reason and there is no weight or tape standard anywhere in
+ * this game to read. Inventing one to satisfy a list would be inventing a
+ * whole system nobody asked for. The reason is deliberately absent rather
+ * than faked, and the shape below takes new reasons without changing its
+ * callers.
+ */
+export type FlagReason = 'adverse-action' | 'fitness-failure' | 'pending-separation'
+
+export interface FlagStatus {
+  readonly flagged: boolean
+  readonly reasons: readonly FlagReason[]
+  /** Plain words for the screen, or '' when the way is clear. */
+  readonly words: string
+}
+
+/**
+ * Below this the fitness test is a failure, and a failure is a flag.
+ *
+ * MEASURED, and the first number was a disaster. Set at 200 by guesswork,
+ * it flagged FIFTEEN OF SEVENTEEN serving soldiers — because the scores
+ * this game actually produces run 114 to 207 with a median of 180, so the
+ * "failing" bar sat above the middle of the army. Flagged means no school,
+ * no promotion and no reenlistment, so the whole force stalled below the
+ * first senior rung and the schoolhouse test caught it.
+ *
+ * A failure has to be a failure, not an average. This sits below the tenth
+ * percentile of the observed range and wants re-checking if the fitness
+ * model ever moves.
+ */
+const FITNESS_FAILING = 128
+
+/** How long a single adverse action holds the flag up. */
+const ADVERSE_ACTION_MONTHS = 12
+
+const FLAG_WORDS: Readonly<Record<FlagReason, string>> = {
+  'adverse-action': 'Ineligible — flagged (adverse action).',
+  'fitness-failure': 'Ineligible — flagged (failed the fitness standard).',
+  'pending-separation': 'Ineligible — flagged (pending separation).',
+}
+
+export function flagStatus(world: World, personId: EntityId, tick: Tick): FlagStatus {
+  const record = world.service.get(personId)
+  if (!record || record.dischargedAtTick !== null) {
+    return { flagged: false, reasons: [], words: '' }
+  }
+  const reasons: FlagReason[] = []
+
+  // THE ORDERLY ROOM. A company punishment holds the flag up for a year —
+  // this is the Article 15 reaching the schoolhouse, which is the whole
+  // point of the interconnection.
+  const recentAction = eventsFor(world, personId).some(
+    (e) => e.type === 'disciplined' && tick - e.tick < ADVERSE_ACTION_MONTHS,
+  )
+  if (recentAction) reasons.push('adverse-action')
+
+  // THE BODY'S SHARE. Only once the test has actually been taken — a
+  // record whose score has never been set is untested, not failing, and
+  // flagging every new soldier for a test they have not sat would be a
+  // bug wearing a rule's clothes.
+  if (record.fitnessTestedAtTick !== null && record.fitnessScore < FITNESS_FAILING) {
+    reasons.push('fitness-failure')
+  }
+
+  return {
+    flagged: reasons.length > 0,
+    reasons,
+    words: reasons.map((r) => FLAG_WORDS[r]).join(' '),
+  }
+}
+
+/**
  * M-PROMO BAND 3 — THE CENTRALIZED SELECTION BOARD.
  *
  * From the owner's `army_promotions_fix.md` §1: "E-7 → E-9: a centralized
@@ -2787,6 +2923,7 @@ export function runSelectionBoards(world: World, tick: Tick): void {
           if (gradeOf(next) !== grade) return false
           if (world.tick - r.rankSinceTick < 24) return false
           if (isDeployed(world, r.personId) || isCaptive(world, r.personId)) return false
+          if (flagStatus(world, r.personId, tick).flagged) return false
           // The school is a hard gate here too — a board does not select
           // somebody who cannot be promoted when the list publishes.
           return schoolOwedFor(world, r.personId, branch, next, false) === undefined

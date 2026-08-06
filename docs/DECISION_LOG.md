@@ -1760,3 +1760,76 @@ equivalents) is scoped in `promotions_all_branches.md` and deliberately left
 out — gating officer promotion on courses that do not exist would stop every
 officer career dead at O-1. `schoolOwedFor` returns early for the
 commissioned, with that reason in the code.
+
+---
+
+## ADR-0041 — The flag: misconduct that closes the schoolhouse door
+
+**Status:** Accepted · **Date:** 2026-08-05
+
+**Context.** M-SCHOOL §3, which the owner's spec calls "the gate that ties
+discipline to schooling (big interconnection)". While a soldier is flagged —
+a suspension of favourable actions — they cannot be sent to school, be
+promoted, reenlist, or receive an award.
+
+It is the payoff of the Article 15 work (ADR-0037). Before it, misconduct
+cost a performance number and a stripe; now it visibly shuts a door.
+
+**Decision.** `flagStatus(world, personId, tick)` is **derived, never
+stored** — each reason read from state its own system already writes, so
+there is one owner per fact (DOMAIN_MAP §2). It closes the schoolhouse,
+blocks promotion for player and town alike, holds reenlistment, and
+suspends discretionary medals.
+
+**Three judgements the spec does not make.**
+
+*Which medals.* Suspended: the routine, discretionary ones a command decides
+to give — good conduct, commendation, meritorious service. **Not** suspended:
+the decorations that record something that HAPPENED — a wound, a campaign,
+contact with the enemy, captivity, an act of valour. Heroism under fire is
+not a favour the orderly room grants, and a Purple Heart withheld because
+somebody was late to formation would be the game calling a fact a reward.
+
+*Body composition is absent, not faked.* The spec lists it as a flag reason.
+There is no weight or tape standard anywhere in this game to read, and
+inventing one to satisfy a list would be building a system nobody asked for.
+The type takes new reasons without changing its callers.
+
+*A flag holds; it does not discharge* — for the reasons that lift on their
+own. See below, because getting this wrong was the interesting part.
+
+**Two bugs, both found by measurement rather than by reasoning.**
+
+**The fitness bar was set above the middle of the army.** Chosen at 200 by
+guesswork; the scores this game actually produces run 114 to 207 with a
+median of 180. Fifteen of seventeen serving soldiers were flagged, and since
+flagged means no school, no promotion and no reenlistment, the whole force
+stalled below the first senior rung. Now 128, with a test asserting that
+under half the army can be flagged at once. **This is the third time in one
+session a number invented without checking its distribution turned out badly
+wrong.**
+
+**A permanently unfit soldier could neither reenlist nor leave.** Holding the
+term for ANY flag was sound for an adverse action, which ages off in twelve
+months, and wrong for a fitness failure, which does not age off at all — it
+clears when the next test is passed, and a body that cannot pass never
+clears it. Such a soldier sat out the rest of his career in limbo:
+unpromotable, on frozen pay, his term ending and re-ending every month until
+the thirty-year ceiling or age sixty-two removed him.
+
+**A demographics test caught it, from three systems away.** Completed
+families went 25.4% childless against a 25% ceiling — a metric with nothing
+military about it. A stalled career is a life that does not start. Stashing
+`service.ts` alone and re-running proved the flag caused it rather than the
+bound being tight, which is the check that turned an apparent nuisance into
+a real bug. The hold is now for the temporary flag only; a soldier still
+failing the standard at the end of a term is not held, and the ordinary
+eligibility check gives the career an honest ending.
+
+**Consequences.** SIMULATION_VERSION 99. Classic `2a9315e1`, Heartland
+`6b387a0b`. 916 tests green.
+
+**Worth keeping:** this is the second time in one session that a guarded
+invariant caught something well outside its own domain — the population
+sweep found the phantom household member, and fertility found a reenlistment
+trap. That is an argument for more of them.
