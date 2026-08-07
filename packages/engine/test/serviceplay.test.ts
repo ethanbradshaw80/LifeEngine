@@ -75,7 +75,6 @@ function putInUniform(
     unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
     specialtyChangedAtTick: null,
@@ -111,6 +110,14 @@ describe('high-year tenure — up or out', () => {
     advanceTicks(world, 900)
     for (const record of world.service.values()) {
       if (record.dischargedAtTick !== null) continue
+      // HIGH-YEAR TENURE IS AN ENLISTED RULE (ADR-0043). This test read
+      // BRANCH_GRADES — the ENLISTED table — with whatever rank index the
+      // record held, so a first lieutenant at officer index 1 came back as
+      // an E-2 and was asserted to be up-or-out. Measured: the one record
+      // that tripped this was commissioned, twelve years in grade, exactly
+      // the shape of the bug that threw a major out as a career corporal.
+      // The source was fixed there; this assertion was not.
+      if (record.commissioned === true) continue
       // M-ARMY2 career shape: up-or-out applies BELOW E-5 only — make
       // sergeant and the service keeps you. (Before that this exempted the
       // ladder top; before THAT it hardcoded the land-forces top, which

@@ -88,7 +88,6 @@ function aSoldier(world: World, performance = 800): number {
     unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
     specialtyChangedAtTick: null,

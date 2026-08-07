@@ -470,3 +470,13 @@ export {
   WELLBEING_MAX,
   WELLBEING_NEUTRAL,
 } from './wellbeing.js'
+
+// --- The body, and the age it starts being one (stats phase 2) ------------
+export {
+  fitnessOf,
+  fitnessStandardFor,
+  fitnessTargetFor,
+  runStats,
+  setFitness,
+  STATS_FROM_AGE,
+} from './stats.js'

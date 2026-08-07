@@ -82,6 +82,7 @@ import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
+import { fitnessOf, fitnessStandardFor } from './stats.js'
 import type { CausalFactor, Person, Place, World } from './types.js'
 import {
   optionsFor,
@@ -371,7 +372,7 @@ export function promotionPointsFor(world: World, personId: EntityId): PromotionP
   }, 0)
   const points = {
     performance: Math.floor(record.performance / 2),
-    fitness: Math.min(MAX_FITNESS_POINTS, record.fitnessScore),
+    fitness: Math.min(MAX_FITNESS_POINTS, fitnessOf(world, personId)),
     badges: badgeCount * POINTS_PER_BADGE,
     // Capped like the real awards bucket: a rack cannot buy a board alone.
     decorations: Math.min(MAX_DECORATION_POINTS, decorationPoints),
@@ -858,6 +859,34 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
       reason = `Opens at ${rankTitle(world, record.branch, school.minRank, record.commissioned === true)}.`
     } else if (record.performance < school.minPerformance) {
       reason = 'The work is not there yet.'
+    } else if (
+      school.minTimeInServiceMonths !== undefined &&
+      world.tick - record.enlistedAtTick < school.minTimeInServiceMonths
+    ) {
+      // THE GATES THAT WERE DISPLAYED BUT NEVER KEPT.
+      //
+      // The requirement checklist has always listed time in service,
+      // aptitude, fitness and prerequisite badges with a tick or a cross
+      // against each. None of the four was in this chain, so a soldier
+      // could read "✕ Fitness standard for day zero" and be handed a seat
+      // in the same breath. The UI was lying in both directions at once.
+      //
+      // AND THE NUMBERS WERE ON THE WRONG SCALES. Every minFitness was
+      // written between 380 and 540 when the engine caps fitness at 300 —
+      // so enforcing them as they stood would have shut every fitness-gated
+      // course for ever. Every minAptitude was written in the hundreds when
+      // aptitude is a percentile, 1 to 99. Both sets are rescaled to the
+      // ranges a grown world actually produces; the two bugs had been
+      // hiding each other.
+      const years = Math.round(school.minTimeInServiceMonths / 12)
+      reason = `Wants ${String(years)} year${years === 1 ? '' : 's'} in first.`
+    } else if (school.minAptitude !== undefined && (record.aptitude ?? 0) < school.minAptitude) {
+      reason = 'The entry scores do not reach.'
+    } else if (school.minFitness !== undefined && fitnessOf(world, personId) < school.minFitness) {
+      reason = 'Not fit enough for day zero.'
+    } else if ((school.prereqBadges ?? []).some((badge) => !badges.includes(badge))) {
+      const owed = (school.prereqBadges ?? []).filter((badge) => !badges.includes(badge))
+      reason = `Wants the ${owed.join(' and ')} badge first.`
     } else if (record.schoolId !== null) {
       reason = 'You are already down for a course.'
     } else if (seatsLeft === 0) {
@@ -883,7 +912,7 @@ export function schoolOptionsFor(world: World, personId: EntityId): readonly Sch
     })
     if (school.minFitness !== undefined) {
       requirements.push({
-        met: record.fitnessScore >= school.minFitness,
+        met: fitnessOf(world, personId) >= school.minFitness,
         words: 'Fitness standard for day zero',
       })
     }
@@ -1380,7 +1409,6 @@ export function enlistPerson(
     unitId: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 0,
     fitnessTestedAtTick: null,
     // M-ENLIST §4. The score they sat for, kept for ever. Written once,
     // here, and never recomputed — see the field's own note.
@@ -1794,13 +1822,23 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // version punished forgetting the button AND let one peak score fund a
   // twenty-year career). The player's ACTION is training for it, not
   // whether it happens.
-  let fitnessScore = record.fitnessScore
+  // THE TEST READS THE BODY (stats phase 2). It used to CREATE a number
+  // out of traits and age on the spot, which meant the annual test was the
+  // only thing that had ever happened to this person's condition — a life
+  // spent training and a life spent idle scored the same, because neither
+  // was recorded anywhere between tests.
+  //
+  // The body is the person's now and moves every month whether anybody is
+  // measuring it. What the test still owns is WHEN it was taken.
   let fitnessTestedAtTick = record.fitnessTestedAtTick
   if (monthsIn > 0 && monthsIn % 12 === 5) {
-    fitnessScore = fitnessScoreFor(person, ageAt(person.birthTick, tick), rng.nextInt(-15, 16))
     fitnessTestedAtTick = tick
     if (isPlayer) {
-      recordEvent(world, tick, { type: 'fitness-tested', subjectId: person.id, detail: String(fitnessScore) })
+      recordEvent(world, tick, {
+        type: 'fitness-tested',
+        subjectId: person.id,
+        detail: String(fitnessOf(world, person.id)),
+      })
     }
   }
 
@@ -2373,7 +2411,6 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
     qualifications,
     baseId,
     unitId,
-    fitnessScore,
     fitnessTestedAtTick,
     performance,
     // An officer's pay comes off the officer table (owner's officer gap).
@@ -2892,15 +2929,6 @@ export function assignServiceUnit(world: World, personId: EntityId, unitId: stri
 }
 
 /** Set the fitness score, clamped to the test's own scale. */
-export function setServiceFitness(world: World, personId: EntityId, score: number): void {
-  const record = activeRecord(world, personId)
-  if (!record) return
-  world.service.set(personId, {
-    ...record,
-    fitnessScore: Math.max(0, Math.min(MAX_FITNESS_POINTS, score)),
-  })
-}
-
 /** Append a qualification if it is not already held. */
 export function addServiceQualification(world: World, personId: EntityId, qualification: string): void {
   const record = activeRecord(world, personId)
@@ -2953,21 +2981,6 @@ export interface FlagStatus {
   readonly liftsAtTick: Tick | null
 }
 
-/**
- * Below this the fitness test is a failure, and a failure is a flag.
- *
- * MEASURED, and the first number was a disaster. Set at 200 by guesswork,
- * it flagged FIFTEEN OF SEVENTEEN serving soldiers — because the scores
- * this game actually produces run 114 to 207 with a median of 180, so the
- * "failing" bar sat above the middle of the army. Flagged means no school,
- * no promotion and no reenlistment, so the whole force stalled below the
- * first senior rung and the schoolhouse test caught it.
- *
- * A failure has to be a failure, not an average. This sits below the tenth
- * percentile of the observed range and wants re-checking if the fitness
- * model ever moves.
- */
-const FITNESS_FAILING = 128
 
 /** How long a single adverse action holds the flag up. */
 const ADVERSE_ACTION_MONTHS = 12
@@ -3000,7 +3013,12 @@ export function flagStatus(world: World, personId: EntityId, tick: Tick): FlagSt
   // record whose score has never been set is untested, not failing, and
   // flagging every new soldier for a test they have not sat would be a
   // bug wearing a rule's clothes.
-  if (record.fitnessTestedAtTick !== null && record.fitnessScore < FITNESS_FAILING) {
+  const person = world.people.get(personId)
+  if (
+    record.fitnessTestedAtTick !== null &&
+    person !== undefined &&
+    fitnessOf(world, personId) < fitnessStandardFor(ageAt(person.birthTick, tick))
+  ) {
     reasons.push('fitness-failure')
   }
 
@@ -3074,7 +3092,7 @@ function fileStrengthOf(world: World, personId: EntityId): number {
     valour * 300 +
     merit * 90 +
     badges * 40 +
-    Math.min(200, record.fitnessScore / 3)
+    Math.min(200, fitnessOf(world, personId) / 3)
   )
 }
 
@@ -3667,7 +3685,7 @@ export function runSchools(world: World, tick: Tick): void {
     // THE ATTRITION ROLL. The course's own weight, moved by the person.
     const relief =
       Math.floor(Math.max(0, record.performance - 500) / 6) +
-      Math.floor(Math.max(0, record.fitnessScore - 150) / 3)
+      Math.floor(Math.max(0, fitnessOf(world, record.personId) - 150) / 3)
     const washChance = Math.max(0, school.difficulty - relief)
     if (courseRng.chance(washChance, 1_000)) {
       // A RECYCLE IS NOT A FAILURE. Repeat the phase: more time, another
@@ -3733,4 +3751,4 @@ export function runSchools(world: World, tick: Tick): void {
       performance: Math.max(0, Math.min(1000, current.performance + school.performanceBoost)),
     })
   }
-}
+}// The failing bar now ages with the body — see `fitnessStandardFor`.

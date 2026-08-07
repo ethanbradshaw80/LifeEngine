@@ -59,7 +59,6 @@ function aServingPlayer(world: World, performance = 800): Person {
     unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
     specialtyChangedAtTick: null,

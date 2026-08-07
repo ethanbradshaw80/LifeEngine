@@ -236,7 +236,6 @@ describe('veterans', () => {
       unitSinceTick: null,
       schoolId: null,
       schoolStartsAtTick: null,
-      fitnessScore: 0,
       fitnessTestedAtTick: null,
       priorSpecialtyIds: [],
       specialtyChangedAtTick: null,

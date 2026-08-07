@@ -14,6 +14,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { article15For } from '../src/article15.js'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, createWorld } from '../src/index.js'
+import { setFitness } from '../src/stats.js'
 import { describePending, setPlayer } from '../src/player.js'
 import { livingPeople } from '../src/systems.js'
 import { BRANCH_RANKS } from '../src/content.js'
@@ -51,9 +52,11 @@ function aServingPlayer(seed: number): { world: World; personId: EntityId } {
     unitId: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 600,
     fitnessTestedAtTick: null,
   } as never)
+  // The body lives on the person since stats phase 2; without this the
+  // promotion board reads a fitness of zero.
+  setFitness(world, person.id, 200)
   return { world, personId: person.id }
 }
 

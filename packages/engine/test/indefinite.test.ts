@@ -60,7 +60,6 @@ function aRecord(rank: number): ServiceRecord {
     unitId: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 600,
     fitnessTestedAtTick: null,
   } as unknown as ServiceRecord
 }
@@ -254,7 +253,6 @@ describe('an officer is not a corporal', () => {
       unitSinceTick: null,
       schoolId: null,
       schoolStartsAtTick: null,
-      fitnessScore: 300,
       fitnessTestedAtTick: world.tick,
       priorSpecialtyIds: [],
     } as never)

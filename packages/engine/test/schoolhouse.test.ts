@@ -15,6 +15,7 @@ import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { recordEvent } from '../src/records.js'
 import { flagStatus, schoolOptionsFor } from '../src/service.js'
+import { setFitness } from '../src/stats.js'
 import { livingPeople } from '../src/systems.js'
 import { BRANCH_GRADES, SERVICE_SCHOOLS } from '../src/content.js'
 
@@ -39,9 +40,12 @@ function enlist(world: ReturnType<typeof createWorld>, personId: number): void {
     unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 300,
     fitnessTestedAtTick: world.tick,
   } as never)
+  // The BODY lives on the person now, and the fitness-failure flag reads it
+  // — without this every fixture soldier is flagged for being unfit and the
+  // flag tests measure the wrong thing entirely.
+  setFitness(world, personId as never, 300)
 }
 
 describe('every course in the catalogue', () => {
@@ -403,9 +407,8 @@ describe('the flag says when it lifts', () => {
     expect(dated.liftsAtTick, 'a punishment must say when it ends').not.toBeNull()
 
     // A body that cannot pass the test is not waiting for a date.
-    const record = world.service.get(person.id)
-    if (!record) throw new Error('no record')
-    world.service.set(person.id, { ...record, fitnessScore: 60 })
+    // The BODY is the person's now, not the service record's.
+    setFitness(world, person.id, 60)
     const undated = flagStatus(world, person.id, world.tick)
     expect(undated.reasons).toContain('fitness-failure')
     expect(undated.liftsAtTick, 'a fitness failure must not promise a month').toBeNull()

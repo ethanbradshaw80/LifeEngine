@@ -58,7 +58,6 @@ function aCaptivePlayer(world: World): EntityId {
     unitSinceTick: null,
     schoolId: 'jump-school',
     schoolStartsAtTick: world.tick,
-    fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
     specialtyChangedAtTick: null,

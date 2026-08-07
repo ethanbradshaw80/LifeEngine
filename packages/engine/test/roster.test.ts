@@ -30,13 +30,22 @@ describe('unit rosters', () => {
       if (!special) {
         expect(roster.unitName).toMatch(/^(1st|2nd|3rd|4th) Squad, [ABCD] Company$/)
       }
-      // Everyone listed is alive, serving, and at the same posting.
+      // Everyone listed is alive and serving. THE POSTING IS ONLY A LINE
+      // SQUAD'S RULE: rosterFrom matches a special unit on unitId alone, so
+      // a named unit legitimately draws its people from wherever they are
+      // posted — that is what makes it a unit rather than a squad.
+      //
+      // A previous pass fixed the unit NAME assertion for special units and
+      // left these membership ones matching on base, which held only while
+      // nobody in the town had ever made a named unit.
       for (const member of roster.members) {
         const theirs = world.service.get(member.personId)
         expect(theirs?.dischargedAtTick).toBeNull()
-        expect(theirs?.baseId).toBe(record.baseId)
-        expect(theirs?.branch).toBe(record.branch)
         expect(world.people.get(member.personId)?.deathTick).toBeNull()
+        if (!special) {
+          expect(theirs?.baseId).toBe(record.baseId)
+          expect(theirs?.branch).toBe(record.branch)
+        }
       }
       // The soldier is in their own squad.
       expect(roster.members.some((m) => m.personId === record.personId)).toBe(true)

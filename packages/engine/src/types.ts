@@ -68,6 +68,17 @@ export interface Person {
    * financialUnitOf — because a couple genuinely do.
    */
   readonly spendStance: SpendStance | null
+  /**
+   * The body, 0-300, owned by `stats.ts`. Zero below twelve, when a
+   * childhood is not yet a stat. The service record READS this — it used
+   * to own it, which meant a civilian had no fitness at all and a life
+   * spent idle arrived at the recruiting station in the same shape as a
+   * life spent otherwise.
+   *
+   * Optional so a save written before the stats panel loads unchanged; the
+   * first tick gives everybody old enough their own number.
+   */
+  readonly fitness?: number
   /** Empty for the founding generation, whose parents are outside the sim. */
   readonly parentIds: readonly EntityId[]
 }
@@ -1093,10 +1104,10 @@ export interface ServiceRecord {
    */
   readonly unitSinceTick: Tick | null
   /**
-   * Latest fitness test score, 0-300 promotion points (M-SPECOPS). The body
-   * is one of the roads to the board; it ages, and the test says so.
+   * When the annual fitness test was last taken. The SCORE is not here any
+   * more — the body belongs to the person (stats phase 2), because a
+   * civilian has one too and it has to exist before anybody enlists.
    */
-  readonly fitnessScore: number
   readonly fitnessTestedAtTick: Tick | null
 }
 

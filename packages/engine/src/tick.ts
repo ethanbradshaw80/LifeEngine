@@ -22,6 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
+import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances } from './finances.js'
 import { stepEconomy } from './economy.js'
@@ -106,6 +107,8 @@ export function advanceTick(world: World): World {
   // month's own events, so everything that could have happened must have
   // happened before it looks. Mortality follows, because the dead are not
   // asked how they feel.
+  // The body first, then how the life feels about it.
+  runStats(world, next)
   runWellbeing(world, next)
   runMortality(world, next)
 

@@ -354,7 +354,6 @@ describe('orders, and the right to refuse them', () => {
       unitSinceTick: null,
       schoolId: null,
       schoolStartsAtTick: null,
-      fitnessScore: 200,
       fitnessTestedAtTick: null,
       priorSpecialtyIds: [],
       specialtyChangedAtTick: null,

@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
 import { unitRosterOf } from '../src/service.js'
+import { fitnessOf, setFitness } from '../src/stats.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
@@ -49,11 +50,14 @@ function aPlayedSoldier(world: World, performance = 700): Person {
     unitSinceTick: null,
     schoolId: null,
     schoolStartsAtTick: null,
-    fitnessScore: 200,
     fitnessTestedAtTick: null,
     priorSpecialtyIds: [],
     specialtyChangedAtTick: null,
   })
+  // THE BODY IS THE PERSON'S since stats phase 2. Without this the fixture
+  // soldier has none, the promotion board reads a fitness of zero, and the
+  // school day-zero bars turn every course away.
+  setFitness(world, person.id, 200)
   world.employment.delete(person.id)
   return person
 }
@@ -222,11 +226,18 @@ describe('fitness parity', () => {
   it('the test runs for the player whether or not they press anything', () => {
     const world = createWorld(makeSeed(12345), 100)
     const person = aPlayedSoldier(world, 700)
-    // Zero the score: if the annual test were opt-in, it would stay zero.
-    world.service.set(person.id, { ...world.service.get(person.id)!, fitnessScore: 0 })
 
+    // WHAT THIS TEST IS NOW ABOUT. It used to zero the score on the service
+    // record and wait for the annual test to write a new one. Since the body
+    // moved onto the person (stats phase 2) the test does not WRITE a score
+    // — it reads one that exists whether or not anybody is measuring. So the
+    // claim is the same, and the observable is the test itself firing
+    // without the player pressing anything.
     let guard = 0
-    while (guard < 60 && (world.service.get(person.id)?.fitnessScore ?? 0) === 0) {
+    while (
+      guard < 60 &&
+      !world.events.some((e) => e.type === 'fitness-tested' && e.subjectId === person.id)
+    ) {
       guard++
       if (awaitingPlayer(world)) {
         const pending = world.player.pending
@@ -236,10 +247,9 @@ describe('fitness parity', () => {
       }
       advanceTicks(world, 1)
     }
-    // Within a service year the mandatory test wrote a real score — and the
-    // feed said so.
-    expect(world.service.get(person.id)?.fitnessScore ?? 0).toBeGreaterThan(0)
     expect(world.events.some((e) => e.type === 'fitness-tested' && e.subjectId === person.id)).toBe(true)
+    // And the body it read is a real one.
+    expect(fitnessOf(world, person.id)).toBeGreaterThan(0)
   })
 })
 

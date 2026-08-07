@@ -91,7 +91,6 @@ import {
   reenlist as reenlistService,
   retrainSpecialty,
   schoolOptionsFor,
-  setServiceFitness,
   unitOptionsFor,
   veteranUnlocks,
   branchName,
@@ -136,6 +135,7 @@ import {
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
 import { article15For } from './article15.js'
+import { fitnessOf, setFitness, STATS_FROM_AGE } from './stats.js'
 import { openFilingOf, planPayoffBar } from './bankruptcy.js'
 import {
   accessionOf,
@@ -915,21 +915,40 @@ function resolveSelectionDay(
 }
 
 /**
- * Train for the fitness test, from the Service tab. The TEST is mandatory
- * and annual for everyone — nobody opts out of it, and nobody keeps a score
- * the body no longer holds. The player's hand on it is TRAINING: a real
- * bump now, twice a year at most, and age still gets its say when the test
- * comes around.
+ * Put in the work on your own body.
+ *
+ * WAS MILITARY-ONLY, AND IS NOT ANY MORE (owner: "civs should have civilian
+ * stats and ways to work on them as well starting from age like 12"). This
+ * refused anybody not serving, which made the body something the army gave
+ * you and took away at discharge. A sixteen-year-old who runs every morning
+ * arrives at the recruiting station fitter than one who does not, and a
+ * veteran does not stop having a body the month the uniform comes off.
+ *
+ * The military fitness TEST is still the army's — annual, mandatory, and
+ * nobody opts out. What this is, for everybody, is the training.
  */
 export function trainFitness(world: World): { trained: boolean; score: number; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { trained: false, score: 0, reason: 'Nobody is being played.' }
   if (world.player.pending !== null) return { trained: false, score: 0, reason: 'A decision is already waiting.' }
-  const record = world.service.get(person.id)
-  if (!record || record.dischargedAtTick !== null) return { trained: false, score: 0, reason: 'Not serving.' }
+  const age = ageAt(person.birthTick, world.tick)
+  if (age < STATS_FROM_AGE) {
+    return { trained: false, score: 0, reason: 'Too young to be training like that.' }
+  }
   if (isCaptive(world, person.id)) return { trained: false, score: 0, reason: 'Held prisoner. None of this is yours to ask for.' }
+  // A BODY THAT IS ALREADY HURT IS NOT TRAINED THROUGH (spec §2b: "gated
+  // out by a serious injury"). The health system owns the ailment; this
+  // only reads it.
+  const health = world.health.get(person.id)
+  if (health !== undefined && health.ailment !== null && health.severity >= 500) {
+    return { trained: false, score: fitnessOf(world, person.id), reason: 'Not while you are laid up like this.' }
+  }
   if (world.player.log.some((entry) => entry.kind === 'fitness-test' && world.tick - entry.tick < 6)) {
-    return { trained: false, score: record.fitnessScore, reason: 'The body needs the months between blocks of training.' }
+    return {
+      trained: false,
+      score: fitnessOf(world, person.id),
+      reason: 'The body needs the months between blocks of training.',
+    }
   }
 
   world.player.log.push({
@@ -942,8 +961,8 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
   })
   world.player.nextDecisionId += 1
 
-  const score = Math.min(MAX_FITNESS_POINTS, record.fitnessScore + 40)
-  setServiceFitness(world, person.id, score)
+  const score = Math.min(MAX_FITNESS_POINTS, fitnessOf(world, person.id) + 40)
+  setFitness(world, person.id, score)
   recordEvent(world, world.tick, {
     type: 'completed-training',
     subjectId: person.id,
