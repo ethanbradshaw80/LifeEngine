@@ -22,6 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
+import { runWellbeing } from './wellbeing.js'
 import { runFinances } from './finances.js'
 import { stepEconomy } from './economy.js'
 import { stepSectors } from './market.js'
@@ -101,6 +102,11 @@ export function advanceTick(world: World): World {
   runRelationships(world, next)
   runHouseholds(world, next)
   runBirths(world, next)
+  // LAST OF THE LIVING SYSTEMS, and deliberately: wellbeing reads the
+  // month's own events, so everything that could have happened must have
+  // happened before it looks. Mortality follows, because the dead are not
+  // asked how they feel.
+  runWellbeing(world, next)
   runMortality(world, next)
 
   // LAST, AND RARELY. History compression (Law 6): the ledger is the only

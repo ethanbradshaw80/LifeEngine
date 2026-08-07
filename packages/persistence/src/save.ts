@@ -15,6 +15,7 @@ import type {
   Business,
   CausalRecord,
   CriminalRecord,
+  WellbeingRecord,
   EducationRecord,
   EmploymentRecord,
   GeoRelation,
@@ -221,6 +222,15 @@ function hydrate(
     criminal.set(record.personId, record)
   }
 
+  // Morale. Absent from every save written before the stats panel, and an
+  // empty map is the right answer for those: `wellbeingOf` reads neutral
+  // for anybody without a record, and the first tick after loading gives
+  // each of them one at their own life's baseline.
+  const wellbeing = new Map<import('@life-engine/shared').EntityId, WellbeingRecord>()
+  for (const record of (body['wellbeing'] as WellbeingRecord[] | undefined) ?? []) {
+    wellbeing.set(record.personId, record)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -262,6 +272,7 @@ function hydrate(
     service,
     awards,
     criminal,
+    wellbeing,
     deployments,
     nations,
     geoRelations,

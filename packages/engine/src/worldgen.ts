@@ -157,6 +157,7 @@ export function createWorld(
     service: new Map(),
     awards: new Map(),
     criminal: new Map(),
+    wellbeing: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],

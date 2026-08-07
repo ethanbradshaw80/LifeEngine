@@ -299,6 +299,8 @@ export type {
   CausalRecord,
   Conviction,
   CriminalRecord,
+  WellbeingCause,
+  WellbeingRecord,
   DecisionType,
   EducationLevel,
   EducationRecord,
@@ -456,3 +458,15 @@ export { contractFor } from './contract.js'
 export { separationFor, retirementCertificateFor, separationTermsFor } from './separation.js'
 export type { SeparationRecord, RetirementCertificate, CharacterOfService } from './separation.js'
 export type { ServiceContract, ContractVariant } from './contract.js'
+
+// --- Wellbeing (the stats panel's one new stored stat) ---------------------
+export {
+  nudgeWellbeing,
+  runWellbeing,
+  wellbeingBaselineFor,
+  wellbeingCausesOf,
+  wellbeingOf,
+  wellbeingRecordOf,
+  WELLBEING_MAX,
+  WELLBEING_NEUTRAL,
+} from './wellbeing.js'

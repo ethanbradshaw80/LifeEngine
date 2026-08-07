@@ -617,7 +617,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 101
+export const SIMULATION_VERSION = 102
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -677,6 +677,7 @@ export function toSnapshot(world: World): WorldSnapshot {
         .sort(([a], [b]) => a - b)
         .map(([personId, decorations]) => ({ personId, decorations })),
       criminal: [...world.criminal.values()].sort((a, b) => a.personId - b.personId),
+      wellbeing: [...world.wellbeing.values()].sort((a, b) => a.personId - b.personId),
       relationships: [...world.relationships.values()].sort((a, b) => a.a - b.a || a.b - b.b),
       events: world.events,
       causalRecords: world.causalRecords,

@@ -834,6 +834,25 @@ export type IllnessKind =
 /** Where on the body an injury landed. */
 export type BodySite = 'leg' | 'arm' | 'hand' | 'chest' | 'head' | 'back' | 'shoulder' | 'foot'
 
+/**
+ * One thing that moved a life's morale, and what to call it on the screen.
+ * Bounded: a person keeps only their last few.
+ */
+export interface WellbeingCause {
+  readonly tick: Tick
+  /** Signed, and already softened by resilience if it was a blow. */
+  readonly delta: number
+  /** Plain words for the panel — "Out of work", "Taken prisoner". */
+  readonly words: string
+}
+
+export interface WellbeingRecord {
+  readonly personId: EntityId
+  /** 0–1000, the same scale the traits use. */
+  readonly value: number
+  readonly causes: readonly WellbeingCause[]
+}
+
 export interface HealthRecord {
   readonly personId: EntityId
   /** Current ailment, or null when well. One at a time — modest by design. */
@@ -2030,6 +2049,14 @@ export interface World {
   readonly awards: Map<EntityId, AwardRecord[]>
   /** Criminal records; entry only where history exists. crime.ts writes. */
   readonly criminal: Map<EntityId, CriminalRecord>
+  /**
+   * Morale, owned by `wellbeing.ts` and written nowhere else. A separate
+   * map rather than a field on Person, because that is how every other
+   * per-person domain in this world is stored — health, education, service,
+   * the criminal record — and because a domain with its own module wants
+   * its own table (DOMAIN_MAP §2).
+   */
+  readonly wellbeing: Map<EntityId, WellbeingRecord>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
