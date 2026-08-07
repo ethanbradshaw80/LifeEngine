@@ -473,10 +473,14 @@ export {
 
 // --- The body, and the age it starts being one (stats phase 2) ------------
 export {
+  disciplineOf,
   fitnessOf,
   fitnessStandardFor,
   fitnessTargetFor,
+  healthStatOf,
+  looksOf,
   runStats,
   setFitness,
+  smartsOf,
   STATS_FROM_AGE,
 } from './stats.js'

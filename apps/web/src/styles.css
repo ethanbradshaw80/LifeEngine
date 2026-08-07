@@ -3667,3 +3667,41 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 }
 .flag-why { font-size: 0.86rem; font-weight: 600; margin-top: 0.15rem; }
 .flag-what, .flag-when { font-size: 0.76rem; color: var(--muted); margin-top: 0.25rem; }
+
+/* ---- The stats panel (player_stats_spec §5, from the owner's mockup) ----
+   Top of Home, because it is the player's dashboard. Bars read 0-100 even
+   though the engine stores 0-1000 (and fitness 0-300) — the guts stay in
+   the engine where they belong. */
+.stats-panel { margin-bottom: 1rem; }
+.stats-group {
+  font-size: 0.62rem; letter-spacing: 0.11em; text-transform: uppercase;
+  color: var(--muted); font-weight: 700; margin: 0.85rem 0.15rem 0.5rem;
+}
+.stats-group:first-child { margin-top: 0; }
+.stat-row { margin-bottom: 0.6rem; }
+.stat-top { display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.28rem; }
+.stat-name { font-size: 0.82rem; font-weight: 700; }
+.stat-num {
+  margin-left: auto; font-size: 0.75rem; font-weight: 800;
+  font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.stat-bar { height: 8px; border-radius: 5px; background: var(--line); overflow: hidden; }
+.stat-bar > i { display: block; height: 100%; border-radius: 5px; }
+.f-health { background: #2e7d32; }
+.f-fit    { background: #2b5797; }
+.f-well   { background: #b06a2e; }
+.f-smart  { background: #6a4fa3; }
+.f-looks  { background: #a3417a; }
+.f-disc   { background: #2f7d84; }
+/* What is moving wellbeing, in the words the engine recorded with it. */
+.stat-why { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.16rem; }
+.stat-why li { font-size: 0.72rem; color: var(--muted); display: flex; gap: 0.45rem; }
+.stat-why .up { color: var(--ok); font-weight: 700; min-width: 2.1rem; }
+.stat-why .dn { color: var(--bad); font-weight: 700; min-width: 2.1rem; }
+/* Character is words, never a number — it is not a thing you can grind. */
+.stat-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.stat-chip {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 0.3rem 0.5rem; font-size: 0.73rem;
+}
+.stats-note { font-size: 0.7rem; color: var(--muted); margin-top: 0.7rem; line-height: 1.5; }

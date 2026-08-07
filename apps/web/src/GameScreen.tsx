@@ -19,7 +19,17 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
-import { sentenceInWords } from '@life-engine/engine'
+import {
+  disciplineOf,
+  fitnessOf,
+  healthStatOf,
+  looksOf,
+  sentenceInWords,
+  smartsOf,
+  STATS_FROM_AGE,
+  wellbeingCausesOf,
+  wellbeingOf,
+} from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
 import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
@@ -872,6 +882,140 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       {tab === 'home' && (
         <div className="panel" aria-label="Home">
+          {/* THE STATS PANEL (owner's player_stats_spec.md §5). At the top
+              of Home rather than in a twelfth tab, because it is the
+              player's dashboard and it should be the first thing on it.
+
+              Everything here is real modelled state. Wellbeing is stored
+              and remembers; fitness is the body, and it belongs to the
+              person from twelve whether or not they ever enlist; health,
+              looks, smarts and discipline are computed on read from state
+              other systems own. Nothing on this panel is decoration. */}
+          {(() => {
+            const age = person === undefined ? 0 : ageAt(person.birthTick, world.tick)
+            if (person === undefined) return null
+            // Display is 0–100. Fitness lives on its own 0–300 scale
+            // because that IS the promotion-points scale — see stats.ts.
+            const pct = (value: number, max = 1000): number =>
+              Math.max(0, Math.min(100, Math.round((value / max) * 100)))
+            const bars: readonly {
+              readonly key: string
+              readonly label: string
+              readonly value: number
+              readonly tone: string
+            }[] = [
+              {
+                key: 'health',
+                label: 'Health',
+                value: pct(healthStatOf(world, person.id, world.tick)),
+                tone: 'health',
+              },
+              {
+                key: 'fitness',
+                label: 'Fitness',
+                value: pct(fitnessOf(world, person.id), 300),
+                tone: 'fit',
+              },
+              {
+                key: 'wellbeing',
+                label: 'Wellbeing',
+                value: pct(wellbeingOf(world, person.id)),
+                tone: 'well',
+              },
+              {
+                key: 'smarts',
+                label: 'Smarts',
+                value: pct(smartsOf(world, person.id)),
+                tone: 'smart',
+              },
+              {
+                key: 'looks',
+                label: 'Looks',
+                value: pct(looksOf(world, person.id, world.tick)),
+                tone: 'looks',
+              },
+              {
+                key: 'discipline',
+                label: 'Discipline',
+                value: pct(disciplineOf(world, person.id, world.tick)),
+                tone: 'disc',
+              },
+            ]
+            const causes = wellbeingCausesOf(world, person.id, world.tick)
+            const word = (trait: number, high: string, low: string): string | null =>
+              trait >= 700 ? `Highly ${high}` : trait <= 300 ? low : null
+            // CHARACTER IS SHOWN IN WORDS, NOT NUMBERS (spec §7). A trait
+            // fixed at birth is who somebody IS; printing it as 412/1000
+            // invites the player to grind a thing that cannot be ground.
+            const chips = [
+              word(person.traits.ambition, 'ambitious', 'Unhurried'),
+              word(person.traits.resilience, 'resilient', 'Easily knocked'),
+              word(person.traits.sociability, 'sociable', 'Keeps to themselves'),
+              word(person.traits.curiosity, 'curious', 'Incurious'),
+              word(person.traits.diligence, 'diligent', 'Casual about work'),
+            ].filter((chip): chip is string => chip !== null)
+
+            return (
+              <section className="stats-panel">
+                <div className="stats-group">Condition</div>
+                {bars.slice(0, 3).map((bar) => (
+                  <div className="stat-row" key={bar.key}>
+                    <div className="stat-top">
+                      <span className="stat-name">{bar.label}</span>
+                      <span className="stat-num">{bar.value}</span>
+                    </div>
+                    <div className="stat-bar">
+                      <i className={`f-${bar.tone}`} style={{ width: `${String(bar.value)}%` }} />
+                    </div>
+                    {bar.key === 'wellbeing' && causes.length > 0 && (
+                      <ul className="stat-why">
+                        {causes.slice(0, 4).map((cause) => (
+                          <li key={`${String(cause.tick)}-${cause.words}`}>
+                            <span className={cause.delta >= 0 ? 'up' : 'dn'}>
+                              {cause.delta >= 0 ? '+' : ''}
+                              {cause.delta}
+                            </span>
+                            {cause.words}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+                <div className="stats-group">Ability</div>
+                {bars.slice(3).map((bar) => (
+                  <div className="stat-row" key={bar.key}>
+                    <div className="stat-top">
+                      <span className="stat-name">{bar.label}</span>
+                      <span className="stat-num">{bar.value}</span>
+                    </div>
+                    <div className="stat-bar">
+                      <i className={`f-${bar.tone}`} style={{ width: `${String(bar.value)}%` }} />
+                    </div>
+                  </div>
+                ))}
+                {chips.length > 0 && (
+                  <>
+                    <div className="stats-group">Character · who you are</div>
+                    <div className="stat-chips">
+                      {chips.map((chip) => (
+                        <span className="stat-chip" key={chip}>
+                          {chip}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {age >= STATS_FROM_AGE && (
+                  <p className="stats-note">
+                    These are not instant boosts. Training sets a habit that shifts the body over
+                    months, and every change is recorded with a reason. Age, injuries and your
+                    nature shape how far it goes.
+                  </p>
+                )}
+              </section>
+            )
+          })()}
           {!household || !home ? (
             <p className="feed-empty">No household yet.</p>
           ) : (

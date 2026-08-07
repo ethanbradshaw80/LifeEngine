@@ -148,3 +148,133 @@ export function fitnessStandardFor(age: number): number {
   const AT_THIRTY = 128
   return Math.max(45, AT_THIRTY - Math.max(0, (age - 30) * 3))
 }
+
+// ---------------------------------------------------------------------------
+// The derived stats (phase 3). Computed on read, stored nowhere.
+//
+// The spec is explicit that Health and Looks are derived rather than stored,
+// and it is right: neither has any memory of its own. Health is what the
+// health system already knows, read on the panel's scale. Looks is a
+// function of the body and the years, and storing either would mean two
+// owners for one fact and a lifetime of them drifting apart.
+//
+// Both answer on the 0–1000 scale the traits and wellbeing use. Fitness is
+// the odd one out at 0–300 and stays that way for the reason given at the
+// top of this file.
+// ---------------------------------------------------------------------------
+
+/** The panel's scale, shared with traits and wellbeing. */
+const STAT_MAX = 1000
+
+/**
+ * HEALTH — overall bodily condition, 0–1000.
+ *
+ * Vitality is the constitution somebody was born with; a permanent
+ * disability is carried for the rest of their life; an ailment is felt
+ * while it lasts and then is not. Age is the slow one underneath all of it.
+ *
+ * A pure read of state the health system owns. This module never writes it.
+ */
+export function healthStatOf(world: World, personId: EntityId, tick: Tick): number {
+  const person = world.people.get(personId)
+  if (!person) return 0
+  const age = ageAt(person.birthTick, tick)
+  const record = world.health.get(personId)
+
+  let value = 550 + Math.floor((person.traits.vitality - 500) / 3)
+  // The body's long decline. Gentle until sixty, then not.
+  value -= Math.max(0, (age - 35) * 4)
+  value -= Math.max(0, (age - 65) * 6)
+  if (record !== undefined) {
+    // Permanent harm, and whatever is wrong today.
+    value -= record.disability
+    value -= Math.floor(record.severity / 2)
+  }
+  return Math.max(0, Math.min(STAT_MAX, value))
+}
+
+/**
+ * LOOKS — 0–1000.
+ *
+ * A GENUINELY NEW STAT, and the spec says so after a build review: there is
+ * no attractiveness field on a person anywhere in this game. `desirability`
+ * exists but it belongs to a PLACE — it is how appealing a town is, and it
+ * drives moving decisions. Reusing it would have made a person as handsome
+ * as the city they live in.
+ *
+ * So it is built from what the game does know: the condition somebody is in,
+ * the shape they keep themselves in, and how old they are. That is not the
+ * whole of what makes a face, and it is not meant to be — it is the part a
+ * life simulation can honestly claim to model, and it moves for reasons the
+ * player can see rather than a number rolled at birth.
+ *
+ * The age curve peaks in the twenties and declines slowly, which is a
+ * statement about how this game reads faces rather than a fact about people.
+ */
+export function looksOf(world: World, personId: EntityId, tick: Tick): number {
+  const person = world.people.get(personId)
+  if (!person) return 0
+  const age = ageAt(person.birthTick, tick)
+
+  // MEASURED AND RESCALED. The first weights were set against the fitness
+  // range on paper — 0 to 300 — when a grown world produces roughly 100 to
+  // 207. Combined with health's own middling median it capped looks at 539
+  // of 1000: the best-looking person in town read 54 on the player's dial
+  // and the whole top half of the scale was unreachable. A stat nobody can
+  // score well on is as useless as one everybody scores the same on, which
+  // is the mistake wellbeing made in the other direction.
+  //
+  // Condition carries most of it: somebody unwell looks unwell.
+  let value = Math.floor(healthStatOf(world, personId, tick) * 0.8)
+  // And the body they keep — worth up to about 250 at the fitness this
+  // game actually produces.
+  value += Math.floor((fitnessOf(world, personId) * 6) / 5)
+  // Youth, and then the years. A gentle arc rather than a cliff.
+  if (age < 18) value -= (18 - age) * 6
+  else value -= Math.max(0, Math.floor(((age - 27) * 3) / 2))
+  return Math.max(0, Math.min(STAT_MAX, value))
+}
+
+/**
+ * SMARTS — 0–1000. Schooling, and the turn of mind that sought it out.
+ *
+ * Derived from education attainment and curiosity, both of which already
+ * exist. Study will raise it when the activities land; nothing stores a
+ * dynamic component yet, so this is honest as far as it goes and no
+ * further.
+ */
+export function smartsOf(world: World, personId: EntityId): number {
+  const person = world.people.get(personId)
+  if (!person) return 0
+  const attainment = world.education.get(personId)?.attainment ?? 0
+  return Math.max(0, Math.min(STAT_MAX, Math.floor(attainment * 0.6 + person.traits.curiosity * 0.4)))
+}
+
+/**
+ * DISCIPLINE — 0–1000. Diligence, anchored, with room to move.
+ *
+ * The spec's own recommendation, taken: a diligence base with a bounded
+ * band around it, "so service can raise it and misconduct can dent it, but
+ * a lazy trait still shows". Service is steadying and a company punishment
+ * is not, and both are read off records that already exist.
+ */
+export function disciplineOf(world: World, personId: EntityId, tick: Tick): number {
+  const person = world.people.get(personId)
+  if (!person) return 0
+  let value = person.traits.diligence
+  const record = world.service.get(personId)
+  if (record !== undefined) {
+    // Time in uniform, up to a bounded lift. Years of it, not months.
+    const months = (record.dischargedAtTick ?? tick) - record.enlistedAtTick
+    value += Math.min(120, Math.floor(months / 3))
+  }
+  // Every company punishment in the window costs, and they stack.
+  const marks = world.events.filter(
+    (event) =>
+      event.subjectId === personId &&
+      event.type === 'disciplined' &&
+      tick - event.tick < 60,
+  ).length
+  value -= marks * 70
+  return Math.max(0, Math.min(STAT_MAX, value))
+}

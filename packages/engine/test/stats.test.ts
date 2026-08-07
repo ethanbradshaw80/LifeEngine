@@ -10,7 +10,17 @@ import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { livingPeople } from '../src/systems.js'
 import { flagStatus } from '../src/service.js'
-import { fitnessOf, fitnessStandardFor, fitnessTargetFor, STATS_FROM_AGE } from '../src/stats.js'
+import {
+  disciplineOf,
+  fitnessOf,
+  fitnessStandardFor,
+  fitnessTargetFor,
+  healthStatOf,
+  looksOf,
+  smartsOf,
+  STATS_FROM_AGE,
+} from '../src/stats.js'
+import { recordEvent } from '../src/records.js'
 
 describe('a body belongs to the person, not the army', () => {
   it('gives civilians one, and gives it to them from twelve', () => {
@@ -77,4 +87,81 @@ describe('the standard ages with the body it measures', () => {
     // Nine of thirty-one before the standard was age-banded; two after.
     expect(unfit / serving, 'the army is being flagged for its age').toBeLessThan(0.2)
   }, 600_000)
+})
+
+/**
+ * The derived stats — phase 3. Computed on read, stored nowhere, so nothing
+ * about what the world DOES changes: no migration, no version bump, no
+ * golden movement.
+ */
+describe('the stats that are read, not stored', () => {
+  it('uses the whole scale rather than a corner of it', () => {
+    // THE BUG THIS PINS. Looks was first weighted against the fitness range
+    // on paper — 0 to 300 — when a grown world produces about 100 to 207.
+    // Combined with health's middling median it capped at 539 of 1000: the
+    // best-looking person in town read 54 on the player's dial and the top
+    // half of the scale was dead. A stat nobody can score well on is as
+    // useless as one everybody scores the same on.
+    const world = createWorld(makeSeed(4141), 400)
+    advanceTicks(world, 40 * 12)
+    const adults = livingPeople(world).filter((p) => ageAt(p.birthTick, world.tick) >= 18)
+    expect(adults.length, 'nobody to measure').toBeGreaterThan(20)
+
+    for (const [name, read] of [
+      ['health', (id: number) => healthStatOf(world, id as never, world.tick)],
+      ['looks', (id: number) => looksOf(world, id as never, world.tick)],
+      ['smarts', (id: number) => smartsOf(world, id as never)],
+      ['discipline', (id: number) => disciplineOf(world, id as never, world.tick)],
+    ] as const) {
+      const values = adults.map((p) => read(p.id))
+      const low = Math.min(...values)
+      const high = Math.max(...values)
+      // On the 0–1000 scale, every stat must stay in bounds...
+      expect(low, `${name} below the scale`).toBeGreaterThanOrEqual(0)
+      expect(high, `${name} above the scale`).toBeLessThanOrEqual(1000)
+      // ...and must actually reach somewhere worth reaching. A ceiling
+      // below 600 means the player can never be good at this.
+      expect(high, `${name} tops out at ${String(high)} — the scale is dead above it`).toBeGreaterThan(600)
+      // ...and must separate people, or it is telling the player nothing.
+      expect(high - low, `${name} barely varies`).toBeGreaterThan(250)
+    }
+  }, 600_000)
+
+  it('reads a punished soldier as less disciplined than an unpunished one', () => {
+    // The spec's own recommendation: a diligence base with a bounded band,
+    // "so service can raise it and misconduct can dent it, but a lazy trait
+    // still shows".
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    const clean = disciplineOf(world, person.id, world.tick)
+    recordEvent(world, world.tick, {
+      type: 'disciplined',
+      subjectId: person.id,
+      detail: 'late for duty',
+    })
+    expect(disciplineOf(world, person.id, world.tick)).toBeLessThan(clean)
+  })
+
+  it('reads an ailing body as less healthy, and less handsome with it', () => {
+    const world = createWorld(makeSeed(4141), 200)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no adult')
+    const wellHealth = healthStatOf(world, person.id, world.tick)
+    const wellLooks = looksOf(world, person.id, world.tick)
+    const record = world.health.get(person.id)
+    world.health.set(person.id, {
+      ...(record ?? { personId: person.id }),
+      ailment: 'injury',
+      severity: 800,
+      disability: 200,
+    } as never)
+    expect(healthStatOf(world, person.id, world.tick)).toBeLessThan(wellHealth)
+    // Condition carries most of looks: somebody unwell looks unwell.
+    expect(looksOf(world, person.id, world.tick)).toBeLessThan(wellLooks)
+  })
 })
