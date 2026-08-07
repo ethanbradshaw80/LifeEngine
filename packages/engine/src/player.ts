@@ -1912,6 +1912,22 @@ export function resolvePending(world: World, choice: string): void {
       // — it is being asked how, and the two roads are genuinely different:
       // a plan keeps the home and takes years, a liquidation is a fresh
       // start at zero that costs everything not exempt.
+      if (choice === 'ride-it-out') {
+        // NOT YET. Nothing is filed, nothing is discharged, and the hole
+        // goes on getting deeper — which is the honest consequence and the
+        // reason this is a real choice rather than a softer wording of the
+        // same outcome.
+        recordDecision(world, pending.tick, {
+          subjectId: person.id,
+          decision: 'spending',
+          significance: 'major',
+          inputs: [factor('own-choice', 1000)],
+          chosen: 'to keep trading rather than file',
+          rejected: ['a petition in bankruptcy'],
+          streamId: Stream.Economy,
+        })
+        break
+      }
       fileBankruptcy(world, pending.tick, person.id, choice === 'chapter-7' ? 7 : 13)
       break
     }

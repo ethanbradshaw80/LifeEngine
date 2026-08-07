@@ -219,6 +219,42 @@ export function totalOwedBy(accounts: Accounts, householdArrears: Money): Money 
 }
 
 /**
+ * WHAT ACTUALLY MAKES SOMEBODY INSOLVENT — which is not the same as what
+ * they owe.
+ *
+ * Owner, playing: *"whenever you put a mortgage on a house it automatically
+ * makes you bankrupt... a mortgage shouldn't trigger that unless you're
+ * behind on payments."* He is right, and the bug was as blunt as it sounds:
+ * insolvency compared TOTAL DEBT against six months of income, and a
+ * mortgage principal is years of income by construction. Signing for a
+ * house — the single most normal financial act in the game — declared you
+ * insolvent the same month, every time.
+ *
+ * A MORTGAGE IS SECURED AGAINST A HOUSE YOU OWN. Owing two hundred thousand
+ * on a home worth two hundred thousand is not distress; it is a Tuesday.
+ * What is distress is being BEHIND on it, and the loan already records
+ * exactly that in `missedMonths`. So the payments you have missed count and
+ * the principal does not.
+ *
+ * Unsecured debt still counts in full, because there is nothing standing
+ * behind it. An auto loan is secured too, in fairness, but a car is worth
+ * less every month it is driven and the model does not track its value —
+ * counting it whole is the conservative reading, and it is left as one
+ * deliberately rather than by oversight.
+ */
+export function distressDebtOf(accounts: Accounts, householdArrears: Money): Money {
+  let total = Math.max(0, -householdArrears)
+  for (const loan of accounts.loans) {
+    if (loan.kind === 'mortgage') {
+      total += loan.missedMonths * loan.monthlyPayment
+      continue
+    }
+    total += loan.balance
+  }
+  return total as Money
+}
+
+/**
  * WHEN A FILING BECOMES THE ONLY HONEST ANSWER.
  *
  * Not a fixed number of dollars — a number of MONTHS of their own income.

@@ -353,6 +353,9 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   bankruptcy: {
     'chapter-13': '📋 File a repayment plan',
     'chapter-7': '⚖️ File for liquidation',
+    // Filing is the player's own decision now, so refusing has to be a
+    // button rather than the absence of one.
+    'ride-it-out': '🤞 Not yet — try to trade out of it',
   },
 }
 

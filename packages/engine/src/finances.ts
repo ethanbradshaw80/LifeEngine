@@ -82,6 +82,7 @@ import {
   planPayoffBar,
   planPayoffFor,
   PROPERTY_EXEMPTION,
+  distressDebtOf,
   totalOwedBy,
   underStay,
 } from './bankruptcy.js'
@@ -1502,8 +1503,26 @@ function runInsolvency(world: World, tick: Tick): void {
     // A filing already running is doing this job. Let the plan run.
     if (underStay(world, head.id, tick)) continue
 
+    // ASKED AND ANSWERED. Somebody who said they would trade their way out
+    // is not asked again for a year. Scoped to the person, because the log
+    // is never cleared on succession and an unscoped read would let one
+    // life's refusal silence the question for every heir after them — the
+    // trap this file has now fallen into five times (ADR-0033).
+    const refusedAt = world.player.log
+      .filter(
+        (entry) =>
+          entry.kind === 'bankruptcy' &&
+          entry.choice === 'ride-it-out' &&
+          entry.personId === head.id,
+      )
+      .reduce((latest, entry) => (entry.tick > latest ? entry.tick : latest), -1)
+    if (refusedAt >= 0 && tick - refusedAt < 12) continue
+
     const accounts = accountsOf(world, head.id)
-    const owed = totalOwedBy(accounts, household.savings)
+    // WHAT THEY CANNOT SERVICE, not what they owe. A mortgage in good
+    // standing is not insolvency (owner, playing) — the missed payments on
+    // it are, and those are counted.
+    const owed = distressDebtOf(accounts, household.savings)
     const income = householdIncome(world, household)
     const costs = householdCosts(world, household)
     if (!isInsolvent(owed, income, costs)) continue
@@ -1529,7 +1548,18 @@ function runInsolvency(world: World, tick: Tick): void {
         workplaceId: null,
         monthlyPay: owed,
         placeId: null,
-        options: open.map((chapter) => `chapter-${String(chapter)}`),
+        // AND THEY CAN SAY NO (owner: "we should have to actually file
+        // ourselves for bankruptcy"). The court does not drag anybody
+        // through its door; a person in trouble is entitled to try to
+        // trade their way out of it, and plenty do.
+        //
+        // Refusing is not free and is not meant to be. Nothing is
+        // discharged, no stay goes up, the arrears keep compounding and
+        // the housing is still at the end of that road. But the question
+        // does not come back next month: a prompt that will not take no
+        // for an answer is not a choice, it is a delay. A year, and then
+        // the court asks again if they are still under.
+        options: [...open.map((chapter) => `chapter-${String(chapter)}`), 'ride-it-out'],
       })
       if (raised) continue
     }
