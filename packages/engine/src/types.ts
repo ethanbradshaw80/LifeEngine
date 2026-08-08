@@ -1792,6 +1792,8 @@ export type EventType =
   /** Seen about an ailment — costs money, takes the edge off, never cures. */
   | 'saw-a-doctor'
   /** A tenancy taken on, and given up. */
+  /** The house sold — for a gain, or for a shortfall that follows you. */
+  | 'sold-home'
   | 'signed-lease'
   | 'ended-lease'
   | 'billet-taken'

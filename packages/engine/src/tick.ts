@@ -22,7 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
-import { seatHouseholds } from './realestate.js'
+import { runProperties, seatHouseholds } from './realestate.js'
 import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances } from './finances.js'
@@ -109,6 +109,8 @@ export function advanceTick(world: World): World {
   // of 296 homes read as empty because half the town was doorless. Cheap,
   // because it only ever looks at households that have no home yet.
   seatHouseholds(world)
+  // A year in a house is a year of wear.
+  runProperties(world, next)
   runBirths(world, next)
   // LAST OF THE LIVING SYSTEMS, and deliberately: wellbeing reads the
   // month's own events, so everything that could have happened must have

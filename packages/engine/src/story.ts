@@ -545,6 +545,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Recycled at ${event.detail ?? 'the course'}; back a phase, and going again.`
     case 'saw-a-doctor':
       return `${year} — Saw a doctor about it.`
+    case 'sold-home': {
+      const net = Number(event.detail ?? 0)
+      return net > 0
+        ? `${year} — Sold the house, and walked away with ${formatMoney(net as never)}.`
+        : `${year} — Sold the house for less than was owed on it.`
+    }
     case 'signed-lease':
       return `${year} — Took the lease on ${event.detail ?? 'a place'}.`
     case 'ended-lease':

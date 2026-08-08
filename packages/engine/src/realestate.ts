@@ -19,7 +19,7 @@
  * becoming a second economy.
  */
 
-import type { EntityId, Money } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { homePriceFor } from './credit.js'
 import { hash32 } from './rng.js'
 import type { Lease, Property, PropertyType, World } from './types.js'
@@ -405,4 +405,89 @@ export function leaseBar(
 export function downPaymentFor(price: Money, sharePerMille: number, floor: Money): Money {
   const wanted = Math.floor((price * Math.max(0, Math.min(1_000, sharePerMille))) / 1_000)
   return Math.max(floor, Math.min(price, wanted)) as Money
+}
+
+// ---------------------------------------------------------------------------
+// Equity, selling, and the cost of keeping a house standing (phases 5-6).
+// ---------------------------------------------------------------------------
+
+/** A realtor's cut of the sale. Tuned, not sourced. */
+const REALTOR_PER_MILLE = 55
+
+/**
+ * WHAT THE HOUSE IS ACTUALLY WORTH TO YOU — value less what is still owed.
+ *
+ * This is the number that makes housing wealth rather than shelter, and it
+ * is the one that can go NEGATIVE. A downturn or a wrecked condition can
+ * leave somebody owing more than the place would fetch, which the spec asks
+ * for by name ("underwater") and which the bankruptcy machinery already
+ * knows how to be unkind about.
+ */
+export function equityOf(world: World, propertyId: string, mortgageBalance: Money): number {
+  const property = world.properties.get(propertyId)
+  if (!property) return 0
+  return valueOf(world, property) - mortgageBalance
+}
+
+/**
+ * What a seller would actually get, after the agent takes their cut.
+ *
+ * A gross price is not a net one, and a player who sells expecting the
+ * headline number and receives five per cent less has been lied to by the
+ * screen. The fee comes off here so every caller sees the true figure.
+ */
+export function saleProceedsOf(world: World, propertyId: string): {
+  readonly price: Money
+  readonly fee: Money
+  readonly net: Money
+} {
+  const property = world.properties.get(propertyId)
+  const price = (property === undefined ? 0 : valueOf(world, property)) as Money
+  const fee = Math.floor((price * REALTOR_PER_MILLE) / 1_000) as Money
+  return { price, fee, net: (price - fee) as Money }
+}
+
+/**
+ * A YEAR IN A HOUSE IS A YEAR OF WEAR.
+ *
+ * Condition falls slowly and for everybody, owner or tenant, because a roof
+ * does not know who is under it. This is what gives repairs and renovations
+ * something to fix, and what makes the condition term in `valueOf` mean
+ * something over a lifetime rather than being a number set at worldgen and
+ * never touched again.
+ *
+ * TUNED: about twelve points a year, so a house left alone for fifty years
+ * loses roughly six hundred of its thousand — derelict but not vanished,
+ * and recoverable by somebody willing to spend on it.
+ */
+export function runProperties(world: World, tick: Tick): void {
+  // Once a year, not every month: a monthly write over the whole stock is
+  // three hundred map writes a tick for a number that moves imperceptibly.
+  if (tick % 12 !== 3) return
+  for (const property of [...world.properties.values()].sort((a, b) => (a.id < b.id ? -1 : 1))) {
+    const next = Math.max(0, property.condition - 12)
+    if (next === property.condition) continue
+    world.properties.set(property.id, { ...property, condition: next })
+  }
+}
+
+/** What it costs to put a property back into good order. */
+export function renovationCostOf(world: World, propertyId: string, targetCondition: number): Money {
+  const property = world.properties.get(propertyId)
+  if (!property) return 0 as Money
+  const gap = Math.max(0, Math.min(1_000, targetCondition) - property.condition)
+  if (gap === 0) return 0 as Money
+  // Work costs a share of what the finished house is worth — a kitchen in a
+  // mansion costs more than a kitchen in a flat, which is true.
+  return Math.max(1, Math.floor((valueOf(world, property) * gap) / 4_000)) as Money
+}
+
+/** Put work into a home. The money is the caller's to move. */
+export function improveProperty(world: World, propertyId: string, targetCondition: number): boolean {
+  const property = world.properties.get(propertyId)
+  if (!property) return false
+  const next = Math.max(property.condition, Math.min(1_000, targetCondition))
+  if (next === property.condition) return false
+  world.properties.set(propertyId, { ...property, condition: next })
+  return true
 }

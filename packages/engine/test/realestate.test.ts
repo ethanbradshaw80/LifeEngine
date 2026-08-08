@@ -7,9 +7,13 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
 import {
   downPaymentFor,
+  equityOf,
+  improveProperty,
+  renovationCostOf,
+  saleProceedsOf,
   leaseBar,
   leaseOf,
   listingsFor,
@@ -18,7 +22,7 @@ import {
   rentOf,
   valueOf,
 } from '../src/realestate.js'
-import { accountsOf, endLease, signLease } from '../src/finances.js'
+import { accountsOf, buyHome, endLease, sellHome, signLease } from '../src/finances.js'
 import { livingPeople } from '../src/systems.js'
 import { placesOfKind } from '../src/worldgen.js'
 
@@ -264,5 +268,95 @@ describe('the down payment is a choice above the floor', () => {
     expect(downPaymentFor(price, 500, floor)).toBe(5_000_000)
     // And never more than the house costs.
     expect(downPaymentFor(price, 1_000, floor)).toBe(price)
+  })
+})
+
+describe('a house is wealth, or a loss', () => {
+  function aBuyer() {
+    const w = createWorld(makeSeed(4141), 400)
+    const person = livingPeople(w)
+      .filter((p) => p.householdId !== null)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('nobody')
+    const listing = listingsFor(w)
+      .filter((l) => l.forSale)
+      .sort((a, b) => a.price - b.price)[0]
+    if (!listing) throw new Error('nothing for sale')
+    const acc = accountsOf(w, person.id)
+    w.accounts.set(person.id, { ...acc, savings: (listing.price * 2) as never })
+    return { w, person, listing }
+  }
+
+  it('builds equity from paying down AND from the market', () => {
+    // MEASURED: bought at $19,500, and ten years later worth $24,584 with
+    // $15,099 still owed — equity $9,485, up from the $3,900 deposit. Both
+    // halves are doing work: the principal falls and the value rises.
+    const { w, person, listing } = aBuyer()
+    expect(
+      buyHome(w, w.tick, person.id, listing.property.neighbourhoodPlaceId, 'mortgage', listing.property.id),
+    ).toBe(true)
+    const owed0 = accountsOf(w, person.id).loans.find((l) => l.kind === 'mortgage')?.balance ?? 0
+    const equity0 = equityOf(w, listing.property.id, owed0 as never)
+    expect(equity0).toBeGreaterThan(0)
+
+    advanceTicks(w, 10 * 12)
+    const owed1 = accountsOf(w, person.id).loans.find((l) => l.kind === 'mortgage')?.balance ?? 0
+    expect(owed1, 'the mortgage never went down').toBeLessThan(owed0)
+    expect(equityOf(w, listing.property.id, owed1 as never)).toBeGreaterThan(equity0)
+  }, 300_000)
+
+  it('tells the seller the NET, not the headline', () => {
+    // A gross price is not a net one. A player who sells expecting the
+    // headline and receives five per cent less was lied to by the screen.
+    const { w, listing } = aBuyer()
+    const { price, fee, net } = saleProceedsOf(w, listing.property.id)
+    expect(price).toBeGreaterThan(0)
+    expect(fee).toBeGreaterThan(0)
+    expect(net).toBe(price - fee)
+    expect(fee).toBeLessThan(price / 10)
+  })
+
+  it('pays off the mortgage out of the sale and hands over the rest', () => {
+    const { w, person, listing } = aBuyer()
+    buyHome(w, w.tick, person.id, listing.property.neighbourhoodPlaceId, 'mortgage', listing.property.id)
+    advanceTicks(w, 10 * 12)
+    const before = accountsOf(w, person.id)
+    const owed = before.loans.find((l) => l.kind === 'mortgage')?.balance ?? 0
+    const { net } = saleProceedsOf(w, listing.property.id)
+
+    expect(sellHome(w, w.tick, person.id)).toBe(true)
+    const after = accountsOf(w, person.id)
+    expect(after.loans.some((l) => l.kind === 'mortgage'), 'still owes a mortgage').toBe(false)
+    expect(after.homePlaceId, 'still owns a home').toBeNull()
+    expect(after.savings - before.savings).toBe(net - owed)
+    // And the home is back on the market for somebody else.
+    expect(listingsFor(w).some((l) => l.property.id === listing.property.id)).toBe(true)
+  }, 300_000)
+
+  it('wears a house down over the years, so upkeep is worth paying for', () => {
+    const w = createWorld(makeSeed(4141), 400)
+    const id = [...w.properties.keys()].sort()[0]
+    if (id === undefined) throw new Error('no stock')
+    const before = w.properties.get(id)?.condition ?? 0
+    advanceTicks(w, 20 * 12)
+    const after = w.properties.get(id)?.condition ?? 0
+    expect(after, 'a house never ages').toBeLessThan(before)
+    // Worn, not vanished — a wreck is still recoverable by somebody who
+    // will spend on it, which is what makes renovation a real choice.
+    expect(after).toBeGreaterThanOrEqual(0)
+  }, 300_000)
+
+  it('prices the work by what the finished home is worth', () => {
+    const w = createWorld(makeSeed(4141), 400)
+    const worn = [...w.properties.values()].sort((a, b) => a.condition - b.condition)[0]
+    if (!worn) throw new Error('no stock')
+    const cost = renovationCostOf(w, worn.id, 950)
+    expect(cost).toBeGreaterThan(0)
+    // Doing nothing costs nothing.
+    expect(renovationCostOf(w, worn.id, worn.condition)).toBe(0)
+    expect(improveProperty(w, worn.id, 950)).toBe(true)
+    expect(w.properties.get(worn.id)?.condition).toBe(950)
+    // And a better house is worth more, which is the whole return on it.
+    expect(renovationCostOf(w, worn.id, 950)).toBe(0)
   })
 })

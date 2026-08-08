@@ -46,6 +46,7 @@ import {
   LEASE_MONTHS,
   leaseBar,
   rentOf as propertyRentOf,
+  saleProceedsOf,
   useRentCurve,
   valueOf as propertyValueOf,
 } from './realestate.js'
@@ -371,6 +372,76 @@ export function endLease(world: World, tick: Tick, householdId: EntityId): boole
     subjectId: [...(household?.memberIds ?? [])][0] ?? householdId,
     detail: sound ? 'deposit returned' : 'deposit withheld',
   })
+  return true
+}
+
+
+/**
+ * SELL THE HOUSE (real estate §5).
+ *
+ * Pay off whatever is left on the mortgage, take the agent's fee, and the
+ * rest is yours — which may be a fortune or may be nothing. Housing becomes
+ * real wealth here, or a real loss.
+ *
+ * UNDERWATER IS ALLOWED TO HURT. Where the debt exceeds the price the
+ * seller still owes the difference, and it stays as debt rather than being
+ * quietly forgiven. That is what "underwater" means, and the arrears and
+ * bankruptcy machinery already knows what to do with a debt somebody cannot
+ * pay.
+ */
+export function sellHome(world: World, tick: Tick, personId: EntityId): boolean {
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return false
+  const household = world.households.get(person.householdId)
+  const accounts = accountsOf(world, personId)
+  const propertyId = household?.propertyId
+  if (accounts.homePlaceId === null || typeof propertyId !== 'string') return false
+
+  const { price, fee, net } = saleProceedsOf(world, propertyId)
+  if (price <= 0) return false
+  const mortgage = accounts.loans.find((l) => l.kind === 'mortgage')
+  const owed = (mortgage?.balance ?? 0) as Money
+
+  // The mortgage is settled out of the proceeds first — a buyer's money
+  // never reaches a seller who still owes on the place.
+  const toSeller = net - owed
+  setAccounts(world, {
+    ...accounts,
+    loans: accounts.loans.filter((l) => l.kind !== 'mortgage'),
+    homePlaceId: null,
+    homePurchasePrice: 0 as Money,
+    ...(toSeller >= 0
+      ? { savings: (accounts.savings + toSeller) as Money }
+      : // Underwater: the shortfall follows them as a personal debt rather
+        // than evaporating, because somebody is still owed it.
+        {
+          savings: accounts.savings,
+          loans: [
+            ...accounts.loans.filter((l) => l.kind !== 'mortgage'),
+            ...(mortgage === undefined
+              ? []
+              : [{ ...mortgage, kind: 'personal' as const, balance: (-toSeller) as Money }]),
+          ],
+        }),
+  })
+  if (household !== undefined) {
+    world.households.set(household.id, { ...household, propertyId: null })
+  }
+  recordEvent(world, tick, {
+    type: 'sold-home',
+    subjectId: personId,
+    detail: String(Math.max(0, toSeller)),
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'spending',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('steady-pay', Math.floor(price / 1000))],
+    chosen: toSeller >= 0 ? 'sold the house' : 'sold the house at a loss',
+    rejected: ['staying put'],
+    streamId: Stream.Economy,
+  })
+  void fee
   return true
 }
 
