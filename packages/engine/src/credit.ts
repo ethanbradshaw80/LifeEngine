@@ -38,6 +38,20 @@ export const LOAN_TERMS: readonly LoanTerms[] = [
   { kind: 'personal', title: 'a personal loan', spreadPerMille: 95, months: 48, minCredit: 580 },
   { kind: 'auto', title: 'a car loan', spreadPerMille: 55, months: 60, minCredit: 560 },
   { kind: 'mortgage', title: 'a mortgage', spreadPerMille: 22, months: 360, minCredit: 620 },
+  /**
+   * A STUDENT LOAN, AND ITS MINIMUM CREDIT IS THE FLOOR OF THE SCALE.
+   *
+   * That is not an oversight. Every other product here is gated on a
+   * score, and an eighteen-year-old has no file — gating this one the
+   * same way would mean the poorest children in the town were the ones
+   * who could not borrow to escape being poor, which is a dead end
+   * (Law 7) dressed up as realism. Nobody is refused an education here
+   * for want of a credit history.
+   *
+   * The price of that is on the other side: see the bankruptcy ruling in
+   * finances.ts. It is cheap to get and very hard to be rid of.
+   */
+  { kind: 'student', title: 'a student loan', spreadPerMille: 40, months: 240, minCredit: CREDIT_MIN },
 ]
 
 export function loanTermsFor(kind: LoanKind): LoanTerms | undefined {

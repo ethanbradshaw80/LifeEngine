@@ -730,7 +730,7 @@ export interface Holding {
   readonly costBasis: Money
 }
 
-export type LoanKind = 'personal' | 'auto' | 'mortgage'
+export type LoanKind = 'personal' | 'auto' | 'mortgage' | 'student'
 
 /**
  * MONEY OWED (M-ECON §6). One debt, its rate fixed at signing — a loan does
@@ -1870,6 +1870,7 @@ export type EventType =
   /** A phase repeated. Costs time, costs nothing on the record. */
   | 'recycled-in-training'
   | 'work-moment'
+  | 'took-student-loan'
   | 'chose-major'
   | 'school-moment'
   | 'promoted-at-work'

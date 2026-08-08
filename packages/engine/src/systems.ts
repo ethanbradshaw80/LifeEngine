@@ -20,6 +20,7 @@ import {
   typicalPay,
   PRIVATE_SCHOOL_TUITION,
   majorsFor,
+  tuitionPerYearFor,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -69,6 +70,7 @@ import { isTrustSensitive } from './content.js'
 import type { CausalFactor, EducationRecord, Occupation } from './types.js'
 import {
   canAfford,
+  chargeTuition,
   distributeEstate,
   householdCosts,
   householdIncome,
@@ -496,6 +498,31 @@ export function runEducation(world: World, tick: Tick): void {
     }
 
     if (record.enrolledIn !== null) {
+      // THE BILL FOR THE YEAR (education master §3). On the anniversary of
+      // enrolment and not before, so nobody is charged twice for a month
+      // and the first year is billed on arrival.
+      //
+      // The schoolhouse says WHO owes and HOW MUCH; finances decides where
+      // the money comes from and carries any debt. Education requests, it
+      // never writes cents.
+      const fee = tuitionPerYearFor(record.enrolledIn)
+      const since = tick - (record.enrolledAtTick ?? tick)
+      if (fee > 0 && since % TICKS_PER_YEAR === 0) {
+        const borrowed = chargeTuition(
+          world,
+          tick,
+          person.id,
+          atTodaysPrices(world, fee) as Money,
+        )
+        if (borrowed > 0) {
+          recordEvent(world, tick, {
+            type: 'took-student-loan',
+            subjectId: person.id,
+            detail: record.enrolledIn,
+          })
+        }
+      }
+
       // WHAT ARE YOU READING? Asked once, of the player only, and only
       // where there is a real menu — a high-school diploma is not in
       // anything. Gated on the field still being empty rather than on

@@ -212,6 +212,77 @@ export function creditOf(world: World, personId: EntityId): number {
 }
 
 /**
+ * A YEAR OF TUITION, PAID OR BORROWED (education master §3).
+ *
+ * THE SINGLE-WRITER SEAM. Education decides who owes a year and how much;
+ * this decides where the money comes from, because finances owns cents and
+ * debt and the schoolhouse owns neither. Education calls this and is told
+ * what happened; it never touches an account.
+ *
+ * Savings first, and only the shortfall is borrowed — somebody who can
+ * pay for a year pays for it, which is what makes a wealthy family's
+ * degree genuinely cheaper than a poor one's rather than just faster.
+ *
+ * CHARGED BY THE YEAR, NOT BY THE COURSE, and that is not a detail: a
+ * person who leaves after one year must owe one year. Billing the whole
+ * degree at enrolment would make dropping out in the first term cost
+ * exactly as much as finishing, which would be a lie the moment the
+ * dropout path exists.
+ *
+ * Returns the amount that had to be borrowed, so the caller can say so.
+ */
+export function chargeTuition(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  amount: Money,
+): Money {
+  if (amount <= 0) return 0 as Money
+  const paid = debitPerson(world, personId, amount)
+  const shortfall = (amount - paid) as Money
+  if (shortfall <= 0) return 0 as Money
+
+  const accounts = accountsOf(world, personId)
+  const existing = accounts.loans.find((loan) => loan.kind === 'student')
+  if (existing === undefined) {
+    // takeLoan puts the principal in savings; the tuition is then taken
+    // straight back out of it. Routing it this way rather than inventing
+    // a second path means the debt is recorded exactly as every other
+    // loan in the game is, with one rate fixed at one signing.
+    if (!takeLoan(world, tick, personId, 'student', shortfall)) return 0 as Money
+    debitPerson(world, personId, shortfall)
+    return shortfall
+  }
+
+  // A SECOND YEAR ON THE SAME DEBT. The rate stays the one signed in the
+  // first year — a loan does not re-price, which is the whole reason the
+  // month you signed matters — and the payment is re-struck over whatever
+  // term is left so the thing still finishes.
+  const monthsLeft = Math.max(12, existing.maturesAtTick - tick)
+  const principal = (existing.principal + shortfall) as Money
+  const balance = (existing.balance + shortfall) as Money
+  setAccounts(world, {
+    ...accounts,
+    loans: accounts.loans.map((loan) =>
+      loan.kind === 'student'
+        ? {
+            ...loan,
+            principal,
+            balance,
+            monthlyPayment: monthlyPaymentFor(balance, loan.ratePerMille, monthsLeft),
+          }
+        : loan,
+    ),
+  })
+  recordEvent(world, tick, {
+    type: 'took-loan',
+    subjectId: personId,
+    detail: 'student:' + String(shortfall),
+  })
+  return shortfall
+}
+
+/**
  * M-ECON §6. TAKE A LOAN. The money lands in savings, the debt lands on the
  * file, and the rate is fixed at the month it was signed.
  */
@@ -594,8 +665,32 @@ function serviceDebts(world: World, tick: Tick): void {
     let homePurchasePrice = accounts.homePurchasePrice
     const remaining: Loan[] = []
 
+    // STILL AT SCHOOL, STILL NOT PAYING. A student loan defers while the
+    // person it paid for is enrolled, which is what makes it possible to
+    // study at all — a four-year course billing from month one would
+    // simply be a bill somebody with no wages cannot meet, and the
+    // arrears machinery would put every student in the town into default
+    // in their first year.
+    //
+    // INTEREST STILL ACCRUES. Deferred is not free, and a graduate who
+    // took the longest course owes more than one who took the shortest.
+    const stillEnrolled = world.education.get(personId)?.enrolledIn !== null &&
+      world.education.get(personId)?.enrolledIn !== undefined
+
     for (const loan of accounts.loans) {
-      const interest = Math.floor((loan.balance * loan.ratePerMille) / 12_000)
+      // A CHARGED-OFF STUDENT DEBT STOPS GROWING. Three missed months put
+      // any loan in default; for this one the debt SURVIVES it (below),
+      // and a surviving debt that also kept compounding for the rest of a
+      // life would be the permanent trap Law 7 exists to forbid. It stays,
+      // it is still owed, it stops running away.
+      const chargedOff = loan.kind === 'student' && loan.missedMonths >= 3
+      const interest = chargedOff
+        ? 0
+        : Math.floor((loan.balance * loan.ratePerMille) / 12_000)
+      if (loan.kind === 'student' && stillEnrolled) {
+        remaining.push({ ...loan, balance: (loan.balance + interest) as Money })
+        continue
+      }
       const due = Math.min(loan.monthlyPayment, (loan.balance + interest) as Money)
       const fromChecking = Math.max(0, Math.min(due, checking))
       const fromSavings = Math.max(0, Math.min(due - fromChecking, savings))
@@ -606,6 +701,32 @@ function serviceDebts(world: World, tick: Tick): void {
         // behind compound rather than pause.
         const missed = loan.missedMonths + 1
         if (missed >= 3) {
+          // THE DEBT SURVIVES THE DEFAULT, for a student loan only.
+          //
+          // Every other loan here is CLOSED by defaulting — the lender
+          // writes it off and the record carries the mark. Letting that
+          // happen to this one would have made default the cheap way out
+          // of an education, and MEASURED it was: 71 defaults against 61
+          // loans paid off, more than half of all borrowers walking away.
+          // A debt most people escape is not the weighty consequence the
+          // college choice is supposed to carry, and it would have made
+          // the bankruptcy ruling above meaningless — why file when you
+          // can simply stop paying?
+          //
+          // So it stays on the file, charged off and no longer growing,
+          // and every month the money is there it is still collected.
+          if (loan.kind === 'student') {
+            if (loan.missedMonths < 3) {
+              defaults += 1
+              recordEvent(world, tick, {
+                type: 'defaulted',
+                subjectId: personId,
+                detail: loan.kind + ':' + String(loan.balance),
+              })
+            }
+            remaining.push({ ...loan, balance: (loan.balance + interest) as Money, missedMonths: missed })
+            continue
+          }
           defaults += 1
           recordEvent(world, tick, {
             type: 'defaulted',
@@ -1964,7 +2085,18 @@ export function fileBankruptcy(
       brokerage: 0 as Money,
       // Unsecured debt is discharged. A mortgage on a home they keep is
       // secured and survives - that is the difference between the two.
-      loans: keepsHome ? accounts.loans.filter((loan) => loan.kind === 'mortgage') : [],
+      //
+      // AND A STUDENT LOAN SURVIVES EITHER WAY. The spec asks for this
+      // ruling to be made and documented, so: it is the realistic one,
+      // and it is the more interesting one. A discharged education debt
+      // would make bankruptcy the obvious end of every degree and drain
+      // the choice at eighteen of its weight. This way the debt is the
+      // long consequence it is meant to be — the balance of the bargain
+      // struck in credit.ts, where the same loan is the ONE product in
+      // this game that nobody is refused for having no money.
+      loans: accounts.loans.filter(
+        (loan) => loan.kind === 'student' || (keepsHome && loan.kind === 'mortgage'),
+      ),
       homePlaceId: keepsHome ? accounts.homePlaceId : null,
       homePurchasePrice: keepsHome ? accounts.homePurchasePrice : (0 as Money),
     })

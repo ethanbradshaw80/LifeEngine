@@ -355,6 +355,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
     }
+    case 'took-student-loan': {
+      const where = event.detail === 'trade' ? 'the trade school' : 'university'
+      return `${year} — Borrowed to pay for a year at ${where}.`
+    }
     case 'chose-major': {
       // No allowlist entry for this one: unlike a work moment, whose whole
       // content is in the detail, "settled on a field" is a real thing to

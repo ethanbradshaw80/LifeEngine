@@ -287,6 +287,29 @@ export const LIVING_COST_CHILD = dollars(65)
 export const PRIVATE_SCHOOL_TUITION = dollars(150)
 
 /**
+ * A YEAR OF HIGHER EDUCATION. BALANCE NUMBERS, NOT FACTS.
+ *
+ * Sized against the wages in this same file rather than anything real:
+ * the jobs a degree unlocks pay $400-1,100 a month, so a $2,600 year is
+ * somewhere between three and six months of the salary it buys. Four of
+ * those years is a debt that shapes a decade without being unpayable —
+ * which is the point of it existing at all. The trade school is roughly
+ * half, and shorter.
+ *
+ * Measure in a grown town and retune; do not quote these.
+ */
+export const COLLEGE_TUITION_PER_YEAR = dollars(2_600)
+export const TRADE_TUITION_PER_YEAR = dollars(1_250)
+
+export function tuitionPerYearFor(level: EducationLevel): number {
+  return level === 'college'
+    ? COLLEGE_TUITION_PER_YEAR
+    : level === 'trade'
+      ? TRADE_TUITION_PER_YEAR
+      : 0
+}
+
+/**
  * Monthly rent for a neighbourhood. Desirability 150 → ~$1,108; 950 → ~$1,948.
  *
  * Scaled with the salary ladder (M-ECON §7). What matters is the RATIO: a

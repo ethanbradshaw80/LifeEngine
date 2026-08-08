@@ -46,7 +46,7 @@ import {
   totalDebtOf,
   withholdingFor,
 } from '@life-engine/engine'
-import type { LoanKind, Person, World } from '@life-engine/engine'
+import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
@@ -77,6 +77,15 @@ function Row({
     </div>
   )
 }
+
+/**
+ * The debts a person can walk in and ask for. The `borrow` verb takes
+ * exactly these, so the list and the type are declared together and
+ * cannot drift: adding a loan kind to the engine does NOT silently put it
+ * on the counter here.
+ */
+type OverTheCounter = 'personal' | 'auto'
+const OVER_THE_COUNTER: readonly OverTheCounter[] = ['personal', 'auto']
 
 export function Bank({
   world,
@@ -393,7 +402,17 @@ export function Bank({
 
             <section className="bank-card">
               <h4>Apply</h4>
-              {LOAN_TERMS.filter((t) => t.kind !== 'mortgage').map((terms) => {
+              {/*
+                A MORTGAGE IS NOT DRAWN FROM HERE (it belongs to a house),
+                AND NEITHER IS A STUDENT LOAN. That one is not a product
+                anybody walks in and asks for: it is raised by the
+                schoolhouse, for the exact cost of a year, and only when
+                the money is not there. Listing it as a cash offer would
+                make the cheapest debt in the game a way to borrow
+                spending money — and it is the one debt bankruptcy cannot
+                clear, so the exploit would also be a trap.
+              */}
+              {LOAN_TERMS.filter((t) => OVER_THE_COUNTER.includes(t.kind as never)).map((terms) => {
                 const rate = offeredRatePerMille(world, credit, terms.kind)
                 const has = accounts.loans.some((l) => l.kind === terms.kind)
                 // CARRIED FORWARD AT TODAY'S PRICES: $15,000 is a car in the
@@ -411,7 +430,7 @@ export function Bank({
                       className="bank-mini"
                       disabled={has || credit < terms.minCredit}
                       onClick={() =>
-                        onAct({ verb: 'borrow', kind: terms.kind as LoanKind, cents: offer })
+                        onAct({ verb: 'borrow', kind: terms.kind as OverTheCounter, cents: offer })
                       }
                     >
                       {has

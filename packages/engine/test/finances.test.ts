@@ -10,6 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { underStay } from '../src/bankruptcy.js'
 import { seed as makeSeed } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
 import {
@@ -95,6 +96,19 @@ describe('the ledger', () => {
     const world = build(12345, 60)
     for (const household of world.households.values()) {
       if (household.dissolvedTick !== null || household.savings < 0) continue
+      // A HOUSEHOLD UNDER A COURT-SUPERVISED PLAN IS NOT SPENDING, and
+      // that is deliberate (M-SAFETY §2): discretionary spending switching
+      // back on after a filing ate the very surplus the plan was computed
+      // from, and 155 plans were dismissed against 2 completed until it
+      // was stopped. This rule is about ordinary households, the same way
+      // the negative-savings skip above is.
+      //
+      // The exemption was always needed and was never hit until student
+      // loans made filings common enough to land in this seed. MEASURED
+      // before changing anything: all eleven affected households have a
+      // member under a stay, and not one of them has a unit whose own
+      // surplus is negative — so it is the stay, not the unit split.
+      if (household.memberIds.some((id) => underStay(world, id, world.tick))) continue
       const surplus = householdIncome(world, household) - householdCosts(world, household)
       if (surplus <= 0) continue
       const spent = discretionaryFor(world, household)
