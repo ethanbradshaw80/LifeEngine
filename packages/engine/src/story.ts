@@ -30,7 +30,7 @@ import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
 import { schoolMomentById } from './schoolmoments.js'
 import { majorById } from './content.js'
-import { officeById } from './government.js'
+import { graftById, officeById } from './government.js'
 import { workMomentById } from './workmoments.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
@@ -379,6 +379,18 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return how === 'badly'
         ? `${year} — A debate that did not go well.`
         : `${year} — Won the room at a debate.`
+    }
+    case 'paid-down-loan': {
+      return `${year} \u2014 Paid a lump off the ${event.detail ?? 'debt'}.`
+    }
+    case 'took-graft': {
+      const offer = graftById(event.detail ?? '')
+      return offer === undefined
+        ? `${year} \u2014 Took money that was not theirs to take.`
+        : `${year} \u2014 ${offer.title}, and took the money.`
+    }
+    case 'investigated': {
+      return `${year} \u2014 Investigated, and out of office.`
     }
     case 'set-policy': {
       return `${year} \u2014 Set the town's policy in office.`

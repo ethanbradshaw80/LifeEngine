@@ -49,7 +49,7 @@ import {
   volunteerForRotation,
   volunteerForSupport,
 } from './deployment.js'
-import { activeWars, combatPowerOf, homeland } from './geopolitics.js'
+import { activeWars, combatPowerOf, homeland, sueForPeace } from './geopolitics.js'
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
@@ -120,6 +120,8 @@ import {
   payOffPlan,
   buyInvestment,
   buyShares,
+  payDownBar,
+  payDownLoan,
   sellShares,
   creditOf,
   moveBetweenOwnAccounts,
@@ -218,6 +220,7 @@ import {
   castVote,
   leverBar,
   setLever,
+  warPowerBar,
   debate,
   declareCandidacy,
   voteBar,
@@ -870,17 +873,46 @@ export function seeADoctor(world: World): { seen: boolean; reason: string } {
 
 
 /** Buy a specific home off the market. */
-export function buyPropertyPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+export function buyPropertyPlayer(
+  world: World,
+  propertyId: string,
+  /**
+   * CASH OR A MORTGAGE (owner, playing: "there isnt a way to buy the
+   * house outright either... I had to take a mortgage out").
+   *
+   * `buyHome` has taken both since ADR-0035 and pays the whole price for
+   * cash — the property path simply hardcoded 'mortgage' in three places
+   * and never offered the choice. Defaulted here so every existing caller
+   * keeps its meaning.
+   */
+  method: HomePurchaseMethod = 'mortgage',
+): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
   const property = world.properties.get(propertyId)
   if (!property) return { done: false, reason: 'No such address.' }
-  const bar = homePurchaseBar(world, person.id, property.neighbourhoodPlaceId, 'mortgage')
+  const bar = homePurchaseBar(world, person.id, property.neighbourhoodPlaceId, method)
   if (bar !== null) return { done: false, reason: bar }
-  logVerb(world, 'buy-home', `${propertyId}:mortgage`)
-  return buyHome(world, world.tick, person.id, property.neighbourhoodPlaceId, 'mortgage', propertyId)
+  logVerb(world, 'buy-home', `${propertyId}:${method}`)
+  return buyHome(world, world.tick, person.id, property.neighbourhoodPlaceId, method, propertyId)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The sale did not go through.' }
+}
+
+/** Pay a lump off a debt, or clear it outright. */
+export function payDownPlayer(
+  world: World,
+  kind: LoanKind,
+  cents: number,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = payDownBar(world, person.id, kind)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'pay-down', kind)
+  return payDownLoan(world, world.tick, person.id, kind, cents as Money) > 0
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'Nothing was paid.' }
 }
 
 /** Take a tenancy on a specific home. */
@@ -910,6 +942,23 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
  * STAND FOR OFFICE, and run the campaign. Each reads the engine's own
  * bar, so a greyed button and a refusal cannot disagree.
  */
+/**
+ * SUE FOR PEACE, as commander-in-chief. The other side has a say, which
+ * is why this can fail and say so.
+ */
+export function seekPeacePlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = warPowerBar(world, person.id)
+  if (bar !== null) return { done: false, reason: bar }
+  const home = homeland(world)
+  if (home === undefined) return { done: false, reason: 'There is no country to speak for.' }
+  logVerb(world, 'seek-peace', '')
+  return sueForPeace(world, world.tick, home.id)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'They are not ready to stop. Not yet.' }
+}
+
 export function setLeverPlayer(
   world: World,
   lever: string,
@@ -2847,6 +2896,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'stand':
     case 'campaign':
     case 'set-lever':
+    case 'seek-peace':
+    case 'pay-down':
     case 'drop-out':
     case 'pay-off-plan':
     case 'school-request':
@@ -4128,6 +4179,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Campaigned.' // log-only
     case 'set-lever':
       return 'Set policy.' // log-only
+    case 'seek-peace':
+      return 'Sought peace.' // log-only
+    case 'pay-down':
+      return 'Paid down a debt.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':

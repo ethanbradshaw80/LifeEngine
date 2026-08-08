@@ -552,6 +552,77 @@ export function sellHome(
   return true
 }
 
+/**
+ * PAY DOWN A DEBT — any debt (owner, playing: "theres no way to even pay
+ * the mortgage", "no way to pay off student loans either").
+ *
+ * Loans amortised monthly and there was NO WAY TO SETTLE ONE. You could
+ * watch a balance fall for thirty years and never hand over a lump sum,
+ * which is not how anybody with money in the bank behaves.
+ *
+ * One function for every kind, because paying off a mortgage and paying
+ * off a student loan are the same act — the difference is only which
+ * balance it lands on. Returns what was actually paid.
+ *
+ * Savings first, then checking, the way every other outgoing here works.
+ * Overpaying is impossible: you cannot hand over more than is owed, and
+ * the remainder stays yours.
+ */
+export function payDownLoan(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  kind: LoanKind,
+  amount: Money,
+): Money {
+  if (amount <= 0) return 0 as Money
+  const accounts = accountsOf(world, personId)
+  const loan = accounts.loans.find((l) => l.kind === kind)
+  if (loan === undefined) return 0 as Money
+
+  const owed = loan.balance as number
+  const wanted = Math.min(amount, owed)
+  const available = accounts.savings + accounts.checking
+  const paid = Math.min(wanted, available)
+  if (paid <= 0) return 0 as Money
+
+  const fromSavings = Math.min(paid, accounts.savings)
+  const fromChecking = paid - fromSavings
+  const left = (owed - paid) as Money
+
+  // CLEARED, or smaller. A loan paid to zero is gone from the file — and
+  // its monthly payment goes with it, which is the point of doing this.
+  const remaining =
+    left <= 0
+      ? accounts.loans.filter((l) => l.kind !== kind)
+      : accounts.loans.map((l) => (l.kind === kind ? { ...l, balance: left } : l))
+
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings - fromSavings) as Money,
+    checking: (accounts.checking - fromChecking) as Money,
+    loans: remaining,
+  })
+  recordEvent(world, tick, {
+    type: left <= 0 ? 'paid-off-loan' : 'paid-down-loan',
+    subjectId: personId,
+    detail: kind,
+  })
+  return paid as Money
+}
+
+/**
+ * Why this debt cannot be paid down, or null. The bar pattern: the button
+ * greys from the same answer the verb refuses with.
+ */
+export function payDownBar(world: World, personId: EntityId, kind: LoanKind): string | null {
+  const accounts = accountsOf(world, personId)
+  const loan = accounts.loans.find((l) => l.kind === kind)
+  if (loan === undefined) return 'You do not carry that debt.'
+  if (accounts.savings + accounts.checking <= 0) return 'There is nothing to pay it with.'
+  return null
+}
+
 export function buyHome(
   world: World,
   tick: Tick,

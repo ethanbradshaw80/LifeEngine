@@ -1163,6 +1163,15 @@ export interface Officeholder {
   readonly termEndsTick: Tick
   /** 0-1000. What the town thinks of them today. */
   readonly approval: number
+  /**
+   * 0-1000. HOW MUCH THERE IS TO FIND.
+   *
+   * Every corrupt act adds to it and nothing takes it away quickly —
+   * that asymmetry IS the risk. A clean officeholder's stays at zero and
+   * no investigation ever opens on them, which is what makes the honest
+   * path genuinely viable rather than merely slower.
+   */
+  readonly exposure?: number
 }
 
 /**
@@ -1181,6 +1190,14 @@ export interface PolicyState {
   readonly schoolFunding: number
   /** Per-mille. The national lever; tax.ts reads it in phase 2. */
   readonly incomeTaxPerMille: number
+  /**
+   * 0-1000. What the country spends on its armed forces.
+   *
+   * The military module has run since Layer 4 with nobody in charge of
+   * it; this is the office it answers to. Optional so a save written
+   * before the presidency loads unchanged.
+   */
+  readonly militaryBudget?: number
 }
 
 export interface EducationRecord {
@@ -1902,6 +1919,8 @@ export type PendingKind =
   | 'stand'
   | 'campaign'
   | 'set-lever'
+  | 'seek-peace'
+  | 'pay-down'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2114,6 +2133,9 @@ export type EventType =
   | 'left-course'
   | 'stood-for-office'
   | 'debated'
+  | 'paid-down-loan'
+  | 'took-graft'
+  | 'investigated'
   | 'set-policy'
   | 'took-office'
   | 'voted'

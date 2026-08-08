@@ -13,6 +13,8 @@ export const LEVER_NOTES: Readonly<Record<string, string>> = {
   policeFunding: 'More crimes solved, but it comes out of the budget.',
   schoolFunding: 'Raises what a state-schooled child attains across the town.',
   incomeTaxPerMille: 'Funds the government and leans on every wage in it.',
+  militaryBudget:
+    'A bigger force to send, and a bigger bill. It does not decide whether there is a war.',
 }
 
 /** What a lever is allowed to be. */
@@ -21,6 +23,7 @@ export const LEVER_RANGE: Readonly<Record<string, { min: number; max: number }>>
   policeFunding: { min: 0, max: 1000 },
   schoolFunding: { min: 0, max: 1000 },
   incomeTaxPerMille: { min: 0, max: 500 },
+  militaryBudget: { min: 0, max: 1000 },
 }
 
 /** Which levers a seat may actually pull (spec §4). */
@@ -32,11 +35,38 @@ export function leversOf(officeId: string): readonly string[] {
       return ['policeFunding']
     case 'school-board':
       return ['schoolFunding']
+    case 'governor':
+      // A governor's own budget is the state's, and the levers it shares
+      // with the town are the ones a state actually sets from above.
+      return ['schoolFunding', 'policeFunding']
     case 'president':
-      return ['incomeTaxPerMille']
+      return ['incomeTaxPerMille', 'militaryBudget']
     default:
       return []
   }
+}
+
+/**
+ * COMMANDER-IN-CHIEF (spec §4b).
+ *
+ * The military module has been running since Layer 4 with nobody in
+ * charge of it. This is the office it answers to: the budget is a lever
+ * like any other, and the war powers are verbs with a bar in front of
+ * them.
+ *
+ * What a president may do about a war is deliberately NARROW here —
+ * seek peace, or hold the line. Declaring one is the geopolitics
+ * engine's own business and always was: wars in this world start from
+ * bloc rivalry, resource competition and old grudges (the factors are in
+ * the causal records), and a president who could conjure one by pressing
+ * a button would make all of that decoration.
+ */
+export function warPowerBar(world: World, personId: EntityId): string | null {
+  const seat = world.officials.get('president')
+  if (seat === undefined || seat.personId !== personId) {
+    return 'Only the President commands the armed forces.'
+  }
+  return null
 }
 
 /**
@@ -155,6 +185,153 @@ function driftApproval(world: World, tick: Tick): void {
 }
 
 /**
+ * WHAT POWER IS WORTH TO SOMEBODY WILLING TO SELL IT (spec §4c).
+ *
+ * Each is a real offer with a real price. The money is genuine money —
+ * finances writes it, as always — and the exposure is genuine risk.
+ *
+ * The payoff scales with the seat, because a mayor's signature on a
+ * rezoning is not worth what a president's is on a defence contract. The
+ * EXPOSURE does not scale down for the small ones: a small town notices
+ * things a capital does not.
+ */
+export interface GraftOffer {
+  readonly id: string
+  readonly title: string
+  readonly line: string
+  /** Cents, before the seat's multiplier. */
+  readonly payoff: number
+  /** Added to exposure, 0-1000. */
+  readonly exposure: number
+}
+
+export const GRAFT_OFFERS: readonly GraftOffer[] = [
+  {
+    id: 'rezoning',
+    title: 'A developer wants a rezoning',
+    line: 'He would be very grateful, he says, and grateful is a word he uses carefully. No paperwork.',
+    payoff: 15_000_000,
+    exposure: 180,
+  },
+  {
+    id: 'contract',
+    title: 'A contract wants steering',
+    line: 'The bid nobody expected to win could win, if the right person read it in the right order.',
+    payoff: 24_000_000,
+    exposure: 240,
+  },
+  {
+    id: 'patronage',
+    title: 'A job for somebody\u2019s nephew',
+    line: 'It is one appointment. He is not even unqualified, exactly, and the family gives generously.',
+    payoff: 6_000_000,
+    exposure: 90,
+  },
+  {
+    id: 'skim',
+    title: 'The budget has slack in it',
+    line: 'A line item nobody reads, and a number nobody would miss. It would take a year for anyone to ask.',
+    payoff: 18_000_000,
+    exposure: 300,
+  },
+]
+
+export function graftById(id: string): GraftOffer | undefined {
+  return GRAFT_OFFERS.find((offer) => offer.id === id)
+}
+
+/** How much a seat is worth to somebody buying it. */
+function seatWeight(officeId: string): number {
+  const office = officeById(officeId)
+  if (office === undefined) return 1
+  return office.level === 'national' ? 8 : office.level === 'state' ? 3 : 1
+}
+
+/**
+ * TAKE IT, or do not.
+ *
+ * Returns what was taken, in cents, or zero. The money is REQUESTED from
+ * finances — the government module never writes cash, the same
+ * single-writer rule everything else obeys.
+ */
+export function takeGraft(
+  world: World,
+  personId: EntityId,
+  offerId: string,
+  tick: Tick,
+  credit: (personId: EntityId, amount: Money) => void,
+): Money {
+  const seat = [...world.officials.values()].find((h) => h.personId === personId)
+  const offer = graftById(offerId)
+  if (seat === undefined || offer === undefined) return 0 as Money
+  const amount = (offer.payoff * seatWeight(seat.officeId)) as Money
+  credit(personId, amount)
+  world.officials.set(seat.officeId, {
+    ...seat,
+    exposure: Math.min(1000, (seat.exposure ?? 0) + offer.exposure),
+  })
+  recordEvent(world, tick, { type: 'took-graft', subjectId: personId, detail: offer.id })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'crime',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('desperation', 200)],
+    chosen: `took the money: ${offer.title.toLowerCase()}`,
+    rejected: ['refused it'],
+    streamId: Stream.Politics,
+  })
+  return amount
+}
+
+/**
+ * DOES SOMEBODY START ASKING QUESTIONS?
+ *
+ * Exposure is the odds, and nothing else is. A clean officeholder is
+ * never investigated, which is what keeps the honest path viable rather
+ * than merely slower — the spec is explicit that it must be.
+ *
+ * An investigation is not a conviction. It opens; what it finds runs into
+ * the crime and justice module that already exists, which is where a
+ * charge, a trial and a sentence live. This module's job is to hand it
+ * over, not to re-implement a courthouse.
+ */
+export function runInvestigations(world: World, tick: Tick): void {
+  if (tick % 6 !== 0) return
+  for (const [officeId, holder] of world.officials) {
+    const exposure = holder.exposure ?? 0
+    if (exposure <= 0) continue
+    const rng = openStream(world.seed, Stream.Politics, holder.personId * 13, tick + 3_300)
+    // A press that is paying attention, twice a year, against how much
+    // there is to find.
+    if (!rng.chance(Math.min(500, Math.floor(exposure / 2)), 1_000)) continue
+
+    // CAUGHT. The approval collapse is immediate and the seat goes with
+    // it — a town does not wait for a verdict to stop trusting somebody.
+    recordEvent(world, tick, {
+      type: 'investigated',
+      subjectId: holder.personId,
+      detail: officeId,
+    })
+    world.officials.delete(officeId)
+    recordDecision(world, tick, {
+      subjectId: holder.personId,
+      decision: 'justice',
+      significance: 'defining',
+      inputs: [factor('prior-record', Math.min(1000, exposure)), factor('witnessed', 700)],
+      chosen: 'was found out and left office',
+      rejected: ['served the term out'],
+      streamId: Stream.Politics,
+    })
+  }
+}
+
+/** What is on this person's file, for the screen. */
+export function exposureOf(world: World, personId: EntityId): number {
+  const seat = [...world.officials.values()].find((h) => h.personId === personId)
+  return seat?.exposure ?? 0
+}
+
+/**
  * IS A DEBATE DUE TONIGHT? The office id, or null.
  *
  * REPORTS rather than raises. Raising a pending needs player.ts, and
@@ -195,7 +372,7 @@ export function debateDue(world: World, tick: Tick): string | null {
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { openStream, Stream } from './rng.js'
-import { recordEvent } from './records.js'
+import { factor, recordDecision, recordEvent } from './records.js'
 import type { Election, Office, Officeholder, Party, PolicyState, Person, World } from './types.js'
 
 const TICKS_PER_YEAR = 12
@@ -287,7 +464,25 @@ export function officeById(id: string): Office | undefined {
 }
 
 /** The seats this town actually fills in phase 1. */
-export const SEATED_OFFICES: readonly string[] = ['mayor', 'sheriff', 'council', 'school-board']
+/**
+ * THE SEATS THAT ARE ACTUALLY FILLED.
+ *
+ * Phase 1 seated the town. Phase 5 seats the rest, because a ladder whose
+ * upper rungs are decorative is not a ladder — the spec's whole point is
+ * that "each step needs a record behind it", and a record is worthless if
+ * there is nothing above to climb to.
+ */
+export const SEATED_OFFICES: readonly string[] = [
+  'mayor',
+  'sheriff',
+  'council',
+  'school-board',
+  'legislator',
+  'governor',
+  'representative',
+  'senator',
+  'president',
+]
 
 /**
  * SANE DEFAULTS (spec §8 step 1).
@@ -309,10 +504,41 @@ export function freshPolicy(): PolicyState {
     policeFunding: 500,
     schoolFunding: 500,
     incomeTaxPerMille: 220,
+    militaryBudget: 500,
   }
 }
 
 /** Whether somebody could stand for this seat at all. */
+/**
+ * WHO HAS EVER HELD WHAT, in one pass over the ledger.
+ *
+ * THE WHOLE-LEDGER SCAN TRAP, for the fourth time in this project.
+ * `eligibleFor` scanned `world.events` for EVERY PERSON it was asked
+ * about, and `drawRunners` asks about every person in the town. At four
+ * local seats that was survivable; phase 5 seated nine, and a full suite
+ * went from 600 seconds to 3,494 with a dozen tests starved out.
+ *
+ * Built once per tick and cached against it. A tick is the right grain:
+ * the ledger only grows between ticks, and every caller inside a tick
+ * wants the same answer.
+ */
+let officeHistoryTick: number = -1
+let officeHistory: Map<EntityId, Set<string>> = new Map()
+
+function heldByAnyone(world: World, tick: Tick): Map<EntityId, Set<string>> {
+  if (officeHistoryTick === tick && officeHistory.size > 0) return officeHistory
+  const built = new Map<EntityId, Set<string>>()
+  for (const event of world.events) {
+    if (event.type !== 'took-office') continue
+    const seats = built.get(event.subjectId) ?? new Set<string>()
+    seats.add(event.detail ?? '')
+    built.set(event.subjectId, seats)
+  }
+  officeHistoryTick = tick
+  officeHistory = built
+  return built
+}
+
 export function eligibleFor(world: World, person: Person, office: Office, tick: Tick): boolean {
   if (person.deathTick !== null) return false
   if (ageAt(person.birthTick, tick) < office.minAge) return false
@@ -320,12 +546,9 @@ export function eligibleFor(world: World, person: Person, office: Office, tick: 
   // THE CLIMB. A seat with prior requirements wants somebody who has
   // actually held one of them — currently or in the past, which is why
   // this reads the ledger rather than the current holders.
-  return world.events.some(
-    (event) =>
-      event.type === 'took-office' &&
-      event.subjectId === person.id &&
-      office.needsPrior?.includes(event.detail ?? '') === true,
-  )
+  const held = heldByAnyone(world, tick).get(person.id)
+  if (held === undefined) return false
+  return office.needsPrior.some((id) => held.has(id))
 }
 
 /**
@@ -749,6 +972,7 @@ function applyPartyLean(world: World): void {
     policeFunding: toward(current.policeFunding, party.policeLean, 8),
     schoolFunding: toward(current.schoolFunding, party.schoolLean, 8),
     incomeTaxPerMille: current.incomeTaxPerMille,
+    militaryBudget: current.militaryBudget ?? 500,
   }
 }
 
@@ -772,6 +996,13 @@ export function runGovernment(world: World, tick: Tick): void {
     }
     // A campaign in progress is left to run. That wait IS the ballot.
     if (world.elections.has(officeId)) continue
+
+    // A DEAD OFFICEHOLDER DOES NOT KEEP THE SEAT while the election runs.
+    // The record of their term stands in the ledger; the chair is empty
+    // from the month they die. Leaving them in the map meant a screen
+    // could name a corpse as the sitting mayor for a month, and with the
+    // ladder widened to nine seats that stopped being hypothetical.
+    if (holder !== undefined && !alive) world.officials.delete(officeId)
 
     const ending = holder === undefined || !alive || tick + CAMPAIGN_MONTHS >= holder.termEndsTick
     if (!ending) continue
@@ -802,6 +1033,7 @@ export function runGovernment(world: World, tick: Tick): void {
   }
   applyPartyLean(world)
   driftApproval(world, tick)
+  runInvestigations(world, tick)
 }
 
 
@@ -812,11 +1044,7 @@ export function holderOf(world: World, officeId: string): Officeholder | undefin
 
 /** Has this person ever held a seat? The ladder reads it. */
 export function heldOffices(world: World, personId: EntityId): readonly string[] {
-  const held: string[] = []
-  for (const event of world.events) {
-    if (event.type !== 'took-office' || event.subjectId !== personId) continue
-    const officeId = event.detail ?? ''
-    if (!held.includes(officeId)) held.push(officeId)
-  }
-  return held
+  // The same index, so a screen asking about one person does not walk the
+  // whole ledger either.
+  return [...(heldByAnyone(world, world.tick).get(personId) ?? [])]
 }

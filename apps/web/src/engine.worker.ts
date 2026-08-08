@@ -28,6 +28,7 @@ import {
   buyHomePlayer,
   payOffBankruptcyPlayer,
   buyPropertyPlayer,
+  payDownPlayer,
   rentPropertyPlayer,
   seeADoctor,
   sellHomePlayer,
@@ -35,6 +36,7 @@ import {
   votePlayer,
   standPlayer,
   setLeverPlayer,
+  seekPeacePlayer,
   campaignPlayer,
   setHabit,
   startBusiness,
@@ -118,13 +120,15 @@ export type VerbRequest =
   | { readonly verb: 'pay-off-plan' }
   | { readonly verb: 'habit'; readonly kind: 'training' | 'study' | 'social'; readonly keep: boolean }
   | { readonly verb: 'doctor' }
-  | { readonly verb: 'buy-property'; readonly propertyId: string }
+  | { readonly verb: 'buy-property'; readonly propertyId: string; readonly method?: 'cash' | 'mortgage' }
+  | { readonly verb: 'pay-down'; readonly kind: 'personal' | 'auto' | 'mortgage' | 'student'; readonly cents: number }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
   | { readonly verb: 'drop-out' }
   | { readonly verb: 'vote'; readonly officeId: string; readonly forPersonId: number }
   | { readonly verb: 'stand'; readonly officeId: string }
   | { readonly verb: 'set-lever'; readonly lever: string; readonly value: number }
+  | { readonly verb: 'seek-peace' }
   | { readonly verb: 'campaign'; readonly officeId: string; readonly action: 'fundraise' | 'rally' | 'advertise' }
   | { readonly verb: 'sell-property'; readonly propertyId: string }
   | { readonly verb: 'start-business'; readonly kindId: string }
@@ -455,6 +459,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             outcome = { ok: r.changed, reason: r.reason }
             break
           }
+          case 'pay-down': {
+            const r = payDownPlayer(world, a.kind, a.cents)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
           case 'buy-property': {
             const r = buyPropertyPlayer(world, a.propertyId)
             outcome = { ok: r.done, reason: r.reason }
@@ -467,6 +476,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'sell-property': {
             const r = sellHomePlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'seek-peace': {
+            const r = seekPeacePlayer(world)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

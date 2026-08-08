@@ -555,6 +555,47 @@ const EVENT_BY_STATE: Record<GeoState, 'war-began' | 'ceasefire' | 'peace-restor
   skirmish: 'tensions-shifted',
 }
 
+/**
+ * SUE FOR PEACE (government plan §4b, the commander-in-chief).
+ *
+ * The military module has run since Layer 4 with nobody in charge of it.
+ * A president can now push for a ceasefire in a war their own country is
+ * fighting — and CANNOT SIMPLY END IT, because the other side has a say.
+ * What this does is move weariness on: an approach that works when both
+ * sides are already exhausted and fails when one of them still thinks it
+ * is winning.
+ *
+ * Deliberately NOT a "declare war" verb. Wars in this world start from
+ * bloc rivalry, resource competition and old grudges — the factors are in
+ * the causal records — and a president who could conjure one from a
+ * button would make all of that decoration.
+ */
+export function sueForPeace(world: World, tick: Tick, nationId: EntityId): boolean {
+  const war = activeWars(world).find((w) => w.a === nationId || w.b === nationId)
+  if (war === undefined) return false
+  const months = tick - war.sinceTick
+  // A war nobody has fought yet is not one anybody will stop.
+  if (months < 4) return false
+  const rng = openStream(world.seed, Stream.Politics, war.a * 31 + war.b, tick + 7_700)
+  const losses = war.casualtiesA + war.casualtiesB
+  // The odds are the war's own weariness, which is what the monthly pass
+  // already uses — an approach is a push on that, not a replacement for
+  // it. A bloodbath both sides want out of ends; a young war does not.
+  const weariness = months * 3 + Math.floor(losses / 900)
+  if (!rng.chance(Math.min(700, weariness), 1_000)) return false
+  const a = world.nations.get(war.a)
+  const b = world.nations.get(war.b)
+  transition(
+    world,
+    tick,
+    war,
+    'ceasefire',
+    [factor('war-weariness', Math.min(1000, weariness))],
+    `ceasefire between ${a?.name ?? 'one nation'} and ${b?.name ?? 'another'}`,
+  )
+  return true
+}
+
 function transition(
   world: World,
   tick: Tick,

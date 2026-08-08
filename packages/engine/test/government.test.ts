@@ -25,19 +25,26 @@ import {
   leversOf,
   myCandidacy,
   setLever,
+  GRAFT_OFFERS,
+  graftById,
+  takeGraft,
   townBudget,
+  warPowerBar,
   OFFICES,
   PARTIES,
   SEATED_OFFICES,
   castVote,
   eligibleFor,
   freshPolicy,
+  heldOffices,
   officeById,
   partyById,
   voteBar,
 } from '../src/government.js'
 import { livingPeople } from '../src/systems.js'
+import { homeland, sueForPeace } from '../src/geopolitics.js'
 import { ownershipCostOf } from '../src/realestate.js'
+import { accountsOf, creditPerson } from '../src/finances.js'
 import { clearanceBonusOf } from '../src/crime.js'
 import { BASELINE_INCOME_RATE, withholdingFor } from '../src/tax.js'
 
@@ -46,7 +53,12 @@ advanceTicks(world, 60 * 12)
 
 describe('a government exists', () => {
   it('fills every seat the town has', () => {
-    for (const officeId of SEATED_OFFICES) {
+    // THE TOWN'S OWN SEATS. The state and national rungs are seated too
+    // (phase 5), but they are reached by CLIMBING — the presidency wants
+    // a senator or a governor behind it — and sixty years is not always
+    // long enough for a four-hundred-person town to produce one. A vacant
+    // presidency in a young world is the ladder working, not failing.
+    for (const officeId of ['mayor', 'sheriff', 'council', 'school-board']) {
       const holder = world.officials.get(officeId)
       expect(holder, `${officeId} is vacant`).toBeDefined()
       if (holder === undefined) continue
@@ -255,6 +267,136 @@ describe('standing for office', () => {
     const bar = candidacyBar(own, child.id, found.officeId, own.tick)
     expect(bar).not.toBeNull()
     expect(bar).toContain('to stand for')
+  })
+})
+
+describe('the ladder above the town', () => {
+  const tall = createWorld(makeSeed(4141), 400)
+  advanceTicks(tall, 80 * 12)
+
+  it('fills every tier, not just the local one', () => {
+    // A ladder whose upper rungs are decorative is not a ladder. The
+    // spec's point is that each step needs a record behind it, and a
+    // record is worthless with nothing above to climb to.
+    // THE CLAIM IS THAT EVERY TIER GETS HELD, not that all nine seats are
+    // occupied at one instant. MEASURED at eighty years: seven of nine
+    // filled, with the legislature and the presidency mid-election. A
+    // seat between terms is the calendar working.
+    expect(SEATED_OFFICES.length).toBeGreaterThan(6)
+    const everHeld = new Set(
+      tall.events.filter((e) => e.type === 'took-office').map((e) => e.detail ?? ''),
+    )
+    for (const tier of ['mayor', 'legislator', 'governor', 'representative', 'senator']) {
+      expect(everHeld, `${tier} was never held by anybody`).toContain(tier)
+    }
+  })
+
+  it('produces careers, not appointments', () => {
+    // MEASURED over eighty years: nineteen people held more than one
+    // office, and the sitting president's own path read school board ->
+    // state legislator -> U.S. representative -> governor -> president.
+    // That is emergent from `needsPrior`, not scripted.
+    let climbers = 0
+    for (const person of tall.people.values()) {
+      if (heldOffices(tall, person.id).length > 1) climbers += 1
+    }
+    expect(climbers).toBeGreaterThan(2)
+  })
+
+  it('never seats a president who has held nothing', () => {
+    // READ FROM THE LEDGER, not from current occupancy. A seat between
+    // terms is the calendar working, and the presidency is vacant in this
+    // world at this tick — which made three tests fail for a reason that
+    // had nothing to do with what they were checking.
+    const sworn = tall.events.filter((e) => e.type === 'took-office' && e.detail === 'president')
+    expect(sworn.length, 'nobody ever became president').toBeGreaterThan(0)
+    const wants = officeById('president')?.needsPrior ?? []
+    for (const event of sworn) {
+      const held = heldOffices(tall, event.subjectId)
+      expect(
+        held.some((id) => wants.includes(id)),
+        'somebody reached the presidency with no prior office',
+      ).toBe(true)
+    }
+  })
+
+  it('gives the presidency the levers the spec asks for', () => {
+    const levers = leversOf('president')
+    expect(levers).toContain('incomeTaxPerMille')
+    expect(levers).toContain('militaryBudget')
+    // And nobody else commands the armed forces.
+    const mayor = tall.officials.get('mayor')
+    if (mayor !== undefined) {
+      expect(warPowerBar(tall, mayor.personId)).toContain('President')
+    }
+  })
+
+  it('cannot conjure a war, only push for the end of one', () => {
+    // Wars here start from bloc rivalry, resource competition and old
+    // grudges — the factors are in the causal records. A president who
+    // could declare one from a button would make all of that decoration.
+    // Suing for peace can FAIL, because the other side has a say.
+    const noWar = createWorld(makeSeed(4141), 200)
+    advanceTicks(noWar, 12)
+    const home = homeland(noWar)
+    expect(home).toBeDefined()
+    if (home === undefined) return
+    expect(sueForPeace(noWar, noWar.tick, home.id)).toBe(false)
+  })
+})
+
+describe('corruption', () => {
+  it('never investigates somebody clean', () => {
+    // The spec insists the honest path stays "fully viable", and that only
+    // holds if being clean is genuinely SAFE rather than merely
+    // lower-risk. Exposure is the only input to the odds.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 40 * 12)
+    for (const holder of own.officials.values()) {
+      if ((holder.exposure ?? 0) > 0) continue
+      const investigated = own.events.some(
+        (e) => e.type === 'investigated' && e.subjectId === holder.personId,
+      )
+      expect(investigated, 'a clean officeholder was investigated').toBe(false)
+    }
+  })
+
+  it('pays real money and leaves a real trail', () => {
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 30 * 12)
+    const mayor = own.officials.get('mayor')
+    expect(mayor).toBeDefined()
+    if (mayor === undefined) return
+
+    const before = accountsOf(own, mayor.personId).savings
+    let credited = 0
+    const took = takeGraft(own, mayor.personId, 'rezoning', own.tick, (id, amount) => {
+      credited += amount
+      creditPerson(own, id, amount)
+    })
+    expect(took).toBeGreaterThan(0)
+    expect(credited).toBe(took)
+    // The money is REQUESTED, never written here — the same single-writer
+    // rule everything else obeys.
+    expect(accountsOf(own, mayor.personId).savings + accountsOf(own, mayor.personId).checking)
+      .toBeGreaterThan(before)
+    // And it is on the file.
+    expect(own.officials.get('mayor')?.exposure ?? 0).toBeGreaterThan(0)
+    expect(own.events.some((e) => e.type === 'took-graft')).toBe(true)
+  })
+
+  it('is worth more at the top, and no safer', () => {
+    // A president's signature on a defence contract is worth more than a
+    // mayor's on a rezoning. A small town notices things a capital does
+    // not, so the exposure does not scale down with the seat.
+    const offer = graftById('contract')
+    expect(offer).toBeDefined()
+    expect(offer?.exposure ?? 0).toBeGreaterThan(0)
+    for (const each of GRAFT_OFFERS) {
+      expect(each.payoff).toBeGreaterThan(0)
+      expect(each.exposure).toBeGreaterThan(0)
+      expect(each.line.length).toBeGreaterThan(30)
+    }
   })
 })
 
