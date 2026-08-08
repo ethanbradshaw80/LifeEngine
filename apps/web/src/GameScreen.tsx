@@ -98,6 +98,7 @@ import {
   flagStatus,
   schoolOptionsFor,
   servicePayOf,
+  accountsOf,
   annualPay,
   moneyOnHand,
   specialtyFor,
@@ -122,6 +123,7 @@ import { TownStats } from './TownStats.js'
 import { RecruitingStationView } from './RecruitingStation.js'
 import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
+import { Market } from './Market.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
 
@@ -247,6 +249,7 @@ type Tab =
   | 'home'
   | 'money'
   | 'property'
+  | 'market'
   | 'family'
   | 'people'
   | 'career'
@@ -279,6 +282,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
   { id: 'home', icon: '📊', label: 'You' },
   { id: 'money', icon: '💰', label: 'Money' },
+  { id: 'market', icon: '📉', label: 'Market' },
   { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'career', icon: '📈', label: 'Career' },
@@ -1166,6 +1170,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           It was a sub-tab of Money, which was fine while a person could own
           exactly one home. Owning several is a different thing to look at —
           a portfolio, not a line item. */}
+      {tab === 'market' && (
+        <div className="panel" aria-label="Market">
+          {/* THE MARKET IS ITS OWN TAB, not a row inside the bank. The
+              owner's complaint about property was the same shape — a thing
+              you can hold several of, buy, sell and look into does not fit
+              as a line item under Loans. */}
+          <Market
+            world={world}
+            holdings={accountsOf(world, person.id).holdings}
+            cash={accountsOf(world, person.id).savings}
+            onAct={onAct}
+          />
+        </div>
+      )}
+
       {tab === 'property' && (
         <div className="panel" aria-label="Property">
           <RealEstate

@@ -3826,3 +3826,293 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   font-size: 0.78rem; color: var(--muted);
 }
 .re-portfolio b { margin-left: auto; font-size: 0.95rem; font-weight: 800; color: var(--fg); }
+
+/* ---------------------------------------------------------------------
+   The market and a company's page (stock revamp §8).
+
+   Built to the owner's mockup, and mobile-first like the rest of the app:
+   one column, tap targets that are actually tappable, and tabular numerals
+   on every price so a column of them does not jitter as the digits change.
+   --------------------------------------------------------------------- */
+
+.market {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mkt-index {
+  padding: 14px 16px;
+  border: 1px solid var(--line, #2a323d);
+  border-radius: 12px;
+  background: var(--panel, #161b22);
+}
+.mkt-index-name {
+  font-size: 12.5px;
+  color: var(--muted, #93a0b1);
+}
+.mkt-index-px {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-top: 2px;
+}
+
+.mkt-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mkt-sec h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted, #93a0b1);
+  font-weight: 700;
+}
+
+/* A listing row. A grid rather than flex so the ticker column lines up
+   down the whole list however long a company's name is. */
+.mkt-row {
+  display: grid;
+  grid-template-columns: 62px 1fr auto auto;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line, #2a323d);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.mkt-row:hover {
+  background: var(--panel2, #1d232c);
+}
+.mkt-row.owned {
+  background: rgba(62, 207, 142, 0.06);
+}
+.mkt-row-sym {
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+.mkt-row-name {
+  font-size: 12px;
+  color: var(--muted, #93a0b1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mkt-row-px {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+.mkt-row-chg {
+  font-size: 12.5px;
+  font-weight: 700;
+  min-width: 58px;
+  text-align: right;
+}
+.mkt-row-chg.up,
+.stock-chg.up,
+.v.up {
+  color: var(--green, #3ecf8e);
+}
+.mkt-row-chg.down,
+.stock-chg.down,
+.v.down {
+  color: var(--red, #f0776f);
+}
+
+.mkt-sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mkt-chip {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #2a323d);
+  background: transparent;
+  color: var(--muted, #93a0b1);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mkt-chip.on {
+  background: var(--green, #3ecf8e);
+  border-color: var(--green, #3ecf8e);
+  color: #0b0e13;
+}
+
+/* --- a company's own page ------------------------------------------- */
+
+.stock-detail {
+  display: flex;
+  flex-direction: column;
+}
+.stock-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px 12px;
+}
+.stock-back {
+  border: 0;
+  background: transparent;
+  color: var(--muted, #93a0b1);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0 6px;
+}
+.stock-sym {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+.stock-head {
+  padding: 2px 4px 6px;
+}
+.stock-co {
+  font-size: 12.5px;
+  color: var(--muted, #93a0b1);
+}
+.stock-px {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-top: 3px;
+}
+.stock-chg {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.stock-chart svg {
+  display: block;
+  width: 100%;
+  height: 170px;
+}
+.stock-note {
+  margin: 2px 4px 0;
+}
+
+.stock-pills {
+  display: flex;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+.stock-pill {
+  flex: 1;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted, #93a0b1);
+  padding: 7px 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+}
+.stock-pill.on {
+  color: #0b0e13;
+  background: var(--green, #3ecf8e);
+}
+
+.stock-trade {
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+}
+.stock-trade button {
+  flex: 1;
+  padding: 13px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid;
+}
+.stock-trade button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.stock-buy {
+  background: #1f6f4d;
+  border-color: #2b8a63;
+  color: #eafff4;
+}
+.stock-sell {
+  background: transparent;
+  border-color: #7a2a26;
+  color: #f0a49e;
+}
+
+.stock-sec {
+  padding: 14px 0;
+  border-top: 1px solid var(--line, #2a323d);
+}
+.stock-sec h3 {
+  margin: 0 0 11px;
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted, #93a0b1);
+  font-weight: 700;
+}
+.stock-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px 14px;
+}
+.stock-grid .k {
+  font-size: 11px;
+  color: var(--muted, #93a0b1);
+}
+.stock-grid .v {
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+
+.stock-rating {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.stock-badge {
+  font-size: 15px;
+  font-weight: 800;
+  color: #0b0e13;
+  background: var(--green, #3ecf8e);
+  border-radius: 8px;
+  padding: 5px 12px;
+}
+/* The consensus bar. Three spans, widths summing to a hundred. */
+.stock-cons {
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 7px;
+}
+.stock-cons i {
+  height: 100%;
+}
+.stock-sectag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line, #2a323d);
+  color: var(--muted, #93a0b1);
+  margin-bottom: 8px;
+}
