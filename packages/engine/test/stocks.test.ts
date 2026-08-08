@@ -21,7 +21,15 @@ import {
   stockById,
   upsidePerMille,
   yearRangeOf,
+  holdingValue,
 } from '../src/market.js'
+import {
+  accountsOf,
+  buyInvestment,
+  buyShares,
+  sellInvestment,
+  sellShares,
+} from '../src/finances.js'
 
 const world = createWorld(makeSeed(4141), 400)
 advanceTicks(world, 40 * 12)
@@ -180,5 +188,88 @@ describe('the analyst panel', () => {
     expect(REFERENCE_PE).toBeGreaterThan(0)
     expect(stockById('vntk')).toBeDefined()
     expect(stockById('nope')).toBeUndefined()
+  })
+})
+
+/**
+ * Buying and selling a named company (spec §7).
+ */
+describe('holding shares', () => {
+  const own = createWorld(makeSeed(4141), 200)
+  advanceTicks(own, 20 * 12)
+  // THE RICHEST PERSON IN TOWN, because both buy verbs spend from SAVINGS
+  // and a manufactured balance would have to reach past setAccounts to
+  // create one. creditPerson credits CHECKING, which is a different
+  // pocket — that mistake is what the first version of this made.
+  const investor = [...own.people.values()]
+    .filter((p) => p.deathTick === null)
+    .sort((a, b) => accountsOf(own, b.id).savings - accountsOf(own, a.id).savings)[0]
+
+  it('buys shares and prices them off the company, not the sector', () => {
+    expect(investor).toBeDefined()
+    if (investor === undefined) return
+    const purse = accountsOf(own, investor.id).savings
+    expect(purse).toBeGreaterThan(0)
+    expect(
+      buyShares(own, own.tick, investor.id, 'vntk', Math.floor(purse / 3) as never),
+    ).toBeGreaterThan(0)
+    const held = accountsOf(own, investor.id).holdings.find((h) => h.stockId === 'vntk')
+    expect(held).toBeDefined()
+    expect(held?.units).toBeGreaterThan(0)
+    expect(held?.sectorId).toBe('technology')
+    // Priced off the COMPANY. If this read the sector price the value
+    // would be wrong by however far Vantek has diverged from Technology.
+    const price = own.stockPrices['vntk'] ?? 0
+    expect(holdingValue(own, held as never)).toBe(
+      Math.floor(((held?.units ?? 0) * price) / 10_000),
+    )
+  })
+
+  it('never merges a company into its sector fund, or the reverse', () => {
+    // Keying a position on sectorId alone would fold a purchase of Vantek
+    // into the Technology fund — the shares would silently become units.
+    expect(investor).toBeDefined()
+    if (investor === undefined) return
+    const left = accountsOf(own, investor.id).savings
+    expect(buyInvestment(own, own.tick, investor.id, 'technology', Math.floor(left / 2) as never)).toBeGreaterThan(0)
+    const holdings = accountsOf(own, investor.id).holdings
+    const fund = holdings.filter((h) => h.stockId === undefined && h.sectorId === 'technology')
+    const company = holdings.filter((h) => h.stockId === 'vntk')
+    expect(fund).toHaveLength(1)
+    expect(company).toHaveLength(1)
+    expect(fund[0]?.units).not.toBe(company[0]?.units)
+  })
+
+  it('sells the fund without taking the shares with it', () => {
+    // Filtering on sectorId when selling would have removed every company
+    // holding in that sector too, crediting only the fund's proceeds —
+    // the shares would simply vanish.
+    expect(investor).toBeDefined()
+    if (investor === undefined) return
+    expect(sellInvestment(own, own.tick, investor.id, 'technology')).toBeGreaterThan(0)
+    const after = accountsOf(own, investor.id).holdings
+    expect(after.filter((h) => h.stockId === undefined && h.sectorId === 'technology')).toHaveLength(0)
+    expect(after.filter((h) => h.stockId === 'vntk')).toHaveLength(1)
+  })
+
+  it('sells shares back for cash', () => {
+    expect(investor).toBeDefined()
+    if (investor === undefined) return
+    const before = accountsOf(own, investor.id).savings
+    expect(sellShares(own, own.tick, investor.id, 'vntk')).toBeGreaterThan(0)
+    expect(accountsOf(own, investor.id).savings).toBeGreaterThan(before)
+    expect(accountsOf(own, investor.id).holdings.filter((h) => h.stockId === 'vntk')).toHaveLength(0)
+    // And selling what you do not hold is a refusal, not a crash.
+    expect(sellShares(own, own.tick, investor.id, 'vntk')).toBe(0)
+  })
+
+  it('pays a company its own dividend, not its sector average', () => {
+    // Half the reason to hold a utility instead of the fund.
+    const utility = STOCKS.find((s) => s.sectorId === 'utilities')
+    const tech = STOCKS.find((s) => s.id === 'vntk')
+    expect(utility).toBeDefined()
+    expect(tech).toBeDefined()
+    if (utility === undefined || tech === undefined) return
+    expect(dividendYieldOf(utility)).toBeGreaterThan(dividendYieldOf(tech))
   })
 })

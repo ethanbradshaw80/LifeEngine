@@ -36,6 +36,8 @@ import {
   startBusiness,
   divestPlayer,
   investPlayer,
+  buySharesPlayer,
+  sellSharesPlayer,
   chooseSpendStance,
   courtFriend,
   createCustomLife,
@@ -104,6 +106,8 @@ export type VerbRequest =
   | { readonly verb: 'bank-deposit'; readonly cents: number }
   | { readonly verb: 'bank-withdraw'; readonly cents: number }
   | { readonly verb: 'invest'; readonly sectorId: string; readonly cents: number; readonly retirement: boolean }
+  | { readonly verb: 'buy-shares'; readonly stockId: string; readonly cents: number; readonly retirement: boolean }
+  | { readonly verb: 'sell-shares'; readonly stockId: string; readonly retirement: boolean }
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
   | { readonly verb: 'buy-home'; readonly method: 'cash' | 'mortgage' }
@@ -411,6 +415,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'bank-withdraw': {
             const r = bankTransfer(world, a.cents, false)
             outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
+          case 'buy-shares': {
+            const r = buySharesPlayer(world, a.stockId, a.cents, a.retirement)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'sell-shares': {
+            const r = sellSharesPlayer(world, a.stockId, a.retirement)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'invest': {

@@ -728,6 +728,20 @@ export interface Holding {
   readonly sectorId: string
   readonly units: number
   readonly costBasis: Money
+  /**
+   * SHARES IN A NAMED COMPANY, or absent for units of the sector fund
+   * (spec §7).
+   *
+   * Added rather than replacing `sectorId`, and that is the whole
+   * migration: the spec suggests converting existing sector holdings into
+   * "sector-fund instruments", but they ALREADY ARE that — a holding with
+   * no company named is exactly a fund position, and always was. Nobody's
+   * portfolio has to be rewritten to mean what it already meant.
+   *
+   * `sectorId` stays populated either way, so a company holding still
+   * knows which sector it belongs to without a lookup.
+   */
+  readonly stockId?: string
 }
 
 export type LoanKind = 'personal' | 'auto' | 'mortgage' | 'student'

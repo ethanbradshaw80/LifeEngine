@@ -240,6 +240,8 @@ export {
   homePurchaseBar,
   payOffPlan,
   buyInvestment,
+  buyShares,
+  sellShares,
   applyMoneyShock,
   creditOf,
   homeValueOf,
@@ -437,6 +439,20 @@ export {
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
 export { MAJORS, majorById, majorsFor } from './content.js'
 export {
+  ANALYST_MONTHS,
+  REFERENCE_PE,
+  betaOf,
+  computeAnalystView,
+  dividendYieldOf,
+  earningsOf,
+  holdingKeyOf,
+  marketCapOf,
+  peRatioOf,
+  ratingOf,
+  sharesFor,
+  upsidePerMille,
+  volumeOf,
+  yearRangeOf,
   HISTORY_MONTHS,
   STOCKS,
   freshStockPrices,
@@ -447,7 +463,7 @@ export {
 } from './market.js'
 export type { AnalystView, Stock } from './types.js'
 export { dropOut, dropOutBar } from './systems.js'
-export { dropOutPlayer } from './player.js'
+export { dropOutPlayer, buySharesPlayer, sellSharesPlayer } from './player.js'
 export type { Major } from './content.js'
 export {
   SCHOOL_CHOICES,

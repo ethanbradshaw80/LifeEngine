@@ -39,7 +39,16 @@ import {
   offeredRatePerMille,
   totalDebtOf,
 } from './credit.js'
-import { SECTORS, dividendOn, holdingValue, portfolioValue, unitsFor } from './market.js'
+import {
+  SECTORS,
+  dividendOn,
+  holdingKeyOf,
+  holdingValue,
+  portfolioValue,
+  sharesFor,
+  stockById,
+  unitsFor,
+} from './market.js'
 import { openStream, Stream } from './rng.js'
 import {
   DEPOSIT_MONTHS,
@@ -2736,6 +2745,98 @@ export function moveBetweenOwnAccounts(
  * that moved — zero if they could not afford it, which is a refusal and not
  * an error.
  */
+/**
+ * BUY SHARES IN A NAMED COMPANY (spec §7).
+ *
+ * Deliberately a sibling of `buyInvestment` rather than a parameter on
+ * it: the two differ in what they price against and in nothing else, and
+ * a boolean flag threaded through the existing one would have made every
+ * caller decide something it does not care about.
+ *
+ * The rules it shares are the ones that matter — money comes out of
+ * savings and only what the shares actually cost, the remainder stays as
+ * cash rather than vanishing, and positions merge by their own key so a
+ * purchase of Vantek can never fold into the Technology fund.
+ */
+export function buyShares(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  stockId: string,
+  cents: Money,
+  intoRetirement = false,
+): Money {
+  const stock = stockById(stockId)
+  if (stock === undefined) return 0 as Money
+  const accounts = accountsOf(world, personId)
+  const affordable = Math.min(cents, accounts.savings) as Money
+  if (affordable <= 0) return 0 as Money
+  const shares = sharesFor(world, stockId, affordable)
+  if (shares <= 0) return 0 as Money
+  const spent = Math.floor((shares * (world.stockPrices[stockId] ?? 10_000)) / 10_000) as Money
+
+  const which = intoRetirement ? accounts.retirementHoldings : accounts.holdings
+  const existing = which.find((h) => h.stockId === stockId)
+  const merged: Holding = {
+    sectorId: stock.sectorId,
+    stockId,
+    units: (existing?.units ?? 0) + shares,
+    costBasis: ((existing?.costBasis ?? 0) + spent) as Money,
+  }
+  const rest = which.filter((h) => h.stockId !== stockId)
+  const updated = [...rest, merged].sort((a, b) =>
+    holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
+  )
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings - spent) as Money,
+    holdings: intoRetirement ? accounts.holdings : updated,
+    retirementHoldings: intoRetirement ? updated : accounts.retirementHoldings,
+  })
+  recordEvent(world, tick, {
+    type: 'bought-investment',
+    subjectId: personId,
+    detail: stock.ticker + ':' + String(spent),
+  })
+  return spent
+}
+
+/**
+ * SELL SHARES, at today's price. The gain over the cost basis is realized
+ * and taxed exactly as a fund sale is — the retirement account is the
+ * only thing that changes that, and it changes it the same way here.
+ */
+export function sellShares(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  stockId: string,
+  fromRetirement = false,
+): Money {
+  const accounts = accountsOf(world, personId)
+  const which = fromRetirement ? accounts.retirementHoldings : accounts.holdings
+  const holding = which.find((h) => h.stockId === stockId)
+  if (!holding || holding.units <= 0) return 0 as Money
+
+  const proceeds = holdingValue(world, holding)
+  const gain = Math.max(0, proceeds - holding.costBasis)
+  const tax = fromRetirement ? 0 : capitalGainsTaxOn(gain as Money)
+  const net = (proceeds - tax) as Money
+  const rest = which.filter((h) => h.stockId !== stockId)
+  setAccounts(world, {
+    ...accounts,
+    savings: (accounts.savings + net) as Money,
+    holdings: fromRetirement ? accounts.holdings : rest,
+    retirementHoldings: fromRetirement ? rest : accounts.retirementHoldings,
+  })
+  recordEvent(world, tick, {
+    type: 'sold-investment',
+    subjectId: personId,
+    detail: (stockById(stockId)?.ticker ?? stockId) + ':' + String(net),
+  })
+  return net
+}
+
 export function buyInvestment(
   world: World,
   tick: Tick,
@@ -2754,14 +2855,19 @@ export function buyInvestment(
   const spent = Math.floor((units * (world.sectorPrices[sectorId] ?? 10_000)) / 10_000) as Money
 
   const which = intoRetirement ? accounts.retirementHoldings : accounts.holdings
-  const existing = which.find((h) => h.sectorId === sectorId)
+  // THE FUND POSITION ONLY. `h.sectorId === sectorId` alone would have
+  // matched a holding of Vantek when buying the Technology fund, and
+  // merged a company into it.
+  const existing = which.find((h) => h.stockId === undefined && h.sectorId === sectorId)
   const merged: Holding = {
     sectorId,
     units: (existing?.units ?? 0) + units,
     costBasis: ((existing?.costBasis ?? 0) + spent) as Money,
   }
-  const rest = which.filter((h) => h.sectorId !== sectorId)
-  const updated = [...rest, merged].sort((a, b) => (a.sectorId < b.sectorId ? -1 : 1))
+  const rest = which.filter((h) => h.stockId !== undefined || h.sectorId !== sectorId)
+  const updated = [...rest, merged].sort((a, b) =>
+    holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
+  )
 
   setAccounts(world, {
     ...accounts,
@@ -2791,7 +2897,7 @@ export function sellInvestment(
 ): Money {
   const accounts = accountsOf(world, personId)
   const which = fromRetirement ? accounts.retirementHoldings : accounts.holdings
-  const holding = which.find((h) => h.sectorId === sectorId)
+  const holding = which.find((h) => h.stockId === undefined && h.sectorId === sectorId)
   if (!holding || holding.units <= 0) return 0 as Money
 
   const proceeds = holdingValue(world, holding)
@@ -2799,7 +2905,10 @@ export function sellInvestment(
   // Capital gains, on what was actually made, and never inside retirement.
   const tax = fromRetirement ? 0 : capitalGainsTaxOn(gain as Money)
   const net = (proceeds - tax) as Money
-  const rest = which.filter((h) => h.sectorId !== sectorId)
+  // AND ONLY THE FUND POSITION IS REMOVED. Filtering on sectorId alone
+  // would have sold every company holding in that sector along with it,
+  // crediting only the fund's proceeds — the shares would simply vanish.
+  const rest = which.filter((h) => h.stockId !== undefined || h.sectorId !== sectorId)
 
   setAccounts(world, {
     ...accounts,

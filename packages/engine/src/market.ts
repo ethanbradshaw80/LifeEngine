@@ -184,9 +184,22 @@ export function stepSectors(
   return next
 }
 
+/**
+ * WHAT IDENTIFIES A POSITION. A company if it names one, otherwise the
+ * sector fund. One function, because buying, selling, merging and
+ * displaying all have to agree — key on `sectorId` alone and a purchase
+ * of Vantek would silently merge into the Technology fund.
+ */
+export function holdingKeyOf(holding: Holding): string {
+  return holding.stockId ?? holding.sectorId
+}
+
 /** What one holding is worth today, in cents. */
 export function holdingValue(world: World, holding: Holding): Money {
-  const price = world.sectorPrices[holding.sectorId] ?? 10_000
+  const price =
+    holding.stockId === undefined
+      ? (world.sectorPrices[holding.sectorId] ?? 10_000)
+      : (world.stockPrices[holding.stockId] ?? 10_000)
   return Math.floor((holding.units * price) / 10_000) as Money
 }
 
@@ -215,11 +228,29 @@ export function unitsFor(world: World, sectorId: string, cents: Money): number {
   return Math.floor((cents * 10_000) / price)
 }
 
+/**
+ * Shares bought for a sum of cents, at today's price. Floored for the
+ * same reason units are: you get the shares the money actually buys and
+ * the remainder stays as cash, rather than conjuring a fraction of one.
+ */
+export function sharesFor(world: World, stockId: string, cents: Money): number {
+  const price = world.stockPrices[stockId] ?? 10_000
+  if (price <= 0) return 0
+  return Math.floor((cents * 10_000) / price)
+}
+
 /** This month's dividend on a holding. Floored, so small holdings pay none. */
 export function dividendOn(world: World, holding: Holding): Money {
+  const value = holdingValue(world, holding)
+  // A COMPANY PAYS ITS OWN DIVIDEND, not its sector's average — that
+  // difference is half the reason to hold a utility instead of the fund.
+  if (holding.stockId !== undefined) {
+    const stock = stockById(holding.stockId)
+    if (!stock) return 0 as Money
+    return Math.floor((value * dividendYieldOf(stock)) / (1000 * 12)) as Money
+  }
   const sector = sectorById(holding.sectorId)
   if (!sector) return 0 as Money
-  const value = holdingValue(world, holding)
   return Math.floor((value * sector.dividendPerMille) / (1000 * 12)) as Money
 }
 

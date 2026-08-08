@@ -119,6 +119,8 @@ import {
   moneyOnHand,
   payOffPlan,
   buyInvestment,
+  buyShares,
+  sellShares,
   creditOf,
   moveBetweenOwnAccounts,
   sellInvestment,
@@ -208,6 +210,7 @@ import {
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import { majorsFor } from './content.js'
+import { stockById } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -596,6 +599,39 @@ export function bankTransfer(
   return moved > 0
     ? { moved: true, reason: '' }
     : { moved: false, reason: 'That account does not hold it.' }
+}
+
+/**
+ * BUY AND SELL A NAMED COMPANY. Siblings of the fund verbs, sharing their
+ * shape so the worker, the log and the refusals all behave identically —
+ * the only thing that differs is what is being priced.
+ */
+export function buySharesPlayer(
+  world: World,
+  stockId: string,
+  cents: number,
+  retirement: boolean,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  if (stockById(stockId) === undefined) return { done: false, reason: 'No such company.' }
+  const spent = buyShares(world, world.tick, person.id, stockId, cents as Money, retirement)
+  if (spent <= 0) return { done: false, reason: 'Not enough in savings to buy in.' }
+  logVerb(world, 'invest', stockId)
+  return { done: true, reason: '' }
+}
+
+export function sellSharesPlayer(
+  world: World,
+  stockId: string,
+  retirement: boolean,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const got = sellShares(world, world.tick, person.id, stockId, retirement)
+  if (got <= 0) return { done: false, reason: 'You hold no shares in that.' }
+  logVerb(world, 'divest', stockId)
+  return { done: true, reason: '' }
 }
 
 export function investPlayer(
