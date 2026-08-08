@@ -44,6 +44,7 @@ const WORLD_LEVEL = new Set([
   // hung on. It belongs on the market screen, and putting it in somebody's
   // life story would say "you were downgraded to Hold" about a human being.
   'analyst-change',
+  'company-news',
 ])
 
 /**

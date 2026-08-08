@@ -1998,6 +1998,7 @@ export type EventType =
   | 'recycled-in-training'
   | 'work-moment'
   | 'left-course'
+  | 'company-news'
   | 'analyst-change'
   | 'won-funding'
   | 'took-student-loan'

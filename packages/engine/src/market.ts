@@ -360,6 +360,7 @@ export function stepStocks(
   world: World,
   tick: Tick,
   nextSectorPrices: Readonly<Record<string, number>>,
+  news?: ReadonlyMap<string, CompanyNews>,
 ): Readonly<Record<string, number>> {
   const next: Record<string, number> = {}
   for (const stock of STOCKS) {
@@ -369,7 +370,12 @@ export function stepStocks(
     const sectorMove = before > 0 ? Math.trunc(((after - before) * 10_000) / before) : 0
     const rng = openStream(world.seed, Stream.Market, stock.ticker.length * 31 + stock.id.length, tick)
     const idio = rng.nextIntInclusive(-stock.idioVolatility, stock.idioVolatility)
-    const move = Math.trunc((sectorMove * stock.betaMultiplier) / 1000) + idio
+    // THREE TERMS, ONE CALCULATION: what the sector did, what this company
+    // does with it, its own noise, and whatever happened to it this month.
+    // The news shock goes in HERE rather than being applied to the price
+    // afterwards, so a company's month is a single move and not two.
+    const shock = news?.get(stock.id)?.shock ?? 0
+    const move = Math.trunc((sectorMove * stock.betaMultiplier) / 1000) + idio + shock
     const current = world.stockPrices[stock.id] ?? 10_000
     // Floored at par/20 for the same reason a sector is floored: this world
     // does not model a company going to zero, and pretending otherwise
@@ -624,5 +630,115 @@ export function runAnalysts(world: World, tick: Tick): void {
         })
       }
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Company news (spec §5)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT HAPPENS TO A COMPANY (spec §5).
+ *
+ * This is the difference between a price series and a company. A stock
+ * that only moves with its sector and a random walk is a number; one that
+ * beat its earnings, or lost a plant to a fire, or won the contract, is a
+ * thing you can have an opinion about.
+ *
+ * Each item carries its own price shock in basis points, and the shock is
+ * fed into the SAME price model everything else uses rather than being
+ * applied on top afterwards — a company's news is one of the three terms
+ * in its month, next to its sector and its own noise.
+ *
+ * `sectors` narrows an item to where it makes sense: a recall belongs to
+ * somebody who makes things, a war contract to defense, a strike to a
+ * business with a workforce rather than to a bank.
+ */
+export interface CompanyNews {
+  readonly id: string
+  readonly headline: string
+  /** Basis points, applied the month it lands. */
+  readonly shock: number
+  /** Empty means it can happen to anybody. */
+  readonly sectors: readonly string[]
+}
+
+export const COMPANY_NEWS: readonly CompanyNews[] = [
+  { id: 'beat', headline: 'beat expectations', shock: 620, sectors: [] },
+  { id: 'miss', headline: 'missed its numbers', shock: -700, sectors: [] },
+  { id: 'expansion', headline: 'announced an expansion', shock: 380, sectors: [] },
+  { id: 'scandal', headline: 'is under investigation', shock: -980, sectors: [] },
+  { id: 'dividend-raise', headline: 'raised its dividend', shock: 260, sectors: [] },
+  { id: 'cuts', headline: 'announced layoffs', shock: -180, sectors: [] },
+  { id: 'chief-out', headline: 'lost its chief executive', shock: -420, sectors: [] },
+  { id: 'contract', headline: 'won a government contract', shock: 840, sectors: ['defense'] },
+  { id: 'programme-cut', headline: 'had a programme cancelled', shock: -900, sectors: ['defense'] },
+  { id: 'recall', headline: 'issued a recall', shock: -760, sectors: ['consumer', 'health'] },
+  { id: 'approval', headline: 'won approval for a new product', shock: 1_100, sectors: ['health'] },
+  { id: 'trial-failed', headline: 'saw a trial fail', shock: -1_250, sectors: ['health'] },
+  { id: 'strike', headline: 'is facing a strike', shock: -540, sectors: ['industrial', 'agricultural', 'energy'] },
+  { id: 'discovery', headline: 'announced a major find', shock: 980, sectors: ['energy', 'agricultural'] },
+  { id: 'breach', headline: 'disclosed a security breach', shock: -640, sectors: ['technology', 'financials'] },
+  { id: 'rate-windfall', headline: 'reported a windfall on rates', shock: 470, sectors: ['financials'] },
+  { id: 'outage', headline: 'suffered a major outage', shock: -580, sectors: ['technology', 'utilities', 'communications'] },
+]
+
+export function companyNewsById(id: string): CompanyNews | undefined {
+  return COMPANY_NEWS.find((item) => item.id === id)
+}
+
+/** What could happen to this company, given what it does. */
+export function newsOpenTo(stock: Stock): readonly CompanyNews[] {
+  return COMPANY_NEWS.filter(
+    (item) => item.sectors.length === 0 || item.sectors.includes(stock.sectorId),
+  )
+}
+
+/**
+ * HOW OFTEN A COMPANY IS IN THE NEWS. A BALANCE NUMBER.
+ *
+ * At 55 in 1000 a given company makes news roughly every eighteen months,
+ * so across thirty-three of them something is happening most months
+ * without any one name being a soap opera.
+ */
+const NEWS_CHANCE = 55
+
+/**
+ * This month's news, as a map of stock id to the item that landed.
+ *
+ * Returned rather than applied, because the SHOCK belongs to the price
+ * model and the price model runs once. Handing this to `stepStocks` keeps
+ * a company's month a single calculation with three terms in it.
+ */
+export function rollCompanyNews(world: World, tick: Tick): ReadonlyMap<string, CompanyNews> {
+  const landed = new Map<string, CompanyNews>()
+  for (const stock of STOCKS) {
+    const rng = openStream(world.seed, Stream.Market, stock.id.length * 17 + 61, tick + 5_500)
+    if (!rng.chance(NEWS_CHANCE, 1_000)) continue
+    const open = newsOpenTo(stock)
+    if (open.length === 0) continue
+    const item = open[rng.nextIntInclusive(0, open.length - 1)]
+    if (item !== undefined) landed.set(stock.id, item)
+  }
+  return landed
+}
+
+/** Record what landed, so a price move has a reason attached to it. */
+export function recordCompanyNews(
+  world: World,
+  tick: Tick,
+  landed: ReadonlyMap<string, CompanyNews>,
+): void {
+  if (landed.size === 0) return
+  const home = homeland(world)
+  if (home === undefined) return
+  for (const stock of STOCKS) {
+    const item = landed.get(stock.id)
+    if (item === undefined) continue
+    recordEvent(world, tick, {
+      type: 'company-news',
+      subjectId: home.id,
+      detail: `${stock.ticker}:${item.id}`,
+    })
   }
 }

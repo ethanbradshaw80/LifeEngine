@@ -453,8 +453,11 @@ export {
   upsidePerMille,
   volumeOf,
   yearRangeOf,
+  COMPANY_NEWS,
   HISTORY_MONTHS,
   STOCKS,
+  companyNewsById,
+  newsOpenTo,
   freshStockPrices,
   pushHistory,
   stepStocks,
@@ -462,6 +465,7 @@ export {
   stocksInSector,
 } from './market.js'
 export type { AnalystView, Stock } from './types.js'
+export type { CompanyNews } from './market.js'
 export { dropOut, dropOutBar } from './systems.js'
 export { dropOutPlayer, buySharesPlayer, sellSharesPlayer } from './player.js'
 export type { Major } from './content.js'

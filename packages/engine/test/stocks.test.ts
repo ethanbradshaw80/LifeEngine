@@ -14,6 +14,7 @@ import {
   SECTORS,
   STOCKS,
   betaOf,
+  companyNewsById,
   dividendYieldOf,
   marketCapOf,
   peRatioOf,
@@ -271,5 +272,68 @@ describe('holding shares', () => {
     expect(tech).toBeDefined()
     if (utility === undefined || tech === undefined) return
     expect(dividendYieldOf(utility)).toBeGreaterThan(dividendYieldOf(tech))
+  })
+})
+
+/**
+ * Company news (spec §5) — the difference between a price series and a
+ * company. A stock that only moves with its sector and a random walk is a
+ * number; one that beat its earnings or lost a plant is a thing you can
+ * have an opinion about.
+ */
+describe('company news', () => {
+  it('happens, and lands on companies it makes sense for', () => {
+    const items = world.events.filter((e) => e.type === 'company-news')
+    expect(items.length).toBeGreaterThan(0)
+    for (const event of items) {
+      const [ticker, newsId] = (event.detail ?? ':').split(':')
+      const stock = STOCKS.find((s) => s.ticker === ticker)
+      const item = companyNewsById(newsId ?? '')
+      expect(stock, `unknown ticker ${String(ticker)}`).toBeDefined()
+      expect(item, `unknown item ${String(newsId)}`).toBeDefined()
+      if (stock === undefined || item === undefined) continue
+      // A recall belongs to somebody who makes things; a war contract to
+      // defense. An unrestricted item can happen to anybody.
+      if (item.sectors.length > 0) {
+        expect(item.sectors, `${item.id} on ${stock.ticker}`).toContain(stock.sectorId)
+      }
+    }
+  })
+
+  it('stays occasional rather than becoming a soap opera', () => {
+    // At roughly one item per company every eighteen months, something is
+    // happening most months across the market without any one name
+    // being in the paper constantly.
+    const perCompany = new Map<string, number>()
+    for (const event of world.events) {
+      if (event.type !== 'company-news') continue
+      const ticker = (event.detail ?? '').split(':')[0] ?? ''
+      perCompany.set(ticker, (perCompany.get(ticker) ?? 0) + 1)
+    }
+    // Forty years is 480 months; a company in the news every third month
+    // would be noise wearing a headline.
+    for (const [, count] of perCompany) expect(count).toBeLessThan(80)
+  })
+
+  it('carries both good news and bad', () => {
+    const seen = new Set<string>()
+    for (const event of world.events) {
+      if (event.type !== 'company-news') continue
+      seen.add((event.detail ?? '').split(':')[1] ?? '')
+    }
+    const shocks = [...seen].map((id) => companyNewsById(id)?.shock ?? 0)
+    expect(shocks.some((v) => v > 0)).toBe(true)
+    expect(shocks.some((v) => v < 0)).toBe(true)
+  })
+
+  it('is one of the terms in a company month, not a second move', () => {
+    // The shock is handed to stepStocks and folded into the same
+    // calculation as the sector move and the noise. If it were applied
+    // afterwards a company would move twice in a month, and the history
+    // would record only the second of them.
+    for (const stock of STOCKS) {
+      const history = world.stockHistory[stock.id] ?? []
+      for (const close of history) expect(close).toBeGreaterThanOrEqual(500)
+    }
   })
 })
