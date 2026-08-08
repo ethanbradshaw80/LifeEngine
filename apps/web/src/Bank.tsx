@@ -27,7 +27,6 @@ import {
   filingsOf,
   discretionaryFor,
   economyPhaseWords,
-  holdingValue,
   homeEquityOf,
   homeValueOf,
   householdCosts,
@@ -51,12 +50,16 @@ import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
 
-type BankTab = 'home' | 'accounts' | 'invest' | 'loans' | 'taxes'
+type BankTab = 'home' | 'accounts' | 'loans' | 'taxes'
 
 const TABS: readonly { id: BankTab; icon: string; label: string }[] = [
   { id: 'home', icon: '🏦', label: 'Home' },
   { id: 'accounts', icon: '💳', label: 'Accounts' },
-  { id: 'invest', icon: '📈', label: 'Invest' },
+  // INVESTING LEFT (owner, playing: "we have investing showing up as its
+  // own tab as markets and in the banking app it still shows"). The
+  // market has companies, a chart, analysts and its own screen now; a
+  // second, thinner version of it behind a bank sub-tab is two places to
+  // do one thing, and the one that would go stale is this one.
   { id: 'loans', icon: '🏷️', label: 'Loans' },
   { id: 'taxes', icon: '🧾', label: 'Taxes' },
 ]
@@ -97,7 +100,7 @@ export function Bank({
   readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
   const [tab, setTab] = useState<BankTab>('home')
-  const [sector, setSector] = useState<string>(SECTORS[0]?.id ?? 'industrial')
+  const [sector] = useState<string>(SECTORS[0]?.id ?? 'industrial')
 
   const accounts = accountsOf(world, person.id)
   const worth = netWorthOf(world, person.id)
@@ -235,55 +238,6 @@ export function Bank({
           </>
         )}
 
-        {tab === 'invest' && (
-          <>
-            <section className="bank-card">
-              <h4>Portfolio</h4>
-              <Row label="Value" value={formatMoney(portfolio)} />
-              <Row label="Market" value={String(Math.round(marketLevel(world) / 100))} tone="muted" />
-            </section>
-            <section className="bank-card">
-              <h4>Sectors</h4>
-              {SECTORS.map((s) => {
-                const price = world.sectorPrices[s.id] ?? 10_000
-                const held = accounts.holdings.find((h) => h.sectorId === s.id)
-                return (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={`bank-sector ${sector === s.id ? 'is-picked' : ''}`}
-                    onClick={() => setSector(s.id)}
-                  >
-                    <span className="h">{s.title}</span>
-                    <span className="p">{(price / 100).toFixed(0)}</span>
-                    <span className="d">
-                      {held ? formatMoney(holdingValue(world, held)) : '—'}
-                    </span>
-                  </button>
-                )
-              })}
-              <div className="bank-actions">
-                <button
-                  type="button"
-                  disabled={stake <= 0}
-                  onClick={() => onAct({ verb: 'invest', sectorId: sector, cents: stake, retirement: false })}
-                >
-                  Buy {formatMoney(stake)}
-                </button>
-                <button
-                  type="button"
-                  disabled={!accounts.holdings.some((h) => h.sectorId === sector)}
-                  onClick={() => onAct({ verb: 'divest', sectorId: sector, retirement: false })}
-                >
-                  Sell all
-                </button>
-              </div>
-              <p className="bank-note">
-                A sale outside retirement realises the gain, and a realised gain is taxed.
-              </p>
-            </section>
-          </>
-        )}
 
         {tab === 'loans' && (
           <>
@@ -389,16 +343,6 @@ export function Bank({
 
                 What is worth keeping is the STATE, and it lives where the
                 house does. */}
-            {accounts.homePlaceId === null && (
-              <section className="bank-card">
-                <h4>Home</h4>
-                <p className="bank-note">
-                  You do not own a home. Renting and buying both live under
-                  Property — and if a mortgage is out of reach, renting is
-                  what the market offers instead.
-                </p>
-              </section>
-            )}
 
             <section className="bank-card">
               <h4>Apply</h4>

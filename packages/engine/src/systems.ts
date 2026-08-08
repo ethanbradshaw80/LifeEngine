@@ -529,6 +529,86 @@ function honourRotc(world: World, tick: Tick, person: Person): void {
   recordEvent(world, tick, { type: 'won-funding', subjectId: person.id, detail: 'rotc-repaid' })
 }
 
+/**
+ * WHY THIS JOB IS CLOSED TO THIS PERSON — or null when it is open.
+ *
+ * The bar pattern, applied to hiring (careers overhaul, and the owner's
+ * `careers.html` asks for it explicitly): the openings list shows the
+ * locked jobs WITH THEIR REASON rather than hiding them, so "🔒 Earned by
+ * climbing: constable → sergeant" is on the screen instead of the job
+ * quietly not being there.
+ *
+ * One function so the greyed row and the refusal cannot disagree, and so
+ * the reasons stay in the engine where the rules are. The order matters:
+ * the most fundamental answer first, because telling somebody their
+ * schooling is short when the real problem is that nobody may be hired
+ * into that rung at all would be a lie by omission.
+ */
+export function hiringBar(
+  world: World,
+  person: Person,
+  occupationId: string,
+  tick: Tick,
+): string | null {
+  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
+  if (occupation === undefined) return 'No such work in this town.'
+
+  // 1. THE LADDER. Nobody is hired into the middle of one.
+  if (!isEntryWork(occupationId)) {
+    const place = placeOf(occupationId)
+    const below = place === undefined ? undefined : place.track.rungs[place.rung - 1]
+    const under = below === undefined ? undefined : OCCUPATIONS.find((o) => o.id === below.occupationId)
+    const rung = place === undefined ? undefined : place.track.rungs[place.rung]
+    const credential =
+      rung?.needsLevel === 'graduate' ? 'a postgraduate qualification and ' : ''
+    return under === undefined
+      ? 'Earned by climbing, not by being hired into it.'
+      : `Earned by climbing: ${credential}years as ${withArticle(under.title)} first. You cannot be hired straight in.`
+  }
+
+  // 2. THE PAPERS.
+  const education = world.education.get(person.id)
+  const level = education?.level ?? 'none'
+  const unlocked = veteranUnlocks(world, person.id)
+  if (!meetsRequirement(level, occupation.requires) && !unlocked.includes(occupationId)) {
+    return `Asks for ${SCHOOLING_FOR_BAR[occupation.requires] ?? 'more schooling'} — the papers are not there.`
+  }
+
+  // 3. THE RECORD at the courthouse.
+  if (recordGateOf(world, person.id, tick) === 'hard' && isTrustSensitive(occupationId)) {
+    return 'A conviction on the record closes this kind of work.'
+  }
+
+  // 4. THE CHAIR. Some posts are one to a town.
+  if (occupationId === 'constable' && !constableSeatOpen(world)) {
+    return 'The county has all the constables it is paying for.'
+  }
+  if (!topSeatOpen(world, occupationId)) {
+    return 'Somebody already holds that post, and a town supports one.'
+  }
+  return null
+}
+
+/** The words a requirement is said in on the openings list. */
+const SCHOOLING_FOR_BAR: Readonly<Record<string, string>> = {
+  none: 'no schooling',
+  primary: 'elementary school',
+  middle: 'middle school',
+  secondary: 'a high school diploma',
+  trade: 'trade school',
+  college: 'a degree',
+  graduate: 'a postgraduate qualification',
+}
+
+/**
+ * Does this person's service actually count toward this work? The chip
+ * the mockup calls "Army medic — edge", and the same list the interview
+ * reads when it hands out the bonus.
+ */
+export function serviceEdgeFor(world: World, personId: EntityId, occupationId: string): boolean {
+  return veteranUnlocks(world, personId).includes(occupationId)
+}
+
 export function runEducation(world: World, tick: Tick): void {
   runSchoolMoments(world, tick)
   for (const person of livingPeople(world)) {
@@ -1897,30 +1977,21 @@ export function runHouseholds(world: World, tick: Tick): void {
 
       const target = rng.pick(better)
 
-      // A better street is affordable. The player decides whether the family
-      // moves; for an NPC the desirability gap already decided. P2: every
-      // qualifying street is offered, not just the engine's pick.
-      if (person.id === world.player.personId) {
-        raisePending(world, {
-          tick,
-          kind: 'move-house',
-          personId: person.id,
-          otherId: null,
-          occupationId: null,
-          workplaceId: null,
-          monthlyPay: null,
-          placeId: target.id,
-          options: [
-            'accept',
-            'decline',
-            ...better
-              .filter((p) => p.id !== target.id)
-              .sort((x, y) => x.id - y.id)
-              .map((p) => `to-${String(p.id)}`),
-          ],
-        })
-        continue
-      }
+      // A better street is affordable, so the family moves.
+      //
+      // THE PLAYER IS NO LONGER ASKED, and the distinction matters because
+      // there are two move-house questions in this engine and only one of
+      // them is going. This one was SHOPPING — a nicer postcode is within
+      // reach, would you like it — and shopping for somewhere to live
+      // happens in Property now, against actual houses with prices,
+      // conditions and owners. Asking it here would be the Streets list
+      // again, arriving as a popup instead of a list.
+      //
+      // The one in finances.ts STAYS. That is a family who cannot pay for
+      // where they are, being moved somewhere cheaper: the world acting on
+      // them rather than an offer, and part of how the safety net keeps a
+      // household off the street.
+      if (person.id === world.player.personId) continue
 
       world.households.set(household.id, { ...household, placeId: target.id })
       recordEvent(world, tick, { type: 'moved-house', subjectId: person.id, placeId: target.id })

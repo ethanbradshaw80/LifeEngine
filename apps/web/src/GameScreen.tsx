@@ -40,7 +40,6 @@ import {
   activeWars,
   ageAt,
   arrearsHistoryOf,
-  canAfford,
   childrenIdsOf,
   compatibility,
   courtshipBar,
@@ -65,7 +64,6 @@ import {
   monthlyNetOf,
   personalMonthlyNet,
   partnerOf,
-  moveBar,
   newsSince,
   OCCUPATIONS,
   occupationById,
@@ -88,6 +86,10 @@ import {
   branchName,
   crimeNewsSince,
   enlistmentBar,
+  hiringBar,
+  serviceEdgeFor,
+  isEntryWork,
+  placeOf,
   isJailed,
   healthOf,
   isDeployed,
@@ -114,7 +116,6 @@ import {
   GRADE_TITLES,
   OFFENCES,
   offenceBar,
-  placesOfKind,
 } from '@life-engine/engine'
 import type { EntityId, Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
@@ -124,6 +125,7 @@ import { RecruitingStationView } from './RecruitingStation.js'
 import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Market } from './Market.js'
+import { School } from './School.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
 
@@ -250,6 +252,7 @@ type Tab =
   | 'money'
   | 'property'
   | 'market'
+  | 'school'
   | 'family'
   | 'people'
   | 'career'
@@ -284,6 +287,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'money', icon: '💰', label: 'Money' },
   { id: 'market', icon: '📉', label: 'Market' },
   { id: 'property', icon: '🏘️', label: 'Property' },
+  { id: 'school', icon: '🎓', label: 'School' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'career', icon: '📈', label: 'Career' },
   { id: 'family', icon: '👪', label: 'Family' },
@@ -296,15 +300,6 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'stats', icon: '🏙️', label: 'Town' },
 ]
 
-const SCHOOLING_WORDS: Record<EducationLevel, string> = {
-  none: 'no schooling needed',
-  primary: 'elementary schooling',
-  middle: 'middle schooling',
-  secondary: 'a high school diploma',
-  trade: 'trade school',
-  college: 'college',
-  graduate: 'an advanced degree',
-}
 
 // The same levels said as a PERSON'S schooling rather than a job's
 // requirement — "secondary school", not "secondary schooling" (P3).
@@ -1170,6 +1165,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           It was a sub-tab of Money, which was fine while a person could own
           exactly one home. Owning several is a different thing to look at —
           a portfolio, not a line item. */}
+      {tab === 'school' && (
+        <div className="panel" aria-label="School">
+          {/* EIGHT PHASES OF EDUCATION HAD NO HOME (owner, playing: "there
+              is no school UI either"). The record, the report card, the
+              field, who is paying, what it cost and the way out. */}
+          <School
+            world={world}
+            person={person}
+            busy={busy}
+            onAct={onAct}
+          />
+        </div>
+      )}
+
       {tab === 'market' && (
         <div className="panel" aria-label="Market">
           {/* THE MARKET IS ITS OWN TAB, not a row inside the bank. The
@@ -1457,41 +1466,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         ))}
                       </div>
 
-                      <h3 className="panel-heading">Streets</h3>
-                      <ul className="job-list">
-                        {placesOfKind(world, 'neighbourhood')
-                          .slice()
-                          .sort((a, b) => a.desirability - b.desirability)
-                          .map((place) => {
-                            const current = place.id === household.placeId
-                            // The engine's WHOLE gate (P3 review): moveBar is
-                            // the same function lookForPlace answers from, so
-                            // a live button and an honest refusal cannot
-                            // disagree — affordability was only one of four.
-                            const bar = moveBar(world, person.id, place.id, world.tick)
-                            return (
-                              <li key={place.id} className={current ? 'current' : undefined}>
-                                <span className="job-title">{place.name}</span>
-                                <span className="muted small">
-                                  {formatMoney(rentFor(place.desirability))} a month
-                                  {current && ' — home'}
-                                  {!current && !canAfford(ledger.income, place.desirability) && ' — out of reach'}
-                                </span>
-                                {!current && (
-                                  <button
-                                    type="button"
-                                    className="apply"
-                                    disabled={busy || bar !== null}
-                                    title={bar ?? undefined}
-                                    onClick={() => onAct({ verb: 'look-for-place', placeId: place.id })}
-                                  >
-                                    Look for a place
-                                  </button>
-                                )}
-                              </li>
-                            )
-                          })}
-                      </ul>
+                      {/* THE STREETS LIST IS GONE (owner, playing: "we
+                          need to remove the streets as well since we have a
+                          full real estate system now").
+
+                          It let you "look for a place" in a NEIGHBOURHOOD and
+                          priced it off that street's average rent — the
+                          abstract housing model the property market replaced.
+                          Keeping it was the same mistake the bank's old Home
+                          section was: two ways to get a roof that disagree,
+                          one picking a postcode and one picking an actual
+                          door with a price, a condition and an owner.
+
+                          Households still MOVE — the engine goes on seating
+                          people and NPCs go on relocating. What is gone is
+                          the player choosing a street instead of a house.
+                          Property is the way in. */}
                     </>
                   )}
                 </>
@@ -1877,43 +1867,63 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             )
           })()}
           <h3>Work in town</h3>
-          <ul className="job-list">
-            {(() => {
-              const unlocks = veteranUnlocks(world, person.id)
-              return [...OCCUPATIONS]
-                .sort((a, b) => a.minMonthlyPay - b.minMonthlyPay)
-                .map((occupation) => {
-                  const mine = job?.occupationId === occupation.id
-                  const unlocked = unlocks.includes(occupation.id)
-                  return (
-                    <li key={occupation.id} className={mine ? 'current' : undefined}>
-                      <span className="job-title">{occupation.title}</span>
-                      <span className="muted small">
-                        {SCHOOLING_WORDS[occupation.requires]}
-                        {unlocked && ' — or your service training'}
+          {/* THE OPENINGS LIST, built to the owner's `careers.html`.
+              A locked job is SHOWN WITH ITS REASON rather than hidden —
+              "Earned by climbing: constable then sergeant" is on the row,
+              because a door you cannot see is indistinguishable from a
+              door that is not there. `hiringBar` is the engine's own
+              answer, so the greyed row and the refusal cannot disagree. */}
+          <ul className="openings">
+            {[...OCCUPATIONS]
+              .sort((a, b) => b.minMonthlyPay - a.minMonthlyPay)
+              .map((occupation) => {
+                const mine = job?.occupationId === occupation.id
+                const bar = hiringBar(world, person, occupation.id, world.tick)
+                const edge = serviceEdgeFor(world, person.id, occupation.id)
+                const entry = isEntryWork(occupation.id)
+                const place = placeOf(occupation.id)
+                return (
+                  <li
+                    key={occupation.id}
+                    className={mine ? 'opening current' : bar === null ? 'opening' : 'opening locked'}
+                  >
+                    <div className="op-r1">
+                      <span className="op-ti">{occupation.title}</span>
+                      <span className="op-pay tabular">
+                        {formatMoney(annualPay(occupation.minMonthlyPay))}/yr
                       </span>
-                      <span className="job-pay">
-                        {formatMoney(occupation.minMonthlyPay)}–{formatMoney(occupation.maxMonthlyPay)}
-                      </span>
-                      {!mine && age >= 18 && !isServing(world, person.id) && (
-                        <button
-                          type="button"
-                          className="apply"
-                          disabled={busy}
-                          onClick={() => onApplyJob(occupation.id)}
-                        >
-                          Apply
-                        </button>
-                      )}
-                    </li>
-                  )
-                })
-            })()}
+                    </div>
+                    <div className="op-emp">
+                      {place === undefined
+                        ? 'no ladder — work in its own right'
+                        : `${place.track.title} track${entry ? ' · entry' : ''}`}
+                    </div>
+                    <div className="op-tags">
+                      {entry && <span className="tag entry">Entry rung</span>}
+                      {bar === null && <span className="tag ok">Qualified</span>}
+                      {edge && <span className="tag edge">Your service — edge</span>}
+                    </div>
+                    {bar !== null && <div className="op-why">🔒 {bar}</div>}
+                    {!mine && age >= 18 && !isServing(world, person.id) && (
+                      <button
+                        type="button"
+                        className="op-apply"
+                        disabled={busy || bar !== null}
+                        title={bar ?? undefined}
+                        onClick={() => onApplyJob(occupation.id)}
+                      >
+                        {bar === null ? 'Apply' : 'Not open to you'}
+                      </button>
+                    )}
+                    {mine && <div className="op-why">This is the work you do.</div>}
+                  </li>
+                )
+              })}
           </ul>
           <p className="note small">
-            Work arrives as offers — the town hires when there is an opening and
-            you fit it. Schooling, a clean record and good performance are what
-            get you noticed.
+            You apply and you interview — the town does not hand anybody a job. Ladders are
+            entered at the bottom and climbed; what your service taught you is an edge in the
+            room, not a shortcut past it.
           </p>
         </div>
       )}
@@ -2113,7 +2123,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           })()}
           {(() => {
             const record = world.service.get(person.id)
-            if (!record) {
+            // THE OFFICE IS OPEN TO A VETERAN TOO, and it was not.
+            //
+            // This read `if (!record)` — the recruiting station appeared
+            // only for somebody who had NEVER served. The RE-code work
+            // made coming back a real thing in the engine and there was
+            // still no door on the screen, which is the third time in this
+            // module that a rule has worked and the way to reach it has
+            // not existed (the GI Bill measured at zero people for the
+            // same reason, and re-enlistment itself had two bolted doors).
+            //
+            // `enlistmentBar` already answers for both cases — it names
+            // the RE code when the papers refuse — so the wall explains
+            // itself without this having to know why.
+            if (!record || record.dischargedAtTick !== null) {
               // M-ENLIST §7. The wall, not a bare refusal — see
               // RecruitingStation.tsx for why one button was not enough.
               return (

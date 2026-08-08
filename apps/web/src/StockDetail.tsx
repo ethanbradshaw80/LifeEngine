@@ -148,7 +148,7 @@ export function StockDetail({
           <path
             d={pathFor(shown, 320, 170)}
             fill="none"
-            stroke={up ? 'var(--green, #3ecf8e)' : 'var(--red, #f0776f)'}
+            stroke={up ? 'var(--ok)' : 'var(--bad)'}
             strokeWidth="2"
           />
         </svg>
@@ -227,9 +227,9 @@ export function StockDetail({
             </span>
           </div>
           <div className="stock-cons" aria-hidden="true">
-            <i style={{ width: `${String((view.buy * 100) / view.analysts)}%`, background: 'var(--green, #3ecf8e)' }} />
-            <i style={{ width: `${String((view.hold * 100) / view.analysts)}%`, background: '#5b6673' }} />
-            <i style={{ width: `${String((view.sell * 100) / view.analysts)}%`, background: 'var(--red, #f0776f)' }} />
+            <i style={{ width: `${String((view.buy * 100) / view.analysts)}%`, background: 'var(--ok)' }} />
+            <i style={{ width: `${String((view.hold * 100) / view.analysts)}%`, background: 'var(--muted)' }} />
+            <i style={{ width: `${String((view.sell * 100) / view.analysts)}%`, background: 'var(--bad)' }} />
           </div>
           <div className="stock-target muted small">
             12-month target {formatMoney(priceToMoney(view.targetLow))} –{' '}

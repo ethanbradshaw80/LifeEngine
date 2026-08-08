@@ -8,6 +8,17 @@
   --accent: #2b5797;
   --ok: #2e7d32;
   --bad: #c62828;
+  /* ADDED FOR THE MARKET, SCHOOL AND OPENINGS SCREENS.
+     The owner's mockups lean on a few colours this system did not have —
+     a raised surface, and three accents that mean "earned", "advisory"
+     and "a mark of quality". They are declared HERE, in both schemes,
+     because the alternative was what the first attempt did: hardcode the
+     mockup's dark hex into the components, which rendered dark slabs on a
+     white page in light mode and looked pasted in rather than built in. */
+  --panel-raised: #f2f2f2;
+  --gold: #8a6d1f;
+  --purple: #6b4ea8;
+  --amber: #9a6a1b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,6 +31,10 @@
     --accent: #7aa2e3;
     --ok: #6fbf73;
     --bad: #ef6b6b;
+    --panel-raised: #242830;
+    --gold: #d4af37;
+    --purple: #b57ce0;
+    --amber: #e0a24f;
   }
 }
 
@@ -3828,291 +3843,522 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .re-portfolio b { margin-left: auto; font-size: 0.95rem; font-weight: 800; color: var(--fg); }
 
 /* ---------------------------------------------------------------------
-   The market and a company's page (stock revamp §8).
+   Market, school and job openings.
 
-   Built to the owner's mockup, and mobile-first like the rest of the app:
-   one column, tap targets that are actually tappable, and tabular numerals
-   on every price so a column of them does not jitter as the digits change.
+   Written to THIS app's conventions rather than the mockups' raw CSS:
+   rem units so the type scales with everything else, the 7px radius the
+   panels already use, and only the semantic tokens declared at the top of
+   this file. The mockups supplied the LAYOUT and the information design;
+   the colours and the spacing are the ones already in use here.
    --------------------------------------------------------------------- */
 
-.market {
+.market,
+.school,
+.stock-detail {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 0.75rem;
 }
 
-.mkt-index {
-  padding: 14px 16px;
-  border: 1px solid var(--line, #2a323d);
-  border-radius: 12px;
-  background: var(--panel, #161b22);
+/* A card. One definition for all three screens, matching .panel. */
+.mkt-index,
+.mkt-sec,
+.school-card,
+.stock-sec,
+.opening {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  padding: 0.7rem 0.8rem;
 }
-.mkt-index-name {
-  font-size: 12.5px;
-  color: var(--muted, #93a0b1);
-}
-.mkt-index-px {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-top: 2px;
-}
-
-.mkt-sec {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.mkt-sec h3 {
-  margin: 0 0 8px;
-  font-size: 11px;
-  letter-spacing: 1px;
+.mkt-sec h3,
+.school-card h3,
+.stock-sec h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted, #93a0b1);
+  color: var(--muted);
   font-weight: 700;
 }
 
-/* A listing row. A grid rather than flex so the ticker column lines up
-   down the whole list however long a company's name is. */
+/* --- the market ----------------------------------------------------- */
+
+.mkt-index-name {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.mkt-index-px {
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-top: 0.1rem;
+}
 .mkt-row {
   display: grid;
-  grid-template-columns: 62px 1fr auto auto;
+  grid-template-columns: 3.6rem 1fr auto auto;
   align-items: baseline;
-  gap: 10px;
+  gap: 0.6rem;
   width: 100%;
-  padding: 11px 12px;
+  padding: 0.55rem 0.2rem;
   border: 0;
-  border-bottom: 1px solid var(--line, #2a323d);
+  border-bottom: 1px solid var(--line);
   background: transparent;
   color: inherit;
   text-align: left;
   font: inherit;
   cursor: pointer;
 }
+.mkt-row:last-child {
+  border-bottom: 0;
+}
 .mkt-row:hover {
-  background: var(--panel2, #1d232c);
+  background: var(--panel-raised);
 }
 .mkt-row.owned {
-  background: rgba(62, 207, 142, 0.06);
+  border-left: 2px solid var(--ok);
 }
 .mkt-row-sym {
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: 0.4px;
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 .mkt-row-name {
-  font-size: 12px;
-  color: var(--muted, #93a0b1);
+  font-size: 0.75rem;
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .mkt-row-px {
   font-weight: 700;
-  font-size: 13.5px;
+  font-size: 0.85rem;
 }
 .mkt-row-chg {
-  font-size: 12.5px;
+  font-size: 0.78rem;
   font-weight: 700;
-  min-width: 58px;
+  min-width: 3.4rem;
   text-align: right;
 }
 .mkt-row-chg.up,
 .stock-chg.up,
+.school-row .v.good,
 .v.up {
-  color: var(--green, #3ecf8e);
+  color: var(--ok);
 }
 .mkt-row-chg.down,
 .stock-chg.down,
 .v.down {
-  color: var(--red, #f0776f);
+  color: var(--bad);
 }
-
 .mkt-sectors {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.35rem;
 }
 .mkt-chip {
-  padding: 6px 11px;
+  padding: 0.3rem 0.6rem;
   border-radius: 999px;
-  border: 1px solid var(--line, #2a323d);
+  border: 1px solid var(--line);
   background: transparent;
-  color: var(--muted, #93a0b1);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
 }
 .mkt-chip.on {
-  background: var(--green, #3ecf8e);
-  border-color: var(--green, #3ecf8e);
-  color: #0b0e13;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
 }
 
-/* --- a company's own page ------------------------------------------- */
+/* --- a company's page ----------------------------------------------- */
 
-.stock-detail {
-  display: flex;
-  flex-direction: column;
-}
 .stock-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 4px 12px;
+  gap: 0.5rem;
 }
 .stock-back {
   border: 0;
   background: transparent;
-  color: var(--muted, #93a0b1);
-  font-size: 20px;
+  color: var(--muted);
+  font-size: 1.1rem;
   cursor: pointer;
-  padding: 0 6px;
+  padding: 0 0.3rem;
 }
 .stock-sym {
-  font-size: 15px;
+  font-size: 0.9rem;
   font-weight: 800;
-  letter-spacing: 0.5px;
-}
-.stock-head {
-  padding: 2px 4px 6px;
 }
 .stock-co {
-  font-size: 12.5px;
-  color: var(--muted, #93a0b1);
+  font-size: 0.8rem;
+  color: var(--muted);
 }
 .stock-px {
-  font-size: 32px;
+  font-size: 1.9rem;
   font-weight: 800;
-  letter-spacing: -0.5px;
-  margin-top: 3px;
+  line-height: 1.1;
+  margin-top: 0.1rem;
 }
 .stock-chg {
-  font-size: 13px;
+  font-size: 0.8rem;
   font-weight: 700;
-  margin-top: 4px;
+  margin-top: 0.2rem;
 }
-
 .stock-chart svg {
   display: block;
   width: 100%;
-  height: 170px;
+  height: 8rem;
 }
 .stock-note {
-  margin: 2px 4px 0;
+  margin: 0.2rem 0 0;
 }
-
 .stock-pills {
   display: flex;
-  gap: 4px;
-  padding: 8px 0 4px;
+  gap: 0.25rem;
 }
 .stock-pill {
   flex: 1;
   text-align: center;
-  font-size: 11.5px;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--muted, #93a0b1);
-  padding: 7px 0;
-  border: 0;
+  color: var(--muted);
+  padding: 0.4rem 0;
+  border: 1px solid var(--line);
   border-radius: 7px;
   background: transparent;
   cursor: pointer;
 }
 .stock-pill.on {
-  color: #0b0e13;
-  background: var(--green, #3ecf8e);
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
 }
-
 .stock-trade {
   display: flex;
-  gap: 10px;
-  padding: 12px 0;
+  gap: 0.5rem;
 }
 .stock-trade button {
   flex: 1;
-  padding: 13px;
-  border-radius: 11px;
-  font-size: 14px;
-  font-weight: 800;
+  padding: 0.65rem;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
-  border: 1px solid;
+  border: 1px solid var(--line);
+  background: var(--panel-raised);
+  color: inherit;
 }
 .stock-trade button:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: default;
 }
 .stock-buy {
-  background: #1f6f4d;
-  border-color: #2b8a63;
-  color: #eafff4;
+  border-color: var(--ok) !important;
+  color: var(--ok);
 }
 .stock-sell {
-  background: transparent;
-  border-color: #7a2a26;
-  color: #f0a49e;
+  border-color: var(--bad) !important;
+  color: var(--bad);
 }
-
-.stock-sec {
-  padding: 14px 0;
-  border-top: 1px solid var(--line, #2a323d);
-}
-.stock-sec h3 {
-  margin: 0 0 11px;
-  font-size: 11px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--muted, #93a0b1);
-  font-weight: 700;
-}
-.stock-grid {
+.stock-grid,
+.school-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 11px 14px;
+  gap: 0.55rem 0.8rem;
 }
-.stock-grid .k {
-  font-size: 11px;
-  color: var(--muted, #93a0b1);
+.stock-grid .k,
+.school-grid .k {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
-.stock-grid .v {
-  font-size: 14px;
+.stock-grid .v,
+.school-grid .v {
+  font-size: 0.85rem;
   font-weight: 700;
-  margin-top: 2px;
+  margin-top: 0.1rem;
 }
-
 .stock-rating {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
   flex-wrap: wrap;
 }
 .stock-badge {
-  font-size: 15px;
+  font-size: 0.85rem;
   font-weight: 800;
-  color: #0b0e13;
-  background: var(--green, #3ecf8e);
-  border-radius: 8px;
-  padding: 5px 12px;
+  color: var(--bg);
+  background: var(--accent);
+  border-radius: 7px;
+  padding: 0.2rem 0.6rem;
 }
-/* The consensus bar. Three spans, widths summing to a hundred. */
 .stock-cons {
-  height: 12px;
-  border-radius: 6px;
+  height: 0.6rem;
+  border-radius: 999px;
   overflow: hidden;
   display: flex;
-  margin-bottom: 7px;
+  margin-bottom: 0.4rem;
 }
 .stock-cons i {
   height: 100%;
 }
 .stock-sectag {
   display: inline-block;
-  font-size: 11px;
+  font-size: 0.7rem;
   font-weight: 700;
-  padding: 4px 9px;
+  padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  border: 1px solid var(--line, #2a323d);
-  color: var(--muted, #93a0b1);
-  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+}
+
+/* --- school ---------------------------------------------------------- */
+
+.school-hd {
+  padding: 0 0.1rem;
+}
+.school-k {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 700;
+}
+.school-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  margin-top: 0.15rem;
+}
+.school-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+.school-top {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.school-gpa {
+  width: 4.5rem;
+  height: 4.5rem;
+  position: relative;
+  flex: none;
+}
+.school-gpa svg {
+  width: 4.5rem;
+  height: 4.5rem;
+  display: block;
+}
+.school-gpa-n {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.school-gpa-n b {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.school-gpa-n s {
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  margin-top: 0.1rem;
+}
+.school-info .yr {
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+.school-info .tr {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+.school-chip {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--bg);
+  background: var(--gold);
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+}
+.school-scene {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  margin: 0.3rem 0 0.7rem;
+}
+.school-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.school-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.6rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+  width: 100%;
+}
+.school-opt:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.school-opt .tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 0.1rem 0.4rem;
+  flex: none;
+}
+.school-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.85rem;
+  padding: 0.2rem 0;
+}
+.school-row .l {
+  color: var(--fg);
+}
+.school-row .v {
+  font-weight: 700;
+}
+.school-row .v.warn {
+  color: var(--amber);
+}
+.school-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+}
+.school-act {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.6rem 0.3rem;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--panel-raised);
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.school-act.on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.school-act .ic {
+  font-size: 1.05rem;
+}
+
+/* --- job openings ---------------------------------------------------- */
+
+.openings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.opening.locked {
+  opacity: 0.6;
+}
+.opening.current {
+  border-color: var(--ok);
+}
+.op-r1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.op-ti {
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.op-pay {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--ok);
+}
+.op-emp {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.1rem;
+}
+.op-tags {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
+  flex-wrap: wrap;
+}
+.op-tags .tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 5px;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.op-tags .tag.entry {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.op-tags .tag.ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.op-tags .tag.edge {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.op-why {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.45rem;
+  line-height: 1.45;
+}
+.op-apply {
+  margin-top: 0.55rem;
+  width: 100%;
+  background: var(--panel-raised);
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  font-weight: 700;
+  border-radius: 7px;
+  padding: 0.5rem;
+  font-size: 0.83rem;
+  cursor: pointer;
+}
+.opening.locked .op-apply {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
 }

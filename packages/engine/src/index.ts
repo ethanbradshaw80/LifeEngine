@@ -437,7 +437,7 @@ export {
   workResultFor,
 } from './workmoments.js'
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
-export { MAJORS, majorById, majorsFor } from './content.js'
+export { GRADUATE_ADMISSION, MAJORS, MERIT_ATTAINMENT, majorById, majorsFor } from './content.js'
 export {
   ANALYST_MONTHS,
   REFERENCE_PE,
@@ -466,7 +466,8 @@ export {
 } from './market.js'
 export type { AnalystView, Stock } from './types.js'
 export type { CompanyNews } from './market.js'
-export { dropOut, dropOutBar } from './systems.js'
+export { dropOut, dropOutBar, hiringBar, serviceEdgeFor } from './systems.js'
+export { isEntryWork, meritedRung } from './careers.js'
 export { dropOutPlayer, buySharesPlayer, sellSharesPlayer } from './player.js'
 export type { Major } from './content.js'
 export {
