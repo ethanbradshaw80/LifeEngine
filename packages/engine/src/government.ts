@@ -124,7 +124,12 @@ export const SEATED_OFFICES: readonly string[] = ['mayor', 'sheriff', 'council',
  */
 export function freshPolicy(): PolicyState {
   return {
-    propertyTaxPerMille: 14,
+    // MATCHES THE RATE REAL ESTATE ALREADY CHARGED. Phase 2 wires this
+    // lever into ownershipCostOf, and starting it anywhere else would
+    // have changed every household's bill on day one — a rate change
+    // smuggled in with the wiring, and a golden shift with two causes.
+    // A world begins exactly as it did; only a government moves it.
+    propertyTaxPerMille: 11,
     policeFunding: 500,
     schoolFunding: 500,
     incomeTaxPerMille: 220,

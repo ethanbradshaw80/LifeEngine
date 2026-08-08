@@ -1510,6 +1510,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             person={person}
             busy={busy}
             onPetition={() => onAct({ verb: 'petition-expungement' })}
+            onAct={onAct}
           />
         </div>
       )}

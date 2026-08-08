@@ -308,8 +308,20 @@ export interface OwnershipCost {
   readonly total: Money
 }
 
-/** A year's property tax, as a share of value. Tuned, not sourced. */
-const PROPERTY_TAX_PER_MILLE_YEARLY = 11
+/**
+ * A year's property tax, as a share of value.
+ *
+ * THE GOVERNMENT SETS THIS NOW (government plan §4, phase 2's first
+ * lever). It was a constant; it is whatever the town has voted for, and
+ * `freshPolicy` starts it at the 11 this constant used to be so that
+ * wiring it changed nobody's bill on the day it landed.
+ *
+ * Read straight off `world.policy` rather than through government.ts:
+ * the value is state, the module that owns it is a writer, and importing
+ * it here would close a cycle for a number this can simply look at.
+ */
+function propertyTaxPerMille(world: World): number {
+  return Math.max(0, world.policy.propertyTaxPerMille)}
 /** Insurance, likewise — a small yearly share of what it would cost to rebuild. */
 const INSURANCE_PER_MILLE_YEARLY = 4
 /** What a managed building charges, per month, for the common parts. */
@@ -323,7 +335,7 @@ export function ownershipCostOf(
   monthlyMortgage: Money,
 ): OwnershipCost {
   const value = valueOf(world, property)
-  const propertyTax = Math.floor((value * PROPERTY_TAX_PER_MILLE_YEARLY) / 1_000 / 12) as Money
+  const propertyTax = Math.floor((value * propertyTaxPerMille(world)) / 1_000 / 12) as Money
   const insurance = Math.floor((value * INSURANCE_PER_MILLE_YEARLY) / 1_000 / 12) as Money
   // Only a managed building has a service charge; a house on its own lot
   // does not, and pretending otherwise would be charging for nothing.

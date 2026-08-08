@@ -4362,3 +4362,71 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   color: var(--muted);
   cursor: not-allowed;
 }
+
+/* ---------------------------------------------------------------------
+   The ballot (owner's `government.html`).
+
+   The mockup's layout, this app's tokens: a party dot, the name, where
+   the polls have them, and a Vote button. Colours come from --accent /
+   --bad / --ok via the party's `tone`, never a hex, so the dots survive
+   light mode.
+   --------------------------------------------------------------------- */
+
+.cand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.cand:last-child {
+  border-bottom: 0;
+}
+.cand .dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  flex: none;
+}
+.dot.tone-accent {
+  background: var(--accent);
+}
+.dot.tone-bad {
+  background: var(--bad);
+}
+.dot.tone-ok {
+  background: var(--ok);
+}
+.cand .nm {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.cand .pt {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.cand .poll {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.voteb {
+  margin-left: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--panel-raised);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 7px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+.voteb.on {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.voteb:disabled {
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}

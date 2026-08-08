@@ -211,6 +211,7 @@ import {
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import { majorsFor } from './content.js'
+import { castVote, voteBar } from './government.js'
 import { stockById } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
@@ -890,6 +891,25 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
  * LEAVE THE COURSE. The bar and the verb read the same function, so the
  * greyed button and the refusal can never disagree.
  */
+/**
+ * MARK A BALLOT. The bar and the verb read one function, so a greyed
+ * button and a refusal cannot disagree.
+ */
+export function votePlayer(
+  world: World,
+  officeId: string,
+  forPersonId: number,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = voteBar(world, person.id, officeId, world.tick)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'vote', officeId)
+  return castVote(world, person.id, officeId, forPersonId as never, world.tick)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'That name is not on this ballot.' }
+}
+
 export function dropOutPlayer(world: World): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
@@ -2764,6 +2784,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'doctor':
     case 'rent-home':
     case 'sell-home':
+    case 'vote':
     case 'drop-out':
     case 'pay-off-plan':
     case 'school-request':
@@ -4010,6 +4031,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Sold the house.' // log-only
     case 'drop-out':
       return 'Left the course.' // log-only
+    case 'vote':
+      return 'Voted.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':

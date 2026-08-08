@@ -29,9 +29,18 @@ import {
 } from '@life-engine/engine'
 import { formatMoney } from '@life-engine/shared'
 import type { Person, World } from '@life-engine/engine'
+import {
+  SEATED_OFFICES,
+  holderOf,
+  officeById,
+  openBallots,
+  partyById,
+  voteBar,
+} from '@life-engine/engine'
+import type { VerbRequest } from './engine.worker.js'
 import { CountyRecords } from './CountyRecords.js'
 
-type Department = 'hall' | 'court'
+type Department = 'hall' | 'court' | 'ballot' | 'officials'
 
 /**
  * The counters that are not open yet. Stubbed HONESTLY — a card that says
@@ -42,20 +51,121 @@ const COMING: readonly { readonly icon: string; readonly name: string; readonly 
   { icon: '📜', name: 'Vital Records', detail: 'Births, marriages and deaths in the county.' },
   { icon: '🏷️', name: 'Property & Deeds', detail: 'Who owns what, and who owned it before.' },
   { icon: '🏛️', name: 'Business Registry', detail: 'Every business licensed in the county.' },
-  { icon: '🗳️', name: 'Elected Officials', detail: 'Who holds office, and since when.' },
-  { icon: '📋', name: 'Elections', detail: 'The next ballot, and every one before it.' },
 ]
+
+/**
+ * THE BALLOT, built to the owner's `government.html`.
+ *
+ * A race per card, a candidate per row: a party dot, the name, the party,
+ * where the polls have them, and a Vote button that greys from the
+ * ENGINE'S OWN refusal rather than from a guess the screen makes.
+ *
+ * The polling deliberately does not add up to a hundred. The mockup shows
+ * 48 against 45 with the rest undecided, and that gap is the most honest
+ * thing on the screen.
+ */
+function BallotView({
+  world,
+  person,
+  busy,
+  onAct,
+  onBack,
+}: {
+  readonly world: World
+  readonly person: Person
+  readonly busy: boolean
+  readonly onAct: (action: VerbRequest) => void
+  readonly onBack: () => void
+}): JSX.Element {
+  const races = openBallots(world)
+  return (
+    <>
+      <section className="hall-card">
+        <div className="hall-head">
+          <button type="button" className="hall-back" onClick={onBack}>
+            ←
+          </button>
+          <h3>Your ballot</h3>
+        </div>
+        {races.length === 0 ? (
+          <p className="muted small">
+            No ballot is open. Seats come up as terms end, and the campaign runs for a few
+            months before the vote.
+          </p>
+        ) : (
+          <p className="muted small">
+            {races.length} race{races.length === 1 ? '' : 's'} · decided{' '}
+            {formatYear(world, races[0]?.decidesAtTick ?? world.tick)}
+          </p>
+        )}
+      </section>
+
+      {races.map((race) => {
+        const office = officeById(race.officeId)
+        const bar = voteBar(world, person.id, race.officeId, world.tick)
+        return (
+          <section className="hall-card" key={race.officeId}>
+            <h3>{office?.title ?? race.officeId}</h3>
+            {race.runners.map((runner) => {
+              const who = world.people.get(runner.personId)
+              const party = partyById(runner.partyId)
+              const mine = race.playerVote === runner.personId
+              return (
+                <div className="cand" key={runner.personId}>
+                  <span className={`dot tone-${party?.tone ?? 'accent'}`} />
+                  <div>
+                    <div className="nm">
+                      {who === undefined ? 'a candidate' : `${who.givenName} ${who.familyName}`}
+                    </div>
+                    <div className="pt">{party?.name ?? ''}</div>
+                  </div>
+                  <span className="poll tabular">{(runner.polling / 10).toFixed(0)}%</span>
+                  <button
+                    type="button"
+                    className={mine ? 'voteb on' : 'voteb'}
+                    disabled={busy || (bar !== null && !mine)}
+                    title={bar ?? undefined}
+                    onClick={() =>
+                      onAct({ verb: 'vote', officeId: race.officeId, forPersonId: runner.personId })
+                    }
+                  >
+                    {mine ? 'Voted' : 'Vote'}
+                  </button>
+                </div>
+              )
+            })}
+            {bar !== null && <p className="muted small">{bar}</p>}
+          </section>
+        )
+      })}
+
+      <section className="hall-card">
+        {/* HONEST ABOUT WHAT IS NOT BUILT, the same way this file's
+            coming-soon counters are. Standing for office is phase 3 of the
+            plan and ballot measures are not modelled at all; a button that
+            did nothing would be worse than an admission. */}
+        <h3>Standing yourself</h3>
+        <p className="muted small">
+          Running for office is not open yet. When it is, the ladder starts at the School Board
+          and the City Council — the Mayor wants one of those behind you first.
+        </p>
+      </section>
+    </>
+  )
+}
 
 export function CityHall({
   world,
   person,
   busy,
   onPetition,
+  onAct,
 }: {
   readonly world: World
   readonly person: Person
   readonly busy: boolean
   readonly onPetition: () => void
+  readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
   const [where, setWhere] = useState<Department>('hall')
 
@@ -135,6 +245,20 @@ export function CityHall({
           <span className="n">Court Records</span>
           <span className="d">Search anyone&apos;s public record · the recent docket.</span>
         </button>
+        <button type="button" className="hall-dept" onClick={() => setWhere('ballot')}>
+          <span className="ic">📋</span>
+          <span className="n">Elections</span>
+          <span className="d">
+            {openBallots(world).length > 0
+              ? `${String(openBallots(world).length)} race${openBallots(world).length === 1 ? '' : 's'} on the ballot now.`
+              : 'No ballot is open. The next one comes with the terms.'}
+          </span>
+        </button>
+        <button type="button" className="hall-dept" onClick={() => setWhere('officials')}>
+          <span className="ic">🗳️</span>
+          <span className="n">Elected Officials</span>
+          <span className="d">Who holds office, and since when.</span>
+        </button>
         {COMING.map((department) => (
           <div key={department.name} className="hall-dept is-soon">
             <span className="ic">{department.icon}</span>
@@ -144,6 +268,46 @@ export function CityHall({
           </div>
         ))}
       </div>
+
+      {where === 'ballot' && (
+        <BallotView world={world} person={person} busy={busy} onAct={onAct} onBack={() => setWhere('hall')} />
+      )}
+
+      {where === 'officials' && (
+        <section className="hall-card">
+          <div className="hall-head">
+            <button type="button" className="hall-back" onClick={() => setWhere('hall')}>
+              ←
+            </button>
+            <h3>Elected Officials</h3>
+          </div>
+          {SEATED_OFFICES.map((officeId) => {
+            const holder = holderOf(world, officeId)
+            const office = officeById(officeId)
+            const who = holder === undefined ? undefined : world.people.get(holder.personId)
+            const party = holder === undefined ? undefined : partyById(holder.partyId)
+            return (
+              <div className="cand" key={officeId}>
+                <span className={`dot tone-${party?.tone ?? 'accent'}`} />
+                <div>
+                  <div className="nm">
+                    {who === undefined ? 'Vacant' : `${who.givenName} ${who.familyName}`}
+                  </div>
+                  <div className="pt">
+                    {office?.title ?? officeId}
+                    {party !== undefined && ` · ${party.name}`}
+                  </div>
+                </div>
+                {holder !== undefined && (
+                  <span className="poll tabular">
+                    since {formatYear(world, holder.sinceTick)}
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </section>
+      )}
 
       {/* THE DEED REGISTRY (owner, playing: "property and deeds should've
           been updated as well in city hall now that people can buy homes").

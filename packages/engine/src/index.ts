@@ -484,7 +484,7 @@ export {
   voteBar,
 } from './government.js'
 export type { Election, Office, Officeholder, Party, PolicyState } from './types.js'
-export { dropOutPlayer, buySharesPlayer, sellSharesPlayer } from './player.js'
+export { dropOutPlayer, buySharesPlayer, sellSharesPlayer, votePlayer } from './player.js'
 export type { Major } from './content.js'
 export {
   SCHOOL_CHOICES,

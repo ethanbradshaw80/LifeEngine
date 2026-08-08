@@ -26,6 +26,7 @@ import {
   voteBar,
 } from '../src/government.js'
 import { livingPeople } from '../src/systems.js'
+import { ownershipCostOf } from '../src/realestate.js'
 
 const world = createWorld(makeSeed(4141), 400)
 advanceTicks(world, 60 * 12)
@@ -169,6 +170,41 @@ describe('policy', () => {
     const moved = world.policy.schoolFunding - 500
     const wanted = party.schoolLean - 500
     if (Math.abs(wanted) > 100) expect(Math.sign(moved)).toBe(Math.sign(wanted))
+  })
+
+  it('reaches a household bill — the first lever actually wired', () => {
+    // Phase 2, step 1 of the plan: property tax into real estate. This is
+    // the Law-4 payoff and the point of the whole module — who won an
+    // election changes what your house costs you.
+    //
+    // MEASURED: under a Heritage mayor the rate sat at 13 (drifting down
+    // from earlier Progress administrations, so policy has HISTORY), and
+    // forcing the lever to the top of its range took a homeowner's
+    // monthly cost from $545 to $1,053.
+    const property = [...world.properties.values()][0]
+    expect(property).toBeDefined()
+    if (property === undefined) return
+
+    const cheap = ownershipCostOf(
+      { ...world, policy: { ...world.policy, propertyTaxPerMille: 5 } } as never,
+      property,
+      0 as never,
+    )
+    const dear = ownershipCostOf(
+      { ...world, policy: { ...world.policy, propertyTaxPerMille: 40 } } as never,
+      property,
+      0 as never,
+    )
+    expect(dear.propertyTax).toBeGreaterThan(cheap.propertyTax * 3)
+    expect(dear.total).toBeGreaterThan(cheap.total)
+  })
+
+  it('starts at the rate real estate already charged', () => {
+    // The wiring changed nobody's bill on the day it landed. Starting the
+    // lever anywhere other than the constant it replaced would have been
+    // a rate change smuggled in with the wire, and a golden shift with
+    // two causes instead of one.
+    expect(freshPolicy().propertyTaxPerMille).toBe(11)
   })
 
   it('gives every party a design token rather than a colour', () => {

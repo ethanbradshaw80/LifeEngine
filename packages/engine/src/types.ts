@@ -1881,6 +1881,7 @@ export type PendingKind =
   | 'rent-home'
   | 'sell-home'
   | 'drop-out'
+  | 'vote'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
