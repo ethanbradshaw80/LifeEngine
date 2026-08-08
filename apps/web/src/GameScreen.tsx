@@ -120,6 +120,7 @@ import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
 import { RecruitingStationView } from './RecruitingStation.js'
+import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
@@ -406,6 +407,27 @@ function standingWords(performance: number): string {
 }
 
 /** Schooling, judged the way a school report would put it. */
+/**
+ * THE SAME NUMBER, SAID THE WAY A SCHOOL SAYS IT (education master §2).
+ *
+ * `attainment` is stored 0-1000 and always will be — integer state, one
+ * scale, no floats in the save. This is presentation only: a 0.0-4.0
+ * figure and the letter beside it, because "612" means nothing to
+ * somebody looking at their own report card and "3.1, B" means the whole
+ * thing at a glance.
+ *
+ * The rounding is deliberate. 1000 maps to 4.0 and the letters sit on the
+ * ordinary boundaries, so a player who has ever seen a report card can
+ * read this one without being taught the scale.
+ */
+export function gpaOf(attainment: number): { figure: string; letter: string } {
+  const clamped = Math.max(0, Math.min(1000, attainment))
+  const points = Math.round((clamped * 40) / 1000) / 10
+  const letter =
+    points >= 3.5 ? 'A' : points >= 2.5 ? 'B' : points >= 1.5 ? 'C' : points >= 1 ? 'D' : 'F'
+  return { figure: points.toFixed(1), letter }
+}
+
 function attainmentWords(attainment: number): string {
   if (attainment >= 800) return 'top of the class'
   if (attainment >= 650) return 'a good student'
@@ -1776,12 +1798,28 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   <dd>
                     <span className="tie-gauge">
                       <StrengthMeter strength={education.attainment} />
-                      <span className="muted small">{attainmentWords(education.attainment)}</span>
+                      <span className="muted small">
+                        <b className="tabular">{gpaOf(education.attainment).figure}</b>{' '}
+                        {gpaOf(education.attainment).letter} ·{' '}
+                        {attainmentWords(education.attainment)}
+                      </span>
                     </span>
                     {education.enrolledIn !== null && education.completesAtTick !== null && (
                       <p className="muted small tie-note">
                         In {LEVEL_WORDS[education.enrolledIn]} — finishes{' '}
                         {formatDate(world, education.completesAtTick)}.
+                      </p>
+                    )}
+                    {majorById(education.major) !== undefined && (
+                      <p className="muted small tie-note">
+                        Reading {majorById(education.major)?.title}.
+                      </p>
+                    )}
+                    {education.schooling !== undefined && education.level !== 'none' && (
+                      <p className="muted small tie-note">
+                        {education.schooling === 'private'
+                          ? 'Privately schooled.'
+                          : 'State schooled.'}
                       </p>
                     )}
                   </dd>
