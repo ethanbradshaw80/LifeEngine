@@ -304,6 +304,8 @@ export type {
   CriminalRecord,
   HabitKind,
   HabitRecord,
+  Property,
+  PropertyType,
   WellbeingCause,
   WellbeingRecord,
   DecisionType,
@@ -494,3 +496,14 @@ export {
   smartsOf,
   STATS_FROM_AGE,
 } from './stats.js'
+
+// --- Real estate (the property market) ------------------------------------
+export {
+  generateProperties,
+  isVacant,
+  occupantOf,
+  propertiesIn,
+  rentOf,
+  useRentCurve,
+  valueOf,
+} from './realestate.js'

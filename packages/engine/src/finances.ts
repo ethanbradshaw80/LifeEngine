@@ -41,6 +41,7 @@ import {
 } from './credit.js'
 import { SECTORS, dividendOn, holdingValue, portfolioValue, unitsFor } from './market.js'
 import { openStream, Stream } from './rng.js'
+import { useRentCurve } from './realestate.js'
 import {
   BASE_SAVINGS_RATE_PER_MILLE,
   estateTaxOn,
@@ -682,6 +683,13 @@ function noteArrearsCrossing(world: World, tick: Tick, householdId: EntityId, be
 export function rentAt(world: World, desirability: number): Money {
   return atTodaysPrices(world, rentFor(desirability)) as Money
 }
+
+// REAL ESTATE READS THE RENT CURVE THROUGH A HANDOVER, not an import.
+// `realestate.ts` needs what a street costs; importing this module to get it
+// closed a cycle the ratchet refuses, so the money module — which already
+// owns the price level — hands the function over instead and the dependency
+// points one way. Same seam the wellbeing module needed.
+useRentCurve(rentAt)
 
 export function livingCostAt(world: World, base: number): Money {
   return atTodaysPrices(world, base) as Money

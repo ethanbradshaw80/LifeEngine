@@ -16,6 +16,7 @@ import type {
   CausalRecord,
   CriminalRecord,
   HabitRecord,
+  Property,
   WellbeingRecord,
   EducationRecord,
   EmploymentRecord,
@@ -239,6 +240,13 @@ function hydrate(
     habits.set(record.personId, record)
   }
 
+  // The housing stock. A save written before the property model has none,
+  // and the migration builds it — see V44_TO_V45.
+  const properties = new Map<string, Property>()
+  for (const property of (body['properties'] as Property[] | undefined) ?? []) {
+    properties.set(property.id, property)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -282,6 +290,7 @@ function hydrate(
     criminal,
     wellbeing,
     habits,
+    properties,
     deployments,
     nations,
     geoRelations,

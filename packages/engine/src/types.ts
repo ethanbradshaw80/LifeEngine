@@ -753,6 +753,12 @@ export interface Loan {
 export interface Household {
   readonly id: EntityId
   readonly placeId: EntityId
+  /**
+   * The specific home, where one is known. Null for a household that
+   * predates the property model or lives somewhere untracked — `placeId`
+   * remains the authority on WHICH STREET, and this narrows it to a door.
+   */
+  readonly propertyId?: string | null
   readonly memberIds: readonly EntityId[]
   readonly formedTick: Tick
   /** Null while active. */
@@ -872,6 +878,34 @@ export interface HabitRecord {
    * simply yours.
    */
   readonly studied: number
+}
+
+/**
+ * A REAL HOME (owner's `real_estate_revamp.md`).
+ *
+ * Owning used to be `accounts.homePlaceId` — a pointer at a NEIGHBOURHOOD,
+ * with the house's worth derived from that street's rent. You chose a
+ * street, never a home. This is the home.
+ *
+ * It sits inside a neighbourhood rather than replacing it, so the whole
+ * desirability model keeps working underneath and nothing about the old
+ * economy is thrown away.
+ */
+export type PropertyType = 'house' | 'condo' | 'townhouse' | 'apartment' | 'estate'
+
+export interface Property {
+  readonly id: string
+  readonly neighbourhoodPlaceId: EntityId
+  readonly address: string
+  readonly type: PropertyType
+  readonly beds: number
+  readonly baths: number
+  readonly sqft: number
+  /** Zero for anything without land of its own. */
+  readonly lotSqft: number
+  readonly yearBuilt: number
+  /** 0-1000. Degrades with the years; repairs and renovations raise it. */
+  readonly condition: number
 }
 
 export interface WellbeingCause {
@@ -2101,6 +2135,8 @@ export interface World {
   readonly wellbeing: Map<EntityId, WellbeingRecord>
   /** Habits, owned by `stats.ts`. */
   readonly habits: Map<EntityId, HabitRecord>
+  /** The town's housing stock, owned by `realestate.ts`. Keyed by id. */
+  readonly properties: Map<string, Property>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

@@ -24,6 +24,7 @@ import { relationshipKey } from './types.js'
 import { foundingSavings, seedFoundingAccounts } from './finances.js'
 import { freshEconomy } from './economy.js'
 import { freshSectorPrices } from './market.js'
+import { generateProperties } from './realestate.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
 import { CLASSIC_SPEC } from './worldspec.js'
@@ -159,6 +160,7 @@ export function createWorld(
     criminal: new Map(),
     wellbeing: new Map(),
     habits: new Map(),
+    properties: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],
@@ -293,6 +295,13 @@ export function createWorld(
   // been reborn as different people. Draws live on Stream 9 either way; id
   // order is the only coupling, and this removes it.
   generateNations(world)
+
+  // THE HOUSING STOCK, LAST AND WITHOUT A DRAW. Properties are derived from
+  // the neighbourhood ids that already exist, so laying them out consumes
+  // no RNG and cannot shift a single later roll in the world. Ordering it
+  // after nations for the same reason nations come after people: whatever
+  // allocates ids last cannot disturb what came before it.
+  generateProperties(world, placesOfKind(world, 'neighbourhood').map((p) => p.id))
 
   return world
 }
