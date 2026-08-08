@@ -4430,3 +4430,22 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   color: var(--muted);
   cursor: not-allowed;
 }
+
+/* The governing levers: a value, two buttons, and the trade-off. */
+.gov-lever {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.gov-lever:last-child {
+  border-bottom: 0;
+}
+.gov-set {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.gov-set .voteb {
+  margin-left: 0;
+  flex: 1;
+  text-align: center;
+}

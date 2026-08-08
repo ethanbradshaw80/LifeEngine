@@ -31,8 +31,13 @@ import { formatMoney } from '@life-engine/shared'
 import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import {
+  LEVER_NOTES,
+  LEVER_RANGE,
   SEATED_OFFICES,
   candidacyBar,
+  leverBar,
+  leversOf,
+  townBudget,
   holderOf,
   myCandidacy,
   officeById,
@@ -55,6 +60,126 @@ const COMING: readonly { readonly icon: string; readonly name: string; readonly 
   { icon: '🏷️', name: 'Property & Deeds', detail: 'Who owns what, and who owned it before.' },
   { icon: '🏛️', name: 'Business Registry', detail: 'Every business licensed in the county.' },
 ]
+
+/**
+ * GOVERNING, built to the owner's `government.html`.
+ *
+ * Approval, the town budget, the countdown to re-election, and the levers
+ * this seat may actually pull — each with the trade-off written under it,
+ * because the mockup does and because a knob with no stated consequence
+ * is a cheat code.
+ *
+ * Every lever reads `leverBar` and `LEVER_RANGE` from the engine, so what
+ * the screen offers and what the verb accepts cannot drift apart.
+ */
+function GoverningView({
+  world,
+  person,
+  busy,
+  onAct,
+}: {
+  readonly world: World
+  readonly person: Person
+  readonly busy: boolean
+  readonly onAct: (action: VerbRequest) => void
+}): JSX.Element | null {
+  const seat = [...world.officials.values()].find((h) => h.personId === person.id)
+  if (seat === undefined) return null
+  const office = officeById(seat.officeId)
+  const levers = leversOf(seat.officeId)
+  const budget = townBudget(world)
+  const months = Math.max(0, seat.termEndsTick - world.tick)
+  const policy = world.policy as unknown as Record<string, number>
+
+  return (
+    <section className="hall-card">
+      <div className="school-k">
+        {office?.title ?? seat.officeId} · {partyById(seat.partyId)?.name ?? ''}
+      </div>
+      <div className="school-name">Governing</div>
+
+      <div className="school-row">
+        <span className="l">Approval</span>
+        <span className={seat.approval >= 500 ? 'v good' : 'v warn'}>
+          {(seat.approval / 10).toFixed(0)}%
+        </span>
+      </div>
+      <div className="school-row">
+        <span className="l">Town budget</span>
+        <span className={budget >= 0 ? 'v good' : 'v warn'}>
+          {budget >= 0 ? 'in surplus' : 'in deficit'}
+        </span>
+      </div>
+      <div className="school-row">
+        <span className="l">Re-election</span>
+        <span className="v">
+          {months <= 0 ? 'this month' : `${String(Math.round(months / 12))} yr`}
+        </span>
+      </div>
+
+      <h3 style={{ marginTop: '0.8rem' }}>Policy levers</h3>
+      {levers.length === 0 && (
+        <p className="muted small">This seat sets no policy of its own.</p>
+      )}
+      {levers.map((lever) => {
+        const range = LEVER_RANGE[lever]
+        const value = policy[lever] ?? 0
+        const bar = leverBar(world, person.id, lever)
+        if (range === undefined) return null
+        const step = Math.max(1, Math.round((range.max - range.min) / 10))
+        return (
+          <div className="gov-lever" key={lever}>
+            <div className="school-row">
+              <span className="l">{LEVER_TITLES[lever] ?? lever}</span>
+              <span className="v tabular">
+                {lever.endsWith('PerMille')
+                  ? `${(value / 10).toFixed(1)}%`
+                  : value >= 750
+                    ? 'High'
+                    : value >= 400
+                      ? 'Medium'
+                      : 'Low'}
+              </span>
+            </div>
+            <div className="gov-set">
+              <button
+                type="button"
+                className="voteb"
+                disabled={busy || bar !== null || value <= range.min}
+                title={bar ?? undefined}
+                onClick={() =>
+                  onAct({ verb: 'set-lever', lever, value: Math.max(range.min, value - step) })
+                }
+              >
+                Lower
+              </button>
+              <button
+                type="button"
+                className="voteb"
+                disabled={busy || bar !== null || value >= range.max}
+                title={bar ?? undefined}
+                onClick={() =>
+                  onAct({ verb: 'set-lever', lever, value: Math.min(range.max, value + step) })
+                }
+              >
+                Raise
+              </button>
+            </div>
+            <p className="op-why">{LEVER_NOTES[lever]}</p>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+/** The words a lever goes by on screen. */
+const LEVER_TITLES: Record<string, string> = {
+  propertyTaxPerMille: 'Property tax',
+  policeFunding: 'Police funding',
+  schoolFunding: 'School funding',
+  incomeTaxPerMille: 'Federal income tax',
+}
 
 /**
  * YOUR CAMPAIGN, built to the owner's `government.html`.
@@ -266,6 +391,7 @@ function BallotView({
         )
       })}
 
+      <GoverningView world={world} person={person} busy={busy} onAct={onAct} />
       <CampaignView world={world} person={person} busy={busy} onAct={onAct} />
 
       {myCandidacy(world, person.id) === undefined && (
