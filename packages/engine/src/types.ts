@@ -1032,8 +1032,23 @@ export interface EducationRecord {
   readonly enrolledIn: EducationLevel | null
   readonly enrolledAtTick: Tick | null
   readonly completesAtTick: Tick | null
-  /** 0-1000. Influences job quality. */
+  /**
+   * 0-1000. Influences job quality.
+   *
+   * It MOVES now. It used to be written once — at worldgen from traits, at
+   * birth to a flat 500 — and never again, which meant thirteen years of
+   * school changed nothing about the person who sat through them.
+   */
   readonly attainment: number
+  /**
+   * Public or private, decided when a child first walks into a classroom
+   * and kept for the whole of the school years.
+   *
+   * Optional because a save written before this loads unchanged, and a
+   * record without one is a public one — which is what every existing
+   * child was, having never been charged a penny of tuition.
+   */
+  readonly schooling?: 'public' | 'private'
 }
 
 // ---------------------------------------------------------------------------

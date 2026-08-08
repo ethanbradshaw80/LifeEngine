@@ -399,7 +399,13 @@ describe('the itemized ledger (P3)', () => {
       expect(ledger.income).toBe(householdIncome(world, household))
       expect(ledger.taxWithheld).toBeGreaterThanOrEqual(0)
 
-      expect(ledger.rent + ledger.livingCosts).toBe(householdCosts(world, household))
+      // TUITION IS A ROW NOW. Adding a cost category without adding it
+      // here is exactly what this assertion exists to refuse: the claim is
+      // that every cent the tick loop charges appears somewhere the player
+      // can see, and a fee that is charged but not itemised breaks it.
+      expect(ledger.rent + ledger.livingCosts + ledger.tuition).toBe(
+        householdCosts(world, household),
+      )
       expect(ledger.costs).toBe(householdCosts(world, household))
       // Not a tautology only because rent is in `costs` too: this pins the
       // adult/child SPLIT against the total the tick loop actually charges.
@@ -414,7 +420,8 @@ describe('the itemized ledger (P3)', () => {
         expect(
           ledger.rent +
             ledger.adults * atTodaysPrices(world, LIVING_COST_ADULT) +
-            ledger.children * atTodaysPrices(world, LIVING_COST_CHILD),
+            ledger.children * atTodaysPrices(world, LIVING_COST_CHILD) +
+            ledger.tuition,
         ).toBe(householdCosts(world, household))
       }
 

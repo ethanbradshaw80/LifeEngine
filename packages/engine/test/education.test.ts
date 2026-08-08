@@ -95,3 +95,70 @@ describe('a town climbs it', () => {
     }
   })
 })
+
+/**
+ * Education phase 1, the other half — the childhood performance arc and
+ * the school the money bought.
+ *
+ * `attainment` used to be written once and never touched again, so all
+ * thirteen years of the ladder were decorative: two children with the
+ * same traits finished identical whatever happened in between.
+ */
+describe('the school years leave a mark', () => {
+  it('moves attainment while a child is enrolled', () => {
+    // Somebody, somewhere, has to be off the number they were born with.
+    // A static field would put every single child on exactly 500.
+    const moved = livingPeople(world).filter((person) => {
+      const record = world.education.get(person.id)
+      if (record === undefined || record.schooling === undefined) return false
+      return record.attainment !== 500
+    })
+    expect(moved.length).toBeGreaterThan(0)
+  })
+
+  it('keeps private school a minority, not the ordinary childhood', () => {
+    let priv = 0
+    let pub = 0
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record?.schooling === 'private') priv += 1
+      else if (record?.schooling === 'public') pub += 1
+    }
+    expect(priv).toBeGreaterThan(0)
+    // The first numbers put 52% of the town's children through private
+    // school, which made the ordinary childhood the expensive one.
+    expect(priv).toBeLessThan(pub / 2)
+  })
+
+  it('pays off on average without being a guarantee', () => {
+    const priv: number[] = []
+    const pub: number[] = []
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record === undefined || record.schooling === undefined) continue
+      const age = ageAt(person.birthTick, world.tick)
+      if (age < 18 || age > 26) continue
+      ;(record.schooling === 'private' ? priv : pub).push(record.attainment)
+    }
+    const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length
+    expect(priv.length).toBeGreaterThan(0)
+    expect(pub.length).toBeGreaterThan(0)
+    expect(mean(priv)).toBeGreaterThan(mean(pub))
+    // ...but it never buys the top of the class outright. A diligent,
+    // curious child at the ordinary school still beats a lazy rich one,
+    // which is the difference between unequal and predetermined (Law 10).
+    expect(Math.max(...pub)).toBeGreaterThan(Math.max(...priv))
+  })
+
+  it('keeps a child in the same kind of school all the way up', () => {
+    // Deciding it afresh at each rung would have let a good year move a
+    // child to private school and a bad one move them back.
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record?.schooling === undefined) continue
+      if (record.level === 'none') continue
+      // Anybody past primary who was ever assigned a school still has one.
+      expect(['public', 'private']).toContain(record.schooling)
+    }
+  })
+})

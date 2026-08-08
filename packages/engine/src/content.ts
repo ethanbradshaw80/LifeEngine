@@ -227,6 +227,19 @@ export const LIVING_COST_ADULT = dollars(119)
 export const LIVING_COST_CHILD = dollars(65)
 
 /**
+ * PRIVATE SCHOOL, PER CHILD, PER MONTH. A BALANCE NUMBER, NOT A FACT.
+ *
+ * Sized against the wages actually in this file rather than against
+ * anything real: the lowest-paid jobs here clear roughly $290-380 a month
+ * and a child's whole keep is $65. At $150 a private education is about
+ * forty per cent of a labourer's wage and under a quarter of a
+ * professional's — out of reach at the bottom, an ordinary choice higher
+ * up, which is the shape the spec asks for. Measure it in a grown town
+ * and retune; do not quote it.
+ */
+export const PRIVATE_SCHOOL_TUITION = dollars(150)
+
+/**
  * Monthly rent for a neighbourhood. Desirability 150 → ~$1,108; 950 → ~$1,948.
  *
  * Scaled with the salary ladder (M-ECON §7). What matters is the RATIO: a

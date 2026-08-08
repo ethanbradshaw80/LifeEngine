@@ -23,7 +23,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import { LIVING_COST_ADULT, LIVING_COST_CHILD, rentFor } from './content.js'
+import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -926,6 +926,22 @@ export function livingCostAt(world: World, base: number): Money {
   return atTodaysPrices(world, base) as Money
 }
 
+/**
+ * WHAT THIS PERSON'S SCHOOLING COSTS THE HOUSEHOLD THIS MONTH.
+ *
+ * One function because THREE places have to agree to the cent:
+ * `householdCosts` (what actually leaves the account), `unitCosts` (how a
+ * split household divides it) and the itemised ledger (what the player is
+ * shown). The first version put the tuition in only the first of them,
+ * and both of the others silently stopped summing to it — which is
+ * exactly the invariant those two tests exist to catch.
+ */
+function tuitionFor(world: World, personId: EntityId): Money {
+  const record = world.education.get(personId)
+  if (record?.schooling !== 'private' || record.enrolledIn === null) return 0 as Money
+  return livingCostAt(world, PRIVATE_SCHOOL_TUITION)
+}
+
 export function householdCosts(world: World, household: Household): Money {
   // M-SAFETY §3. NO ROOF, NO RENT. This is the single largest reason the
   // old model could free-fall: a household that could not pay rent went on
@@ -988,6 +1004,14 @@ export function householdCosts(world: World, household: Household): Money {
       ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
         ? livingCostAt(world, LIVING_COST_ADULT)
         : livingCostAt(world, LIVING_COST_CHILD)
+    // TUITION, FOR A CHILD IN A PRIVATE CLASSROOM. Billed here rather than
+    // by the schoolhouse for the single-writer reason: education decides
+    // WHO is in private school, finances decides what leaves the account.
+    // Charging it through the household bill also means it lands in the
+    // arrears machinery for free — a family that stops affording it falls
+    // behind on it exactly the way they fall behind on rent, instead of
+    // the fees quietly evaporating.
+    total += tuitionFor(world, memberId)
   }
   return total as Money
 }
@@ -1134,6 +1158,9 @@ export function unitCosts(world: World, household: Household, unit: readonly Ent
       ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
         ? livingCostAt(world, LIVING_COST_ADULT)
         : livingCostAt(world, LIVING_COST_CHILD)
+    // The tuition follows the CHILD into whichever unit they are counted
+    // in, so the parts still sum to the whole.
+    mouths += tuitionFor(world, id)
   }
 
   const place = world.places.get(household.placeId)
@@ -1316,6 +1343,8 @@ export interface HouseholdLedger {
   /** Members the county is feeding this month (jailed), fed by nobody here. */
   readonly jailed: number
   readonly livingCosts: Money
+  /** Private-school fees for this household's children, this month. */
+  readonly tuition: Money
   /**
    * M-SAFETY §3. No roof: rent is zero and the living line is what a
    * shelter costs. Exposed so the screen can say WHY the month suddenly
@@ -1381,6 +1410,7 @@ export function householdLedger(world: World, household: Household): HouseholdLe
   let children = 0
   let jailed = 0
   let living = 0
+  let tuition = 0 as Money
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
@@ -1392,6 +1422,7 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     }
     if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults++
     else children++
+    tuition = (tuition + tuitionFor(world, memberId)) as Money
   }
   const livingCosts = (
     homeless
@@ -1426,6 +1457,9 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     children,
     jailed,
     livingCosts,
+    // School fees on their own row rather than buried in living costs: a
+    // family paying it should be able to see what it is costing them.
+    tuition,
     homeless,
     costs: householdCosts(world, household),
     lifestyle: discretionaryFor(world, household),

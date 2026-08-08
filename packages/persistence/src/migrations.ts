@@ -1655,7 +1655,40 @@ const V46_TO_V47: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47]
+/**
+ * The school a childhood happened in, and a mark that now moves.
+ *
+ * WRITES NOTHING, DELIBERATELY, and for a reason worth stating: the
+ * honest back-fill here is NO VALUE AT ALL. The spec suggests defaulting
+ * every existing record to "public", but a founding-generation adult who
+ * never sat in a classroom in this simulation did not attend a public
+ * school — they have no schooling because none was ever modelled, and
+ * stamping one on them would be inventing a childhood that never ran.
+ *
+ * An absent field reads as public everywhere it is asked (nobody is
+ * billed tuition, nobody gets the private lift), so the behaviour is
+ * right without the fiction. Children already mid-ladder in an old save
+ * pick one up at their next enrolment.
+ *
+ * `attainment` needs no touching either: it existed, it was in range, and
+ * all that changed is that it moves from here on.
+ */
+const V47_TO_V48: Migration = {
+  from: 47,
+  to: 48,
+  describe: 'school type and a moving attainment; absent school reads as public',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 48, checksum: checksumOf(world) },
+      world,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47, V47_TO_V48]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

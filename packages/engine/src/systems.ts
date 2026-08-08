@@ -18,6 +18,7 @@ import {
   OCCUPATIONS,
   occupationById,
   typicalPay,
+  PRIVATE_SCHOOL_TUITION,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -54,7 +55,7 @@ import { withArticle } from './text.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isTrustSensitive } from './content.js'
-import type { CausalFactor, Occupation } from './types.js'
+import type { CausalFactor, EducationRecord, Occupation } from './types.js'
 import {
   canAfford,
   distributeEstate,
@@ -64,6 +65,7 @@ import {
   passOnBusinesses,
   startUnemployment,
 } from './finances.js'
+import { householdIncome as schoolIncomeOf } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { isJailed, recordGateOf } from './crime.js'
 import { describeAilment, pickInjury } from './wounds.js'
@@ -191,11 +193,126 @@ function nextLevel(current: EducationLevel): EducationLevel | null {
   }
 }
 
+/**
+ * HOW MANY PARENTS ARE ACTUALLY AT THE TABLE.
+ *
+ * Not how many exist — how many are alive and under the same roof. A
+ * father in the ground and a father in another household are the same
+ * number of parents at homework time, and the model should not pretend
+ * otherwise.
+ */
+function parentsAtHome(world: World, person: Person): number {
+  let count = 0
+  for (const parentId of person.parentIds) {
+    const parent = world.people.get(parentId)
+    if (parent === undefined || parent.deathTick !== null) continue
+    if (parent.householdId !== person.householdId) continue
+    count += 1
+  }
+  return count
+}
+
+/**
+ * WHERE A CHILDHOOD IS HEADING — the number the school years walk toward.
+ *
+ * Everything the spec asks to matter, and nothing that does not: the two
+ * traits that describe how a person meets work, the school they were sent
+ * to, who is at home, and whether they study. All of it is CAUSED, which
+ * is the whole point — a child who ends up poorly schooled here can be
+ * traced to a specific reason rather than to a die roll (Law 10).
+ *
+ * Deliberately NOT fed by Smarts, though the spec floats the loop. Smarts
+ * is DERIVED from attainment; feeding it back in would have compounded a
+ * number into its own input every month for thirteen years, and the child
+ * who started slightly ahead would have ended in a different world from
+ * the one who started slightly behind. The loop still closes — studying
+ * raises both — just not through itself.
+ */
+function schoolTargetFor(world: World, person: Person, record: EducationRecord): number {
+  // The two traits, weighted toward the one that describes showing up.
+  let target = Math.floor((person.traits.diligence * 11 + person.traits.curiosity * 9) / 20)
+  // The school the money bought.
+  if (record.schooling === 'private') target += 90
+  // Who is at home. Two parents is the quiet advantage nobody names; none
+  // at all is the loudest disadvantage in the whole model.
+  const parents = parentsAtHome(world, person)
+  target += parents >= 2 ? 45 : parents === 1 ? 0 : -70
+  // Their own effort, once they are old enough to choose it.
+  target += Math.min(60, world.habits.get(person.id)?.studied ?? 0)
+  return Math.max(0, Math.min(1000, target))
+}
+
+/**
+ * PUBLIC OR PRIVATE — decided once, by the money that was there.
+ *
+ * The spec is explicit that this should be inequality that is CAUSED and
+ * not random: "a born-rich kid may get private school, a poor one won't."
+ * So the household's monthly income sets the odds and the draw only
+ * decides the marginal cases. A family clearing the tuition many times
+ * over almost always sends the child; a family who would go hungry for it
+ * effectively never does, whatever the die says.
+ */
+function choosePrivate(world: World, person: Person, rng: Rng): boolean {
+  if (person.householdId === null) return false
+  const household = world.households.get(person.householdId)
+  if (household === undefined) return false
+  const income = schoolIncomeOf(world, household)
+  const tuition = atTodaysPrices(world, PRIVATE_SCHOOL_TUITION)
+  // FOUR TIMES THE FEES BEFORE IT IS EVEN A QUESTION. The first numbers
+  // here were twice the fees and a 62% ceiling, and MEASURED they put 52%
+  // of the town's children through private school — which would have made
+  // the ordinary childhood the expensive one and drained the private
+  // advantage of any meaning. These are tuned to land it near a fifth.
+  if (tuition <= 0 || income <= tuition * 4) return false
+  // Chances climb with what is left over after the fees, and stop at a
+  // ceiling: even comfortable families in this town mostly use the school
+  // down the road.
+  const headroom = Math.floor(((income - tuition * 4) * 1000) / (tuition * 10))
+  return rng.chance(Math.min(300, headroom), 1000)
+}
+
 export function runEducation(world: World, tick: Tick): void {
   for (const person of livingPeople(world)) {
     const record = world.education.get(person.id)
     if (!record) continue
     const age = ageAt(person.birthTick, tick)
+
+    // THE SCHOOL YEARS, AS A NUMBER THAT MOVES.
+    //
+    // `attainment` used to be written once and never touched again, so a
+    // childhood in a stable home and a private classroom finished on the
+    // same figure as one spent anywhere else. It walks toward a target
+    // now, an eighth of the gap a month, which over the thirteen years of
+    // the ladder is plenty to separate two lives without either a good
+    // stretch or a bad one being a cliff (Law 7).
+    //
+    // The result lives in a LOCAL and travels into whichever write
+    // happens below. Both branches spread `...record`, and a value set on
+    // the map here would be silently reverted by the very next line —
+    // ADR-0039, the third time that trap has been walked into.
+    let attainment = record.attainment
+    // THE K-12 STAGES ONLY. This is a CHILDHOOD arc and its inputs say so:
+    // "how many parents are at home" is a real force on a nine-year-old and
+    // a meaningless one for a twenty-year-old who has moved out to study.
+    // Letting it run through college applied a seventy-point penalty to a
+    // degree for the crime of not living with your parents, and a stats
+    // test caught it by noticing that a mind had started going backwards.
+    // What a degree does to performance is phase 4's business.
+    const atSchool =
+      record.enrolledIn === 'primary' ||
+      record.enrolledIn === 'middle' ||
+      record.enrolledIn === 'secondary'
+    if (atSchool) {
+      // Its own stream draw is safe here: a person who is enrolled never
+      // reaches the enrolment draws in the same tick, so this cannot
+      // reshuffle the sequence those depend on.
+      const school = openStream(world.seed, Stream.Education, person.id, tick)
+      const target = schoolTargetFor(world, person, record)
+      attainment = Math.max(
+        0,
+        Math.min(1000, attainment + Math.floor((target - attainment) / 8) + school.nextInt(-8, 8)),
+      )
+    }
 
     // Finish a course that has come due.
     if (record.enrolledIn !== null && record.completesAtTick !== null && tick >= record.completesAtTick) {
@@ -205,6 +322,7 @@ export function runEducation(world: World, tick: Tick): void {
         enrolledIn: null,
         enrolledAtTick: null,
         completesAtTick: null,
+        attainment,
       })
       recordEvent(world, tick, {
         type: 'finished-school',
@@ -214,7 +332,12 @@ export function runEducation(world: World, tick: Tick): void {
       continue
     }
 
-    if (record.enrolledIn !== null) continue // still studying
+    if (record.enrolledIn !== null) {
+      if (attainment !== record.attainment) {
+        world.education.set(person.id, { ...record, attainment })
+      }
+      continue // still studying
+    }
     if (age < SCHOOL_START_AGE) continue
 
     const rng = openStream(world.seed, Stream.Education, person.id, tick)
@@ -318,11 +441,21 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
   if (!record) return
   // A little variance so cohorts do not move in lockstep.
   const months = yearsFor(level) * TICKS_PER_YEAR + rng.nextInt(0, 6)
+  // WHICH SCHOOL, settled the first time a child walks into one and kept
+  // for the rest of the ladder. Deciding it afresh at every rung would
+  // have let a family's good year move the child to private school and
+  // their bad year move them back, which is not how anybody's childhood
+  // goes; and it is the K-12 years that cost money, so a trade or college
+  // enrolment leaves whatever was already there alone.
+  const schooling =
+    record.schooling ??
+    (level === 'primary' && choosePrivate(world, person, rng) ? 'private' : 'public')
   world.education.set(person.id, {
     ...record,
     enrolledIn: level,
     enrolledAtTick: tick,
     completesAtTick: (tick + months) as Tick,
+    schooling,
   })
   recordEvent(world, tick, { type: 'started-school', subjectId: person.id, detail: level })
 }
