@@ -41,7 +41,14 @@ import {
 } from './credit.js'
 import { SECTORS, dividendOn, holdingValue, portfolioValue, unitsFor } from './market.js'
 import { openStream, Stream } from './rng.js'
-import { useRentCurve } from './realestate.js'
+import {
+  DEPOSIT_MONTHS,
+  LEASE_MONTHS,
+  leaseBar,
+  rentOf as propertyRentOf,
+  useRentCurve,
+  valueOf as propertyValueOf,
+} from './realestate.js'
 import {
   BASE_SAVINGS_RATE_PER_MILLE,
   estateTaxOn,
@@ -283,6 +290,90 @@ export function homePurchaseBar(
   return loanBar(world, 'mortgage', creditOf(world, personId), accounts.loans, cash, price)
 }
 
+
+/**
+ * SIGN A LEASE (real estate §4).
+ *
+ * Money moves here because this module owns cents — `realestate.ts` decided
+ * whether the tenancy is allowed and what it costs, and asked. That seam is
+ * the whole reason a housing market cannot quietly become a second economy.
+ *
+ * The deposit is taken and HELD, not spent: it comes back at the end if the
+ * place is left sound, which is what a deposit is. Recording it as an
+ * ordinary expense would have been quietly taking a month's rent from every
+ * tenant in the game.
+ */
+export function signLease(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  propertyId: string,
+): boolean {
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return false
+  const household = world.households.get(person.householdId)
+  if (!household) return false
+  const property = world.properties.get(propertyId)
+  if (!property) return false
+  const cash = (accountsOf(world, personId).savings + accountsOf(world, personId).checking) as Money
+  if (leaseBar(world, household.id, propertyId, cash) !== null) return false
+
+  const rent = propertyRentOf(world, property)
+  const deposit = (rent * DEPOSIT_MONTHS) as Money
+  debitPerson(world, personId, (rent + deposit) as Money)
+
+  world.leases.set(household.id, {
+    propertyId,
+    householdId: household.id,
+    monthlyRent: rent,
+    depositCents: deposit,
+    startedAtTick: tick,
+    endsAtTick: (tick + LEASE_MONTHS) as Tick,
+  })
+  world.households.set(household.id, {
+    ...household,
+    placeId: property.neighbourhoodPlaceId,
+    propertyId,
+  })
+  recordEvent(world, tick, {
+    type: 'signed-lease',
+    subjectId: personId,
+    placeId: property.neighbourhoodPlaceId,
+    detail: property.address,
+  })
+  return true
+}
+
+/**
+ * END A TENANCY. The deposit comes back where the home was kept — condition
+ * is the landlord's test and the property carries it, so this reads the
+ * same number a repair would have raised.
+ */
+export function endLease(world: World, tick: Tick, householdId: EntityId): boolean {
+  const lease = world.leases.get(householdId)
+  if (!lease) return false
+  const household = world.households.get(householdId)
+  const property = world.properties.get(lease.propertyId)
+  world.leases.delete(householdId)
+  if (household !== undefined) {
+    world.households.set(householdId, { ...household, propertyId: null })
+  }
+  // Returned in full where the place is sound, withheld where it is not.
+  // 500 is the middle of the condition scale — a wreck is not a deposit
+  // somebody gets back.
+  const sound = property === undefined || property.condition >= 500
+  if (sound && household !== undefined) {
+    const head = [...household.memberIds][0]
+    if (head !== undefined) creditPerson(world, head, lease.depositCents)
+  }
+  recordEvent(world, tick, {
+    type: 'ended-lease',
+    subjectId: [...(household?.memberIds ?? [])][0] ?? householdId,
+    detail: sound ? 'deposit returned' : 'deposit withheld',
+  })
+  return true
+}
+
 export function buyHome(
   world: World,
   tick: Tick,
@@ -290,12 +381,25 @@ export function buyHome(
   placeId: EntityId,
   /** Defaults to a mortgage, which is what every existing caller meant. */
   method: HomePurchaseMethod = 'mortgage',
+  /**
+   * The SPECIFIC home, since real estate phase 2. Optional so that every
+   * existing caller keeps its exact meaning — buying "into a neighbourhood"
+   * still works and still prices off the street. When a property is named,
+   * its own value is the price and the household moves into that door.
+   */
+  propertyId?: string,
 ): boolean {
   const place = world.places.get(placeId)
   if (!place) return false
   const accounts = accountsOf(world, personId)
   if (homePurchaseBar(world, personId, placeId, method) !== null) return false
-  const price = homePriceFor(rentAt(world, place.desirability))
+  const property = propertyId === undefined ? undefined : world.properties.get(propertyId)
+  // A NAMED HOME IS PRICED AS ITSELF. A three-bed in good repair and the
+  // flat next door are not the same money, which is the entire reason
+  // properties exist.
+  const price = property === undefined
+    ? homePriceFor(rentAt(world, place.desirability))
+    : propertyValueOf(world, property)
   // PAYING CASH PAYS THE WHOLE PRICE. A mortgage pays the deposit now and
   // owes the rest; there is no third thing.
   const nowDue = method === 'cash' ? price : depositFor(price)
@@ -310,6 +414,21 @@ export function buyHome(
     homePlaceId: placeId,
     homePurchasePrice: price,
   })
+  // THE DOOR, NOT JUST THE STREET. Recorded on the household because a home
+  // is where a FAMILY lives, not where one earner's bank account points.
+  if (property !== undefined) {
+    const person = world.people.get(personId)
+    const household = person?.householdId === null || person === undefined
+      ? undefined
+      : world.households.get(person.householdId)
+    if (household !== undefined) {
+      world.households.set(household.id, {
+        ...household,
+        placeId: property.neighbourhoodPlaceId,
+        propertyId: property.id,
+      })
+    }
+  }
   if (method === 'mortgage') {
     const borrowed = (price - nowDue) as Money
     takeLoan(world, tick, personId, 'mortgage', borrowed)

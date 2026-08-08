@@ -22,7 +22,7 @@
 import type { EntityId, Money } from '@life-engine/shared'
 import { homePriceFor } from './credit.js'
 import { hash32 } from './rng.js'
-import type { Property, PropertyType, World } from './types.js'
+import type { Lease, Property, PropertyType, World } from './types.js'
 
 /**
  * How many homes a town builds, against how many households it has.
@@ -186,4 +186,223 @@ export function occupantOf(world: World, propertyId: string): EntityId | null {
 /** Free to take — nobody is living in it. */
 export function isVacant(world: World, propertyId: string): boolean {
   return occupantOf(world, propertyId) === null
+}
+
+// ---------------------------------------------------------------------------
+// The marketplace (phase 2).
+// ---------------------------------------------------------------------------
+
+/**
+ * What the market is showing, and on what terms.
+ *
+ * A listing is DERIVED, not stored. A property is on the market when it is
+ * empty, and empty is a fact about the households — so there is nothing to
+ * keep in sync and nothing that can drift out of it. The alternative, a
+ * stored listing table, would need reconciling against occupancy every
+ * month for ever, and the first month it disagreed would put a family's
+ * home up for sale underneath them.
+ */
+export interface Listing {
+  readonly property: Property
+  readonly price: Money
+  readonly monthlyRent: Money
+  /** True where the seller would rather rent it out than sell. */
+  readonly forRent: boolean
+  readonly forSale: boolean
+}
+
+/**
+ * Everything for sale or rent right now, dearest first.
+ *
+ * WHY THE WHOLE STOCK RATHER THAN A ROTATION: the spec asks for "a rotating
+ * set of listings... refreshed over time so the market feels alive". A
+ * rotation is what you build when the stock is enormous and the screen is
+ * small. Here the stock IS the market — a few hundred homes, most of them
+ * lived in — and the rotation happens on its own as people move, die and
+ * inherit. Inventing a second layer of churn on top would be simulating
+ * an estate agent's website rather than a town.
+ */
+export function listingsFor(world: World, options?: {
+  readonly maxPrice?: Money
+  readonly minBeds?: number
+  readonly type?: PropertyType
+  readonly neighbourhoodPlaceId?: EntityId
+}): readonly Listing[] {
+  const out: Listing[] = []
+  for (const property of world.properties.values()) {
+    if (!isVacant(world, property.id)) continue
+    if (options?.minBeds !== undefined && property.beds < options.minBeds) continue
+    if (options?.type !== undefined && property.type !== options.type) continue
+    if (
+      options?.neighbourhoodPlaceId !== undefined &&
+      property.neighbourhoodPlaceId !== options.neighbourhoodPlaceId
+    ) {
+      continue
+    }
+    const price = valueOf(world, property)
+    if (options?.maxPrice !== undefined && price > options.maxPrice) continue
+    out.push({
+      property,
+      price,
+      monthlyRent: rentOf(world, property),
+      // THE CHEAP END OF THE STOCK IS THE RENTAL MARKET. Somebody owns the
+      // flats and lets them; the big houses on the good streets are sold.
+      // A single rule rather than a stored flag, so it cannot disagree with
+      // itself.
+      forRent: property.type === 'apartment' || property.type === 'condo',
+      forSale: property.type !== 'apartment',
+    })
+  }
+  return out.sort((a, b) => b.price - a.price || (a.property.id < b.property.id ? -1 : 1))
+}
+
+/** One listing, or nothing if it is lived in. */
+export function listingOf(world: World, propertyId: string): Listing | null {
+  const property = world.properties.get(propertyId)
+  if (!property || !isVacant(world, propertyId)) return null
+  return listingsFor(world).find((l) => l.property.id === propertyId) ?? null
+}
+
+/**
+ * THE TRUE MONTHLY COST of owning, broken out (spec §3).
+ *
+ * "Show the breakdown so the real cost is honest, not just P&I." A player
+ * who budgets for the mortgage and is then surprised by tax and upkeep has
+ * been misled by the interface, not by the market.
+ *
+ * Pure arithmetic over numbers the caller supplies — this module does not
+ * reach into the tax or credit systems, it reports what they would charge.
+ */
+export interface OwnershipCost {
+  readonly mortgage: Money
+  readonly propertyTax: Money
+  readonly insurance: Money
+  readonly hoa: Money
+  readonly maintenance: Money
+  readonly total: Money
+}
+
+/** A year's property tax, as a share of value. Tuned, not sourced. */
+const PROPERTY_TAX_PER_MILLE_YEARLY = 11
+/** Insurance, likewise — a small yearly share of what it would cost to rebuild. */
+const INSURANCE_PER_MILLE_YEARLY = 4
+/** What a managed building charges, per month, for the common parts. */
+const HOA_PER_MILLE_MONTHLY = 1
+/** What a house quietly costs to keep standing, per month. */
+const MAINTENANCE_PER_MILLE_MONTHLY = 1
+
+export function ownershipCostOf(
+  world: World,
+  property: Property,
+  monthlyMortgage: Money,
+): OwnershipCost {
+  const value = valueOf(world, property)
+  const propertyTax = Math.floor((value * PROPERTY_TAX_PER_MILLE_YEARLY) / 1_000 / 12) as Money
+  const insurance = Math.floor((value * INSURANCE_PER_MILLE_YEARLY) / 1_000 / 12) as Money
+  // Only a managed building has a service charge; a house on its own lot
+  // does not, and pretending otherwise would be charging for nothing.
+  const hoa = (property.type === 'condo' || property.type === 'apartment'
+    ? Math.floor((value * HOA_PER_MILLE_MONTHLY) / 1_000)
+    : 0) as Money
+  const maintenance = Math.floor((value * MAINTENANCE_PER_MILLE_MONTHLY) / 1_000) as Money
+  return {
+    mortgage: monthlyMortgage,
+    propertyTax,
+    insurance,
+    hoa,
+    maintenance,
+    total: (monthlyMortgage + propertyTax + insurance + hoa + maintenance) as Money,
+  }
+}
+
+/**
+ * Put every household through a door.
+ *
+ * WITHOUT THIS THERE IS NO MARKET. Occupancy is read off the households, so
+ * a town whose families have a street but no ADDRESS reads as two hundred
+ * and ninety-six empty houses — the entire stock for sale, no scarcity, and
+ * a player able to buy the home a family is sitting in. Measured exactly
+ * that way before this existed.
+ *
+ * Deterministic and order-independent: households in id order take
+ * properties in id order within their own neighbourhood. A household whose
+ * street has run out of homes keeps its street and stays doorless rather
+ * than being moved somewhere it never chose — `placeId` remains the
+ * authority and this only ever narrows it.
+ */
+export function seatHouseholds(world: World): void {
+  const taken = new Set<string>()
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick === null && typeof household.propertyId === 'string') {
+      taken.add(household.propertyId)
+    }
+  }
+  const households = [...world.households.values()]
+    .filter((h) => h.dissolvedTick === null && (h.propertyId === undefined || h.propertyId === null))
+    .sort((a, b) => a.id - b.id)
+
+  for (const household of households) {
+    const free = propertiesIn(world, household.placeId).find((p) => !taken.has(p.id))
+    if (free === undefined) continue
+    taken.add(free.id)
+    world.households.set(household.id, { ...household, propertyId: free.id })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Leases (phase 4) and the down payment (phase 3).
+// ---------------------------------------------------------------------------
+
+/** A tenancy runs a year and then comes up for renewal. */
+export const LEASE_MONTHS = 12
+/** The deposit, as months of rent. Returned if the place is left sound. */
+export const DEPOSIT_MONTHS = 1
+
+export function leaseOf(world: World, householdId: EntityId): Lease | undefined {
+  return world.leases.get(householdId)
+}
+
+/** What a household actually pays for its roof this month. */
+export function housingCostOf(world: World, householdId: EntityId): Money {
+  const lease = world.leases.get(householdId)
+  if (lease !== undefined) return lease.monthlyRent
+  return 0 as Money
+}
+
+/**
+ * Why this household cannot take this home, or null.
+ *
+ * The bar pattern: the screen's greyed row and the verb's refusal read one
+ * function, so they cannot disagree about who may rent what.
+ */
+export function leaseBar(
+  world: World,
+  householdId: EntityId,
+  propertyId: string,
+  cash: Money,
+): string | null {
+  const property = world.properties.get(propertyId)
+  if (!property) return 'No such address.'
+  if (!isVacant(world, propertyId)) return 'Somebody lives there.'
+  if (world.leases.has(householdId)) return 'You are already on a lease.'
+  const rent = rentOf(world, property)
+  const upFront = (rent * (DEPOSIT_MONTHS + 1)) as Money
+  if (cash < upFront) {
+    return `The first month and the deposit come to ${String(Math.ceil(upFront / 100))} dollars; you have ${String(Math.floor(cash / 100))}.`
+  }
+  return null
+}
+
+/**
+ * DOWN PAYMENT (spec §3): the player sets how much they put in.
+ *
+ * A lender wants a fifth at least — `depositFor` already says so and this
+ * does not overrule it. What this adds is the CHOICE above that floor: more
+ * down means less borrowed, a smaller payment and less interest over thirty
+ * years, at the cost of everything you no longer have in the bank. That
+ * trade is the whole reason to show the slider.
+ */
+export function downPaymentFor(price: Money, sharePerMille: number, floor: Money): Money {
+  const wanted = Math.floor((price * Math.max(0, Math.min(1_000, sharePerMille))) / 1_000)
+  return Math.max(floor, Math.min(price, wanted)) as Money
 }

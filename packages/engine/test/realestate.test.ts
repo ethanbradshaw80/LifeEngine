@@ -8,7 +8,18 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { createWorld } from '../src/index.js'
-import { propertiesIn, rentOf, valueOf } from '../src/realestate.js'
+import {
+  downPaymentFor,
+  leaseBar,
+  leaseOf,
+  listingsFor,
+  ownershipCostOf,
+  propertiesIn,
+  rentOf,
+  valueOf,
+} from '../src/realestate.js'
+import { accountsOf, endLease, signLease } from '../src/finances.js'
+import { livingPeople } from '../src/systems.js'
 import { placesOfKind } from '../src/worldgen.js'
 
 const world = createWorld(makeSeed(4141), 400)
@@ -87,5 +98,171 @@ describe('the town has a housing stock', () => {
     for (const [id, property] of world.properties) {
       expect(twin.properties.get(id)).toEqual(property)
     }
+  })
+})
+
+describe('the market', () => {
+  it('does not offer a home somebody is living in', () => {
+    // THE BUG THIS PINS. Occupancy is read off the households, so a town
+    // whose families had a street but no ADDRESS read as 296 empty houses:
+    // the entire stock for sale, no scarcity, and a player able to buy the
+    // home a family was sitting in.
+    const lived = new Set(
+      [...world.households.values()]
+        .filter((h) => h.dissolvedTick === null && typeof h.propertyId === 'string')
+        .map((h) => h.propertyId),
+    )
+    expect(lived.size, 'nobody has an address').toBeGreaterThan(50)
+    for (const listing of listingsFor(world)) {
+      expect(lived.has(listing.property.id), `${listing.property.address} is lived in`).toBe(false)
+    }
+  })
+
+  it('gives every founding household a door', () => {
+    const doorless = [...world.households.values()].filter(
+      (h) => h.dissolvedTick === null && (h.propertyId === undefined || h.propertyId === null),
+    )
+    expect(doorless.length, 'a household has a street but no address').toBe(0)
+  })
+
+  it('leaves something on the market to buy', () => {
+    const listings = listingsFor(world)
+    expect(listings.length, 'nothing for sale anywhere').toBeGreaterThan(5)
+    expect(listings.some((l) => l.forSale)).toBe(true)
+    expect(listings.some((l) => l.forRent)).toBe(true)
+  })
+
+  it('filters the way a buyer would', () => {
+    const all = listingsFor(world)
+    const cheapest = Math.min(...all.map((l) => l.price))
+    const budget = listingsFor(world, { maxPrice: (cheapest * 1.5) as never })
+    expect(budget.length).toBeGreaterThan(0)
+    expect(budget.length).toBeLessThan(all.length)
+    for (const l of budget) expect(l.price).toBeLessThanOrEqual(cheapest * 1.5)
+
+    const big = listingsFor(world, { minBeds: 4 })
+    for (const l of big) expect(l.property.beds).toBeGreaterThanOrEqual(4)
+  })
+
+  it('tells the truth about what owning costs a month', () => {
+    // Spec §3: show the breakdown, "so the real cost is honest, not just
+    // P&I". A player who budgets for the mortgage and is then surprised by
+    // tax and upkeep was misled by the interface, not by the market.
+    const listing = listingsFor(world).find((l) => l.forSale)
+    if (!listing) throw new Error('nothing for sale')
+    const cost = ownershipCostOf(world, listing.property, 90_000 as never)
+    expect(cost.mortgage).toBe(90_000)
+    expect(cost.propertyTax).toBeGreaterThan(0)
+    expect(cost.insurance).toBeGreaterThan(0)
+    expect(cost.maintenance).toBeGreaterThan(0)
+    expect(cost.total).toBe(
+      cost.mortgage + cost.propertyTax + cost.insurance + cost.hoa + cost.maintenance,
+    )
+    // The extras are real but not ruinous — they should not double the bill.
+    expect(cost.total).toBeLessThan(cost.mortgage * 2)
+  })
+
+  it('charges a service charge only where there is a building to service', () => {
+    for (const listing of listingsFor(world)) {
+      const cost = ownershipCostOf(world, listing.property, 0 as never)
+      const managed = listing.property.type === 'condo' || listing.property.type === 'apartment'
+      if (managed) expect(cost.hoa).toBeGreaterThan(0)
+      else expect(cost.hoa, `${listing.property.address} is a house with an HOA`).toBe(0)
+    }
+  })
+})
+
+describe('renting is an agreement about a home', () => {
+  /** A fresh world per test — these mutate. */
+  function aTenant() {
+    const w = createWorld(makeSeed(4141), 400)
+    const person = livingPeople(w)
+      .filter((p) => p.householdId !== null)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('nobody')
+    const listing = listingsFor(w).find((l) => l.forRent)
+    if (!listing) throw new Error('nothing to rent')
+    return { w, person, listing }
+  }
+
+  it('takes the first month and a deposit, and holds the deposit', () => {
+    // A DEPOSIT IS HELD, NOT SPENT. Recording it as an ordinary expense
+    // would have been quietly taking an extra month's rent from every
+    // tenant in the game.
+    const { w, person, listing } = aTenant()
+    const before = accountsOf(w, person.id)
+    const cashBefore = before.checking + before.savings
+    expect(signLease(w, w.tick, person.id, listing.property.id)).toBe(true)
+
+    const lease = leaseOf(w, person.householdId as never)
+    expect(lease).toBeDefined()
+    expect(lease?.monthlyRent).toBe(listing.monthlyRent)
+    expect(lease?.depositCents).toBe(listing.monthlyRent)
+
+    const after = accountsOf(w, person.id)
+    expect(cashBefore - (after.checking + after.savings)).toBe(listing.monthlyRent * 2)
+  })
+
+  it('moves the household into that actual home', () => {
+    const { w, person, listing } = aTenant()
+    signLease(w, w.tick, person.id, listing.property.id)
+    const household = w.households.get(person.householdId as never)
+    expect(household?.propertyId).toBe(listing.property.id)
+    expect(household?.placeId).toBe(listing.property.neighbourhoodPlaceId)
+    // And the home is off the market.
+    expect(listingsFor(w).some((l) => l.property.id === listing.property.id)).toBe(false)
+  })
+
+  it('refuses in words when the money is not there', () => {
+    const { w, person, listing } = aTenant()
+    const bar = leaseBar(w, person.householdId as never, listing.property.id, 1 as never)
+    expect(bar).not.toBeNull()
+    expect(bar).toContain('dollars')
+  })
+
+  it('will not let two households take the same home', () => {
+    const { w, person, listing } = aTenant()
+    expect(signLease(w, w.tick, person.id, listing.property.id)).toBe(true)
+    const other = livingPeople(w)
+      .filter((p) => p.householdId !== null && p.householdId !== person.householdId)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!other) return
+    expect(leaseBar(w, other.householdId as never, listing.property.id, 10_000_000 as never)).toContain(
+      'lives there',
+    )
+  })
+
+  it('gives the deposit back when the place was kept', () => {
+    const { w, person, listing } = aTenant()
+    signLease(w, w.tick, person.id, listing.property.id)
+    const before = accountsOf(w, person.id)
+    endLease(w, w.tick, person.householdId as never)
+    const after = accountsOf(w, person.id)
+    const sound = (w.properties.get(listing.property.id)?.condition ?? 0) >= 500
+    if (sound) {
+      expect(after.checking + after.savings).toBeGreaterThan(before.checking + before.savings)
+    }
+    expect(leaseOf(w, person.householdId as never)).toBeUndefined()
+    // And it is back on the market.
+    expect(listingsFor(w).some((l) => l.property.id === listing.property.id)).toBe(true)
+  })
+})
+
+describe('the down payment is a choice above the floor', () => {
+  it('never goes under what a lender wants, however little you offer', () => {
+    const price = 10_000_000 as never
+    const floor = 2_000_000 as never
+    // A lender wants a fifth at minimum, and the slider does not overrule it.
+    expect(downPaymentFor(price, 0, floor)).toBe(floor)
+    expect(downPaymentFor(price, 50, floor)).toBe(floor)
+  })
+
+  it('lets a buyer put more down than the minimum', () => {
+    const price = 10_000_000 as never
+    const floor = 2_000_000 as never
+    expect(downPaymentFor(price, 350, floor)).toBe(3_500_000)
+    expect(downPaymentFor(price, 500, floor)).toBe(5_000_000)
+    // And never more than the house costs.
+    expect(downPaymentFor(price, 1_000, floor)).toBe(price)
   })
 })

@@ -22,6 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
+import { seatHouseholds } from './realestate.js'
 import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances } from './finances.js'
@@ -102,6 +103,12 @@ export function advanceTick(world: World): World {
   runCrime(world, next)
   runRelationships(world, next)
   runHouseholds(world, next)
+  // A NEW HOUSEHOLD NEEDS A DOOR, not just a street. Households form every
+  // month — a marriage, a child grown and gone — and seating only at
+  // worldgen meant they never got an address: measured at twenty years, 181
+  // of 296 homes read as empty because half the town was doorless. Cheap,
+  // because it only ever looks at households that have no home yet.
+  seatHouseholds(world)
   runBirths(world, next)
   // LAST OF THE LIVING SYSTEMS, and deliberately: wellbeing reads the
   // month's own events, so everything that could have happened must have

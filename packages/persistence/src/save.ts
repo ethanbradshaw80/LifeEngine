@@ -16,6 +16,7 @@ import type {
   CausalRecord,
   CriminalRecord,
   HabitRecord,
+  Lease,
   Property,
   WellbeingRecord,
   EducationRecord,
@@ -247,6 +248,11 @@ function hydrate(
     properties.set(property.id, property)
   }
 
+  const leases = new Map<import('@life-engine/shared').EntityId, Lease>()
+  for (const lease of (body['leases'] as Lease[] | undefined) ?? []) {
+    leases.set(lease.householdId, lease)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -291,6 +297,7 @@ function hydrate(
     wellbeing,
     habits,
     properties,
+    leases,
     deployments,
     nations,
     geoRelations,

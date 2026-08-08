@@ -908,6 +908,23 @@ export interface Property {
   readonly condition: number
 }
 
+/**
+ * A TENANCY (real estate §4). Renting used to be the absence of owning —
+ * you lived on a street and the street charged you. A lease is an agreement
+ * about a specific home: a deposit you get back, a rent that is the
+ * property's rather than the postcode's, and a term that ends.
+ */
+export interface Lease {
+  readonly propertyId: string
+  readonly householdId: EntityId
+  readonly monthlyRent: Money
+  /** Held by the landlord, returned at the end if the place is sound. */
+  readonly depositCents: Money
+  readonly startedAtTick: Tick
+  /** When it comes up for renewal. */
+  readonly endsAtTick: Tick
+}
+
 export interface WellbeingCause {
   readonly tick: Tick
   /** Signed, and already softened by resilience if it was a blow. */
@@ -1774,6 +1791,9 @@ export type EventType =
    *  Sergeant Major and their equivalents. A title over the pay grade. */
   /** Seen about an ailment — costs money, takes the edge off, never cures. */
   | 'saw-a-doctor'
+  /** A tenancy taken on, and given up. */
+  | 'signed-lease'
+  | 'ended-lease'
   | 'billet-taken'
   /** And handed on. The reversion is the part that makes a billet a billet
    *  rather than a rank. */
@@ -2137,6 +2157,8 @@ export interface World {
   readonly habits: Map<EntityId, HabitRecord>
   /** The town's housing stock, owned by `realestate.ts`. Keyed by id. */
   readonly properties: Map<string, Property>
+  /** Live tenancies, keyed by household. Owned by `realestate.ts`. */
+  readonly leases: Map<EntityId, Lease>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

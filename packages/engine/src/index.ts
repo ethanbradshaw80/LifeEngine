@@ -304,6 +304,7 @@ export type {
   CriminalRecord,
   HabitKind,
   HabitRecord,
+  Lease,
   Property,
   PropertyType,
   WellbeingCause,
@@ -498,8 +499,19 @@ export {
 } from './stats.js'
 
 // --- Real estate (the property market) ------------------------------------
+export type { Listing, OwnershipCost } from './realestate.js'
 export {
   generateProperties,
+  listingOf,
+  listingsFor,
+  ownershipCostOf,
+  seatHouseholds,
+  downPaymentFor,
+  housingCostOf,
+  leaseBar,
+  leaseOf,
+  DEPOSIT_MONTHS,
+  LEASE_MONTHS,
   isVacant,
   occupantOf,
   propertiesIn,

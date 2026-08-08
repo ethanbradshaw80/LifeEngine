@@ -24,7 +24,7 @@ import { relationshipKey } from './types.js'
 import { foundingSavings, seedFoundingAccounts } from './finances.js'
 import { freshEconomy } from './economy.js'
 import { freshSectorPrices } from './market.js'
-import { generateProperties } from './realestate.js'
+import { generateProperties, seatHouseholds } from './realestate.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
 import { CLASSIC_SPEC } from './worldspec.js'
@@ -161,6 +161,7 @@ export function createWorld(
     wellbeing: new Map(),
     habits: new Map(),
     properties: new Map(),
+    leases: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],
@@ -302,6 +303,10 @@ export function createWorld(
   // after nations for the same reason nations come after people: whatever
   // allocates ids last cannot disturb what came before it.
   generateProperties(world, placesOfKind(world, 'neighbourhood').map((p) => p.id))
+  // And every founding family gets an address, not just a street. Without
+  // this the whole stock reads as empty and the market has no scarcity in
+  // it at all.
+  seatHouseholds(world)
 
   return world
 }

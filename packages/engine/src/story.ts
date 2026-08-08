@@ -545,6 +545,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Recycled at ${event.detail ?? 'the course'}; back a phase, and going again.`
     case 'saw-a-doctor':
       return `${year} — Saw a doctor about it.`
+    case 'signed-lease':
+      return `${year} — Took the lease on ${event.detail ?? 'a place'}.`
+    case 'ended-lease':
+      return `${year} — Gave up the tenancy${event.detail === 'deposit withheld' ? ' — the deposit did not come back.' : '.'}`
     case 'billet-taken':
       return `${year} — Made ${event.detail ?? 'a leadership billet'}.`
     case 'billet-ended':
