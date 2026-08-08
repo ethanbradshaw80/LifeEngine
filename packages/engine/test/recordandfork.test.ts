@@ -18,6 +18,7 @@ import type { EntityId } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { advanceTick, createWorld } from '../src/index.js'
 import {
+  applyForJob,
   awaitingPlayer,
   describePending,
   hasAnswered,
@@ -26,7 +27,9 @@ import {
   setPlayer,
 } from '../src/player.js'
 import { isTrustSensitive, TRUST_SENSITIVE_OCCUPATIONS, OCCUPATIONS } from '../src/content.js'
-import { livingPeople } from '../src/systems.js'
+import { occupationById } from '../src/content.js'
+import { placesOfKind } from '../src/worldgen.js'
+import { hirePerson, livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
 /** A played adult with a felony conviction the courthouse still counts. */
@@ -131,17 +134,29 @@ describe('the fork at eighteen comes first', () => {
     }
     expect(world.player.pending?.kind).toBe('education')
     expect(world.player.pending?.options).toContain('work')
+
+    // BEFORE ANSWERING, THE JOB MARKET IS SHUT. ADR-0033's rule is that
+    // the fork at eighteen comes first — college, a trade, the uniform
+    // and work are all still live, and taking a job would quietly answer
+    // the question. That gate used to sit on the unsolicited offer the
+    // careers overhaul deleted, so it sits on the ASKING now.
+    // Refused — by the pending itself while the question is still on the
+    // screen, and by the fork rule for as long as it goes unanswered.
+    // Either way the market is shut; which of the two speaks first is not
+    // the claim.
+    expect(applyForJob(world, 'labourer').applied).toBe(false)
+
     resolvePending(world, 'work')
     expect(hasAnswered(world, 'education')).toBe(true)
 
-    // Now the market is open to them, and an offer can arrive.
-    let sawOffer = false
-    for (let i = 0; i < 120 && !sawOffer; i++) {
-      if (world.player.pending?.kind === 'job-offer') sawOffer = true
-      else if (awaitingPlayer(world)) resolvePending(world, world.player.pending?.options[0] ?? '')
-      else advanceTick(world)
-    }
-    expect(sawOffer, 'choosing work never led to any work').toBe(true)
+    // AND AFTERWARDS IT IS OPEN. Not that work ARRIVES — the town does
+    // not hand the player a job any more, which is the whole point of the
+    // overhaul — but that they may now go and ask for one.
+    const after = applyForJob(world, 'labourer')
+    expect(
+      after.reason.toLowerCase().includes('after school'),
+      'the fork still blocks the job market after being answered',
+    ).toBe(false)
   })
 })
 
@@ -188,21 +203,71 @@ describe('an heir gets their own life', () => {
  * it tells you to accept, decline, or wait").
  */
 describe('a job offer is an offer', () => {
+  /**
+   * A PLAYER WORTH HEADHUNTING.
+   *
+   * This used to wait for an unsolicited offer to arrive at a school
+   * leaver, which is precisely the behaviour the careers overhaul deleted
+   * — "offered doctor at $200k leaving the army". Unsolicited approaches
+   * survive only for somebody already ON a ladder, which a rival firm has
+   * a reason to call.
+   *
+   * Everything these tests assert still holds, and should: ADR-0034's
+   * wording ("somebody chose you", not a noticeboard) and Law 5's "sleep
+   * on it" are about what an offer IS, not about who gets one.
+   */
   function anOfferedPlayer(): { world: World; personId: EntityId } {
     const world = createWorld(makeSeed(12345), 100)
-    const teen = livingPeople(world)
-      .filter((p) => ageAt(p.birthTick, world.tick) < 18)
-      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
-    if (!teen) throw new Error('no teenager')
-    setPlayer(world, teen.id)
-    for (let i = 0; i < 400; i++) {
+    const adult = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 22 && ageAt(p.birthTick, world.tick) < 32)
+      // THE MOST AMBITIOUS ONE. A headhunt is rolled against ambition and
+      // is meant to be rare; the first pick had 416 of it, which is about
+      // one expected approach across the whole window.
+      .sort((a, b) => b.traits.ambition - a.traits.ambition || a.id - b.id)[0]
+    if (!adult) throw new Error('no adult')
+    setPlayer(world, adult.id)
+    // Put them a rung up a ladder — the state a headhunter reads.
+    hirePerson(
+      world,
+      world.tick,
+      adult,
+      occupationById('shift-lead'),
+      placesOfKind(world, 'workplace')[0]?.id ?? (0 as EntityId),
+      40_000 as never,
+      [],
+      [],
+    )
+    // TWENTY YEARS, NOT SEVENTY-FIVE. The first version ran 900 ticks and
+    // the player simply died of old age before a headhunter called.
+    for (let i = 0; i < 260; i++) {
       if (world.player.pending?.kind === 'job-offer') break
+      if (world.people.get(adult.id)?.deathTick !== null) break
+      // KEEP THEM ON THE LADDER. A headhunter reads a current job, and
+      // over twenty years an ordinary career is interrupted — the first
+      // version of this ended with the player unemployed and no approach
+      // possible, which tested nothing about offers.
+      if (!world.employment.has(adult.id)) {
+        hirePerson(
+          world,
+          world.tick,
+          adult,
+          occupationById('shift-lead'),
+          placesOfKind(world, 'workplace')[0]?.id ?? (0 as EntityId),
+          40_000 as never,
+          [],
+          [],
+        )
+      }
       if (awaitingPlayer(world)) {
-        resolvePending(world, world.player.pending?.kind === 'education' ? 'work' : (world.player.pending?.options[0] ?? ''))
+        const kind = world.player.pending?.kind
+        resolvePending(
+          world,
+          kind === 'education' ? 'work' : (world.player.pending?.options[0] ?? ''),
+        )
       } else advanceTick(world)
     }
     if (world.player.pending?.kind !== 'job-offer') throw new Error('no offer arrived')
-    return { world, personId: teen.id }
+    return { world, personId: adult.id }
   }
 
   it('reads like somebody chose you, and offers a third answer', () => {

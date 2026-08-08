@@ -24,6 +24,7 @@
  */
 
 import type { Money } from '@life-engine/shared'
+import { educationRank } from './content.js'
 import type { EducationLevel } from './types.js'
 
 /** What a rung asks of you before it opens. */
@@ -40,6 +41,19 @@ export interface Rung {
    * this rung as their entry.
    */
   readonly branchPoint?: boolean
+  /**
+   * SCHOOLING THIS RUNG REQUIRES BEYOND THE TRACK'S OWN (Fix 2).
+   *
+   * A track gates its ENTRY on a level; this gates a rung inside it. The
+   * distinction matters for exactly the case the spec names: medicine
+   * takes you at `college` as a resident, and no amount of good reviews
+   * turns a resident into a physician without medical school. "A degree
+   * alone never makes a doctor."
+   *
+   * Absent on almost every rung — most of a ladder is climbed on the
+   * work, not on paper.
+   */
+  readonly needsLevel?: EducationLevel
 }
 
 export interface CareerTrack {
@@ -127,8 +141,12 @@ export const CAREER_TRACKS: readonly CareerTrack[] = [
     requires: 'college',
     rungs: [
       { occupationId: 'resident', needsPerformance: 0, needsMonths: 0 },
-      { occupationId: 'doctor', needsPerformance: 600, needsMonths: 36 },
-      { occupationId: 'chief-of-medicine', needsPerformance: 800, needsMonths: 84 },
+      // MEDICAL SCHOOL. The spec's own example, and the reason rung-level
+      // credentials exist at all: a residency is where a doctor is made,
+      // and the paper that makes it is not the same paper that got them
+      // through the door.
+      { occupationId: 'doctor', needsPerformance: 600, needsMonths: 36, needsLevel: 'graduate' },
+      { occupationId: 'chief-of-medicine', needsPerformance: 800, needsMonths: 84, needsLevel: 'graduate' },
     ],
   },
   {
@@ -170,6 +188,42 @@ export function trackById(id: string): CareerTrack | undefined {
 }
 
 /** The track an occupation sits on, and where on it. Total across the table. */
+/**
+ * IS THIS WHERE A CAREER STARTS? (careers overhaul, Fix 1.)
+ *
+ * The owner's complaint: "offered doctor at $200k leaving the army". The
+ * hiring pass filtered occupations by SCHOOLING alone, so anything a
+ * person's education qualified them for could be handed to them —
+ * including the top of a ladder they had never set foot on. That is what
+ * made the ladders decorative: why climb five rungs when the town will
+ * hand you the fifth?
+ *
+ * Work that sits on no ladder — a labourer, a cook — is entry by
+ * definition and stays open. Everything on a ladder is enterable only at
+ * its bottom, and the way up is the climb.
+ */
+export function isEntryWork(occupationId: string): boolean {
+  const place = placeOf(occupationId)
+  return place === undefined || place.rung === 0
+}
+
+/**
+ * The rung this person's EXPERIENCE already merits — what they could be
+ * hired into elsewhere without it being a gift.
+ *
+ * Somebody who is already a senior associate can take a manager's job at
+ * a rival firm; that is a real thing that happens and is not the same as
+ * a school leaver being handed one. Bounded to one rung above where they
+ * actually stand.
+ */
+export function meritedRung(occupationId: string, performance: number): number {
+  const place = placeOf(occupationId)
+  if (place === undefined) return 0
+  const next = nextRungOf(place.track, place.rung)
+  if (next === undefined) return place.rung
+  return performance >= next.needsPerformance ? place.rung + 1 : place.rung
+}
+
 export function placeOf(occupationId: string): { track: CareerTrack; rung: number } | undefined {
   for (const track of CAREER_TRACKS) {
     const rung = track.rungs.findIndex((entry) => entry.occupationId === occupationId)
@@ -194,9 +248,22 @@ export function promotionBar(
   performance: number,
   monthsInRung: number,
   discipline?: number,
+  /** What they actually hold. Omitted where the caller has no record. */
+  level?: EducationLevel,
 ): string | null {
   const next = nextRungOf(track, rung)
   if (!next) return 'There is nothing above this on the ladder.'
+  // THE CREDENTIAL COMES FIRST, before time and before reviews, because
+  // it is the only one of the three that no amount of the others buys.
+  // Telling somebody their reviews are short when the real answer is
+  // "you have not been to medical school" would be a lie by omission.
+  if (next.needsLevel !== undefined && level !== undefined) {
+    if (educationRank(level) < educationRank(next.needsLevel)) {
+      return next.needsLevel === 'graduate'
+        ? 'That rung wants a postgraduate qualification you do not hold.'
+        : 'That rung wants schooling you do not have.'
+    }
+  }
   if (monthsInRung < next.needsMonths) {
     const left = next.needsMonths - monthsInRung
     return `Not long enough in the job — ${String(left)} more ${left === 1 ? 'month' : 'months'}.`
@@ -265,17 +332,34 @@ export function rungTitleOf(occupationId: string, fallback: string): string {
   return placeOf(occupationId) === undefined ? fallback : fallback
 }
 
-/** Every track whose entry rung this schooling opens. */
+/**
+ * Every track whose entry rung this schooling opens.
+ *
+ * THE ORDERING COMES FROM `educationRank` AND NOWHERE ELSE. This kept a
+ * private copy of it — `['none','primary','secondary','trade','college']`
+ * — and the copy drifted the moment the education module inserted
+ * `middle` and appended `graduate`: `indexOf` returned -1 for both, and
+ * `-1 >= 0` is false for every track, so a middle-school leaver AND a
+ * PhD holder each qualified for NO CAREER TRACK AT ALL. An advanced
+ * degree opened fewer doors than dropping out of primary school.
+ *
+ * Nothing caught it because this function has no caller yet and its test
+ * only checks 'none' and 'secondary' — the two levels that happen to sit
+ * in the stale array. It is the same mistake as the `educationRank() > 2`
+ * literals the education module found: a second copy of an ordering,
+ * kept by hand, next to the one that maintains itself.
+ */
 export function tracksOpenTo(level: EducationLevel): readonly CareerTrack[] {
-  const order: readonly EducationLevel[] = ['none', 'primary', 'secondary', 'trade', 'college']
-  const have = order.indexOf(level)
+  const have = educationRank(level)
   return CAREER_TRACKS.filter((track) => {
-    const want = order.indexOf(track.requires)
     // Trade school and secondary are siblings rather than a line: a trade
     // qualifies for the trades and for anything below secondary, and a
-    // secondary certificate does not qualify for the trades.
-    if (track.requires === 'trade') return level === 'trade' || level === 'college'
-    return have >= want
+    // secondary certificate does not qualify for the trades. A degree
+    // above trade school counts the same way college already did.
+    if (track.requires === 'trade') {
+      return level === 'trade' || level === 'college' || level === 'graduate'
+    }
+    return have >= educationRank(track.requires)
   })
 }
 

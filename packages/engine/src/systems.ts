@@ -30,6 +30,8 @@ import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
 import { disciplineOf, smartsOf } from './stats.js'
 import {
+  isEntryWork,
+  meritedRung,
   nextRungOf,
   placeOf,
   promotionBar,
@@ -100,6 +102,12 @@ import {
 import { placesOfKind } from './worldgen.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
+
+/**
+ * HOW MUCH TIME IN THE TRADE IS WORTH, at its ceiling. A BALANCE NUMBER.
+ * Reached at twelve years.
+ */
+const EXPERIENCE_CAP = 215
 
 const SCHOOL_START_AGE = 6
 
@@ -768,7 +776,7 @@ export function runEducation(world: World, tick: Tick): void {
  * employment system cannot decide the fork is over while the schoolhouse
  * still intends to ask.
  */
-function educationForkPending(world: World, person: Person, tick: Tick): boolean {
+export function educationForkPending(world: World, person: Person, tick: Tick): boolean {
   if (person.id !== world.player.personId) return false
   if (hasAnswered(world, 'education')) return false
   const record = world.education.get(person.id)
@@ -937,6 +945,35 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
  * One post per two hundred and fifty adults, and always at least one: even
  * a small town has somebody to call.
  */
+/**
+ * IS THERE A CHAIR AT THE TOP OF THIS LADDER? (careers overhaul, Fix 2.)
+ *
+ * A town has one chief of police, not sixteen. The seat model already
+ * existed for constables — and was only ever consulted when HIRING, so
+ * nobody could be hired as a chief but anybody could be PROMOTED into
+ * one, and MEASURED the town ended up with sixteen of them.
+ *
+ * The top rung of a ladder is a leadership post rather than a grade, so
+ * it is capped by the size of the place. Everything below it is a job
+ * title and stays uncapped: a town can have as many carpenters as it can
+ * feed, and exactly one person running the hospital.
+ */
+function topSeatOpen(world: World, occupationId: string): boolean {
+  const place = placeOf(occupationId)
+  if (place === undefined) return true
+  if (place.rung !== place.track.rungs.length - 1) return true
+  let adults = 0
+  let holding = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    const age = ageAt(person.birthTick, world.tick)
+    if (age < 18 || age > 70) continue
+    adults += 1
+    if (world.employment.get(person.id)?.occupationId === occupationId) holding += 1
+  }
+  return holding < Math.max(1, Math.floor(adults / 200) + 1)
+}
+
 function constableSeatOpen(world: World): boolean {
   let adults = 0
   let serving = 0
@@ -976,12 +1013,16 @@ function runReviews(world: World, tick: Tick): void {
     if (!place) continue
     const monthsInRung = tick - job.rungSinceTick
     const discipline = disciplineOf(world, person.id, tick)
-    if (promotionBar(track, place.rung, job.performance, monthsInRung, discipline) !== null) {
+    const level = world.education.get(person.id)?.level ?? 'none'
+    if (promotionBar(track, place.rung, job.performance, monthsInRung, discipline, level) !== null) {
       continue
     }
 
     const next = nextRungOf(track, place.rung)
     if (!next) continue
+    // THE CHAIR HAS TO BE EMPTY. A promotion board cannot appoint a second
+    // chief of police because the first one is still in the job.
+    if (!topSeatOpen(world, next.occupationId)) continue
     const score = reviewScoreFor(job.performance, monthsInRung, world.economy.growthPerMille, {
       smarts: smartsOf(world, person.id),
       discipline,
@@ -1204,7 +1245,7 @@ export function runEmployment(world: World, tick: Tick): void {
         }
         // A working player past retirement age still does their job.
         const rngWorking = openStream(world.seed, Stream.Employment, person.id, tick)
-        driftPerformance(world, person, job, rngWorking)
+        driftPerformance(world, person, job, rngWorking, tick)
         continue
       }
       retirePerson(world, tick, person, [factor('old-age', 900)])
@@ -1217,7 +1258,7 @@ export function runEmployment(world: World, tick: Tick): void {
     const rng = openStream(world.seed, Stream.Employment, person.id, tick)
 
     if (job) {
-      driftPerformance(world, person, job, rng)
+      driftPerformance(world, person, job, rng, tick)
       annualReview(world, tick, person)
       considerBetterJob(world, tick, person, job, rng, workplaces.length)
       continue
@@ -1234,9 +1275,22 @@ export function runEmployment(world: World, tick: Tick): void {
     // its school and its police station with people the player is refused
     // alongside. Ordinary work stays open; the drag below is the rest.
     const gate = recordGateOf(world, person.id, world.tick)
+    // WHERE A CAREER CAN START (careers overhaul, Fix 1). Schooling alone
+    // used to decide this, so anything a person's education qualified
+    // them for could be handed over — including the top of a ladder they
+    // had never set foot on. That is the "doctor at $200k leaving the
+    // army", and it is what made the ladders decorative: there was no
+    // reason to climb five rungs when the town would hand you the fifth.
+    //
+    // THIS IS THE PATH FOR SOMEBODY WITH NO JOB, so the rule is simply
+    // the bottom: a ladder is entered at its first rung, and work that
+    // sits on no ladder is entry by definition. Moving UP by changing
+    // employer is a different path, and it reads a person's own record —
+    // see the job-change pass below.
     const eligible = OCCUPATIONS.filter(
       (o) => meetsRequirement(education.level, o.requires) || unlocked.includes(o.id),
     )
+      .filter((o) => isEntryWork(o.id))
       .filter((o) => o.id !== 'constable' || constableSeatOpen(world))
       .filter((o) => gate !== 'hard' || !isTrustSensitive(o.id))
     if (eligible.length === 0) continue
@@ -1285,37 +1339,26 @@ export function runEmployment(world: World, tick: Tick): void {
       rng.nextIntInclusive(floorPay, chosen.maxMonthlyPay),
     ) as Money
 
-    // The roll decided an opportunity exists this month. For the player it
-    // becomes an offer they can refuse; refused, it is gone (Law 5).
-    if (person.id === world.player.personId) {
-      // ADR-0033, owner: "can we change the when you graduate high school
-      // you instantly get offered a job? it should ask you the go to
-      // college question with the enlist option... first".
-      //
-      // THE FORK AT EIGHTEEN COMES FIRST. A school leaver with the question
-      // still unanswered is not on the job market yet — college, a trade,
-      // the uniform and work are all still live, and a job offer arriving
-      // ahead of that menu quietly answers it for them. Once they have
-      // chosen (including choosing work), offers resume normally.
-      if (educationForkPending(world, person, tick)) continue
-      raisePending(world, {
-        tick,
-        kind: 'job-offer',
-        personId: person.id,
-        otherId: null,
-        occupationId: chosen.id,
-        workplaceId: workplace.id,
-        monthlyPay: pay,
-        placeId: null,
-        // ADR-0034, owner: "when you get the job it just says the job
-        // opened up — it should really be saying congrats they have
-        // extended a job offer and it tells you to accept, decline, or
-        // wait." SLEEPING ON IT IS A REAL ANSWER: the offer stands, and
-        // it stands for a while rather than for ever.
-        options: ['accept', 'decline', 'wait'],
-      })
-      continue
-    }
+    // THE TOWN DOES NOT HAND THE PLAYER A JOB (careers overhaul, Fix 1).
+    //
+    // This raised an unsolicited `job-offer` — work arriving in a popup
+    // for something you never asked about. Together with hiring that
+    // ignored the ladder it is the whole of the owner's complaint:
+    // "offered doctor at $200k leaving the army".
+    //
+    // The player applies instead, from the job board that already exists
+    // on the Jobs tab, and applying runs the interview that already
+    // exists in interview.ts. The comment left at this site months ago
+    // said instant offers should route to an interview; this is that.
+    //
+    // NPCs are unaffected. They go on being hired by the same pass, at
+    // entry rungs like everybody else — the town keeps staffing itself,
+    // it simply stops staffing the player.
+    //
+    // Headhunting survives, because a rival firm poaching somebody senior
+    // is a real thing rather than a gift — it lives in considerBetterJob,
+    // where a person's own record is already in hand.
+    if (person.id === world.player.personId) continue
 
     const rejected = eligible
       .filter((o) => o.id !== chosen.id)
@@ -1513,12 +1556,54 @@ function annualReview(world: World, tick: Tick, person: Person): void {
   })
 }
 
-function driftPerformance(world: World, person: Person, job: EmploymentRecord, rng: Rng): void {
-  // The body sets the ceiling (L4-M2): performance drifts toward what
-  // diligence can deliver THROUGH the disability, and an active severe
-  // ailment drags the month regardless.
+/**
+ * HOW GOOD SOMEBODY CAN GET AT THE JOB (careers overhaul, Fix 2).
+ *
+ * This used to be DILIGENCE ALONE, and that single fact made every career
+ * ladder in the game unclimbable. MEASURED, with the entry-rung rule in
+ * place so people had to climb rather than be hired into the top: median
+ * performance settled at 497 because median diligence is 500, while the
+ * median rung asks 660. Sixty-two per cent of everybody on a ladder was
+ * stuck on the reviews gate, permanently, by arithmetic. The town had no
+ * contractors, no chief of medicine, no partners and no executives — the
+ * roles had only ever been filled by hiring strangers straight into them.
+ *
+ * So the ceiling is what the spec asks for: the stats a person actually
+ * has, plus the thing that was missing entirely — TIME IN THE TRADE.
+ * Somebody who has done a job for ten years is better at it than they
+ * were on their first day, and no amount of diligence substitutes for
+ * that. It is also what makes a ladder a ladder rather than a sorting of
+ * people by a trait they were born with (Law 10: unequal, but caused).
+ *
+ * Balance numbers, measured and retuned; see the commit.
+ */
+function performanceCeiling(world: World, person: Person, job: EmploymentRecord, tick: Tick): number {
+  // The three stats the spec names, weighted toward the one that is
+  // about turning up and doing the work.
+  const base = Math.floor(
+    (person.traits.diligence * 55 +
+      smartsOf(world, person.id) * 25 +
+      disciplineOf(world, person.id, tick) * 20) /
+      100,
+  )
+  // EXPERIENCE. Capped, so a long career is an advantage and not an
+  // automatic promotion — twelve years reaches the ceiling of it.
+  const months = Math.max(0, tick - job.startedAtTick)
+  const experience = Math.min(EXPERIENCE_CAP, Math.floor((months * EXPERIENCE_CAP) / 144))
+  // The body still sets the limit (L4-M2).
   const health = world.health.get(person.id)
-  const ceiling = Math.max(0, person.traits.diligence - Math.floor((health?.disability ?? 0) / 2))
+  return Math.max(0, base + experience - Math.floor((health?.disability ?? 0) / 2))
+}
+
+function driftPerformance(
+  world: World,
+  person: Person,
+  job: EmploymentRecord,
+  rng: Rng,
+  tick: Tick,
+): void {
+  const health = world.health.get(person.id)
+  const ceiling = performanceCeiling(world, person, job, tick)
   const ailingDrag = health && health.ailment !== null && health.severity >= 600 ? 25 : 0
 
   const pull = ceiling - job.performance
@@ -1633,9 +1718,24 @@ function considerBetterJob(
   if (!rng.chance(person.traits.ambition, 60_000)) return
 
   const current = occupationById(job.occupationId)
+  // MOVING FOR BETTER PAY IS BOUNDED BY YOUR OWN RECORD (Fix 1).
+  //
+  // Changing employer is how somebody legitimately steps up without
+  // waiting for a promotion where they are — but it is a step, not a
+  // leap. `meritedRung` allows the rung they hold and, where their
+  // reviews already clear the next one's bar, the rung above it. Without
+  // this, "ambitious people occasionally move for better pay" would have
+  // read the whole occupation list and let a shop clerk move to chief of
+  // medicine because it pays more and a degree is a degree.
+  const standing = meritedRung(job.occupationId, job.performance)
   const better = OCCUPATIONS.filter(
     (o) => meetsRequirement(education.level, o.requires) && typicalPay(o) > typicalPay(current),
-  )
+  ).filter((o) => {
+    if (!topSeatOpen(world, o.id)) return false
+    if (isEntryWork(o.id)) return true
+    const place = placeOf(o.id)
+    return place !== undefined && place.rung <= standing
+  })
   if (better.length === 0) return
 
   const target = rng.pick(better)
@@ -1651,6 +1751,18 @@ function considerBetterJob(
 
   // A better opening exists. The player decides whether to take it; an NPC's
   // ambition already decided for them when the roll passed.
+  //
+  // AN UNSOLICITED APPROACH IS FOR SOMEBODY WORTH APPROACHING (Fix 1).
+  // The spec keeps headhunting but constrains it: "only for someone
+  // already senior and experienced in that field... never a random gift."
+  // A rival firm poaching a site foreman is a real thing; the same firm
+  // cold-calling a shop clerk about a job they never asked for is the
+  // behaviour this overhaul deleted, wearing a different hat. Somebody at
+  // the bottom of a ladder applies from the job board like anyone else.
+  const climbed = placeOf(job.occupationId)
+  if (person.id === world.player.personId && (climbed === undefined || climbed.rung < 1)) {
+    return
+  }
   if (person.id === world.player.personId) {
     raisePending(world, {
       tick,
@@ -1661,7 +1773,12 @@ function considerBetterJob(
       workplaceId: workplace.id,
       monthlyPay: pay,
       placeId: null,
-      options: ['accept', 'decline'],
+      // SLEEPING ON IT IS A REAL ANSWER HERE TOO (ADR-0034, Law 5).
+      // The unemployed offer that carried 'wait' is gone; this is the one
+      // kind of unsolicited offer that survives, and a poached senior
+      // deserves the same night to think about it that a school leaver
+      // used to get.
+      options: ['accept', 'decline', 'wait'],
     })
     return
   }

@@ -181,3 +181,39 @@ describe('a career, over a life', () => {
     }
   })
 })
+
+/**
+ * The ordering bug the careers module found in its own foundation.
+ */
+describe('every level opens the doors it should', () => {
+  it('opens tracks for the levels the education module added', () => {
+    // `tracksOpenTo` kept a PRIVATE copy of the education ordering, and it
+    // drifted the moment `middle` was inserted and `graduate` appended:
+    // indexOf returned -1 for both, `-1 >= 0` is false for every track,
+    // and so a middle-school leaver and a PhD holder each qualified for
+    // NO TRACK AT ALL — an advanced degree opened fewer doors than
+    // dropping out of primary school.
+    //
+    // The old test only checked 'none' and 'secondary', the two levels
+    // that happened to sit in the stale array, which is why it went
+    // unnoticed. This one walks the whole ladder.
+    for (const level of ['none', 'primary', 'middle', 'secondary', 'trade', 'college', 'graduate'] as const) {
+      expect(tracksOpenTo(level).length, `${level} opens nothing`).toBeGreaterThan(0)
+    }
+  })
+
+  it('never lets more schooling open fewer doors', () => {
+    // The invariant the drift broke, stated directly: walking up the
+    // ladder can only ever add tracks, never take one away. The trade
+    // exception is the one deliberate step sideways.
+    const ladder = ['none', 'primary', 'middle', 'secondary'] as const
+    let previous = 0
+    for (const level of ladder) {
+      const count = tracksOpenTo(level).length
+      expect(count, `${level} opens fewer than the level below`).toBeGreaterThanOrEqual(previous)
+      previous = count
+    }
+    // And the top of the ladder opens at least what a degree does.
+    expect(tracksOpenTo('graduate').length).toBeGreaterThanOrEqual(tracksOpenTo('college').length)
+  })
+})

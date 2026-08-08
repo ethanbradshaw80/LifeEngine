@@ -205,6 +205,7 @@ import {
   promoteTo,
   applySchoolMoment,
   applyWorkMoment,
+  educationForkPending,
   dropOut,
   dropOutBar,
 } from './systems.js'
@@ -463,6 +464,18 @@ export function applyForJob(world: World, occupationId: string): { applied: bool
   if (current?.occupationId === occupationId) {
     return { applied: false, reason: 'This is already the work they do.' }
   }
+  // ADR-0033 STILL HOLDS, it just guards a different door now. The rule
+  // was "the fork at eighteen comes first" and it used to sit on the
+  // unsolicited job offer, which the careers overhaul deleted. A school
+  // leaver with college, a trade, the uniform and work all still open
+  // should not be able to answer that question by taking a job instead —
+  // so the gate moved to the asking.
+  if (educationForkPending(world, person, tick)) {
+    return {
+      applied: false,
+      reason: 'There is a decision waiting about what comes after school. That first.',
+    }
+  }
   // One asking a month: the same month re-rolls the same answer, and a life
   // story should not carry ten identical rejections dated the same day.
   if (world.player.log.some((entry) => entry.kind === 'job-application' && entry.tick === tick)) {
@@ -535,7 +548,22 @@ export function resolveInterview(
   const rng = openStream(world.seed, Stream.Employment, person.id, tick + 10_101)
   const drive = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
   const stretch = isStretchFor(world, person.id, occupationId)
-  const odds = 450 + Math.floor(drive / 4) - (stretch ? 150 : 0) + approachBonus(approach, stretch)
+  // WHAT THE SERVICE IS WORTH IN THE ROOM (Fix 1, veteran transition).
+  //
+  // The spec is precise about this: a specialty "gives an EDGE in the
+  // interview... never a doctor with no medical ladder behind it". So a
+  // veteran applying into the field their trade actually was does not
+  // skip the interview and is not handed the job — they walk in better
+  // than the person beside them, which is what a decade of doing the
+  // work is worth and no more.
+  const relevant = veteranUnlocks(world, person.id).includes(occupationId)
+  const serviceEdge = relevant ? 170 : 0
+  const odds =
+    450 +
+    Math.floor(drive / 4) -
+    (stretch ? 150 : 0) +
+    approachBonus(approach, stretch) +
+    serviceEdge
   if (!rng.chance(Math.max(30, Math.min(970, odds)), 1000)) {
     recordEvent(world, tick, { type: 'turned-down', subjectId: person.id, detail: occupation.title })
     return { hired: false, workplaceId: null, pay: 0 as Money }

@@ -187,7 +187,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'shop-clerk', title: 'shop clerk', requires: 'primary', minMonthlyPay: dollars(292), maxMonthlyPay: dollars(458) },
   { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(375), maxMonthlyPay: dollars(625) },
   // Lower-middle — $50k to $70k.
-  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(354), maxMonthlyPay: dollars(562) },
+  { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(354), maxMonthlyPay: dollars(562), preferredMajors: ['business'] },
   { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(417), maxMonthlyPay: dollars(646), preferredMajors: ['business'] },
   { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(573), maxMonthlyPay: dollars(938), preferredMajors: ['criminal-justice'] },
   { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875), preferredMajors: ['construction'] },
@@ -213,7 +213,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   //
   // Priced on the same real annual scale as everything above (M-ECON §7),
   // each rung a real step up from the one below it.
-  { id: 'apprentice', title: 'apprentice', requires: 'trade', minMonthlyPay: dollars(344), maxMonthlyPay: dollars(521) },
+  { id: 'apprentice', title: 'apprentice', requires: 'trade', minMonthlyPay: dollars(344), maxMonthlyPay: dollars(521), preferredMajors: ['construction', 'machining', 'electrical'] },
   { id: 'master-tradesman', title: 'master tradesman', requires: 'trade', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_000), preferredMajors: ['machining'] },
   { id: 'site-foreman', title: 'site foreman', requires: 'trade', minMonthlyPay: dollars(875), maxMonthlyPay: dollars(1_375), preferredMajors: ['construction'] },
   { id: 'contractor', title: 'contractor', requires: 'trade', minMonthlyPay: dollars(990), maxMonthlyPay: dollars(1_823), preferredMajors: ['construction'] },
@@ -234,7 +234,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'superintendent', title: 'superintendent', requires: 'secondary', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_438) },
   { id: 'plant-manager', title: 'plant manager', requires: 'secondary', minMonthlyPay: dollars(1_125), maxMonthlyPay: dollars(1_750) },
 
-  { id: 'aide', title: "nurse's aide", requires: 'none', minMonthlyPay: dollars(333), maxMonthlyPay: dollars(521) },
+  { id: 'aide', title: "nurse's aide", requires: 'none', minMonthlyPay: dollars(333), maxMonthlyPay: dollars(521), preferredMajors: ['nursing', 'health'] },
   { id: 'charge-nurse', title: 'charge nurse', requires: 'trade', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_333), preferredMajors: ['nursing', 'health'] },
   { id: 'nurse-manager', title: 'nurse manager', requires: 'trade', minMonthlyPay: dollars(1_021), maxMonthlyPay: dollars(1_510), preferredMajors: ['nursing', 'health'] },
 

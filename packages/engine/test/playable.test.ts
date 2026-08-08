@@ -22,6 +22,7 @@ import {
   worldHash,
 } from '../src/index.js'
 import {
+  applyForJob,
   awaitingPlayer,
   describePending,
   hasAnswered,
@@ -160,19 +161,35 @@ describe('answers take effect', () => {
     advanceToPending(world)
     resolvePending(world, 'work')
 
-    // Next decision should be a job offer, eventually.
-    advanceToPending(world, 240)
+    // WORK IS APPLIED FOR NOW (careers overhaul, Fix 1). This waited for
+    // an unsolicited 'job-offer' to arrive, which is exactly the
+    // behaviour the overhaul deleted — the town does not hand the player
+    // a job. What it hands them is a door.
+    //
+    // Applying raises an INTERVIEW, and the interview is where accepting
+    // or not actually happens.
+    const asked = applyForJob(world, 'labourer')
+    expect(asked.applied, asked.reason).toBe(true)
+    expect(world.player.pending?.kind).toBe('interview')
     const pending = world.player.pending
-    expect(pending?.kind).toBe('job-offer')
     if (!pending) return
 
-    resolvePending(world, 'decline')
-    expect(world.employment.has(teen.id)).toBe(false)
+    // The interview's answers are how you PLAY the room — sell, straight
+    // or keen — not whether to be there. Playing it either lands the job
+    // or does not, and both are real outcomes.
+    expect(pending.options).toContain('straight')
+    resolvePending(world, 'straight')
 
-    advanceToPending(world, 240)
-    if (world.player.pending?.kind === 'job-offer') {
-      resolvePending(world, 'accept')
-      expect(world.employment.has(teen.id)).toBe(true)
+    // Whichever way that went, the world is coherent: employed means a
+    // real occupation and a wage, and not employed means neither.
+    const hired = world.employment.has(teen.id)
+    if (hired) {
+      const job = world.employment.get(teen.id)
+      expect(job?.occupationId).toBe('labourer')
+      expect(job?.monthlyPay ?? 0).toBeGreaterThan(0)
+    } else {
+      // Turned down is a real answer too, and it leaves the door open.
+      expect(world.employment.get(teen.id)).toBeUndefined()
     }
   })
 })
