@@ -23,6 +23,8 @@ import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { raisePending } from './player.js'
 import { isHomeless, inArrears } from './finances.js'
+import { looksOf } from './stats.js'
+import { wellbeingOf } from './wellbeing.js'
 import { openStream, Stream, type Rng } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
 import { relationshipKey } from './types.js'
@@ -483,7 +485,33 @@ function holdSocials(world: World, tick: Tick, living: readonly Person[]): void 
       const existing = world.relationships.get(key)
       if (existing !== undefined && existing.type !== 'friend') continue // no rekindling exes in D2
       candidates.push(other)
-      weights.push(1 + compatibility(person, other))
+      // STATS PHASE 6b. Looks and wellbeing weight WHO gets noticed — they
+      // do not gate who is allowed to court, and the difference matters.
+      //
+      // The spec asks for "Looks + Wellbeing + sociability drive partnering
+      // and stability". Putting either in `seekingIntent` would have made
+      // them a gate: below some line you simply stop looking for anybody,
+      // which is both untrue and the kind of rule that quietly empties a
+      // town of marriages. As a WEIGHT it says something much smaller and
+      // much more defensible — that a person in good spirits and good
+      // condition is noticed more often — while everybody stays in the pool.
+      //
+      // The floor of 1 in the appeal term is deliberate: nobody's odds ever
+      // reach zero, so no life is closed off entirely.
+      // MEASURED AND MADE GENTLER. The first version MULTIPLIED
+      // compatibility by an appeal factor of one to six, and a six-times
+      // thumb on the scale is not a nudge — it concentrated partnering hard
+      // enough to drop completed fertility from 2.1 to 1.62, under the
+      // floor the demographic guard holds at 1.75. Looks should decide who
+      // gets noticed a little; it should not decide who gets to have a
+      // family.
+      //
+      // Additive, and small against compatibility, which stays the thing
+      // that actually matters about a match.
+      const appeal =
+        Math.floor(looksOf(world, other.id, tick) / 400) +
+        Math.floor(wellbeingOf(world, other.id) / 500)
+      weights.push(1 + compatibility(person, other) + appeal)
     }
     if (candidates.length === 0) continue
 

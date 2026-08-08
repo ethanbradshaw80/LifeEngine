@@ -66,9 +66,19 @@ Push normally with `git push`.
 ## START HERE (handoff, end of 2026-08-06)
 
 **STATE:** clean tree, everything pushed.
-SIMULATION_VERSION **105** · SCHEMA_VERSION **44** · Classic golden
-**e53ee9f0** · Heartland golden **be85483a** · **~956 tests** across 84
-files, all green. Full suite ~8 minutes on a quiet machine.
+SIMULATION_VERSION **107** · SCHEMA_VERSION **44** · Classic golden
+**2b2aef13** · Heartland golden **f135a4b7** · **958 tests** across 84
+files, all green in one clean run. Full suite ~15 minutes.
+
+**THE SUITE GOT SLOWER AND THE TIMEOUT WAS RAISED TO MATCH.** 890 tests at
+~450s became 958 at ~890s. The long sweeps — two centuries of war, a
+forty-year capture study — legitimately exceed five minutes when sixteen
+workers compete, so they passed alone and failed in the suite. That is a
+false negative, not a slow test; `testTimeout` is 900s now. A genuinely
+hung test still fails, just later. **Worth a real optimisation pass**: the
+quadratic partnering loop and the per-person whole-ledger scans are the
+known offenders, and `stats.test.ts` alone dropped from three grown worlds
+to one by sharing a read-only fixture.
 
 ### THE ONE HABIT THAT FOUND THE MOST BUGS
 

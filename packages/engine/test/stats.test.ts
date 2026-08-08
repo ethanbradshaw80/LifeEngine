@@ -23,7 +23,29 @@ import {
   dropHabit,
 } from '../src/stats.js'
 import { recordEvent } from '../src/records.js'
+import { promotionBar, reviewScoreFor, trackById } from '../src/careers.js'
 import { setHabit, setPlayer } from '../src/player.js'
+
+
+/**
+ * ONE GROWN WORLD, SHARED BY THE READ-ONLY SWEEPS.
+ *
+ * Building a four-hundred-person town and running it forty years is the
+ * most expensive thing in this codebase, and three tests below were each
+ * doing it privately to ask a different question of the same kind of world.
+ * Across the files written this week that waste added up to enough load to
+ * push the long military sweeps over their timeout in the full suite while
+ * they passed comfortably alone.
+ *
+ * Only tests that READ may share it. Anything that mutates builds its own,
+ * because a shared world one test writes to is how a suite starts failing
+ * in an order-dependent way nobody can reproduce.
+ */
+const grown = (() => {
+  const world = createWorld(makeSeed(4141), 400)
+  advanceTicks(world, 40 * 12)
+  return world
+})()
 
 describe('a body belongs to the person, not the army', () => {
   it('gives civilians one, and gives it to them from twelve', () => {
@@ -31,8 +53,7 @@ describe('a body belongs to the person, not the army', () => {
     // The number lived on the service record, so the body began at
     // enlistment and a life spent training arrived at the recruiting
     // station in the same shape as a life spent otherwise.
-    const world = createWorld(makeSeed(4141), 400)
-    advanceTicks(world, 40 * 12)
+    const world = grown
     let civiliansWithBodies = 0
     for (const person of livingPeople(world)) {
       const age = ageAt(person.birthTick, world.tick)
@@ -75,8 +96,7 @@ describe('the standard ages with the body it measures', () => {
   })
 
   it('leaves only the genuinely unfit flagged in a grown town', () => {
-    const world = createWorld(makeSeed(4141), 400)
-    advanceTicks(world, 40 * 12)
+    const world = grown
     let serving = 0
     let unfit = 0
     for (const record of world.service.values()) {
@@ -105,8 +125,7 @@ describe('the stats that are read, not stored', () => {
     // best-looking person in town read 54 on the player's dial and the top
     // half of the scale was dead. A stat nobody can score well on is as
     // useless as one everybody scores the same on.
-    const world = createWorld(makeSeed(4141), 400)
-    advanceTicks(world, 40 * 12)
+    const world = grown
     const adults = livingPeople(world).filter((p) => ageAt(p.birthTick, world.tick) >= 18)
     expect(adults.length, 'nobody to measure').toBeGreaterThan(20)
 
@@ -249,5 +268,37 @@ describe('a habit, not a button', () => {
     // But studying and company are exactly what somebody laid up CAN do.
     expect(setHabit(world, 'study', true).changed).toBe(true)
     expect(setHabit(world, 'social', true).changed).toBe(true)
+  })
+})
+
+/**
+ * Phase 6c — the civilian ladder reads the person. The spec's last
+ * acceptance item: "Smarts + Discipline gate the ladder and retention."
+ */
+describe('the civilian ladder reads the person, not only the job', () => {
+  it('scores a sharper, steadier candidate above an identical one', () => {
+    const track = trackById('trades')
+    if (!track) throw new Error('no trades track')
+    const plain = reviewScoreFor(600, 24, 0)
+    const strong = reviewScoreFor(600, 24, 0, { smarts: 850, discipline: 850 })
+    const weak = reviewScoreFor(600, 24, 0, { smarts: 200, discipline: 200 })
+    expect(strong).toBeGreaterThan(plain)
+    expect(weak).toBeLessThan(plain)
+    // BOUNDED. It colours the decision; it does not make it. The partnering
+    // weight had to learn this the hard way — as a multiplier it decided who
+    // got a family and dropped completed fertility under the guard's floor.
+    expect(strong - plain).toBeLessThan(100)
+  })
+
+  it('blocks the next rung on a genuinely bad conduct record, and only that', () => {
+    const track = trackById('trades')
+    if (!track) throw new Error('no trades track')
+    // An ordinary person sits near 500 and is never touched by this.
+    expect(promotionBar(track, 0, 900, 120, 500)).toBeNull()
+    expect(promotionBar(track, 0, 900, 120, 800)).toBeNull()
+    // The bottom of the distribution — marks and convictions — is.
+    expect(promotionBar(track, 0, 900, 120, 150)).toContain('conduct')
+    // And with no discipline passed at all, the bar behaves as it always did.
+    expect(promotionBar(track, 0, 900, 120)).toBeNull()
   })
 })

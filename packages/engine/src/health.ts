@@ -33,6 +33,7 @@ import { MACHINES_BY_OCCUPATION, occupationById, PENSION_CENTS_PER_POINT, PENSIO
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import { wellbeingBaselineFor, wellbeingOf } from './wellbeing.js'
 import type { BodySite, HealthRecord, Person, World } from './types.js'
 import { describeAilment, markFor, pickFieldIllness, pickIllness, pickInjury } from './wounds.js'
 import type { InjuryContext } from './wounds.js'
@@ -91,6 +92,21 @@ export function freshHealth(personId: EntityId): HealthRecord {
 // The monthly tick
 // ---------------------------------------------------------------------------
 
+/**
+ * STATS PHASE 6b. CHRONIC LOW WELLBEING DRAGS THE BODY.
+ *
+ * The spec: "a chronic low Wellbeing slowly drags Health." The word doing
+ * the work is CHRONIC — a bad month is a bad month, and it is not supposed
+ * to cost anybody their health. What this reads is a life that has been
+ * going badly for a long time.
+ *
+ * It raises the odds of falling ill; it does NOT invent an ailment or write
+ * disability. The health system still owns what goes wrong and how badly,
+ * which is the single-writer rule holding: this is a thumb on a scale that
+ * already exists, not a second author of harm.
+ */
+export const MISERY_THRESHOLD = 380
+
 export function runHealth(world: World, tick: Tick): void {
   for (const person of livingSorted(world)) {
     const record = world.health.get(person.id) ?? freshHealth(person.id)
@@ -116,11 +132,22 @@ export function runHealth(world: World, tick: Tick): void {
     // state is two plain lookups (same reasoning as householdCosts reading
     // the jail record inline).
     const rough = roughSleeping(world, person)
+    // CHRONIC LOW WELLBEING (phase 6b). Both the current value AND the
+    // BASELINE have to be under, and that pairing is what makes it chronic
+    // without storing a history: the baseline is where this life settles
+    // given its facts — no work, no roof, no money, nobody — so a low one
+    // means the life is bad rather than the month. Somebody knocked down by
+    // a single bereavement has a low value and a normal baseline, and this
+    // does not touch them.
+    const morale = wellbeingOf(world, person.id)
+    const settled = wellbeingBaselineFor(world, person, tick)
+    const ground = morale < MISERY_THRESHOLD && settled < MISERY_THRESHOLD ? 6 : 0
     const illnessPerTenK =
       3 +
       Math.floor(Math.max(0, age - 35) / 3) +
       Math.floor((1000 - person.traits.vitality) / 150) +
-      (rough ? 20 : 0)
+      (rough ? 20 : 0) +
+      ground
 
     if (rng.chanceInTenThousand(injuryPerTenK)) {
       beginAilment(world, tick, person, 'injury', rng.nextBellInt(150, 850), rng, risky ? 'machinery' : 'mishap')

@@ -126,14 +126,24 @@ describe('a recruiting drive is news to whoever it could be about', () => {
     // eleven and twelve. The town feed is merged into every personal story,
     // so a notice aimed at people old enough to sign was being filed as an
     // event in a child's life.
-    const world = createWorld(makeSeed(12345), 100)
-    advanceTicks(world, 40 * 12)
-
-    const drives = world.events.filter((e) => e.type === 'recruiting-drive')
-    expect(drives.length, 'no drive ever ran').toBeGreaterThan(0)
-
+    // THREE SEEDS FOR THE REACHABILITY HALF. The invariant this test really
+    // guards — a notice only ever reaches somebody old enough to act on it
+    // — holds in any world and is checked in all of them. But "and somebody
+    // of age was actually told" is a REACHABILITY claim about the system,
+    // and in one particular seed it is luck: the drives that ran can land
+    // in years when everybody currently alive was the wrong age, or the
+    // people who saw them can be dead by the time the town is measured.
+    // Any change that shifts the RNG re-rolls that luck, which is what
+    // turned this red after a partnering weight moved.
     let checkedChild = 0
     let checkedAdult = 0
+    let drivesEverywhere = 0
+    for (const seedValue of [12345, 4141, 9001]) {
+    const world = createWorld(makeSeed(seedValue), 100)
+    advanceTicks(world, 40 * 12)
+
+    drivesEverywhere += world.events.filter((e) => e.type === 'recruiting-drive').length
+
     for (const person of livingPeople(world)) {
       const mine = serviceNewsSince(world, person.birthTick, person.id).filter(
         (n) => n.kind === 'recruiting-drive',
@@ -153,10 +163,15 @@ describe('a recruiting drive is news to whoever it could be about', () => {
         checkedAdult++
       }
     }
+    }
+    expect(drivesEverywhere, 'no drive ever ran').toBeGreaterThan(0)
     expect(checkedChild, 'no children in a forty-year town').toBeGreaterThan(0)
-    expect(checkedAdult, 'nobody of age was told about a drive at all').toBeGreaterThan(0)
+    expect(checkedAdult, 'nobody of age was told about a drive in any seed').toBeGreaterThan(0)
 
     // And the TOWN's own paper still carries every one of them.
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 40 * 12)
+    const drives = world.events.filter((e) => e.type === 'recruiting-drive')
     const townFeed = serviceNewsSince(world, 0 as Tick).filter(
       (n) => n.kind === 'recruiting-drive',
     )

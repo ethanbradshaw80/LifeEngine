@@ -193,6 +193,7 @@ export function promotionBar(
   rung: number,
   performance: number,
   monthsInRung: number,
+  discipline?: number,
 ): string | null {
   const next = nextRungOf(track, rung)
   if (!next) return 'There is nothing above this on the ladder.'
@@ -202,6 +203,18 @@ export function promotionBar(
   }
   if (performance < next.needsPerformance) {
     return 'Your reviews are not where they would need to be.'
+  }
+  // STATS PHASE 6c, the RETENTION half. A bar rather than a weight, because
+  // this one is categorical: somebody whose conduct is genuinely poor is
+  // not handed the next rung, however good last year's numbers were.
+  //
+  // Set LOW on purpose. Discipline is diligence-anchored, so an ordinary
+  // person sits near 500 and this never touches them; it speaks only about
+  // the bottom of the distribution, where the marks and the convictions
+  // are. A bar high enough to catch ordinary people would be a second
+  // performance gate wearing a different name.
+  if (discipline !== undefined && discipline < 260) {
+    return 'Your conduct record is in the way of it.'
   }
   return null
 }
@@ -215,10 +228,27 @@ export function reviewScoreFor(
   performance: number,
   monthsInRung: number,
   growthPerMille: number,
+  person?: { readonly smarts: number; readonly discipline: number },
 ): number {
   const seniority = Math.min(200, monthsInRung * 2)
   const weather = Math.max(-120, Math.min(120, growthPerMille * 4))
-  return performance + seniority + weather
+  // STATS PHASE 6c. The spec: "Smarts + Discipline gate the ladder and
+  // retention." This is the ladder half.
+  //
+  // A REVIEW IS A JUDGEMENT ABOUT A PERSON, not only about a year's output.
+  // Performance is what the job saw; smarts and discipline are what the
+  // person brought to it, and a promotion board weighs both. Bounded either
+  // way at about a fifth of the score so it colours the decision without
+  // deciding it — the same restraint the partnering weight needed after it
+  // was measured and found to be running the whole show.
+  //
+  // Optional so every existing caller keeps its meaning; the one that
+  // matters passes it.
+  const character =
+    person === undefined
+      ? 0
+      : Math.floor((person.smarts - 500) / 8) + Math.floor((person.discipline - 500) / 8)
+  return performance + seniority + weather + character
 }
 
 /** In words, for a screen. */

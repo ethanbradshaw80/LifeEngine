@@ -21,6 +21,7 @@ import {
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
+import { disciplineOf, smartsOf } from './stats.js'
 import {
   nextRungOf,
   placeOf,
@@ -366,11 +367,17 @@ function runReviews(world: World, tick: Tick): void {
     const place = placeOf(job.occupationId)
     if (!place) continue
     const monthsInRung = tick - job.rungSinceTick
-    if (promotionBar(track, place.rung, job.performance, monthsInRung) !== null) continue
+    const discipline = disciplineOf(world, person.id, tick)
+    if (promotionBar(track, place.rung, job.performance, monthsInRung, discipline) !== null) {
+      continue
+    }
 
     const next = nextRungOf(track, place.rung)
     if (!next) continue
-    const score = reviewScoreFor(job.performance, monthsInRung, world.economy.growthPerMille)
+    const score = reviewScoreFor(job.performance, monthsInRung, world.economy.growthPerMille, {
+      smarts: smartsOf(world, person.id),
+      discipline,
+    })
     const rng = openStream(world.seed, Stream.Career, person.id, tick + 9_100)
     // Meeting the bar is not the same as being chosen. The score decides,
     // and a slump can leave somebody qualified standing still for years.
