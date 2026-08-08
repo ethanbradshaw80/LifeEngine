@@ -203,6 +203,8 @@ import {
   promoteTo,
   applySchoolMoment,
   applyWorkMoment,
+  dropOut,
+  dropOutBar,
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import { majorsFor } from './content.js'
@@ -820,6 +822,21 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
 }
 
 /** Sell the house you own. */
+/**
+ * LEAVE THE COURSE. The bar and the verb read the same function, so the
+ * greyed button and the refusal can never disagree.
+ */
+export function dropOutPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = dropOutBar(world, person.id)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'drop-out', '')
+  return dropOut(world, world.tick, person.id)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'Nothing came of it.' }
+}
+
 export function sellHomePlayer(
   world: World,
   propertyId?: string,
@@ -1771,6 +1788,30 @@ function resolveMomentCasualty(
  * Most moments need no guard: their conditions persist and the site
  * re-fires on a later month's roll.
  */
+/**
+ * HOW LONG A "NO" LASTS, in months, by question.
+ *
+ * Not every question should stick. A job offer is about a SPECIFIC job
+ * and the next one is a different opportunity; a moment at work or school
+ * is an event that happened, not an invitation. These are the ones where
+ * the question is "do you want this KIND of thing in your life", and
+ * where being asked again next month makes the refusal meaningless.
+ *
+ * BALANCE NUMBERS. Long enough that a no is respected, short enough that
+ * a life can change its mind — a couple who did not want a child at
+ * twenty-two are allowed to want one at twenty-four.
+ */
+const DECLINE_COOLDOWN: Readonly<Record<string, number>> = {
+  courtship: 24,
+  child: 18,
+  marriage: 24,
+  'move-house': 12,
+  'move-out': 12,
+}
+
+/** Answers that mean "no", across the various button sets. */
+const REFUSALS: ReadonlySet<string> = new Set(['decline', 'no', 'refuse', 'stay', 'wait-longer'])
+
 export function raisePending(
   world: World,
   spec: Omit<PendingDecision, 'id'>,
@@ -1787,6 +1828,14 @@ export function raisePending(
   // this returns false, which is the same contract as a question that could
   // not land because another one was already up.
   if (spec.personId === world.player.personId && isCaptive(world, spec.personId)) return false
+  // A REFUSAL LASTS. Same reasoning as the captivity guard above: the
+  // check belongs here rather than at the raise sites, because there are
+  // fifteen of them and each one only knows about itself.
+  const cooldown = DECLINE_COOLDOWN[spec.kind] ?? 0
+  if (cooldown > 0) {
+    const declined = world.player.declinedAtTick?.[spec.kind]
+    if (declined !== undefined && spec.tick - declined < cooldown) return false
+  }
   world.player.pending = { ...spec, id: world.player.nextDecisionId }
   world.player.nextDecisionId += 1
   return true
@@ -2651,6 +2700,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'doctor':
     case 'rent-home':
     case 'sell-home':
+    case 'drop-out':
     case 'pay-off-plan':
     case 'school-request':
     case 'unit-tryout':
@@ -2805,6 +2855,16 @@ export function resolvePending(world: World, choice: string): void {
 
       if (choice === 'refuse') {
         refuseOrders(world, pending.tick, person, record, enemyId)
+      }
+      break
+    }
+
+    case 'graduate': {
+      // The advanced degree. Declining is a real answer and not a
+      // deferral: the question is asked once, and the record that got the
+      // offer is still there if they change their mind by studying.
+      if (choice === 'enrol') {
+        enrolPlayer(world, pending.tick, person, 'graduate')
       }
       break
     }
@@ -3536,6 +3596,16 @@ function commit(world: World, pending: PendingDecision, choice: string): void {
     // without bound.
     choice: pending.kind === 'unit-moment' ? `${momentIdOf(pending.occupationId)}:${choice}` : choice,
   })
+  // A "NO" IS STAMPED so it can be honoured. Recorded for every kind
+  // rather than only the ones with a cooldown today: the table in
+  // DECLINE_COOLDOWN decides what to DO with it, and adding a kind there
+  // later should not need this line changed as well.
+  if (REFUSALS.has(choice)) {
+    world.player.declinedAtTick = {
+      ...(world.player.declinedAtTick ?? {}),
+      [pending.kind]: pending.tick,
+    }
+  }
   world.player.pending = null
 }
 
@@ -3874,6 +3944,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Took a place on a lease.' // log-only
     case 'sell-home':
       return 'Sold the house.' // log-only
+    case 'drop-out':
+      return 'Left the course.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':
@@ -3946,6 +4018,9 @@ export function describePending(world: World, pending: PendingDecision): string 
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
       return `Orders, ${title}: you are going to ${enemy?.name ?? 'the front'}. What do you do?`
+    }
+    case 'graduate': {
+      return 'Your record is strong enough for graduate work. Two more years, and it is not cheap. Do you go?'
     }
     case 'major': {
       const where = pending.occupationId === 'trade' ? 'the trade school' : 'the university'

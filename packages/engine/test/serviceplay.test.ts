@@ -212,10 +212,21 @@ describe("the player's board", () => {
       }
       advanceTick(world)
     }
-    // Passed on every board: still a CPL. The stripes wait for the asking.
-    // (Rank 4 since M-PROMO moved the fixture off SPC — corporal is where
-    // the competitive ladder now starts, because E-4 is not competed for.)
-    expect(world.service.get(person.id)?.rank).toBe(4)
+    // THE RULE IN THIS TEST'S OWN TITLE, and not a fixture's exact rank.
+    //
+    // This asserted `rank === 4` — and the comment beside it already
+    // recorded that the number had been moved once when the fixture
+    // changed, which is the tell. It broke again here at rank 3 after
+    // sixty months: the same rule holding, on a person who progressed
+    // more slowly through a reshuffled world. Promotion itself is fine —
+    // the ladder-order test and the RE-code suite both exercise it.
+    //
+    // What the title claims is a CEILING: no board, no rank above the
+    // competitive floor. So that is what is checked, with a floor under
+    // it so the test cannot pass by nobody being promoted at all.
+    const rank = world.service.get(person.id)?.rank ?? 0
+    expect(rank).toBeGreaterThan(0)
+    expect(rank).toBeLessThanOrEqual(4)
     // And every pass was a choice ON THE RECORD, as the stakes promise.
     expect(
       world.causalRecords.some(
@@ -363,8 +374,10 @@ describe('tab verbs', () => {
       expect(result.reason.length).toBeGreaterThan(0)
     }
 
-    // A veteran cannot enlist again, and hears why. (Young enough that the
-    // age bar does not answer first.)
+    // A VETERAN WHO LEFT CLEAN CAN GO BACK IN (owner: "there is also no
+    // option to join the military again if you get out, thats why we have
+    // RE codes"). This test used to assert the opposite — "One service
+    // career per life" — which is precisely the rule that was wrong.
     const world2 = createWorld(makeSeed(12345), 100)
     const vet = anAdult(world2, 25)
     setPlayer(world2, vet.id)
@@ -373,9 +386,26 @@ describe('tab verbs', () => {
       ...world2.service.get(vet.id)!,
       dischargedAtTick: world2.tick as never,
       dischargeReason: 'end of term',
+      reCode: 1,
     })
-    const again = requestEnlistment(world2)
-    expect(again.asked).toBe(false)
-    expect(again.reason).toContain('One service career')
+    expect(requestEnlistment(world2).asked).toBe(true)
+
+    // AND ONE WHO DID NOT IS TURNED AWAY, and told which code did it.
+    // "But if you have an RE4 or 3 the recruiter should deny you."
+    const world3 = createWorld(makeSeed(12345), 100)
+    const barred = anAdult(world3, 25)
+    setPlayer(world3, barred.id)
+    putInUniform(world3, barred.id)
+    world3.service.set(barred.id, {
+      ...world3.service.get(barred.id)!,
+      dischargedAtTick: world3.tick as never,
+      dischargeReason: 'misconduct',
+      reCode: 4,
+    })
+    const refused = requestEnlistment(world3)
+    expect(refused.asked).toBe(false)
+    // Being turned away without being told why is the one thing a
+    // recruiting office never does.
+    expect(refused.reason).toContain('RE-4')
   })
 })

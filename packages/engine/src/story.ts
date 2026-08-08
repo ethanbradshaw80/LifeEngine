@@ -21,7 +21,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
 import { occupationById, offenceById } from './content.js'
-import { branchName, rankTitle } from './service.js'
+import { branchName, rankTitle, serviceAtTick } from './service.js'
 import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { eventById } from './eventindex.js'
@@ -105,8 +105,11 @@ function rankWordsFor(world: World, event: WorldEvent): string {
   if (event.detail === null) return 'promotion'
   const rank = Number.parseInt(event.detail, 10)
   if (!Number.isInteger(rank) || String(rank) !== event.detail) return event.detail
-  const record = world.service.get(event.subjectId)
-  return record ? rankTitle(world, record.branch, rank, record.commissioned === true) : 'promotion'
+  // THE BRANCH THEY WERE IN THAT MONTH, not the one they are in now.
+  // Reading the current record renamed a returning veteran's earlier
+  // promotions into their new branch's ladder.
+  const at = serviceAtTick(world, event.subjectId, event.tick)
+  return at ? rankTitle(world, at.branch, rank, at.commissioned) : 'promotion'
 }
 
 /** An offence id as words. Never the raw id — that is a database key. */
@@ -354,6 +357,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return citation === null
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
+    }
+    case 'left-course': {
+      const words =
+        event.detail === 'graduate'
+          ? 'the graduate programme'
+          : event.detail === 'trade'
+            ? 'the trade school'
+            : 'university'
+      return `${year} — Left ${words} without finishing. The fees still stand.`
     }
     case 'won-funding': {
       switch (event.detail) {

@@ -436,6 +436,8 @@ export {
 } from './workmoments.js'
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
 export { MAJORS, majorById, majorsFor } from './content.js'
+export { dropOut, dropOutBar } from './systems.js'
+export { dropOutPlayer } from './player.js'
 export type { Major } from './content.js'
 export {
   SCHOOL_CHOICES,

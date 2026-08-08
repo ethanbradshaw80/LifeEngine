@@ -23,6 +23,7 @@ import {
   tuitionPerYearFor,
   AID_PER_MILLE,
   MERIT_ATTAINMENT,
+  GRADUATE_ADMISSION,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -83,6 +84,7 @@ import {
 import { householdIncome as schoolIncomeOf } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { isJailed, recordGateOf } from './crime.js'
+
 import { describeAilment, pickInjury } from './wounds.js'
 import {
   closeServiceOnDeath,
@@ -118,6 +120,8 @@ const MAJOR_PULL = 8
 const PRIMARY_YEARS = 5
 const MIDDLE_YEARS = 3
 const SECONDARY_YEARS = 4
+/** Shorter than the degree beneath it, and dearer per year. */
+const GRADUATE_YEARS = 2
 export const TRADE_YEARS = 2
 // Exported for the education stakes text (P1) — prose must not drift.
 export const COLLEGE_YEARS = 4
@@ -204,6 +208,8 @@ function yearsFor(level: EducationLevel): number {
       return TRADE_YEARS
     case 'college':
       return COLLEGE_YEARS
+    case 'graduate':
+      return GRADUATE_YEARS
     default:
       return 0
   }
@@ -720,6 +726,37 @@ export function runEducation(world: World, tick: Tick): void {
       if (!rng.chance(appetite, 4000)) continue
       const choice: EducationLevel = rng.chance(person.traits.curiosity, 1400) ? 'college' : 'trade'
       enrol(world, tick, person, choice, rng)
+      continue
+    }
+
+    // THE STEP ABOVE THE DEGREE (education master §5). Selective, on the
+    // record rather than on a roll — but there is deliberately NO closed
+    // door: somebody who misses the mark can study, raise it and come
+    // back, because a permanent bar at twenty-two is the dead end Law 7
+    // forbids.
+    if (record.level === 'college' && age >= 21 && age <= 40) {
+      if (record.attainment < GRADUATE_ADMISSION) continue
+      if (person.id === world.player.personId) {
+        if (!hasAnswered(world, 'graduate')) {
+          raisePending(world, {
+            tick,
+            kind: 'graduate',
+            personId: person.id,
+            otherId: null,
+            occupationId: null,
+            workplaceId: null,
+            monthlyPay: null,
+            placeId: null,
+            options: ['enrol', 'decline'],
+          })
+        }
+        continue
+      }
+      // Rarer than the first degree, and it wants the turn of mind that
+      // wanted the first one.
+      const appetite = Math.floor((person.traits.curiosity * 3 + person.traits.diligence) / 4)
+      if (!rng.chance(appetite, 26_000)) continue
+      enrol(world, tick, person, 'graduate', rng)
     }
   }
 }
@@ -755,12 +792,76 @@ export function enrolPlayer(world: World, tick: Tick, person: Person, level: Edu
 export function enrolmentBar(world: World, person: Person, tick: Tick): string | null {
   const age = ageAt(person.birthTick, tick)
   if (age < 18) return 'Not yet eighteen.'
-  if (age > 24) return 'The schoolhouse takes them younger. That door has closed.'
   if (isServing(world, person.id)) return 'The uniform is a full-time career.'
   const education = world.education.get(person.id)
   if (!education) return 'The schooling already stands.'
   if (education.enrolledIn !== null) return 'Already enrolled.'
+  // THE DIPLOMA IS ALWAYS RECOVERABLE (education master §8, Law 7).
+  //
+  // Somebody who left school without one can sit it at any age. This is
+  // the whole of the GED path and it comes BEFORE the age ceiling
+  // deliberately: the door that closes at twenty-four is the one into
+  // college, and closing the way back to a high-school diploma with it
+  // would make one bad year at sixteen a life sentence.
+  if (educationRank(education.level) < educationRank('secondary')) return null
+  // A VETERAN'S DOOR STAYS OPEN, the same widening the GI Bill needed —
+  // without it the benefit is unclaimable for anybody who served a full
+  // term. See runEducation.
+  const ceiling = isVeteran(world, person.id) ? 45 : 24
+  if (age > ceiling) return 'The schoolhouse takes them younger. That door has closed.'
+  if (education.level === 'college') {
+    // The step above the degree has its own bar: a record, not an age.
+    return education.attainment >= GRADUATE_ADMISSION
+      ? null
+      : 'Graduate programmes want a stronger record than this one.'
+  }
   if (education.level !== 'secondary') return 'The schooling already stands.'
+  return null
+}
+
+/**
+ * LEAVING A COURSE (education master §6, §8).
+ *
+ * No degree, and THE DEBT STAYS — that is the whole shape of the thing.
+ * Somebody who leaves in their third year owes three years and has
+ * nothing to show for it, which is the real cost of the decision and the
+ * reason it is a decision at all.
+ *
+ * Never a dead end (Law 7): the level they already hold is untouched, and
+ * `enrolmentBar` will let them back in.
+ */
+export function dropOut(world: World, tick: Tick, personId: EntityId): boolean {
+  const record = world.education.get(personId)
+  if (record === undefined || record.enrolledIn === null) return false
+  const leaving = record.enrolledIn
+  world.education.set(personId, {
+    ...record,
+    enrolledIn: null,
+    enrolledAtTick: null,
+    completesAtTick: null,
+  })
+  recordEvent(world, tick, { type: 'left-course', subjectId: personId, detail: leaving })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'training',
+    significance: 'major',
+    inputs: [
+      factor('own-choice', personId === world.player.personId ? 1000 : 500),
+      factor('strong-performance', record.attainment),
+    ],
+    chosen: `left ${leaving} without finishing`,
+    rejected: ['seeing it through'],
+    streamId: Stream.Education,
+  })
+  return true
+}
+
+/** Why the door out is shut, or null when it is open. */
+export function dropOutBar(world: World, personId: EntityId): string | null {
+  const record = world.education.get(personId)
+  if (record === undefined || record.enrolledIn === null) return 'You are not enrolled in anything.'
+  // Nobody drops out of primary school by choice.
+  if (!isHigherEducation(record.enrolledIn)) return 'Children do not get to leave school.'
   return null
 }
 
@@ -2014,6 +2115,32 @@ export function birthBar(world: World, tick: Tick, person: Person): string | nul
  * rate lever (ADR-0019). May return zero or negative: the caller treats
  * anything non-positive as "not this month".
  */
+/**
+ * IS THIS PERSON SOMEWHERE ELSE ENTIRELY?
+ *
+ * Deployed, held, or in a cell — the three ways somebody is not at home
+ * this month. One predicate because the answer is wanted in more than one
+ * place and the three must not drift apart.
+ */
+function isApart(world: World, personId: EntityId): boolean {
+  // READ OFF THE STATE, not through deployment.ts. Importing that module
+  // here closes a cycle the ratchet refuses, and the question being asked
+  // is small enough to answer from the world directly — the same reason
+  // wellbeing.ts was made a leaf. An open tour is the last one with no
+  // return date, and being a prisoner is a field on it.
+  const person = world.people.get(personId)
+  if (person === undefined || person.deathTick !== null) return false
+  const tours = world.deployments.get(personId)
+  const tour = tours === undefined ? undefined : tours[tours.length - 1]
+  if (tour !== undefined && tour.returnedAtTick === null) return true
+  const criminal = world.criminal.get(personId)
+  return (
+    criminal !== undefined &&
+    criminal.jailedUntilTick !== null &&
+    world.tick < criminal.jailedUntilTick
+  )
+}
+
 function conceptionBase(
   world: World,
   tick: Tick,
@@ -2092,6 +2219,22 @@ export function runBirths(world: World, tick: Tick): void {
     if (behind && married && household.savings < -2 * householdCosts(world, household)) {
       stopFamilyEarly(world, tick, person.id)
     }
+
+    // NOBODY CONCEIVES A CHILD FROM ANOTHER COUNTRY (owner, playing:
+    // "when I was deployed yesterday my wife and I had a kid because the
+    // popup came up... how could we possibly have a kid when im deployed
+    // to another country").
+    //
+    // The model had every reason a couple might not start a family —
+    // money, age, the plan they agreed at the wedding — and no notion of
+    // whether the two of them were in the same country. A deployment is
+    // six to twelve months on the other side of the world.
+    //
+    // The same hole, and the same fix, for the two other ways a person is
+    // simply ABSENT: a cell and a prison camp. Jail is already treated as
+    // absence at the kitchen table (finances charges no food for somebody
+    // the county is feeding); it was not treated as absence here.
+    if (isApart(world, person.id) || isApart(world, partnerId)) continue
 
     // NOTE the tie passed below is the one read BEFORE stopFamilyEarly — a
     // plan cut this month applies from next month, as it always has.

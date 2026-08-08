@@ -166,8 +166,15 @@ export function majorById(id: string | null | undefined): Major | undefined {
   return id === null || id === undefined ? undefined : MAJORS.find((m) => m.id === id)
 }
 
-/** What this school actually teaches. */
+/**
+ * What this school actually teaches.
+ *
+ * A graduate programme offers the university's fields: nobody reads for a
+ * master's in a welding certificate, and the advanced work is a
+ * continuation of the degree underneath it rather than a fresh start.
+ */
 export function majorsFor(level: EducationLevel): readonly Major[] {
+  if (level === 'graduate') return MAJORS.filter((m) => m.forLevel === 'college')
   return level === 'college' || level === 'trade'
     ? MAJORS.filter((m) => m.forLevel === level)
     : []
@@ -323,13 +330,28 @@ export const AID_PER_MILLE: Readonly<Record<string, number>> = {
 /** The high-school record a merit award wants. Tuned, not a fact. */
 export const MERIT_ATTAINMENT = 720
 
+/** Dearer than the degree under it, and shorter. */
+export const GRADUATE_TUITION_PER_YEAR = dollars(3_400)
+
 export function tuitionPerYearFor(level: EducationLevel): number {
   return level === 'college'
     ? COLLEGE_TUITION_PER_YEAR
     : level === 'trade'
       ? TRADE_TUITION_PER_YEAR
-      : 0
+      : level === 'graduate'
+        ? GRADUATE_TUITION_PER_YEAR
+        : 0
 }
+
+/**
+ * THE RECORD A GRADUATE PROGRAMME WANTS (education master §5).
+ *
+ * Selective, which is the whole point of the level existing — but there
+ * is deliberately NO closed door here: somebody who misses it can study,
+ * raise the record and come back, because a permanent bar at twenty-two
+ * would be exactly the dead end Law 7 forbids.
+ */
+export const GRADUATE_ADMISSION = 640
 
 /**
  * Monthly rent for a neighbourhood. Desirability 150 → ~$1,108; 950 → ~$1,948.
@@ -1763,6 +1785,9 @@ const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   secondary: 3,
   trade: 4,
   college: 5,
+  // The advanced degree sits on top. Appended rather than inserted, so
+  // nothing below it shifts and every existing gate keeps its meaning.
+  graduate: 6,
 }
 
 export function educationRank(level: EducationLevel): number {
@@ -1788,7 +1813,7 @@ export function meetsRequirement(has: EducationLevel, needs: EducationLevel): bo
  * longer silently change what this means.
  */
 export function isHigherEducation(level: EducationLevel | null): boolean {
-  return level === 'trade' || level === 'college'
+  return level === 'trade' || level === 'college' || level === 'graduate'
 }
 
 /**

@@ -299,6 +299,7 @@ const SCHOOLING_WORDS: Record<EducationLevel, string> = {
   secondary: 'a high school diploma',
   trade: 'trade school',
   college: 'college',
+  graduate: 'an advanced degree',
 }
 
 // The same levels said as a PERSON'S schooling rather than a job's
@@ -310,6 +311,7 @@ const LEVEL_WORDS: Record<EducationLevel, string> = {
   secondary: 'high school',
   trade: 'trade school',
   college: 'college',
+  graduate: 'graduate school',
 }
 
 const HEALTH_EVENTS: ReadonlySet<EventType> = new Set([
@@ -719,19 +721,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 </>
               )
             }
-            // The glance strip is where somebody checks what their life is
-            // right now, so probation belongs here as well as on the Crime
-            // page — it is a state that restricts them, not a footnote.
-            if (isOnProbation(world, person.id)) {
-              const job = world.employment.get(person.id)
-              const occupation = job === undefined ? null : occupationById(job.occupationId)
-              return (
-                <>
-                  <span className="stat-value">{occupation?.title ?? 'no work'}</span>
-                  <span className="stat-sub bad">on probation</span>
-                </>
-              )
-            }
+            // PROBATION IS A MODIFIER, NOT A STATUS (owner, playing: "if
+            // you get put on probation it says 'No job' on the main screen
+            // — it just puts probation under no job").
+            //
+            // This block used to RETURN, and it sat above the service one,
+            // so a serving soldier on probation was shown as "no work" —
+            // it read the civilian employment map, found nothing, and
+            // reported that as the truth about a person in uniform. What
+            // probation is, is a restriction on whatever somebody is
+            // already doing, so it is a line UNDER the real status now.
+            const onProbation = isOnProbation(world, person.id)
             const record = world.service.get(person.id)
             if (record && isServing(world, person.id)) {
               return (
@@ -746,8 +746,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       record.commissioned === true,
                     )}
                   </span>
-                  <span className={isDeployed(world, person.id) ? 'stat-sub bad' : 'stat-sub'}>
+                  <span className={isDeployed(world, person.id) || onProbation ? 'stat-sub bad' : 'stat-sub'}>
                     {formatMoney(record.monthlyPay)}/mo · {isDeployed(world, person.id) ? 'deployed' : 'serving'}
+                    {onProbation ? ' · on probation' : ''}
                   </span>
                 </>
               )
@@ -755,9 +756,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             return (
               <>
                 <span className="stat-value">
-                  {job ? `${occupationById(job.occupationId).title}` : age < 18 ? 'growing up' : 'none'}
+                  {job
+                    ? `${occupationById(job.occupationId).title}`
+                    : age < 18
+                      ? 'growing up'
+                      : 'none'}
                 </span>
-                {job && <span className="stat-sub">{formatMoney(job.monthlyPay)}/mo</span>}
+                {job ? (
+                  <span className={onProbation ? 'stat-sub bad' : 'stat-sub'}>
+                    {formatMoney(job.monthlyPay)}/mo{onProbation ? ' · on probation' : ''}
+                  </span>
+                ) : (
+                  onProbation && <span className="stat-sub bad">on probation</span>
+                )}
               </>
             )
           })()}

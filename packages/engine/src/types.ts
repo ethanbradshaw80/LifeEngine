@@ -1024,6 +1024,7 @@ export type EducationLevel =
   | 'secondary'
   | 'trade'
   | 'college'
+  | 'graduate'
 
 export interface EducationRecord {
   readonly personId: EntityId
@@ -1109,6 +1110,42 @@ export interface EmploymentRecord {
 // Military service (L4-M3)
 // ---------------------------------------------------------------------------
 
+/**
+ * A RE CODE — what the separation papers say about coming back (owner:
+ * "thats why we have RE codes so that people who get out at say 8 years
+ * and then want to reenlist can join another branch and stuff. But if you
+ * have an RE4 or 3 the recruiter should deny you").
+ *
+ *   1 — eligible. Served the term, left clean.
+ *   2 — eligible, with something on the file. The service said "no more
+ *       at that rank", not "no more".
+ *   3 — denied. In the real world a waiver exists; the owner's ruling is
+ *       that the recruiter turns them away, and the owner's ruling wins.
+ *   4 — barred. Misconduct, or a body that will not pass again.
+ */
+export type ReCode = 1 | 2 | 3 | 4
+
+/**
+ * A TERM ALREADY SERVED, kept when somebody goes back in.
+ *
+ * `world.service` holds ONE record per person, so re-enlisting would
+ * otherwise overwrite the closed one — and that record is the artifact a
+ * descendant finds three generations on (foundation §10). This is the
+ * summary that survives instead: Law 6 asks for history compressed, not
+ * hoarded, and what matters about a finished term is which branch, how
+ * long, how it ended and what it said about coming back.
+ */
+export interface PriorTerm {
+  readonly branch: string
+  readonly specialtyId: string
+  readonly enlistedAtTick: Tick
+  readonly dischargedAtTick: Tick
+  readonly dischargeReason: string
+  readonly finalRank: number
+  readonly commissioned: boolean
+  readonly reCode: ReCode
+}
+
 export interface ServiceRecord {
   readonly personId: EntityId
   readonly branch: string
@@ -1149,6 +1186,14 @@ export interface ServiceRecord {
    * costs time, not a chance.
    */
   readonly schoolAttempts?: readonly SchoolAttempt[]
+  /**
+   * What the papers said about coming back. Set at discharge and never
+   * afterwards; absent while still serving, and absent on any record
+   * written before re-enlistment existed.
+   */
+  readonly reCode?: ReCode
+  /** Terms served before this one. Empty for almost everybody. */
+  readonly priorTerms?: readonly PriorTerm[]
   /** Recycles used inside the course currently being attended. */
   readonly recyclesUsed?: number
   /**
@@ -1686,6 +1731,7 @@ export type PendingKind =
   /** Real estate: taking a tenancy, and selling up. */
   | 'rent-home'
   | 'sell-home'
+  | 'drop-out'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -1710,6 +1756,7 @@ export type PendingKind =
   | 'bankruptcy'
   | 'promotion-offer'
   | 'work-moment'
+  | 'graduate'
   | 'major'
   | 'school-moment'
   | 'interview'
@@ -1802,6 +1849,19 @@ export interface PlayerState {
    * and the retrospective can say so. Part of the save.
    */
   readonly lineage: EntityId[]
+  /**
+   * WHEN A QUESTION WAS LAST TURNED DOWN, by kind (owner, playing: "when
+   * we first come out of high school it gives a popup that says 'blank
+   * wants to start dating' and if you turn it down and wait itll just
+   * keep asking, same thing with turning down a kid").
+   *
+   * A refusal used to change nothing at all: the roll behind the question
+   * came round again the next month and asked again, so "no" meant "not
+   * this month" and the only way to stop being asked was to say yes.
+   *
+   * Optional so a save written before this loads unchanged.
+   */
+  declinedAtTick?: Record<string, Tick>
 }
 
 // ---------------------------------------------------------------------------
@@ -1879,6 +1939,7 @@ export type EventType =
   /** A phase repeated. Costs time, costs nothing on the record. */
   | 'recycled-in-training'
   | 'work-moment'
+  | 'left-course'
   | 'won-funding'
   | 'took-student-loan'
   | 'chose-major'

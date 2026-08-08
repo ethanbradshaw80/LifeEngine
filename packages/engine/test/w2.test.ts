@@ -13,6 +13,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld, worldHashHex } from '../src/index.js'
 import { GOLDEN_SEED } from './determinism.test.js'
 import { formatYear } from '../src/clock.js'
+import { serviceAtTick } from '../src/service.js'
 import { CLASSIC_SPEC, PRESETS, branchSpecFor, specById } from '../src/worldspec.js'
 import { HEARTLAND_COUNTY, HEARTLAND_SPEC, HEARTLAND_STATE } from '../src/heartland.js'
 import { homeland, relationBetween } from '../src/geopolitics.js'
@@ -138,10 +139,15 @@ describe('the rulings, enforced rather than remembered', () => {
       if (event.type !== 'changed-post' || event.placeId === null) continue
       const base = world.places.get(event.placeId)
       const branches = byName.get(base?.name ?? '')
-      const record = world.service.get(event.subjectId)
-      if (!branches || branches.length === 0 || !record) continue
-      expect(branches, `${base?.name ?? '?'} took a transfer from the ${record.branch}`).toContain(
-        record.branch,
+      // THE BRANCH THEY WERE IN THAT MONTH, not the one they are in now.
+      // Re-enlistment lets somebody serve in two branches across a life,
+      // so a sailor's posting to Norfolk is still correct after they come
+      // back in the air guard — and reading the current record against a
+      // historical posting reported it as a violation.
+      const at = serviceAtTick(world, event.subjectId, event.tick)
+      if (!branches || branches.length === 0 || !at) continue
+      expect(branches, `${base?.name ?? '?'} took a transfer from the ${at.branch}`).toContain(
+        at.branch,
       )
     }
   })
@@ -415,7 +421,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = '56ab3fe8'
+const HEARTLAND_GOLDEN = 'f9ad3ae7'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

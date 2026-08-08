@@ -84,7 +84,7 @@ import { withArticle } from './text.js'
 import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
 import { disciplineOf, fitnessOf, fitnessStandardFor } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
-import type { CausalFactor, Person, Place, World } from './types.js'
+import type { ReCode, PriorTerm, CausalFactor, Person, Place, World } from './types.js'
 import {
   optionsFor,
   reenlistEligibility,
@@ -1274,7 +1274,23 @@ export function enlistmentBar(world: World, person: Person, tick: Tick): string 
   const age = ageAt(person.birthTick, tick)
   if (age < ENLIST_MIN_AGE) return 'Not yet eighteen.'
   if (age > ENLIST_MAX_AGE) return 'Past enlistment age — the office takes volunteers at eighteen to thirty-eight.'
-  if (world.service.has(person.id)) return 'One service career per life; the record stands.'
+  // COMING BACK (owner's RE-code ruling). The blanket refusal that used
+  // to sit here — "one service career per life" — meant somebody who got
+  // out at eight years could never serve again in any branch, which is
+  // not how any of this works. What decides it is the code on their
+  // separation papers.
+  const prior = world.service.get(person.id)
+  if (prior !== undefined) {
+    if (prior.dischargedAtTick === null) return 'Already serving.'
+    if (!reCodeAllowsReturn(prior.reCode)) {
+      // The refusal NAMES the reason, because being turned away without
+      // being told why is the one thing a recruiting office never does.
+      return prior.reCode === 4 && (prior.dischargeReason === 'medical' ||
+        prior.dischargeReason === 'medically-unfit')
+        ? 'Your discharge was medical — RE-4. The recruiter cannot take you back.'
+        : `Your papers read RE-${String(prior.reCode ?? 4)}. The recruiter will not process you.`
+    }
+  }
   if (isSeverelyAiling(world, person.id)) return 'The body would not pass the medical today.'
   if ((world.health.get(person.id)?.disability ?? 0) >= MEDICAL_LIMIT) {
     return 'The medical exam reads the record of old harm, and refuses.'
@@ -1366,6 +1382,25 @@ export function enlistPerson(
   const base = bases[Math.abs(person.id) % Math.max(1, bases.length)]
   if (!base) return
 
+  // A CLOSED RECORD IS NOT OVERWRITTEN, it is folded into the new one.
+  const closing = world.service.get(person.id)
+  const priorTerms: PriorTerm[] =
+    closing !== undefined && closing.dischargedAtTick !== null
+      ? [
+          ...(closing.priorTerms ?? []),
+          {
+            branch: closing.branch,
+            specialtyId: closing.specialtyId,
+            enlistedAtTick: closing.enlistedAtTick,
+            dischargedAtTick: closing.dischargedAtTick,
+            dischargeReason: closing.dischargeReason ?? 'end of term',
+            finalRank: closing.rank,
+            commissioned: closing.commissioned === true,
+            reCode: closing.reCode ?? reCodeFor(closing.dischargeReason ?? 'end of term'),
+          },
+        ]
+      : []
+
   // Enlisting ends a civilian job; the uniform is not a side line.
   if (world.employment.has(person.id)) {
     world.employment.delete(person.id)
@@ -1421,6 +1456,14 @@ export function enlistPerson(
     aptitude: entryTestScore(world, person.id),
     track: commissioned ? 'officer' : 'enlisted',
     ...(officerRoleId !== undefined ? { officerRoleId } : {}),
+    // WHAT THEY DID LAST TIME, carried forward. `world.service` holds one
+    // record per person, so without this a second enlistment would
+    // overwrite the first and erase a career — and that record is the
+    // artifact a descendant finds three generations on (foundation §10).
+    // Summarised rather than kept whole: Law 6 asks for history
+    // compressed, and what matters about a finished term is the branch,
+    // the length, the ending and what it said about coming back.
+    ...(priorTerms.length > 0 ? { priorTerms } : {}),
   })
 
   recordEvent(world, tick, {
@@ -1501,7 +1544,16 @@ export function runService(world: World, tick: Tick): void {
       serveMonth(world, tick, person, record)
       continue
     }
-    if (record) continue // a veteran; their serving days are recorded, and done
+    // A VETERAN IS NOT NECESSARILY DONE (owner's RE-code ruling). This
+    // read `if (record) continue` — "their serving days are recorded, and
+    // done" — which was the SECOND door bolted shut against coming back,
+    // behind the one in enlistmentBar. Opening only the first left the
+    // whole thing MEASURED at zero returns, the same way the GI Bill
+    // measured at zero people: a rule can be right and still never fire.
+    //
+    // Nothing is decided here now. `canEnlist` reads the bar, the bar
+    // reads the RE code, and there is one answer to the question rather
+    // than two that can disagree.
 
     // Civilian of enlistment age: the door exists. The player gets a
     // recruiter's knock when young, jobless and fit; NPCs weigh the same door
@@ -1538,6 +1590,13 @@ export function runService(world: World, tick: Tick): void {
       continue
     }
 
+    // COMING BACK IS RARER THAN GOING IN THE FIRST TIME, and it should
+    // be: somebody who has already served knows exactly what they would
+    // be signing for, and most of them have a life built since. A
+    // returning veteran is weighed on the same terms as everybody else
+    // and then thirded.
+    const returning = record !== undefined && record.dischargedAtTick !== null
+
     // NPC propensity: modest, and modelled — the jobless and the ambitious
     // hear the recruiter out more often; the settled mostly do not.
     // First tuning gave one enlistment in fifty years: the town hires its
@@ -1549,6 +1608,7 @@ export function runService(world: World, tick: Tick): void {
     let propensity = (jobless ? 110 : 16) + Math.floor(person.traits.ambition / 25)
     if (parentServed) propensity += 30
     if (drive) propensity *= 3
+    if (returning) propensity = Math.max(1, Math.floor(propensity / 3))
     if (!rng.chance(propensity, 12_000)) continue
 
     const options = eligibleSpecialties(world, person)
@@ -3446,6 +3506,75 @@ export function retrainSpecialty(
   })
 }
 
+/**
+ * WHAT THE SEPARATION SAYS ABOUT COMING BACK.
+ *
+ * One function, because the code has to be derivable from the reason
+ * rather than rolled — a person turned away at the recruiting desk is
+ * owed an explanation that points at something in their own record
+ * (Law 3), and "you were separated for misconduct" is that. Anything not
+ * listed is treated as an honourable end of service.
+ */
+/**
+ * WHICH BRANCH THIS PERSON WAS IN, IN A GIVEN MONTH.
+ *
+ * `world.service` holds the CURRENT career, so reading `record.branch` to
+ * render a promotion from a previous one puts the wrong ladder's rank
+ * names on it — a soldier who did eight years in the army and came back
+ * in the air guard would read their own life story and find their army
+ * promotions renamed. That is not a hypothetical: it is what the rank
+ * ladder test caught the day re-enlistment started working ("PV2 is not
+ * on the air-guard ladder").
+ *
+ * Falls back to the current record, which is right for everybody who only
+ * ever served once — which is almost everybody.
+ */
+export function serviceAtTick(
+  world: World,
+  personId: EntityId,
+  tick: Tick,
+): { branch: string; commissioned: boolean } | undefined {
+  const record = world.service.get(personId)
+  if (record === undefined) return undefined
+  if (tick >= record.enlistedAtTick) {
+    return { branch: record.branch, commissioned: record.commissioned === true }
+  }
+  for (const term of record.priorTerms ?? []) {
+    if (tick >= term.enlistedAtTick && tick <= term.dischargedAtTick) {
+      return { branch: term.branch, commissioned: term.commissioned }
+    }
+  }
+  return { branch: record.branch, commissioned: record.commissioned === true }
+}
+
+export function reCodeFor(reason: string): ReCode {
+  switch (reason) {
+    // Barred. Either the conduct or the body will not be argued with.
+    case 'misconduct':
+    case 'barred from reenlistment':
+      return 4
+    case 'medical':
+    case 'medically-unfit':
+      return 4
+    // The service said "no more at that rank" — not "no more". A career
+    // that ran out of runway is not a career that ended badly.
+    case 'high-year tenure':
+    case 'time-in-grade':
+      return 2
+    // Served the term, or served the whole career. Clean.
+    default:
+      return 1
+  }
+}
+
+/** Whether the recruiting office will look at this person again. */
+export function reCodeAllowsReturn(code: ReCode | undefined): boolean {
+  // Absent means a record written before any of this existed. Those are
+  // read as clean rather than barred: refusing somebody on the strength
+  // of a field their save never had would be inventing a black mark.
+  return code === undefined || code === 1 || code === 2
+}
+
 export function discharge(
   world: World,
   tick: Tick,
@@ -3459,11 +3588,13 @@ export function discharge(
 ): void {
   // The record is CLOSED, never deleted: this is the artifact a descendant
   // finds three generations on (foundation §10).
+  const reCode = reCodeFor(reason)
   world.service.set(person.id, {
     ...record,
     dischargedAtTick: tick,
     dischargeReason: reason,
     termMonthsLeft: 0,
+    reCode,
   })
   const dischargedEvent = recordEvent(world, tick, { type: 'discharged', subjectId: person.id, detail: reason })
 

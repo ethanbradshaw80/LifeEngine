@@ -32,14 +32,20 @@ function grownWorld(ticks = 600): World {
 describe('the peacetime career', () => {
   it('some people enlist, serve, and leave across fifty years', () => {
     const world = grownWorld()
-    const enlisted = world.events.filter((e) => e.type === 'enlisted').length
+    // COUNTED BY PERSON, NOT BY EVENT. Re-enlistment means one life can
+    // raise two 'enlisted' events, so the event count overstates how many
+    // people took the road — and the claim below is about people. It came
+    // to rest on exactly the threshold the day veterans could come back.
+    const whoEnlisted = new Set(
+      world.events.filter((e) => e.type === 'enlisted').map((e) => e.subjectId),
+    )
     const discharged = world.events.filter((e) => e.type === 'discharged').length
 
-    expect(enlisted).toBeGreaterThan(2)
+    expect(whoEnlisted.size).toBeGreaterThan(2)
     expect(discharged).toBeGreaterThan(0)
     // Service is a road some take, not the road everyone takes.
     const everyone = world.people.size
-    expect(enlisted).toBeLessThan(everyone / 4)
+    expect(whoEnlisted.size).toBeLessThan(everyone / 4)
   })
 
   it('promotions happen, in order, within each branch ladder', () => {
@@ -74,6 +80,14 @@ describe('the peacetime career', () => {
     const byPerson = new Map<number, string[]>()
     for (const event of world.events) {
       if (event.type !== 'promoted') continue
+      // THE CURRENT CAREER ONLY. Re-enlistment means a person's promotion
+      // history can span two branches and two ladders, and somebody who
+      // left the army as a sergeant and came back in the air guard starts
+      // again at the bottom — which is not a skipped rank, it is a new
+      // career. Reading their army promotions against the air-guard
+      // ladder is what "PV2 is not on the air-guard ladder" was.
+      const current = world.service.get(event.subjectId)
+      if (current === undefined || event.tick < current.enlistedAtTick) continue
       const list = byPerson.get(event.subjectId) ?? []
       list.push(event.detail ?? '')
       byPerson.set(event.subjectId, list)
