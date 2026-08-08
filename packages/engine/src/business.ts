@@ -106,6 +106,125 @@ export const BUSINESS_FAILS_AFTER = 3
  */
 export const CAPITAL_CEILING_MULTIPLE = 4
 
+// ---------------------------------------------------------------------------
+// THE SCALE-UP (careers overhaul, Fix 3B)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT IT TAKES TO STOP BEING A TRADE.
+ *
+ * The ceiling above is where an ordinary business stops growing, and the
+ * comment on it has always said what is on the other side: "beyond it you
+ * are running a different kind of business." This is the door.
+ *
+ * Three gates, and each is doing a different job. The KIND gate means you
+ * cannot scale a market stall into a corporation — you grow through the
+ * kinds first, which is the ladder this module already had. The CAPITAL
+ * gate means the business must actually have hit its own ceiling rather
+ * than merely be doing well. The YEARS gate means it survived, because
+ * almost half of these close and a company built out of a two-year-old
+ * venture would be a company built out of luck.
+ */
+export const SCALE_UP_FROM_KINDS: readonly string[] = ['shop', 'contracting-firm']
+export const SCALE_UP_YEARS = 8
+
+/**
+ * How much bigger a scaled company may get than the trade it grew out of.
+ *
+ * Twenty times, against the ordinary four. This is the number that makes a
+ * valuation worth having and an IPO worth doing, and it is a BALANCE
+ * NUMBER — the spec says so itself ("thresholds are balance numbers —
+ * tune, don't quote").
+ */
+export const COMPANY_CEILING_MULTIPLE = 200
+
+/** Is this business allowed to become a company? Null when it is. */
+export function scaleUpBar(
+  business: Business | undefined,
+  kind: BusinessKind | undefined,
+  tick: number,
+): string | null {
+  if (!business || !kind) return 'There is no business to grow.'
+  if (business.closedTick !== null) return 'It closed.'
+  if (business.scaledAtTick != null) return 'It is already a company.'
+  if (!SCALE_UP_FROM_KINDS.includes(business.kindId)) {
+    return 'A trade this size does not become a company. Grow it into something bigger first.'
+  }
+  const years = Math.floor((tick - business.foundedTick) / 12)
+  if (years < SCALE_UP_YEARS) {
+    return `It has traded ${String(years)} year${years === 1 ? '' : 's'}. A company is built on ${String(SCALE_UP_YEARS)}.`
+  }
+  if (business.capital < kind.capital * CAPITAL_CEILING_MULTIPLE) {
+    return 'It has not grown into what it already is. There is more room in this business yet.'
+  }
+  return null
+}
+
+/**
+ * WHAT THE YEAR TOOK IN, in cents. Revenue, not profit.
+ *
+ * Derived from the capital and the kind's own return rather than stored,
+ * because storing it would be a second source of truth for a number the
+ * capital already implies. Revenue is bigger than profit — a company
+ * turning over ten million does not keep ten million — and the multiple
+ * below is calibrated against revenue, so the two have to mean what they
+ * say.
+ */
+export function annualRevenueOf(business: Business, kind: BusinessKind): Money {
+  // `capital * returnPerMille / 1000` is the year's PROFIT, which is what
+  // the monthly figure is built from. Revenue is profit divided by the
+  // margin, and the margin here is eight per cent — a working number for a
+  // firm that builds or sells things rather than a claim about any real
+  // industry. The first version multiplied by three instead, which implied
+  // a fifty per cent margin and left a fully grown company valued at about
+  // a million: below its own IPO threshold, so the capstone was
+  // arithmetically unreachable. Caught by measuring rather than by reading.
+  return Math.floor((business.capital * kind.returnPerMille) / 1000) * 12 as Money
+}
+
+/**
+ * WHAT SOMEBODY WOULD PAY FOR THE WHOLE THING (spec: "revenue x a sector
+ * multiple").
+ *
+ * The multiple is the kind's, and it runs the way multiples actually run:
+ * a contracting firm on long contracts is worth more per pound of revenue
+ * than a shop, because the revenue is more likely to still be there next
+ * year. That is the entire content of a multiple.
+ *
+ * DELIBERATELY COARSE. This is a number on a screen and the basis of one
+ * decision; pretending to a discounted cash flow would invite somebody to
+ * trade against it, and there is nothing behind it to trade against.
+ */
+export function valuationMultipleFor(kindId: string): number {
+  return kindId === 'contracting-firm' ? 1900 : 1200
+}
+
+export function valuationOf(business: Business, kind: BusinessKind): Money {
+  if (business.scaledAtTick == null) return 0 as Money
+  const revenue = annualRevenueOf(business, kind)
+  return Math.floor((revenue * valuationMultipleFor(business.kindId)) / 1000) as Money
+}
+
+/**
+ * WHAT A FOUNDER PAYS THEMSELF once it is a company.
+ *
+ * A salary, monthly, and the point of it is that it is NOT the profit. An
+ * owner-operator takes what the business makes; a chief executive takes a
+ * wage and leaves the rest inside the company, where it grows the capital
+ * and therefore the valuation. That difference is the whole reason to
+ * scale up rather than keep drawing.
+ */
+export function founderSalaryOf(business: Business, kind: BusinessKind): Money {
+  if (business.scaledAtTick == null) return 0 as Money
+  return Math.floor(annualRevenueOf(business, kind) / 40 / 12) as Money
+}
+
+/** How many people it employs once it is a company — it outgrows maxEmployees. */
+export function companyHeadcountOf(business: Business, kind: BusinessKind): number {
+  if (business.scaledAtTick == null) return business.employees
+  return Math.min(400, Math.floor((business.capital * 4) / Math.max(1, kind.capital)))
+}
+
 /**
  * WHAT THE MONTH RETURNED, in cents. Can be negative, which is the point.
  *

@@ -156,6 +156,7 @@ export function createWorld(
     stockPrices: freshStockPrices(),
     stockHistory: {},
     analystViews: new Map(),
+    listings: new Map(),
     officials: new Map(),
     elections: new Map(),
     policy: freshPolicy(),

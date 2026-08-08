@@ -22,9 +22,16 @@ import {
   OCCUPATIONS,
   annualPay,
   atTodaysPrices,
+  annualRevenueOf,
   businessBar,
   businessHealthWords,
   businessKindById,
+  companyHeadcountOf,
+  floatProceedsFor,
+  founderSalaryOf,
+  ipoBar,
+  scaleUpBar,
+  valuationOf,
   jobBar,
   nextRungOf,
   occupationById,
@@ -90,6 +97,7 @@ export function Career({
   const business = [...world.businesses.values()].find(
     (entry) => entry.ownerId === person.id && entry.closedTick === null,
   )
+  const businessKind = business === undefined ? undefined : businessKindById(business.kindId)
 
   return (
     <div className="career">
@@ -338,6 +346,125 @@ export function Career({
                   first. Three bad months in a row and the doors shut.
                 </p>
               </section>
+            ) : null}
+
+            {/* THE COMPANY AND THE IPO, built from the owner's careers.html
+                third screen: a valuation hero, four figures in a grid, and
+                the offering with its rows and its one big button.
+
+                TOKENS ARE THE APP'S, not the mockup's. The mockup is dark
+                only and names --green/--gold/--panel2, none of which exist
+                here; the equivalents (--ok, --gold, --panel-raised) are all
+                defined for light AND dark, which is the mistake that made
+                the school screen unreadable in daylight. */}
+            {business !== undefined && businessKind !== undefined ? (
+              business.scaledAtTick != null ? (
+                <section className="co">
+                  <div className="co-val">
+                    <div className="k">Estimated valuation</div>
+                    <div className="v">{formatMoney(valuationOf(business, businessKind))}</div>
+                    <div className="g">
+                      {business.listedStockId != null
+                        ? 'Public — the market prices it now'
+                        : `${String(Math.floor((world.tick - (business.scaledAtTick ?? 0)) / 12))} years as a company`}
+                    </div>
+                  </div>
+                  <div className="co-grid">
+                    <div className="kv">
+                      <div className="k">Annual revenue</div>
+                      <div className="v">
+                        {formatMoney(annualRevenueOf(business, businessKind))}
+                      </div>
+                    </div>
+                    <div className="kv">
+                      <div className="k">Your ownership</div>
+                      <div className="v">
+                        {String(Math.floor((business.founderStakePerMille ?? 1000) / 10))}%
+                      </div>
+                    </div>
+                    <div className="kv">
+                      <div className="k">Your salary</div>
+                      <div className="v">
+                        {formatMoney(annualPay(founderSalaryOf(business, businessKind)))}
+                      </div>
+                    </div>
+                    <div className="kv">
+                      <div className="k">Employees</div>
+                      <div className="v">
+                        {String(companyHeadcountOf(business, businessKind))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {business.listedStockId == null ? (
+                    (() => {
+                      const shut = ipoBar(world, person.id)
+                      const valuation = valuationOf(business, businessKind)
+                      return (
+                        <div className={`ipo${shut === null ? '' : ' locked'}`}>
+                          <h3>Take the company public</h3>
+                          <p>
+                            You would sell a slice to the public, keep control, and turn your
+                            ownership into tradable shares.
+                          </p>
+                          <div className="row">
+                            <span>Sell to the public</span>
+                            <span className="v">30%</span>
+                          </div>
+                          <div className="row">
+                            <span>Cash to you (est.)</span>
+                            <span className="v ok">{formatMoney(floatProceedsFor(valuation))}</span>
+                          </div>
+                          <div className="row">
+                            <span>Your remaining stake</span>
+                            <span className="v">
+                              70% · {formatMoney(Math.floor((valuation * 700) / 1000) as Money)}
+                            </span>
+                          </div>
+                          {shut !== null && <div className="reason">🔒 {shut}</div>}
+                          <button
+                            type="button"
+                            disabled={busy || shut !== null}
+                            onClick={() => onAct({ verb: 'take-public' })}
+                          >
+                            Take {business.name} public (IPO)
+                          </button>
+                        </div>
+                      )
+                    })()
+                  ) : (
+                    <p className="career-note">
+                      It trades on the exchange like any other company — a live price, analyst
+                      coverage, and news of its own. Your remaining stake is real net worth that
+                      rises and falls with the share price. A great year makes you rich; a bad
+                      enough run takes the company off the board and the shares with it.
+                    </p>
+                  )}
+                </section>
+              ) : (
+                (() => {
+                  const shut = scaleUpBar(business, businessKind, world.tick)
+                  return (
+                    <section className="career-card">
+                      <h4>Grow it into a company</h4>
+                      <p className="career-note">
+                        Past a certain size a trade stops being a trade. A company keeps its profit
+                        instead of paying it out to you, which is how it grows into something worth
+                        floating — you draw a salary and the rest builds the valuation.
+                      </p>
+                      {shut !== null && <div className="reason">🔒 {shut}</div>}
+                      <button
+                        type="button"
+                        className="apply"
+                        disabled={busy || shut !== null}
+                        onClick={() => onAct({ verb: 'scale-up' })}
+                      >
+                        Grow {business.name} into a company
+                      </button>
+                    </section>
+                  )
+                })()
+              )
             ) : (
               <section className="career-card">
                 <h4>Working for yourself</h4>

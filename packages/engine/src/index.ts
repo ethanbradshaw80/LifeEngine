@@ -387,7 +387,12 @@ export type { Loan, LoanKind } from './types.js'
 export type { Bankruptcy, BankruptcyChapter, Business } from './types.js'
 export {
   BUSINESS_KINDS,
+  annualRevenueOf,
   businessBar,
+  companyHeadcountOf,
+  founderSalaryOf,
+  scaleUpBar,
+  valuationOf,
   businessHealthWords,
   businessKindById,
   businessNameFor,
@@ -465,6 +470,7 @@ export {
   freshStockPrices,
   pushHistory,
   stepStocks,
+  floatProceedsFor,
   stockById,
   stocksInSector,
 } from './market.js'
@@ -507,7 +513,10 @@ export {
   campaignPlayer,
   dropOutPlayer,
   sellSharesPlayer,
+  ipoBar,
   payDownPlayer,
+  scaleUpPlayer,
+  takePublicPlayer,
   seekPeacePlayer,
   setLeverPlayer,
   standPlayer,

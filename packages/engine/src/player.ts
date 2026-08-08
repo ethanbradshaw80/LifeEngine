@@ -121,6 +121,7 @@ import {
   payOffPlan,
   buyInvestment,
   buyShares,
+  grantShares,
   payDownBar,
   payDownLoan,
   sellShares,
@@ -166,7 +167,14 @@ import {
 import { OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec } from './types.js'
 import type { HomePurchaseMethod } from './finances.js'
-import { businessBar, businessKindById } from './business.js'
+import type { Business } from './types.js'
+import {
+  annualRevenueOf,
+  businessBar,
+  businessKindById,
+  scaleUpBar,
+  valuationOf,
+} from './business.js'
 import { openBusiness } from './finances.js'
 import { atTodaysPrices } from './economy.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
@@ -227,7 +235,13 @@ import {
   voteBar,
 } from './government.js'
 import type { CampaignAction, DebateChoice } from './government.js'
-import { stockById } from './market.js'
+import {
+  IPO_FLOAT_PER_MILLE,
+  IPO_MIN_VALUATION,
+  floatProceedsFor,
+  listCompany,
+  stockById,
+} from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -625,6 +639,155 @@ export function startBusiness(world: World, kindId: string): { done: boolean; re
 }
 
 /**
+ * THE BUSINESS THIS PERSON IS RUNNING, or undefined.
+ *
+ * One per person is already the rule `businessBar` enforces at opening, so
+ * the first trading one is the only one.
+ */
+export function businessOf(world: World, personId: EntityId): Business | undefined {
+  for (const business of world.businesses.values()) {
+    if (business.ownerId === personId && business.closedTick === null) return business
+  }
+  return undefined
+}
+
+/**
+ * GROW IT INTO A COMPANY (careers overhaul, Fix 3B).
+ *
+ * Costs nothing and takes nothing — this is not a purchase, it is the
+ * moment a business that has already outgrown itself starts behaving like
+ * what it has become: the capital ceiling lifts, the owner starts drawing a
+ * salary instead of the profit, and the thing acquires a valuation.
+ */
+export function scaleUpPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const business = businessOf(world, person.id)
+  const kind = business === undefined ? undefined : businessKindById(business.kindId)
+  const bar = scaleUpBar(business, kind, world.tick)
+  if (bar !== null) return { done: false, reason: bar }
+  if (business === undefined) return { done: false, reason: 'There is no business to grow.' }
+
+  logVerb(world, 'scale-up', business.name)
+  world.businesses.set(business.id, { ...business, scaledAtTick: world.tick })
+  recordEvent(world, world.tick, {
+    type: 'company-scaled',
+    subjectId: person.id,
+    detail: business.name,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'business',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('years-trading', 800)],
+    chosen: `grew ${business.name} into a company`,
+    rejected: ['kept it the size it was'],
+    streamId: Stream.Career,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * Why this company cannot go public, or null. The bar pattern.
+ */
+export function ipoBar(world: World, personId: EntityId): string | null {
+  const business = businessOf(world, personId)
+  if (business === undefined) return 'You do not run a company.'
+  if (business.scaledAtTick == null) {
+    return 'A trade does not list on an exchange. Grow it into a company first.'
+  }
+  if (business.listedStockId != null) return 'It is already public.'
+  const kind = businessKindById(business.kindId)
+  if (kind === undefined) return 'You do not run a company.'
+  const valuation = valuationOf(business, kind)
+  if (valuation < IPO_MIN_VALUATION) {
+    return `Nobody will underwrite it at ${String(Math.floor(valuation / 100_000_00))} million. It needs to be worth ${String(Math.floor(IPO_MIN_VALUATION / 100_000_00))}.`
+  }
+  return null
+}
+
+/**
+ * TAKE IT PUBLIC — the capstone (careers overhaul, Fix 3C).
+ *
+ * Three things happen and each belongs to a different module, which is the
+ * whole test of whether this is really wired into the world or merely
+ * looks like it:
+ *
+ *   the MARKET lists it, and from the next tick it has a price that moves,
+ *     analyst coverage, and news of its own — the same engine as the other
+ *     thirty-three, with no special case anywhere;
+ *   FINANCES pays the founder for the slice they sold, because finances is
+ *     the only thing in this world that moves money;
+ *   the founder's remaining stake becomes a HOLDING, so it sits in the
+ *     portfolio next to everything else they own and rises and falls with
+ *     the share price like anybody else's shares.
+ *
+ * That last one is the point of the feature. Your net worth is now exposed
+ * to a market, and the exposure is real in both directions.
+ */
+export function takePublicPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = ipoBar(world, person.id)
+  if (bar !== null) return { done: false, reason: bar }
+  const business = businessOf(world, person.id)
+  const kind = business === undefined ? undefined : businessKindById(business.kindId)
+  if (business === undefined || kind === undefined) {
+    return { done: false, reason: 'You do not run a company.' }
+  }
+
+  const valuation = valuationOf(business, kind)
+  const stockId = `ipo-${String(business.id)}`
+  const annualProfit = Math.floor(annualRevenueOf(business, kind) / 8) as Money
+  const stock = listCompany(
+    world,
+    world.tick,
+    stockId,
+    business.name,
+    business.kindId,
+    valuation,
+    annualProfit,
+  )
+  if (stock === undefined) return { done: false, reason: 'The listing did not go through.' }
+
+  logVerb(world, 'take-public', business.name)
+  const keptPerMille = 1000 - IPO_FLOAT_PER_MILLE
+  world.businesses.set(business.id, {
+    ...business,
+    listedStockId: stockId,
+    founderStakePerMille: keptPerMille,
+  })
+
+  // The cash for the slice sold. finances writes it, as always.
+  creditPerson(world, person.id, floatProceedsFor(valuation))
+  // And the rest becomes shares they hold, at the opening price.
+  grantShares(
+    world,
+    person.id,
+    stockId,
+    stock.sectorId,
+    Math.floor((stock.sharesOutstanding * keptPerMille) / 1000),
+    Math.floor((valuation * keptPerMille) / 1000) as Money,
+  )
+
+  recordEvent(world, world.tick, {
+    type: 'went-public',
+    subjectId: person.id,
+    detail: `${business.name}:${stock.ticker}`,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'business',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('valuation', 1000)],
+    chosen: `took ${business.name} public as ${stock.ticker}`,
+    rejected: ['kept it private'],
+    streamId: Stream.Career,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
  * M-ECON §9. THE BANK'S VERBS.
  *
  * Every one is a player INPUT — logged before it acts, refused honestly,
@@ -658,7 +821,7 @@ export function buySharesPlayer(
 ): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
-  if (stockById(stockId) === undefined) return { done: false, reason: 'No such company.' }
+  if (stockById(world, stockId) === undefined) return { done: false, reason: 'No such company.' }
   const spent = buyShares(world, world.tick, person.id, stockId, cents as Money, retirement)
   if (spent <= 0) return { done: false, reason: 'Not enough in savings to buy in.' }
   logVerb(world, 'invest', stockId)
@@ -2993,6 +3156,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'unit-tryout':
     case 'fitness-test':
     case 'extra-duty':
+    case 'scale-up':
+    case 'take-public':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -4283,6 +4448,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Took the fitness test.' // log-only
     case 'extra-duty':
       return 'Picked up extra duty.' // log-only
+    case 'scale-up':
+      return 'Grew it into a company.' // log-only
+    case 'take-public':
+      return 'Took the company public.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':

@@ -678,6 +678,23 @@ export interface Business {
   readonly closedTick: Tick | null
   /** How many times it has changed hands. Legacy, on the record. */
   readonly generations: number
+  /**
+   * WHEN IT STOPPED BEING A TRADE AND BECAME A COMPANY (careers overhaul,
+   * Fix 3B). Null on every ordinary business, which is almost all of them.
+   *
+   * Past this point the capital ceiling lifts, the owner draws a salary
+   * instead of the profit, and the thing carries a VALUATION — which is
+   * what an IPO needs and a market stall does not have.
+   */
+  readonly scaledAtTick?: Tick | null
+  /**
+   * Shares in issue once it is public, and who holds what. Both null until
+   * the IPO. The PRICE is not here: the market owns every price in this
+   * world, and a second copy of one is a second source of truth.
+   */
+  readonly listedStockId?: string | null
+  /** Per-mille of the company the founder still holds after the float. */
+  readonly founderStakePerMille?: number
 }
 
 export type BankruptcyChapter = 7 | 13
@@ -1921,6 +1938,8 @@ export type PendingKind =
   | 'set-lever'
   | 'seek-peace'
   | 'pay-down'
+  | 'scale-up'
+  | 'take-public'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2136,6 +2155,9 @@ export type EventType =
   | 'stood-for-office'
   | 'debated'
   | 'paid-down-loan'
+  | 'delisted'
+  | 'company-scaled'
+  | 'went-public'
   | 'took-graft'
   | 'investigated'
   | 'set-policy'
@@ -2328,11 +2350,20 @@ export type DecisionType =
   /** P2. The household's chosen spending posture — a standing money choice
    *  that is neither a move nor an employment change. */
   | 'spending'
+  /** The venture's own decisions: opened, grown into a company, floated.
+   *  Its own kind so "why did they take it public?" and "why did they
+   *  change jobs?" never answer each other's question. */
+  | 'business'
 
 /** Drives retention. Assigned when the record is created. */
 export type Significance = 'notable' | 'major' | 'defining'
 
 export type FactorId =
+  /** How long the venture has survived — the thing that separates a
+   *  company from a good year. */
+  | 'years-trading'
+  /** What the company is worth, which is what an underwriter reads. */
+  | 'valuation'
   | 'qualified-for-role'
   | 'higher-pay'
   | 'ambition'
@@ -2489,6 +2520,13 @@ export interface World {
   readonly stockHistory: Readonly<Record<string, readonly number[]>>
   /** The analyst panel's standing view, refreshed quarterly. */
   readonly analystViews: Map<string, AnalystView>
+  /**
+   * COMPANIES THAT WENT PUBLIC, keyed by stock id (careers overhaul, Fix
+   * 3C). The thirty-three in `STOCKS` are the world's; these are the ones
+   * this town floated, and after the bell there is no difference between
+   * them — same prices, same analysts, same news, same delisting.
+   */
+  readonly listings: Map<string, Stock>
   /** Who holds which seat. Keyed by office id. Owned by `government.ts`. */
   readonly officials: Map<string, Officeholder>
   /** The levers as they currently stand. */

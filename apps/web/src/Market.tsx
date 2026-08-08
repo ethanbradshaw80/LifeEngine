@@ -53,7 +53,7 @@ export function Market({
   const [openId, setOpenId] = useState<string | null>(null)
   const [sector, setSector] = useState<string>('all')
 
-  const open = openId === null ? undefined : stockById(openId)
+  const open = openId === null ? undefined : stockById(world, openId)
   if (open !== undefined) {
     return (
       <StockDetail
@@ -93,7 +93,7 @@ export function Market({
         <section className="mkt-sec">
           <h3>What you hold</h3>
           {holdings.map((holding) => {
-            const stock = holding.stockId === undefined ? undefined : stockById(holding.stockId)
+            const stock = holding.stockId === undefined ? undefined : stockById(world, holding.stockId)
             const value = holdingValue(world, holding)
             const gain = value - holding.costBasis
             return (

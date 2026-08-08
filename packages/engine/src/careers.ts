@@ -109,6 +109,24 @@ export const CAREER_TRACKS: readonly CareerTrack[] = [
       { occupationId: 'director', needsPerformance: 760, needsMonths: 48 },
       { occupationId: 'vice-president', needsPerformance: 820, needsMonths: 60 },
       { occupationId: 'executive', needsPerformance: 880, needsMonths: 72 },
+      // THE TOP OF THE BUILDING (careers overhaul, Fix 3A).
+      //
+      // The gates are the harshest in the game on purpose: six years as an
+      // executive who was already the best-reviewed person on the floor,
+      // AND the graduate degree. Almost nobody arrives here, which is what
+      // makes it worth arriving at — a chief executive that a good career
+      // reaches by default is a job title rather than an achievement.
+      //
+      // This rung is on the OFFICE ladder alone. The other road to the same
+      // chair is founding a company and scaling it (Fix 3B), which is how
+      // somebody who started on a mill floor gets there — and it is a
+      // better story than a fourth staircase in a building they do not own.
+      {
+        occupationId: 'chief-executive',
+        needsPerformance: 940,
+        needsMonths: 72,
+        needsLevel: 'graduate',
+      },
     ],
   },
   {

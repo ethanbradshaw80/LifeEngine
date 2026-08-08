@@ -229,6 +229,12 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'director', title: 'director', requires: 'college', minMonthlyPay: dollars(1_229), maxMonthlyPay: dollars(1_854), preferredMajors: ['business'] },
   { id: 'vice-president', title: 'vice president', requires: 'college', minMonthlyPay: dollars(1_615), maxMonthlyPay: dollars(2_448), preferredMajors: ['business'] },
   { id: 'executive', title: 'executive', requires: 'college', minMonthlyPay: dollars(1_927), maxMonthlyPay: dollars(3_333), preferredMajors: ['business'] },
+  // THE CORNER OFFICE (careers overhaul, Fix 3A). Paid on a different
+  // scale from everything below it, because that is the honest shape of
+  // it — and the equity, which is where a chief executive's money
+  // actually is, is the business module's to hold rather than a wage
+  // line's.
+  { id: 'chief-executive', title: 'chief executive', requires: 'graduate', minMonthlyPay: dollars(8_333), maxMonthlyPay: dollars(20_833), preferredMajors: ['business'] },
 
   { id: 'lead-hand', title: 'lead hand', requires: 'none', minMonthlyPay: dollars(458), maxMonthlyPay: dollars(708) },
   { id: 'superintendent', title: 'superintendent', requires: 'secondary', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_438) },

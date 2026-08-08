@@ -383,6 +383,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'paid-down-loan': {
       return `${year} \u2014 Paid a lump off the ${event.detail ?? 'debt'}.`
     }
+    case 'company-scaled': {
+      return `${year} — Grew ${event.detail ?? 'the business'} into a company.`
+    }
+    case 'went-public': {
+      const [name, ticker] = (event.detail ?? '').split(':')
+      return ticker === undefined || ticker === ''
+        ? `${year} — Took the company public.`
+        : `${year} — Took ${name ?? 'the company'} public. It trades as ${ticker}.`
+    }
     case 'took-graft': {
       const offer = graftById(event.detail ?? '')
       return offer === undefined
@@ -736,6 +745,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
 
 /** Plain-English phrasing for a stored factor. Never invented — one per FactorId. */
 const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
+  'years-trading': 'the business had survived long enough to be one',
+  valuation: 'what the company had come to be worth',
   'qualified-for-role': '{they} was qualified for it',
   'higher-pay': 'the pay was better',
   ambition: '{they} wanted to get on',

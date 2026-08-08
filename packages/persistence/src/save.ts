@@ -8,7 +8,7 @@
  */
 
 import { freshPolicy, freshStockPrices, generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
-import type { AnalystView, Election, Officeholder, PolicyState } from '@life-engine/engine'
+import type { AnalystView, Election, Officeholder, PolicyState, Stock } from '@life-engine/engine'
 import type {
   Accounts,
   AwardRecord,
@@ -306,6 +306,12 @@ function hydrate(
     stockHistory: (body['stockHistory'] as World['stockHistory'] | undefined) ?? {},
     analystViews: new Map(
       ((body['analystViews'] as AnalystView[] | undefined) ?? []).map((view) => [view.stockId, view]),
+    ),
+    // Companies this town floated. Absent from every save written before
+    // the IPO existed, which is exactly what the `?? []` is for — an old
+    // world simply has none, and loads unchanged.
+    listings: new Map(
+      ((body['listings'] as Stock[] | undefined) ?? []).map((stock) => [stock.id, stock]),
     ),
     education,
     employment,

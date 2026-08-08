@@ -4449,3 +4449,116 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   flex: 1;
   text-align: center;
 }
+
+/* THE COMPANY AND THE IPO (careers overhaul, Fix 3B/3C).
+   Built from the owner's careers.html third screen. The mockup is dark-only
+   and names --green/--gold/--panel2; these are the app's equivalents, every
+   one of which is defined for light AND dark. */
+.co {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.co-val {
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 1rem;
+}
+.co-val .k {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.co-val .v {
+  font-size: 1.75rem;
+  font-weight: 800;
+  margin-top: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+.co-val .g {
+  font-size: 0.8rem;
+  color: var(--ok);
+  margin-top: 0.2rem;
+}
+.co-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+.co-grid .kv {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.6rem;
+}
+.co-grid .kv .k {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.co-grid .kv .v {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-top: 0.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.ipo {
+  background: var(--panel-raised);
+  border: 1px solid var(--ok);
+  border-radius: 7px;
+  padding: 0.85rem;
+}
+.ipo.locked {
+  border-color: var(--line);
+  opacity: 0.75;
+}
+.ipo h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.ipo p {
+  margin: 0 0 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ipo .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 0.15rem 0;
+}
+.ipo .row .v {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.ipo .row .v.ok {
+  color: var(--ok);
+}
+.ipo .reason {
+  font-size: 0.78rem;
+  color: var(--amber);
+  margin-top: 0.5rem;
+  line-height: 1.45;
+}
+.ipo button {
+  margin-top: 0.7rem;
+  width: 100%;
+  background: var(--ok);
+  border: 1px solid var(--ok);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  border-radius: 7px;
+  padding: 0.7rem;
+  cursor: pointer;
+}
+.ipo button:disabled {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--muted);
+  cursor: not-allowed;
+}

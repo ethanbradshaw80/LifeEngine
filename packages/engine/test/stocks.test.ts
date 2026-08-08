@@ -187,8 +187,9 @@ describe('the analyst panel', () => {
 
   it('has a reference P/E the whole market is priced against', () => {
     expect(REFERENCE_PE).toBeGreaterThan(0)
-    expect(stockById('vntk')).toBeDefined()
-    expect(stockById('nope')).toBeUndefined()
+    const world = createWorld(makeSeed(1))
+    expect(stockById(world, 'vntk')).toBeDefined()
+    expect(stockById(world, 'nope')).toBeUndefined()
   })
 })
 

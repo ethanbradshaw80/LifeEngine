@@ -110,6 +110,8 @@ import {
   BUSINESS_FAILS_AFTER,
   BUSINESS_KINDS,
   CAPITAL_CEILING_MULTIPLE,
+  COMPANY_CEILING_MULTIPLE,
+  founderSalaryOf,
   businessKindById,
   businessNameFor,
   monthlyProfitFor,
@@ -2755,9 +2757,26 @@ function runBusinesses(world: World, tick: Tick): void {
       // of it left one owner holding $386 billion. Past four times what the
       // trade took to open, the whole profit is drawn instead — there is
       // only so much capital one shop can absorb.
-      const ceiling = (atTodaysPrices(world, kind.capital) * CAPITAL_CEILING_MULTIPLE) as Money
+      //
+      // A SCALED COMPANY HAS A DIFFERENT CEILING, AND A DIFFERENT SPLIT
+      // (careers overhaul, Fix 3B). Both halves matter and they are the
+      // whole reason to scale up:
+      //
+      //   the CEILING lifts, so there is somewhere for the money to go —
+      //     without it, scaling up would be a title and no growth;
+      //   the SPLIT inverts. An owner-operator draws the profit and retains
+      //     a slice. A founder-chief-executive takes a SALARY and leaves the
+      //     rest in the company, where it becomes capital, and capital is
+      //     what the valuation is made of. That is how a company grows into
+      //     something worth taking public, and it is a genuine trade: less
+      //     money in your hand each month, far more of it on paper.
+      const scaled = business.scaledAtTick != null
+      const ceiling = (atTodaysPrices(world, kind.capital) *
+        (scaled ? COMPANY_CEILING_MULTIPLE : CAPITAL_CEILING_MULTIPLE)) as Money
       const room = Math.max(0, ceiling - business.capital)
-      const retained = Math.min(Math.floor((profit * 300) / 1000), room)
+      const retained = scaled
+        ? Math.min(Math.max(0, profit - founderSalaryOf(business, kind)), room)
+        : Math.min(Math.floor((profit * 300) / 1000), room)
       const drawn = (profit - retained) as Money
       creditPerson(world, business.ownerId, drawn)
       world.businesses.set(business.id, {
@@ -2889,6 +2908,82 @@ export function moveBetweenOwnAccounts(
  * cash rather than vanishing, and positions merge by their own key so a
  * purchase of Vantek can never fold into the Technology fund.
  */
+/**
+ * SHARES THAT ARRIVE WITHOUT BEING BOUGHT (careers overhaul, Fix 3C).
+ *
+ * A founder does not purchase their own stake at the IPO — they already
+ * owned the company; the float turns that ownership into shares. So there
+ * is no cash leg, which is exactly why this cannot be `buyShares` with a
+ * zero price: that would set a cost basis of nothing and tax the entire
+ * value as a gain the first time they sold a single share.
+ *
+ * The COST BASIS is what the company was worth to them when it listed,
+ * which is the honest answer and the one that makes selling down behave
+ * like selling down rather than like a windfall.
+ */
+export function grantShares(
+  world: World,
+  personId: EntityId,
+  stockId: string,
+  sectorId: string,
+  shares: number,
+  basis: Money,
+): void {
+  if (shares <= 0) return
+  const accounts = accountsOf(world, personId)
+  const existing = accounts.holdings.find((h) => h.stockId === stockId)
+  const merged: Holding = {
+    sectorId,
+    stockId,
+    units: (existing?.units ?? 0) + shares,
+    costBasis: ((existing?.costBasis ?? 0) + basis) as Money,
+  }
+  const rest = accounts.holdings.filter((h) => h.stockId !== stockId)
+  setAccounts(world, {
+    ...accounts,
+    holdings: [...rest, merged].sort((a, b) =>
+      holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
+    ),
+  })
+}
+
+/**
+ * A COMPANY FAILED AND THE PAPER IS WORTH NOTHING (owner: "some companies
+ * fail and some succeed").
+ *
+ * Called by the tick loop when the market delists something. It lives HERE
+ * rather than in market.ts because accounts are finances' to write and
+ * always have been — the market may kill a company, but only this module
+ * may reach into somebody's savings (Law 12).
+ *
+ * The holding is REMOVED rather than zeroed. A share in a company that no
+ * longer exists is not an asset worth nothing, it is not an asset, and
+ * leaving a zero-valued row in the portfolio would show a dead company in
+ * somebody's holdings for the rest of their life.
+ *
+ * NO LOSS IS REALISED. There is nothing to realise: the tax system taxes
+ * disposals, and this is not a disposal. Whether a wipe-out should be
+ * deductible is a real question with a real answer in tax law, and
+ * inventing one here would be inventing tax policy nobody asked for.
+ */
+export function voidHoldingsIn(world: World, stockId: string): number {
+  let touched = 0
+  for (const personId of world.people.keys()) {
+    const accounts = world.accounts.get(personId)
+    if (accounts === undefined) continue
+    const held = accounts.holdings.some((h) => h.stockId === stockId)
+    const retired = accounts.retirementHoldings.some((h) => h.stockId === stockId)
+    if (!held && !retired) continue
+    touched += 1
+    setAccounts(world, {
+      ...accounts,
+      holdings: accounts.holdings.filter((h) => h.stockId !== stockId),
+      retirementHoldings: accounts.retirementHoldings.filter((h) => h.stockId !== stockId),
+    })
+  }
+  return touched
+}
+
 export function buyShares(
   world: World,
   tick: Tick,
@@ -2897,7 +2992,7 @@ export function buyShares(
   cents: Money,
   intoRetirement = false,
 ): Money {
-  const stock = stockById(stockId)
+  const stock = stockById(world, stockId)
   if (stock === undefined) return 0 as Money
   const accounts = accountsOf(world, personId)
   const affordable = Math.min(cents, accounts.savings) as Money
@@ -2963,7 +3058,7 @@ export function sellShares(
   recordEvent(world, tick, {
     type: 'sold-investment',
     subjectId: personId,
-    detail: (stockById(stockId)?.ticker ?? stockId) + ':' + String(net),
+    detail: (stockById(world, stockId)?.ticker ?? stockId) + ':' + String(net),
   })
   return net
 }

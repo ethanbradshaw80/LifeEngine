@@ -12,7 +12,7 @@
  * one dollar's worth of index, and the arithmetic never leaves cents.
  */
 
-import type { Money, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import { recordEvent } from './records.js'
 import { homeland } from './geopolitics.js'
@@ -245,7 +245,7 @@ export function dividendOn(world: World, holding: Holding): Money {
   // A COMPANY PAYS ITS OWN DIVIDEND, not its sector's average — that
   // difference is half the reason to hold a utility instead of the fund.
   if (holding.stockId !== undefined) {
-    const stock = stockById(holding.stockId)
+    const stock = stockById(world, holding.stockId)
     if (!stock) return 0 as Money
     return Math.floor((value * dividendYieldOf(stock)) / (1000 * 12)) as Money
   }
@@ -320,12 +320,31 @@ export const STOCKS: readonly Stock[] = [
   { id: 'crwn', ticker: 'CRWN', name: 'Crownlight Media', sectorId: 'communications', subIndustry: 'Media', betaMultiplier: 1500, idioVolatility: 245, sharesOutstanding: 37_000_000, baseEarnings: 110000000 as Money, blurb: 'Newspapers, radio and whatever comes next. Advertising is the first budget anybody cuts.' },
 ]
 
-export function stockById(id: string): Stock | undefined {
-  return STOCKS.find((stock) => stock.id === id)
+/**
+ * EVERY COMPANY THERE IS TO TRADE — the world's, and the ones this town
+ * floated. One list, because after the opening bell there is no
+ * difference between them.
+ */
+export function allStocks(world: World): readonly Stock[] {
+  return world.listings.size === 0 ? STOCKS : [...STOCKS, ...world.listings.values()]
 }
 
-export function stocksInSector(sectorId: string): readonly Stock[] {
-  return STOCKS.filter((stock) => stock.sectorId === sectorId)
+/**
+ * TAKES THE WORLD, and that is the point (careers overhaul, Fix 3C).
+ *
+ * It used to search the fixed table alone. A company that goes public has
+ * to be findable by the SAME lookup as any other stock — a second resolver
+ * would mean every call site has to remember which one to use, and the one
+ * that forgets leaves somebody's own company missing from their own
+ * portfolio. Changing the signature made the compiler point at all
+ * forty-odd callers instead of trusting anybody to remember.
+ */
+export function stockById(world: World, id: string): Stock | undefined {
+  return world.listings.get(id) ?? STOCKS.find((stock) => stock.id === id)
+}
+
+export function stocksInSector(world: World, sectorId: string): readonly Stock[] {
+  return allStocks(world).filter((stock) => stock.sectorId === sectorId)
 }
 
 /** Every company at par. */
@@ -363,7 +382,9 @@ export function stepStocks(
   news?: ReadonlyMap<string, CompanyNews>,
 ): Readonly<Record<string, number>> {
   const next: Record<string, number> = {}
-  for (const stock of STOCKS) {
+  // allStocks, NOT STOCKS: a company this town floated has a price that
+  // moves like everybody else's, or the IPO listed it and left it inert.
+  for (const stock of allStocks(world)) {
     const before = world.sectorPrices[stock.sectorId] ?? 10_000
     const after = nextSectorPrices[stock.sectorId] ?? before
     // The sector's own move this month, in basis points of itself.
@@ -377,10 +398,19 @@ export function stepStocks(
     const shock = news?.get(stock.id)?.shock ?? 0
     const move = Math.trunc((sectorMove * stock.betaMultiplier) / 1000) + idio + shock
     const current = world.stockPrices[stock.id] ?? 10_000
-    // Floored at par/20 for the same reason a sector is floored: this world
-    // does not model a company going to zero, and pretending otherwise
-    // would make a holding vanish rather than crash.
-    next[stock.id] = Math.max(500, current + Math.trunc((current * move) / 10_000))
+    // FLOORED AT PAR/20 — for the thirty-three. This world does not model
+    // one of them going to zero, and pretending otherwise would make a
+    // holding vanish rather than crash.
+    //
+    // A COMPANY THIS TOWN FLOATED IS NOT FLOORED, and the difference is the
+    // whole of the owner's "some companies fail and some succeed". A
+    // listing that is dying has to be able to actually die, and with the
+    // floor applied to it, it could not: the floor sat at exactly the
+    // delisting threshold, so `price >= DELIST_BELOW` was permanently true
+    // and the failure path could never once fire. Caught by a test that
+    // built a dying company and watched it survive.
+    const floor = world.listings.has(stock.id) ? 1 : 500
+    next[stock.id] = Math.max(floor, current + Math.trunc((current * move) / 10_000))
   }
   return next
 }
@@ -391,7 +421,7 @@ export function pushHistory(
   prices: Readonly<Record<string, number>>,
 ): Readonly<Record<string, readonly number[]>> {
   const next: Record<string, readonly number[]> = {}
-  for (const stock of STOCKS) {
+  for (const stock of allStocks(world)) {
     const past = world.stockHistory[stock.id] ?? []
     const price = prices[stock.id] ?? 10_000
     const grown = [...past, price]
@@ -613,7 +643,7 @@ export function upsidePerMille(world: World, view: AnalystView): number {
  */
 export function runAnalysts(world: World, tick: Tick): void {
   if (tick % ANALYST_MONTHS !== 0) return
-  for (const stock of STOCKS) {
+  for (const stock of allStocks(world)) {
     const before = world.analystViews.get(stock.id)
     const after = computeAnalystView(world, stock, tick)
     world.analystViews.set(stock.id, after)
@@ -712,7 +742,7 @@ const NEWS_CHANCE = 55
  */
 export function rollCompanyNews(world: World, tick: Tick): ReadonlyMap<string, CompanyNews> {
   const landed = new Map<string, CompanyNews>()
-  for (const stock of STOCKS) {
+  for (const stock of allStocks(world)) {
     const rng = openStream(world.seed, Stream.Market, stock.id.length * 17 + 61, tick + 5_500)
     if (!rng.chance(NEWS_CHANCE, 1_000)) continue
     const open = newsOpenTo(stock)
@@ -732,7 +762,7 @@ export function recordCompanyNews(
   if (landed.size === 0) return
   const home = homeland(world)
   if (home === undefined) return
-  for (const stock of STOCKS) {
+  for (const stock of allStocks(world)) {
     const item = landed.get(stock.id)
     if (item === undefined) continue
     recordEvent(world, tick, {
@@ -742,3 +772,186 @@ export function recordCompanyNews(
     })
   }
 }
+
+// ---------------------------------------------------------------------------
+// GOING PUBLIC (careers overhaul, Fix 3C — the marquee feature)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT A COMPANY MUST BE WORTH before anybody will underwrite it.
+ *
+ * A balance number, and the spec says so ("thresholds are balance numbers
+ * — tune, don't quote"). What it is FOR is that an IPO has to be rare
+ * enough to be an event. A market that floats every corner shop is a
+ * market with no meaning in it.
+ */
+export const IPO_MIN_VALUATION = 500_000_000 as Money
+
+/**
+ * HOW MUCH OF IT GOES TO THE PUBLIC.
+ *
+ * Thirty per cent, which is the spec's own recommendation and the
+ * mockup's own number: "the founder keeps a majority, sells a slice for
+ * cash". Keeping control is what makes this a capstone rather than an
+ * exit — you are still the chief executive on Monday.
+ */
+export const IPO_FLOAT_PER_MILLE = 300
+
+/**
+ * A TICKER, FROM THE COMPANY'S OWN NAME.
+ *
+ * Four letters, uppercase, and it must not collide with the thirty-three
+ * already listed or with anything this town floated earlier — two
+ * companies under one ticker would put one company's price on the other's
+ * shares. Falls back through progressively uglier constructions rather
+ * than ever returning a duplicate.
+ */
+export function tickerFor(world: World, name: string): string {
+  const letters = name.toUpperCase().replace(/[^A-Z]/g, '')
+  const taken = new Set(allStocks(world).map((stock) => stock.ticker))
+  const base = (letters.slice(0, 4) || 'CONO').padEnd(4, 'X')
+  if (!taken.has(base)) return base
+  for (let n = 1; n < 100; n += 1) {
+    const candidate = `${base.slice(0, 3)}${String(n % 10)}`
+    if (!taken.has(candidate)) return candidate
+  }
+  return base
+}
+
+/**
+ * WHICH SECTOR A TOWN COMPANY LISTS INTO.
+ *
+ * Read off what it actually does, because a sector is a claim about the
+ * business rather than a label. A contracting firm is industrial
+ * construction; a shop is consumer retail. Both are real GICS sectors
+ * with real companies already in them, so the new listing swings with
+ * peers rather than floating free.
+ */
+export function sectorForBusinessKind(kindId: string): { sectorId: string; subIndustry: string } {
+  return kindId === 'contracting-firm'
+    ? { sectorId: 'industrial', subIndustry: 'Construction' }
+    : { sectorId: 'consumer', subIndustry: 'Retail' }
+}
+
+/**
+ * TAKE IT PUBLIC. Returns the new stock, or undefined if it could not be
+ * listed.
+ *
+ * WHAT THIS FUNCTION DOES NOT DO IS MOVE MONEY. The market owns prices and
+ * listings; finances owns cash. The float's proceeds are handed back to the
+ * caller as a number and finances credits them, the same single-writer rule
+ * every other module obeys (Law 12).
+ *
+ * The shares outstanding are chosen so the opening price is par — 10,000
+ * basis points, the same place every other company in this world started —
+ * rather than picking a price and backing into a share count. That way the
+ * whole engine downstream (history, beta, analysts, P/E) reads the new
+ * listing exactly as it reads the other thirty-three, with no special case
+ * anywhere.
+ */
+export function listCompany(
+  world: World,
+  tick: Tick,
+  stockId: string,
+  name: string,
+  kindId: string,
+  valuation: Money,
+  annualProfit: Money,
+): Stock | undefined {
+  if (world.listings.has(stockId)) return undefined
+  const { sectorId, subIndustry } = sectorForBusinessKind(kindId)
+  // At par, one share is worth a dollar. The count is the valuation.
+  const shares = Math.max(1_000_000, Math.floor(valuation / 100))
+  const stock: Stock = {
+    id: stockId,
+    ticker: tickerFor(world, name),
+    name,
+    sectorId,
+    subIndustry,
+    // A NEW LISTING IS A VOLATILE ONE, and that is not flavour. A company
+    // this size with one product line and one founder swings harder than
+    // the established names it lists beside, which is exactly the risk the
+    // spec wants on the other side of the reward: "a boom or a scandal
+    // moves your fortune."
+    betaMultiplier: 1650,
+    idioVolatility: 280,
+    sharesOutstanding: shares,
+    baseEarnings: Math.max(0, annualProfit) as Money,
+    blurb: `Floated on the local exchange after ${
+      kindId === 'contracting-firm' ? 'years of contract work' : 'years on the high street'
+    }. Young as a public company, and priced like it.`,
+  }
+  world.listings.set(stockId, stock)
+  ;(world as { stockPrices: Record<string, number> }).stockPrices = {
+    ...world.stockPrices,
+    [stockId]: 10_000,
+  }
+  ;(world as { stockHistory: Record<string, readonly number[]> }).stockHistory = {
+    ...world.stockHistory,
+    [stockId]: [10_000],
+  }
+  world.analystViews.set(stockId, computeAnalystView(world, stock, tick))
+  return stock
+}
+
+/**
+ * WHAT THE FOUNDER WALKS AWAY WITH, in cents, for selling the float.
+ *
+ * Kept here rather than in business.ts because it is a fact about the
+ * offering rather than about the company.
+ */
+export function floatProceedsFor(valuation: Money): Money {
+  return Math.floor((valuation * IPO_FLOAT_PER_MILLE) / 1000) as Money
+}
+
+/**
+ * WHEN A LISTED COMPANY DIES (owner: "some companies fail and some
+ * succeed").
+ *
+ * A price this low is not a cheap share, it is a company the market has
+ * stopped believing in. Ninety-five per cent below par, held for long
+ * enough that it is not one bad quarter.
+ */
+export const DELIST_BELOW = 500
+export const DELIST_AFTER_MONTHS = 6
+
+/**
+ * DOES ANYTHING FAIL THIS MONTH?
+ *
+ * ONLY THIS TOWN'S LISTINGS CAN DIE. The thirty-three in `STOCKS` are the
+ * fixed backdrop the whole economy is calibrated against — deleting one
+ * would leave every holding in it pointing at nothing and every sector a
+ * company lighter, for no gain. What CAN fail is what this town floated,
+ * which is also the only kind anybody here has a personal stake in, and
+ * therefore the only kind whose failure is a story rather than a number.
+ *
+ * WHAT FAILING MEANS: the shares go to nothing and the holdings go with
+ * them. That is the honest version — a company that delists at five cents
+ * does not hand its shareholders a cheque — and it is what makes the
+ * founder's remaining stake a real risk rather than a guaranteed fortune.
+ */
+export function runDelistings(world: World, tick: Tick): readonly Stock[] {
+  if (world.listings.size === 0) return []
+  const gone: Stock[] = []
+  for (const [id, stock] of world.listings) {
+    const price = world.stockPrices[id] ?? 10_000
+    if (price >= DELIST_BELOW) continue
+    // Long enough that it is a failure rather than a bad month.
+    const history = world.stockHistory[id] ?? []
+    const recent = history.slice(Math.max(0, history.length - DELIST_AFTER_MONTHS))
+    if (recent.length < DELIST_AFTER_MONTHS) continue
+    if (!recent.every((close) => close < DELIST_BELOW)) continue
+    gone.push(stock)
+  }
+  for (const stock of gone) {
+    world.listings.delete(stock.id)
+    world.analystViews.delete(stock.id)
+    recordEvent(world, tick, {
+      type: 'delisted',
+      subjectId: 0 as EntityId,
+      detail: `${stock.name}:${stock.ticker}`,
+    })
+  }
+  return gone
+}
+

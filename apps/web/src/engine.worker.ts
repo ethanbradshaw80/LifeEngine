@@ -29,6 +29,8 @@ import {
   payOffBankruptcyPlayer,
   buyPropertyPlayer,
   payDownPlayer,
+  scaleUpPlayer,
+  takePublicPlayer,
   rentPropertyPlayer,
   seeADoctor,
   sellHomePlayer,
@@ -123,6 +125,8 @@ export type VerbRequest =
   | { readonly verb: 'doctor' }
   | { readonly verb: 'buy-property'; readonly propertyId: string; readonly method?: 'cash' | 'mortgage' }
   | { readonly verb: 'pay-down'; readonly kind: 'personal' | 'auto' | 'mortgage' | 'student'; readonly cents: number }
+  | { readonly verb: 'scale-up' }
+  | { readonly verb: 'take-public' }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
   | { readonly verb: 'drop-out' }
@@ -469,6 +473,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'habit': {
             const r = setHabit(world, a.kind, a.keep)
             outcome = { ok: r.changed, reason: r.reason }
+            break
+          }
+          case 'scale-up': {
+            const r = scaleUpPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'take-public': {
+            const r = takePublicPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'pay-down': {

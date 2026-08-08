@@ -26,13 +26,14 @@ import { runGovernment } from './government.js'
 import { runProperties, seatHouseholds } from './realestate.js'
 import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
-import { runFinances } from './finances.js'
+import { runFinances, voidHoldingsIn } from './finances.js'
 import { stepEconomy } from './economy.js'
 import {
   pushHistory,
   recordCompanyNews,
   rollCompanyNews,
   runAnalysts,
+  runDelistings,
   stepSectors,
   stepStocks,
 } from './market.js'
@@ -97,6 +98,14 @@ export function advanceTick(world: World): World {
   // reading a price that is about to change is reading last month's.
   recordCompanyNews(world, next, companyNews)
   runAnalysts(world, next)
+  // A MARKET WHERE NOTHING EVER DIES IS A PRICE LIST. Anything this town
+  // floated that the market has stopped believing in comes off the board,
+  // and the holdings come off with it — including the founder's, which is
+  // what makes taking a company public a real risk rather than a windfall
+  // with extra steps.
+  for (const dead of runDelistings(world, next)) {
+    voidHoldingsIn(world, dead.id)
+  }
 
   // The seats are filled before anybody acts in the month, the same way
   // the economy is settled first: a town's government is a condition of

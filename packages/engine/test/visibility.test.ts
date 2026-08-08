@@ -45,6 +45,11 @@ const WORLD_LEVEL = new Set([
   // life story would say "you were downgraded to Hold" about a human being.
   'analyst-change',
   'company-news',
+  // A delisting is the same kind of fact: it happens to a COMPANY, and it
+  // is recorded with no subject because there is no one person it happened
+  // to. Everybody who held it feels it — through the holding vanishing,
+  // which is a money event and shows up as one.
+  'delisted',
 ])
 
 /**

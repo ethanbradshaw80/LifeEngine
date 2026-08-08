@@ -1024,6 +1024,302 @@ const RECOGNITION: WorkMoment = {
   },
 }
 
+/**
+ * THE SENIOR MOMENTS (careers overhaul, phase 3).
+ *
+ * Ten moments existed and only two of them looked at the rung, so a
+ * vice-president ran into the same big assignment and the same mistake as
+ * the clerk two floors down. The texture stopped where the ladder got
+ * interesting.
+ *
+ * What changes high up is not that the work is harder — it is that the
+ * decisions are ABOUT OTHER PEOPLE. A clerk's bad month costs a clerk; a
+ * director's costs forty of them. That is the whole difference and it is
+ * what these three are made of.
+ */
+const THE_CUT: WorkMoment = {
+  id: 'the-cut',
+  title: 'The List',
+  minRung: 4,
+  leadChance: 480,
+  situation: [
+    'The number they want out of your division is not a number, it is about eleven people, and you know all of their names.',
+    'Finance has sent the target down twice now. The second time it came with a date on it.',
+  ],
+  options: [
+    {
+      id: 'lead',
+      title: 'Fight the number',
+      tag: 'high risk / high reward',
+      detail: 'Go back up with a plan that keeps them and makes the savings somewhere else. You will be spending your own credit.',
+    },
+    {
+      id: 'steady',
+      title: 'Cut where it costs least',
+      tag: 'steady',
+      detail: 'Do it properly. The vacancies first, the newest last, and you tell them yourself.',
+    },
+    {
+      id: 'pass',
+      title: 'Let the office run it',
+      tag: 'safe / cold',
+      detail: 'Sign what you are given. It is above you and it will happen either way.',
+    },
+  ],
+  outcomes: {
+    lead: {
+      good: [
+        {
+          title: 'You kept eight of them',
+          text: 'Two floors of savings nobody had looked at, and a plan detailed enough that arguing with it took more energy than agreeing. Eight names came off the list.',
+          foot: 'The division knows exactly who did that.',
+          performance: 70,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'The number was never the point',
+          text: 'It was a decision made before it reached you, and you spent a great deal of credit discovering that. The eleven went anyway.',
+          foot: 'Read as not understanding the business.',
+          performance: -60,
+          payPerMille: 0,
+        },
+      ],
+    },
+    steady: {
+      good: [
+        {
+          title: 'Done properly',
+          text: 'You told them yourself, one at a time, and none of them heard it from a letter. It was a bad week and it was not a shambles.',
+          foot: 'Steady hands, on the record.',
+          performance: 30,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'It went round the building anyway',
+          text: 'Somebody talked before you had finished the conversations, and four people found out in the wrong order.',
+          foot: 'Handled, but not well.',
+          performance: -20,
+          payPerMille: 0,
+        },
+      ],
+    },
+    pass: {
+      good: [
+        {
+          title: 'Off your desk',
+          text: 'It was run to the letter and none of it came back to you. The division noticed that too.',
+          foot: 'Nothing on the file either way.',
+          performance: 0,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'They wanted to hear it from you',
+          text: 'A form letter and a door code that stopped working at eleven. The ones who stayed took a long time to look at you the same way.',
+          foot: 'The floor went quiet for a month.',
+          performance: -35,
+          payPerMille: 0,
+        },
+      ],
+    },
+  },
+}
+
+const THE_BOARD: WorkMoment = {
+  id: 'the-board',
+  title: 'The Board Meeting',
+  minRung: 5,
+  leadChance: 520,
+  situation: [
+    'Twenty minutes, eleven people who have already read it, and one of them has been waiting all quarter to ask you something.',
+    'The papers went out on Friday. By Monday two directors had opinions about page four, and page four is yours.',
+  ],
+  options: [
+    {
+      id: 'lead',
+      title: 'Ask them for the money',
+      tag: 'high risk / high reward',
+      detail: 'Take the meeting somewhere it was not going: the plan you have been sitting on, and the budget it needs.',
+    },
+    {
+      id: 'steady',
+      title: 'Present what you came with',
+      tag: 'steady',
+      detail: 'The numbers, the context, the risks. Answer page four honestly and sit down.',
+    },
+    {
+      id: 'pass',
+      title: 'Keep it short',
+      tag: 'safe',
+      detail: 'Nobody was ever hurt by a twelve-minute item. Give them the headline and let the meeting move on.',
+    },
+  ],
+  outcomes: {
+    lead: {
+      good: [
+        {
+          title: 'They funded it in the room',
+          text: 'You had the numbers for the question before it was asked, which is the only trick there is. It was approved before lunch.',
+          foot: 'You are now somebody the board listens to.',
+          performance: 85,
+          payPerMille: 40,
+        },
+      ],
+      bad: [
+        {
+          title: 'Not the meeting for it',
+          text: 'The chair let you finish, which was worse than being stopped. It was noted for consideration, which is where things go.',
+          foot: 'Ambitious, and out of step.',
+          performance: -55,
+          payPerMille: 0,
+        },
+      ],
+    },
+    steady: {
+      good: [
+        {
+          title: 'Straight answers',
+          text: 'Page four turned out to be exactly what you said it was, and you said so without decorating it. The room settled.',
+          foot: 'Reliable in front of the board.',
+          performance: 40,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'Page four had a hole in it',
+          text: 'The question you did not have an answer for was the obvious one, and eleven people watched you not have it.',
+          foot: 'A bad twenty minutes with a long memory.',
+          performance: -45,
+          payPerMille: 0,
+        },
+      ],
+    },
+    pass: {
+      good: [
+        {
+          title: 'Twelve minutes',
+          text: 'In, out, nothing on fire. The board had a long agenda and you were not the difficult part of it.',
+          foot: 'Nobody remembers a short item.',
+          performance: 0,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'Read as having nothing to say',
+          text: 'A headline and a shrug, in a room where everybody else came with a plan. It was noticed, quietly.',
+          foot: 'Present, and not much else.',
+          performance: -25,
+          payPerMille: 0,
+        },
+      ],
+    },
+  },
+}
+
+const THE_SUCCESSION: WorkMoment = {
+  id: 'the-succession',
+  title: 'The Succession',
+  minRung: 5,
+  leadChance: 440,
+  situation: [
+    'The chief executive is leaving in eighteen months and everybody in the building has started counting who is left.',
+    'You were asked, over a very long lunch, whether you had thought about the top job. It was not an idle question and it was not an offer.',
+  ],
+  options: [
+    {
+      id: 'lead',
+      title: 'Run for it',
+      tag: 'high risk / high reward',
+      detail: 'Say yes, plainly, and start behaving like the answer. There is no quiet way to do this.',
+    },
+    {
+      id: 'steady',
+      title: 'Make yourself useful',
+      tag: 'steady',
+      detail: 'Do not campaign. Take the hard pieces of the transition and let that be the argument.',
+    },
+    {
+      id: 'pass',
+      title: 'Back somebody else',
+      tag: 'safe / final',
+      detail: 'Put your weight behind the obvious candidate. It ends your own chance and it buys you their gratitude.',
+    },
+  ],
+  outcomes: {
+    lead: {
+      good: [
+        {
+          title: 'You are the front runner',
+          text: 'It turns out the building had been waiting for somebody to want it out loud. Two of the other names withdrew inside a month.',
+          foot: 'The board has your name at the top of a short list.',
+          performance: 110,
+          payPerMille: 60,
+        },
+      ],
+      bad: [
+        {
+          title: 'Too early and too loud',
+          text: 'Wanting it was never the disqualifier; letting the whole floor see you want it was. The lunch was not repeated.',
+          foot: 'Marked as having got ahead of yourself.',
+          performance: -80,
+          payPerMille: 0,
+        },
+      ],
+    },
+    steady: {
+      good: [
+        {
+          title: 'The work made the case',
+          text: 'You took the two pieces nobody wanted and neither of them broke. When the list was drawn up you were on it without ever having asked.',
+          foot: 'In contention, on the record rather than the campaign.',
+          performance: 60,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'Useful is not the same as next',
+          text: 'You did the hard parts of a transition beautifully, and that is exactly how you were described afterwards.',
+          foot: 'Valued. Not considered.',
+          performance: 10,
+          payPerMille: 0,
+        },
+      ],
+    },
+    pass: {
+      good: [
+        {
+          title: 'Kingmaker',
+          text: 'You delivered three votes that were not going their way, and they know precisely what it cost you.',
+          // A FAVOUR IS NOT A FILE. What this buys is somebody's goodwill,
+          // which is real and is not an evaluation — and passing is never
+          // free here, because it is read as passing. Taking yourself out
+          // of a succession is exactly that, however well you do it.
+          foot: 'Owed a favour by whoever runs this place next. Out of the running.',
+          performance: 10,
+          payPerMille: 0,
+        },
+      ],
+      bad: [
+        {
+          title: 'You backed the wrong one',
+          text: 'They did not get it, and the one who did spent a year working out where everybody had stood.',
+          foot: 'On the wrong side of a decision that lasts.',
+          performance: -50,
+          payPerMille: 0,
+        },
+      ],
+    },
+  },
+}
+
 export const WORK_MOMENTS: readonly WorkMoment[] = [
   BIG_ASSIGNMENT,
   THE_MISTAKE,
@@ -1035,6 +1331,9 @@ export const WORK_MOMENTS: readonly WorkMoment[] = [
   MENTOR,
   BACK_TO_SCHOOL,
   RECOGNITION,
+  THE_CUT,
+  THE_BOARD,
+  THE_SUCCESSION,
 ]
 
 export function workMomentById(id: string): WorkMoment | undefined {
