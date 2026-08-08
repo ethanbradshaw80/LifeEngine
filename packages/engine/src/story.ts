@@ -380,6 +380,9 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         ? `${year} — A debate that did not go well.`
         : `${year} — Won the room at a debate.`
     }
+    case 'set-policy': {
+      return `${year} \u2014 Set the town's policy in office.`
+    }
     case 'took-office': {
       const office = officeById(event.detail ?? '')
       return office === undefined

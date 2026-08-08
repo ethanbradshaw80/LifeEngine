@@ -485,8 +485,13 @@ export {
   freshPolicy,
   heldOffices,
   holderOf,
+  LEVER_NOTES,
+  LEVER_RANGE,
+  leverBar,
+  leversOf,
   officeById,
   openBallots,
+  townBudget,
   partyById,
   voteBar,
 } from './government.js'
@@ -497,6 +502,7 @@ export {
   campaignPlayer,
   dropOutPlayer,
   sellSharesPlayer,
+  setLeverPlayer,
   standPlayer,
   votePlayer,
 } from './player.js'

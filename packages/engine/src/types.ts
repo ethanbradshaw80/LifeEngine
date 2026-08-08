@@ -1901,6 +1901,7 @@ export type PendingKind =
   | 'vote'
   | 'stand'
   | 'campaign'
+  | 'set-lever'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2113,6 +2114,7 @@ export type EventType =
   | 'left-course'
   | 'stood-for-office'
   | 'debated'
+  | 'set-policy'
   | 'took-office'
   | 'voted'
   | 'company-news'

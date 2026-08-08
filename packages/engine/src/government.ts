@@ -1,4 +1,160 @@
 /**
+ * WHAT A LEVER COSTS, in words the screen shows under it.
+ *
+ * The mockup writes the trade-off beside every lever, and it should:
+ * a knob with no stated consequence is a cheat code. These are the
+ * SAME facts the model actually implements — property tax really does
+ * reach a mortgage, police funding really does reach clearance — so the
+ * sentence is a description rather than a promise.
+ */
+export const LEVER_NOTES: Readonly<Record<string, string>> = {
+  propertyTaxPerMille:
+    'Higher funds the town but raises what every homeowner pays each month, and dents approval.',
+  policeFunding: 'More crimes solved, but it comes out of the budget.',
+  schoolFunding: 'Raises what a state-schooled child attains across the town.',
+  incomeTaxPerMille: 'Funds the government and leans on every wage in it.',
+}
+
+/** What a lever is allowed to be. */
+export const LEVER_RANGE: Readonly<Record<string, { min: number; max: number }>> = {
+  propertyTaxPerMille: { min: 0, max: 40 },
+  policeFunding: { min: 0, max: 1000 },
+  schoolFunding: { min: 0, max: 1000 },
+  incomeTaxPerMille: { min: 0, max: 500 },
+}
+
+/** Which levers a seat may actually pull (spec §4). */
+export function leversOf(officeId: string): readonly string[] {
+  switch (officeId) {
+    case 'mayor':
+      return ['propertyTaxPerMille', 'policeFunding', 'schoolFunding']
+    case 'sheriff':
+      return ['policeFunding']
+    case 'school-board':
+      return ['schoolFunding']
+    case 'president':
+      return ['incomeTaxPerMille']
+    default:
+      return []
+  }
+}
+
+/**
+ * Why this person cannot move that lever, or null.
+ *
+ * The bar pattern: a councillor is told the mayoralty sets the tax rate
+ * rather than being shown a slider that does nothing.
+ */
+export function leverBar(
+  world: World,
+  personId: EntityId,
+  lever: string,
+): string | null {
+  // THE SEAT THAT SETS THIS LEVER, not merely the first seat this person
+  // holds. Even with one-seat-per-person enforced, asking the precise
+  // question is what stops a future change from quietly reintroducing the
+  // ambiguity that wrote a mayor's approval onto a school board.
+  const seats = [...world.officials.values()].filter((h) => h.personId === personId)
+  if (seats.length === 0) return 'You hold no office.'
+  const seat = seats.find((h) => leversOf(h.officeId).includes(lever))
+  if (seat === undefined) {
+    const who = OFFICES.find((office) => leversOf(office.id).includes(lever))
+    return who === undefined
+      ? 'Nobody in this town sets that.'
+      : `That is the ${who.title}'s to set, not yours.`
+  }
+  return null
+}
+
+/**
+ * SET A LEVER, as the officeholder.
+ *
+ * The consequence is not modelled here — it is modelled in real estate,
+ * in crime, in the schools and in the payroll, which is what phase 2 was
+ * for. What happens HERE is that the town notices.
+ */
+export function setLever(
+  world: World,
+  personId: EntityId,
+  lever: string,
+  value: number,
+  tick: Tick,
+): boolean {
+  if (leverBar(world, personId, lever) !== null) return false
+  const range = LEVER_RANGE[lever]
+  if (range === undefined) return false
+  const clamped = Math.max(range.min, Math.min(range.max, Math.trunc(value)))
+  const before = (world.policy as unknown as Record<string, number>)[lever] ?? 0
+  if (clamped === before) return false
+  ;(world as { policy: PolicyState }).policy = {
+    ...world.policy,
+    [lever]: clamped,
+  } as PolicyState
+
+  // APPROVAL ANSWERS FOR IT, and the direction is the honest one: people
+  // like being taxed less and funded more, and the two pull against each
+  // other, which is the whole of governing. A tax rise costs approval
+  // even when it pays for something popular — the bill arrives before the
+  // school does.
+  const seat = [...world.officials.values()].find(
+    (h) => h.personId === personId && leversOf(h.officeId).includes(lever),
+  )
+  if (seat !== undefined) {
+    const raised = clamped > before
+    const taxes = lever === 'propertyTaxPerMille' || lever === 'incomeTaxPerMille'
+    const swing = taxes === raised ? -35 : 25
+    world.officials.set(seat.officeId, {
+      ...seat,
+      approval: Math.max(0, Math.min(1000, seat.approval + swing)),
+    })
+  }
+  recordEvent(world, tick, { type: 'set-policy', subjectId: personId, detail: lever })
+  return true
+}
+
+/**
+ * WHAT THE TOWN THINKS, month by month.
+ *
+ * Approval drifts toward what the levers have actually produced rather
+ * than toward a number somebody chose: cheap housing and solved crimes
+ * and funded schools are popular, and the money for them is not. An
+ * officeholder who gives the town everything and taxes nothing is
+ * popular right up until the budget is checked — which is phase 4's
+ * other half, and the reason `townBudget` exists.
+ */
+export function townBudget(world: World): number {
+  // Per-mille of what the town raises against what it spends. Positive is
+  // a surplus. Deliberately coarse: this is a gauge on a screen, not an
+  // accounting system, and pretending otherwise would invite somebody to
+  // balance it to the cent.
+  const revenue = world.policy.propertyTaxPerMille * 30 + world.policy.incomeTaxPerMille * 4
+  const spend = world.policy.policeFunding + world.policy.schoolFunding
+  return revenue - spend
+}
+
+function driftApproval(world: World, tick: Tick): void {
+  if (tick % 3 !== 0) return
+  const budget = townBudget(world)
+  for (const [officeId, holder] of world.officials) {
+    const levers = leversOf(officeId)
+    if (levers.length === 0) continue
+    let toward = 500
+    // What their own levers have bought, and what they cost.
+    if (levers.includes('policeFunding')) toward += (world.policy.policeFunding - 500) / 6
+    if (levers.includes('schoolFunding')) toward += (world.policy.schoolFunding - 500) / 6
+    if (levers.includes('propertyTaxPerMille')) toward -= (world.policy.propertyTaxPerMille - 11) * 8
+    // A town that cannot pay for what it voted for turns on whoever
+    // promised it.
+    if (budget < 0) toward -= Math.min(180, -budget / 6)
+    const target = Math.max(0, Math.min(1000, Math.trunc(toward)))
+    world.officials.set(officeId, {
+      ...holder,
+      approval: holder.approval + Math.trunc((target - holder.approval) / 4),
+    })
+  }
+}
+
+/**
  * IS A DEBATE DUE TONIGHT? The office id, or null.
  *
  * REPORTS rather than raises. Raising a pending needs player.ts, and
@@ -206,8 +362,19 @@ function drawRunners(world: World, officeId: string, tick: Tick): Election['runn
   if (office === undefined) return []
   const rng = openStream(world.seed, Stream.Politics, officeId.length * 31, tick)
   const found: { personId: EntityId; partyId: string; showing: number }[] = []
+  // NOBODY HOLDS TWO SEATS AT ONCE. Without this the mayor could also
+  // win the school board — and did: a probe found one person sitting in
+  // both, which made every lookup-by-person ambiguous and wrote a
+  // mayor's approval onto a school-board seat.
+  const sitting = new Set(
+    [...world.officials.values()]
+      .filter((h) => world.people.get(h.personId)?.deathTick === null)
+      .map((h) => h.personId),
+  )
   for (const person of world.people.values()) {
     if (!eligibleFor(world, person, office, tick)) continue
+    // An incumbent may stand again for THEIR OWN seat, and only that one.
+    if (sitting.has(person.id) && world.officials.get(officeId)?.personId !== person.id) continue
     if (!rng.chance(Math.max(2, Math.floor(person.traits.ambition / 60)), 1000)) continue
     const partyId = PARTIES[Math.abs(person.id) % PARTIES.length]?.id ?? 'commonwealth'
     found.push({
@@ -611,6 +778,18 @@ export function runGovernment(world: World, tick: Tick): void {
 
     const runners = drawRunners(world, officeId, tick)
     if (runners.length === 0) continue
+    // AN INCUMBENT RUNS ON THEIR RECORD. A mayor the town approves of
+    // starts ahead; one it does not starts behind, which is what makes
+    // the levers matter beyond the month they are pulled.
+    const sitting = holder !== undefined && alive ? holder : undefined
+    const withIncumbency =
+      sitting === undefined
+        ? runners
+        : runners.map((r) =>
+            r.personId === sitting.personId
+              ? { ...r, polling: Math.max(20, r.polling + Math.trunc((sitting.approval - 500) / 4)) }
+              : r,
+          )
     // An EMPTY seat cannot wait three months for a campaign; a seat whose
     // term is merely ending can, and should.
     const urgent = holder === undefined || !alive
@@ -618,10 +797,11 @@ export function runGovernment(world: World, tick: Tick): void {
       officeId,
       opensAtTick: tick,
       decidesAtTick: (urgent ? tick + 1 : tick + CAMPAIGN_MONTHS) as Tick,
-      runners,
+      runners: withIncumbency,
     })
   }
   applyPartyLean(world)
+  driftApproval(world, tick)
 }
 
 

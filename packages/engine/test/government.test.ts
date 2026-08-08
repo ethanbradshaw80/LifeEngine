@@ -19,7 +19,13 @@ import {
   campaign,
   candidacyBar,
   declareCandidacy,
+  LEVER_NOTES,
+  LEVER_RANGE,
+  leverBar,
+  leversOf,
   myCandidacy,
+  setLever,
+  townBudget,
   OFFICES,
   PARTIES,
   SEATED_OFFICES,
@@ -375,6 +381,72 @@ describe('policy', () => {
     const shareSmall = (withholdingFor(small, 1000, 440) * 1000) / small
     const shareBig = (withholdingFor(wage, 1000, 440) * 1000) / wage
     expect(shareBig).toBeGreaterThan(shareSmall)
+  })
+
+  it('never seats one person in two offices at once', () => {
+    // A REAL BUG THIS FOUND. `drawRunners` did not exclude sitting
+    // officeholders, so the mayor also won the school board — and every
+    // lookup-by-person then became ambiguous. `setLever` picked whichever
+    // seat came first and wrote the mayor's approval onto the school
+    // board, which is why raising a tax appeared to cost nothing.
+    const held = new Map<number, string>()
+    for (const [officeId, holder] of world.officials) {
+      const already = held.get(holder.personId)
+      expect(already, `${String(holder.personId)} holds ${String(already)} and ${officeId}`).toBeUndefined()
+      held.set(holder.personId, officeId)
+    }
+  })
+
+  it('lets an officeholder set only their own levers, and says whose it is', () => {
+    const mayor = world.officials.get('mayor')
+    const sheriff = world.officials.get('sheriff')
+    expect(mayor).toBeDefined()
+    if (mayor === undefined) return
+    expect(leversOf('mayor')).toContain('propertyTaxPerMille')
+    expect(leverBar(world, mayor.personId, 'propertyTaxPerMille')).toBeNull()
+    if (sheriff !== undefined) {
+      // Told whose it is, rather than shown a slider that does nothing.
+      expect(leverBar(world, sheriff.personId, 'propertyTaxPerMille')).toContain('Mayor')
+    }
+  })
+
+  it('makes approval answer for a decision', () => {
+    // The mockup writes the trade-off under every lever, and it should: a
+    // knob with no stated consequence is a cheat code. A tax rise costs
+    // approval even when it pays for something popular, because the bill
+    // arrives before the school does.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 30 * 12)
+    const mayor = own.officials.get('mayor')
+    if (mayor === undefined) return
+
+    const before = own.officials.get('mayor')?.approval ?? 0
+    expect(setLever(own, mayor.personId, 'schoolFunding', 900, own.tick)).toBe(true)
+    const funded = own.officials.get('mayor')?.approval ?? 0
+    expect(funded).toBeGreaterThan(before)
+
+    expect(setLever(own, mayor.personId, 'propertyTaxPerMille', 38, own.tick)).toBe(true)
+    expect(own.officials.get('mayor')?.approval ?? 0).toBeLessThan(funded)
+  })
+
+  it('will not let a town have everything for nothing', () => {
+    // Fund everything and tax nobody and the budget goes under, which is
+    // the other half of governing.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 30 * 12)
+    const mayor = own.officials.get('mayor')
+    if (mayor === undefined) return
+    setLever(own, mayor.personId, 'schoolFunding', 1000, own.tick)
+    setLever(own, mayor.personId, 'policeFunding', 1000, own.tick)
+    setLever(own, mayor.personId, 'propertyTaxPerMille', 0, own.tick)
+    expect(townBudget(own)).toBeLessThan(0)
+  })
+
+  it('writes the trade-off beside every lever it offers', () => {
+    for (const lever of leversOf('mayor')) {
+      expect(LEVER_NOTES[lever], `${lever} has no note`).toBeDefined()
+      expect(LEVER_RANGE[lever], `${lever} has no range`).toBeDefined()
+    }
   })
 
   it('gives every party a design token rather than a colour', () => {

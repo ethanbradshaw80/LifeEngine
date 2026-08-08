@@ -216,6 +216,8 @@ import {
   campaign,
   candidacyBar,
   castVote,
+  leverBar,
+  setLever,
   debate,
   declareCandidacy,
   voteBar,
@@ -908,6 +910,21 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
  * STAND FOR OFFICE, and run the campaign. Each reads the engine's own
  * bar, so a greyed button and a refusal cannot disagree.
  */
+export function setLeverPlayer(
+  world: World,
+  lever: string,
+  value: number,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = leverBar(world, person.id, lever)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'set-lever', lever)
+  return setLever(world, person.id, lever, value, world.tick)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'It already stands there.' }
+}
+
 export function standPlayer(world: World, officeId: string): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
@@ -2829,6 +2846,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'vote':
     case 'stand':
     case 'campaign':
+    case 'set-lever':
     case 'drop-out':
     case 'pay-off-plan':
     case 'school-request':
@@ -4108,6 +4126,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Stood for office.' // log-only
     case 'campaign':
       return 'Campaigned.' // log-only
+    case 'set-lever':
+      return 'Set policy.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':
