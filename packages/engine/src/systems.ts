@@ -13,6 +13,7 @@ import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, isBirthdayMonth } from './clock.js'
 import {
   educationRank,
+  isHigherEducation,
   meetsRequirement,
   OCCUPATIONS,
   occupationById,
@@ -604,7 +605,7 @@ export function runEmployment(world: World, tick: Tick): void {
     }
 
     if (age < WORKING_AGE || age >= RETIREMENT_AGE) continue
-    if (education.enrolledIn !== null && educationRank(education.enrolledIn) > 2) continue // full-time study
+    if (isHigherEducation(education.enrolledIn)) continue // full-time study
 
     const rng = openStream(world.seed, Stream.Employment, person.id, tick)
 

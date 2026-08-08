@@ -25,16 +25,13 @@ import {
   chapterTitle,
   creditWords,
   filingsOf,
-  depositFor,
   discretionaryFor,
   economyPhaseWords,
   holdingValue,
   homeEquityOf,
-  homePriceFor,
   homeValueOf,
   householdCosts,
   incomeTaxFor,
-  homePurchaseBar,
   openFilingOf,
   planMonthsLeft,
   planPayoffBar,
@@ -46,7 +43,6 @@ import {
   offeredRatePerMille,
   portfolioValue,
   personalIncome,
-  rentFor,
   totalDebtOf,
   withholdingFor,
 } from '@life-engine/engine'
@@ -54,14 +50,16 @@ import type { LoanKind, Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
+import { RealEstate } from './RealEstate.js'
 
-type BankTab = 'home' | 'accounts' | 'invest' | 'loans' | 'taxes'
+type BankTab = 'home' | 'accounts' | 'invest' | 'loans' | 'property' | 'taxes'
 
 const TABS: readonly { id: BankTab; icon: string; label: string }[] = [
   { id: 'home', icon: '🏦', label: 'Home' },
   { id: 'accounts', icon: '💳', label: 'Accounts' },
   { id: 'invest', icon: '📈', label: 'Invest' },
   { id: 'loans', icon: '🏷️', label: 'Loans' },
+  { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'taxes', icon: '🧾', label: 'Taxes' },
 ]
 
@@ -372,54 +370,28 @@ export function Bank({
               </section>
             )}
 
-            <section className="bank-card">
-              <h4>Home</h4>
-              {accounts.homePlaceId !== null ? (
-                <>
-                  <Row label="Value" value={formatMoney(homeValue)} />
-                  <Row label="Equity" value={formatMoney(homeEquityOf(accounts.loans, homeValue))} />
-                </>
-              ) : (
-                (() => {
-                  const place =
-                    household === null || household === undefined
-                      ? undefined
-                      : world.places.get(household.placeId)
-                  if (!place) return <p className="bank-note">Nowhere to buy just yet.</p>
-                  const price = homePriceFor(atTodaysPrices(world, rentFor(place.desirability)) as Money)
-                  // ADR-0035. TWO WAYS TO BUY A HOUSE. Cash was not one of
-                  // them: the mortgage check ran first and refused people
-                  // holding the full price. Both bars come from the engine,
-                  // so the greyed button and the refusal always agree.
-                  const cashBar = homePurchaseBar(world, person.id, place.id, 'cash')
-                  const loanRefusal = homePurchaseBar(world, person.id, place.id, 'mortgage')
-                  return (
-                    <>
-                      <Row label={`Buy in ${place.name}`} value={formatMoney(price)} />
-                      <Row label="Deposit if financed" value={formatMoney(depositFor(price))} tone="muted" />
-                      <div className="bank-actions">
-                        <button
-                          type="button"
-                          disabled={cashBar !== null}
-                          onClick={() => onAct({ verb: 'buy-home', method: 'cash' })}
-                        >
-                          Pay outright
-                        </button>
-                        <button
-                          type="button"
-                          disabled={loanRefusal !== null}
-                          onClick={() => onAct({ verb: 'buy-home', method: 'mortgage' })}
-                        >
-                          Take a mortgage
-                        </button>
-                      </div>
-                      {cashBar !== null && <p className="bank-note">{cashBar}</p>}
-                      {loanRefusal !== null && <p className="bank-note bad">{loanRefusal}</p>}
-                    </>
-                  )
-                })()
-              )}
-            </section>
+            {/* THE OLD HOME SECTION IS GONE (owner, playing: "the home
+                section in the bank tab under loans should probably be
+                removed now that we have this").
+
+                It let you buy "a home" INTO A NEIGHBOURHOOD — the abstract
+                model the property market replaces. Leaving it would have
+                been two ways to buy a house that disagree: one that picks a
+                street and prices off its rent, one that picks an actual
+                door. Money → Property is the only way in now.
+
+                What is worth keeping is the STATE, and it lives where the
+                house does. */}
+            {accounts.homePlaceId === null && (
+              <section className="bank-card">
+                <h4>Home</h4>
+                <p className="bank-note">
+                  You do not own a home. Renting and buying both live under
+                  Property — and if a mortgage is out of reach, renting is
+                  what the market offers instead.
+                </p>
+              </section>
+            )}
 
             <section className="bank-card">
               <h4>Apply</h4>
@@ -455,6 +427,24 @@ export function Bank({
               })}
             </section>
           </>
+        )}
+
+        {/* REAL ESTATE (owner's real_estate_revamp.md). The mockup puts
+            this under Money, and the Money tab already has sub-tabs, so
+            it lives here rather than becoming a twelfth top-level tab. */}
+        {/* REAL ESTATE (owner's `real_estate.html`). Its own component:
+            the marketplace has two screens of its own — a browse list and a
+            property page — and inlining that here would have buried it. */}
+        {tab === 'property' && (
+          <RealEstate
+            world={world}
+            cash={accounts.checking + accounts.savings}
+            owns={accounts.homePlaceId !== null}
+            hasLease={
+              person.householdId !== null && world.leases.has(person.householdId)
+            }
+            onAct={onAct}
+          />
         )}
 
         {tab === 'taxes' && (

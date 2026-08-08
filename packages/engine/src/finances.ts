@@ -901,8 +901,31 @@ export function householdCosts(world: World, household: Household): Money {
     }
     return shelter as Money
   }
+  // WHAT THE ROOF ACTUALLY COSTS THIS HOUSEHOLD (owner, playing: "if you
+  // are renting because you can't get a loan on a house you're renting").
+  //
+  // Three cases, and only one of them existed before:
+  //
+  //   a LEASE — pay what the lease says. A tenancy is an agreement about a
+  //     specific home, so the number is the property's, not the postcode's.
+  //   an OWNER — pay no rent. The mortgage is charged by the loan system,
+  //     and charging street rent on top was billing a homeowner twice for
+  //     the same roof.
+  //   neither — the old behaviour, the neighbourhood's going rate, which is
+  //     the right answer for anybody housed without a tracked agreement.
+  const lease = world.leases.get(household.id)
+  const owner = [...household.memberIds].some(
+    (id) => accountsOf(world, id).homePlaceId !== null,
+  )
   const place = world.places.get(household.placeId)
-  let total = place ? rentAt(world, place.desirability) : 0
+  let total: number =
+    lease !== undefined
+      ? lease.monthlyRent
+      : owner
+        ? 0
+        : place
+          ? rentAt(world, place.desirability)
+          : 0
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue

@@ -19,7 +19,15 @@
 
 import { useState } from 'react'
 import type { JSX } from 'react'
-import { criminalRecordOf, formatYear, offenceById, sentenceInWords } from '@life-engine/engine'
+import {
+  accountsOf,
+  criminalRecordOf,
+  formatYear,
+  offenceById,
+  sentenceInWords,
+  valueOf,
+} from '@life-engine/engine'
+import { formatMoney } from '@life-engine/shared'
 import type { Person, World } from '@life-engine/engine'
 import { CountyRecords } from './CountyRecords.js'
 
@@ -136,6 +144,84 @@ export function CityHall({
           </div>
         ))}
       </div>
+
+      {/* THE DEED REGISTRY (owner, playing: "property and deeds should've
+          been updated as well in city hall now that people can buy homes").
+
+          He is right, and it is the correct home for it: a deed is a PUBLIC
+          record. The county knows who owns what, and it knows before the
+          neighbours do. Everything here is read off the households and the
+          accounts — the registry does not store a second copy of who owns
+          what, because two records of one fact is how they come to disagree. */}
+      <section className="hall-card">
+        <h3>Deeds &amp; Property</h3>
+        {(() => {
+          const household =
+            person.householdId === null ? undefined : world.households.get(person.householdId)
+          const ownedId = household?.propertyId
+          const property = typeof ownedId === 'string' ? world.properties.get(ownedId) : undefined
+          const owns = accountsOf(world, person.id).homePlaceId !== null
+
+          return (
+            <>
+              {property === undefined ? (
+                <div className="hall-status">No property is registered to your name.</div>
+              ) : (
+                <>
+                  <div className="hall-name">{property.address}</div>
+                  <div className="hall-status">
+                    {world.places.get(property.neighbourhoodPlaceId)?.name ?? 'the town'} ·{' '}
+                    {property.type} · built {property.yearBuilt}
+                  </div>
+                  <dl className="hall-facts">
+                    <dt>Tenure</dt>
+                    <dd>{owns ? 'Owner' : 'Tenant'}</dd>
+                    <dt>Assessed value</dt>
+                    <dd>{formatMoney(valueOf(world, property))}</dd>
+                    <dt>Lot</dt>
+                    <dd>
+                      {property.lotSqft > 0
+                        ? `${property.lotSqft.toLocaleString()} sqft`
+                        : 'no land of its own'}
+                    </dd>
+                  </dl>
+                </>
+              )}
+
+              {/* WHO OWNS WHAT, for the whole town. A registry that only ever
+                  showed your own door would not be a registry. */}
+              {(() => {
+                const owned = [...world.households.values()]
+                  .filter((h) => h.dissolvedTick !== null ? false : typeof h.propertyId === 'string')
+                  .slice(0, 8)
+                if (owned.length === 0) return null
+                return (
+                  <>
+                    <div className="hall-sub">Registered this county</div>
+                    <ul className="hall-deeds">
+                      {owned.map((h) => {
+                        const p2 = world.properties.get(h.propertyId as string)
+                        const head = [...h.memberIds]
+                          .map((id) => world.people.get(id))
+                          .find((m) => m !== undefined && m.deathTick === null)
+                        if (p2 === undefined) return null
+                        return (
+                          <li key={h.id}>
+                            <span className="deed-addr">{p2.address}</span>
+                            <span className="deed-who">
+                              {head === undefined ? 'unoccupied' : `${head.givenName} ${head.familyName}`}
+                            </span>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </>
+                )
+              })()}
+            </>
+          )
+        })()}
+      </section>
 
       <section className="hall-card">
         <h3>Recent docket</h3>

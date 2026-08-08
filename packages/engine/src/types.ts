@@ -1614,6 +1614,9 @@ export type PendingKind =
   | 'buy-home'
   /** ADR-0038. Settling a chapter 13 plan in full, early. */
   | 'pay-off-plan'
+  /** Real estate: taking a tenancy, and selling up. */
+  | 'rent-home'
+  | 'sell-home'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */

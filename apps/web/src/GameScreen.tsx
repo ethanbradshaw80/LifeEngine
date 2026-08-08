@@ -257,20 +257,35 @@ type Tab =
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
+/**
+ * THE RAIL, ORDERED THE WAY A LIFE IS READ (owner, playing: "the home
+ * section is really our stats tab now it looks like — fix up the UI to be
+ * better and navigable with all the updates").
+ *
+ * Two things were wrong. 'Home' had quietly become the personal dashboard —
+ * the stats panel, the character sheet, the activities — while still being
+ * called Home and sitting behind a house icon. And the tab whose id is
+ * literally `stats` is the TOWN dashboard, which meant the two most
+ * confusable screens in the game were named after each other.
+ *
+ * So: 'You' is where you look at yourself, 'Town' is where you look at
+ * everybody else, and the order runs from the closest thing to a life —
+ * the story of it — outward to the institutions around it.
+ */
 const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
-  { id: 'home', icon: '🏠', label: 'Home' },
+  { id: 'home', icon: '📊', label: 'You' },
   { id: 'money', icon: '💰', label: 'Money' },
+  { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'career', icon: '📈', label: 'Career' },
   { id: 'family', icon: '👪', label: 'Family' },
   { id: 'people', icon: '💞', label: 'People' },
-  { id: 'jobs', icon: '💼', label: 'Jobs' },
-  { id: 'news', icon: '📰', label: 'News' },
-  { id: 'service', icon: '🪖', label: 'Service' },
   { id: 'health', icon: '🩺', label: 'Health' },
+  { id: 'service', icon: '🪖', label: 'Service' },
   { id: 'record', icon: '⚖️', label: 'Crime' },
   { id: 'cityhall', icon: '🏛️', label: 'City Hall' },
-  { id: 'stats', icon: '📊', label: 'Town' },
+  { id: 'news', icon: '📰', label: 'News' },
+  { id: 'stats', icon: '🏙️', label: 'Town' },
 ]
 
 const SCHOOLING_WORDS: Record<EducationLevel, string> = {
@@ -883,7 +898,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       )}
 
       {tab === 'home' && (
-        <div className="panel" aria-label="Home">
+        <div className="panel" aria-label="You">
           {/* THE STATS PANEL (owner's player_stats_spec.md §5). At the top
               of Home rather than in a twelfth tab, because it is the
               player's dashboard and it should be the first thing on it.

@@ -23,12 +23,14 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { educationRank, OCCUPATIONS, occupationById } from './content.js'
+import { isHigherEducation, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
   creditPerson,
   debitPerson,
+  sellHome,
+  signLease,
   householdCosts,
   householdIncome,
   inArrears,
@@ -146,6 +148,7 @@ import {
   takeUpHabit,
 } from './stats.js'
 import { openFilingOf, planPayoffBar } from './bankruptcy.js'
+import { leaseBar } from './realestate.js'
 import {
   accessionOf,
   accessionWords,
@@ -361,7 +364,7 @@ export function jobBar(world: World, occupationId: string): string | null {
     return 'The uniform is a full-time career; leave the service first.'
   }
   const education = world.education.get(person.id)
-  if (education?.enrolledIn !== null && education !== undefined && educationRank(education.enrolledIn) > 2) {
+  if (education !== undefined && isHigherEducation(education.enrolledIn)) {
     return 'Full-time study fills the days.'
   }
   if (isSeverelyAiling(world, person.id)) return 'Too ill or hurt to take new work this month.'
@@ -436,7 +439,7 @@ export function applyForJob(world: World, occupationId: string): { applied: bool
     return { applied: false, reason: 'The uniform is a full-time career; leave the service first.' }
   }
   const education = world.education.get(person.id)
-  if (education?.enrolledIn !== null && education !== undefined && educationRank(education.enrolledIn) > 2) {
+  if (education !== undefined && isHigherEducation(education.enrolledIn)) {
     return { applied: false, reason: 'Full-time study fills the days.' }
   }
   if (isSeverelyAiling(world, person.id)) {
@@ -782,6 +785,48 @@ export function seeADoctor(world: World): { seen: boolean; reason: string } {
     detail: String(DOCTOR_VISIT_COST),
   })
   return { seen: true, reason: '' }
+}
+
+
+/** Buy a specific home off the market. */
+export function buyPropertyPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const property = world.properties.get(propertyId)
+  if (!property) return { done: false, reason: 'No such address.' }
+  const bar = homePurchaseBar(world, person.id, property.neighbourhoodPlaceId, 'mortgage')
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'buy-home', `${propertyId}:mortgage`)
+  return buyHome(world, world.tick, person.id, property.neighbourhoodPlaceId, 'mortgage', propertyId)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The sale did not go through.' }
+}
+
+/** Take a tenancy on a specific home. */
+export function rentPropertyPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null || person.householdId === null) {
+    return { done: false, reason: 'Nobody is being played.' }
+  }
+  const bar = leaseBar(world, person.householdId, propertyId, moneyOnHand(world, person.id))
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'rent-home', propertyId)
+  return signLease(world, world.tick, person.id, propertyId)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The landlord did not take it.' }
+}
+
+/** Sell the house you own. */
+export function sellHomePlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  if (accountsOf(world, person.id).homePlaceId === null) {
+    return { done: false, reason: 'You do not own a home.' }
+  }
+  logVerb(world, 'sell-home', '')
+  return sellHome(world, world.tick, person.id)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The sale did not go through.' }
 }
 
 export function requestEnlistment(world: World): { asked: boolean; reason: string } {
@@ -2581,6 +2626,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'buy-home':
     case 'habit':
     case 'doctor':
+    case 'rent-home':
+    case 'sell-home':
     case 'pay-off-plan':
     case 'school-request':
     case 'unit-tryout':
@@ -3770,6 +3817,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Changed what you make time for.' // log-only
     case 'doctor':
       return 'Saw a doctor.' // log-only
+    case 'rent-home':
+      return 'Took a place on a lease.' // log-only
+    case 'sell-home':
+      return 'Sold the house.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':

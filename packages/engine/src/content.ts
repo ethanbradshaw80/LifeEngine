@@ -1665,6 +1665,24 @@ export function meetsRequirement(has: EducationLevel, needs: EducationLevel): bo
 }
 
 /**
+ * IS THIS FULL-TIME STUDY BEYOND SCHOOL?
+ *
+ * Three places asked `educationRank(level) > 2` and meant "trade school or
+ * university" — the two that fill a person's days so they cannot hold a
+ * job. The number worked only because `secondary` happened to sit at rank
+ * 2, and the education module is about to insert `middle` beneath it. The
+ * moment it did, `> 2` would have meant "secondary or above" and every
+ * fifteen-year-old in the game would have been treated as a full-time
+ * university student, barred from a part-time job by an off-by-one.
+ *
+ * So the question is asked by NAME. Adding a rung to the ladder can no
+ * longer silently change what this means.
+ */
+export function isHigherEducation(level: EducationLevel | null): boolean {
+  return level === 'trade' || level === 'college'
+}
+
+/**
  * An occupation by id. TOTAL — it does not throw (W1 resistance 2).
  *
  * Occupation ids live in saved employment records and in 'hired' /

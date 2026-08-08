@@ -27,7 +27,10 @@ import {
   borrowPlayer,
   buyHomePlayer,
   payOffBankruptcyPlayer,
+  buyPropertyPlayer,
+  rentPropertyPlayer,
   seeADoctor,
+  sellHomePlayer,
   setHabit,
   startBusiness,
   divestPlayer,
@@ -106,6 +109,9 @@ export type VerbRequest =
   | { readonly verb: 'pay-off-plan' }
   | { readonly verb: 'habit'; readonly kind: 'training' | 'study' | 'social'; readonly keep: boolean }
   | { readonly verb: 'doctor' }
+  | { readonly verb: 'buy-property'; readonly propertyId: string }
+  | { readonly verb: 'rent-property'; readonly propertyId: string }
+  | { readonly verb: 'sell-home' }
   | { readonly verb: 'start-business'; readonly kindId: string }
 
 export type WorkerRequest =
@@ -422,6 +428,21 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'habit': {
             const r = setHabit(world, a.kind, a.keep)
             outcome = { ok: r.changed, reason: r.reason }
+            break
+          }
+          case 'buy-property': {
+            const r = buyPropertyPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'rent-property': {
+            const r = rentPropertyPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'sell-home': {
+            const r = sellHomePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'doctor': {
