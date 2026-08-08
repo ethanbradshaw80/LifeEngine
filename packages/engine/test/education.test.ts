@@ -20,8 +20,8 @@ import {
   meetsRequirement,
   occupationById,
 } from '../src/content.js'
-import { dropOut, dropOutBar, enrolmentBar, livingPeople } from '../src/systems.js'
-import { accountsOf, debitPerson, takeLoan } from '../src/finances.js'
+import { dropOut, dropOutBar, enrolPlayer, enrolmentBar, livingPeople } from '../src/systems.js'
+import { accountsOf, debitPerson, householdCosts, takeLoan } from '../src/finances.js'
 import { CREDIT_MIN, LOAN_TERMS } from '../src/credit.js'
 
 /**
@@ -629,5 +629,111 @@ describe('leaving, and coming back', () => {
     expect(child).toBeDefined()
     if (child === undefined) return
     expect(dropOutBar(world, child.id)).toContain('Children')
+  })
+})
+
+/**
+ * HALLS — a full-time student is housed by the institution.
+ *
+ * The owner, playing: "the errors were moving from street to street
+ * because we had no income because we were in college. We should be
+ * living in the dorms and paying through tuition."
+ *
+ * The path was exact: move out at eighteen WITH a job, enrol in college,
+ * full-time study ends the job, and a household head with zero income is
+ * downsized every month — street to street until the town runs out.
+ */
+describe('living in halls', () => {
+  it('houses a student who would otherwise be keeping a roof up alone', () => {
+    // BUILT, NOT LOOKED FOR. A snapshot of the town catches only CURRENT
+    // students — `inHalls` clears when the course ends — and a
+    // forty-year world had two of them, which proves nothing either way.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 25 * 12)
+    const alone = livingPeople(own).find((person) => {
+      const age = ageAt(person.birthTick, own.tick)
+      if (age < 19 || age > 30) return false
+      const household =
+        person.householdId === null ? undefined : own.households.get(person.householdId)
+      if (household === undefined) return false
+      // Nobody's child under this roof: they are keeping it up themselves.
+      return !household.memberIds.some(
+        (id) => person.parentIds.includes(id) && own.people.get(id)?.deathTick === null,
+      )
+    })
+    expect(alone).toBeDefined()
+    if (alone === undefined) return
+
+    enrolPlayer(own, own.tick, alone, 'college')
+    const record = own.education.get(alone.id)
+    expect(record?.enrolledIn).toBe('college')
+    expect(record?.inHalls).toBe(true)
+  })
+
+  it('leaves a student at home at home', () => {
+    // Most students live with their parents, which is where most of them
+    // can afford to be. Halls are for the person who would otherwise be
+    // paying rent on no wage.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 25 * 12)
+    const atHome = livingPeople(own).find((person) => {
+      const age = ageAt(person.birthTick, own.tick)
+      if (age < 18 || age > 26) return false
+      const household =
+        person.householdId === null ? undefined : own.households.get(person.householdId)
+      if (household === undefined) return false
+      return household.memberIds.some(
+        (id) => person.parentIds.includes(id) && own.people.get(id)?.deathTick === null,
+      )
+    })
+    if (atHome === undefined) return
+    enrolPlayer(own, own.tick, atHome, 'college')
+    expect(own.education.get(atHome.id)?.inHalls).not.toBe(true)
+  })
+
+  it('charges the household nothing for a bed it is not providing', () => {
+    // The whole of the bug: a household of nothing but students in halls
+    // owes no rent, so the arrears pass never finds it and never moves it
+    // anywhere. Charging here would be charging twice for one bed — the
+    // fees already paid for it.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 25 * 12)
+    const alone = livingPeople(own).find((person) => {
+      const age = ageAt(person.birthTick, own.tick)
+      if (age < 19 || age > 30) return false
+      const household =
+        person.householdId === null ? undefined : own.households.get(person.householdId)
+      if (household === undefined || household.memberIds.length !== 1) return false
+      return true
+    })
+    if (alone === undefined) return
+    const household = own.households.get(alone.householdId as never)
+    if (household === undefined) return
+
+    const before = householdCosts(own, household)
+    enrolPlayer(own, own.tick, alone, 'college')
+    if (own.education.get(alone.id)?.inHalls !== true) return
+    const after = householdCosts(own, household)
+    expect(before).toBeGreaterThan(0)
+    expect(after).toBe(0)
+  })
+
+  it('empties the hall when the course does', () => {
+    // A graduate is back in the housing market like everybody else, which
+    // is the point at which the degree starts paying for itself.
+    const own = createWorld(makeSeed(4141), 300)
+    advanceTicks(own, 25 * 12)
+    const alone = livingPeople(own).find((person) => {
+      const age = ageAt(person.birthTick, own.tick)
+      const household =
+        person.householdId === null ? undefined : own.households.get(person.householdId)
+      if (age < 19 || age > 28 || household === undefined) return false
+      return !household.memberIds.some((id) => person.parentIds.includes(id))
+    })
+    if (alone === undefined) return
+    enrolPlayer(own, own.tick, alone, 'college')
+    if (own.education.get(alone.id)?.inHalls !== true) return
+    expect(dropOut(own, own.tick, alone.id)).toBe(true)
+    expect(own.education.get(alone.id)?.inHalls).toBe(false)
   })
 })

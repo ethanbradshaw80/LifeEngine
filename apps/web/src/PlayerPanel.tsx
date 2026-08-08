@@ -412,6 +412,10 @@ export function optionLabel(world: World, pending: PendingDecision, option: stri
     const place = world.places.get(pending.placeId)
     if (place) return `Move to ${place.name}`
   }
+  if (pending.kind === 'school-choice') {
+    if (option === 'private') return 'Private school'
+    if (option === 'public') return 'The state school'
+  }
   // A FIELD OF STUDY names its own buttons from the catalogue, so adding
   // a major never needs a label added here to go with it.
   if (pending.kind === 'major') {

@@ -338,7 +338,23 @@ export function clearanceBonusOf(world: World): number {
     if (world.employment.get(person.id)?.occupationId === 'constable') constables += 1
   }
   if (adults === 0) return 0
-  return Math.min(200, Math.floor((constables * 200 * 200) / adults / 10))
+  const staffing = Math.min(200, Math.floor((constables * 200 * 200) / adults / 10))
+
+  // WHAT THE TOWN VOTED TO SPEND ON IT (government plan §4, phase 2's
+  // second lever). Constables are the people; funding is the hours, the
+  // vehicles and the forensics behind them, and a force with neither
+  // clears very little.
+  //
+  // Scaled so that the DEFAULT of 500 reproduces exactly what this
+  // returned before the lever existed — the wiring changes nothing on the
+  // day it lands, and only a government moving the number changes an
+  // outcome. Doubling the budget doubles the edge; gutting it removes it.
+  //
+  // Read off `world.policy` rather than through government.ts: the value
+  // is state, and importing the module that writes it would close a cycle
+  // for a number this can simply look at.
+  const funding = Math.max(0, world.policy.policeFunding)
+  return Math.min(400, Math.floor((staffing * funding) / 500))
 }
 
 export function runCrime(world: World, tick: Tick): void {

@@ -306,6 +306,17 @@ export const PRIVATE_SCHOOL_TUITION = dollars(150)
  * Measure in a grown town and retune; do not quote these.
  */
 export const COLLEGE_TUITION_PER_YEAR = dollars(2_600)
+
+/**
+ * ROOM AND BOARD IN HALLS, per year. A BALANCE NUMBER.
+ *
+ * Sized against what the same person would pay to keep a roof up alone —
+ * a year of it is roughly what nine months of the cheapest rent in town
+ * plus a child's keep would come to — so halls are not a loophole that
+ * makes studying cheaper than living. They are the reason a student with
+ * no wage is not turned out into the street market every month.
+ */
+export const HALLS_PER_YEAR = dollars(1_450)
 export const TRADE_TUITION_PER_YEAR = dollars(1_250)
 
 /**

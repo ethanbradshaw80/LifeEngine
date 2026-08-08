@@ -27,6 +27,7 @@ import {
 } from '../src/government.js'
 import { livingPeople } from '../src/systems.js'
 import { ownershipCostOf } from '../src/realestate.js'
+import { clearanceBonusOf } from '../src/crime.js'
 
 const world = createWorld(makeSeed(4141), 400)
 advanceTicks(world, 60 * 12)
@@ -206,6 +207,48 @@ describe('policy', () => {
     // two causes instead of one.
     expect(freshPolicy().propertyTaxPerMille).toBe(11)
   })
+
+  it('puts police funding into whether crimes get solved', () => {
+    // Phase 2, step 2. Constables are the PEOPLE; funding is the hours,
+    // the vehicles and the forensics behind them.
+    //
+    // MEASURED: 0 -> 0, 250 -> 87, 500 -> 174, 1000 -> 348. The default
+    // of 500 reproduces exactly what this returned before the lever
+    // existed, so the wiring changed no outcome on the day it landed.
+    const at = (n: number): number =>
+      clearanceBonusOf({ ...world, policy: { ...world.policy, policeFunding: n } } as never)
+    expect(at(0)).toBe(0)
+    expect(at(1000)).toBeGreaterThan(at(500))
+    expect(at(500)).toBeGreaterThan(at(250))
+  })
+
+  it('puts school funding into state-schooled children, and only them', () => {
+    // Phase 2, step 3. MEASURED over twenty-five years with the lever
+    // held: starved 486, default 529, funded 570 — an 84-point spread
+    // against a private-school premium of 90. A town starving its schools
+    // is visible in its children without overwhelming who they are.
+    //
+    // A STATE-SCHOOLED CHILD ONLY. The whole point of paying for a
+    // private education is that it does not depend on what the council
+    // decided this year, and a lever moving both would make the private
+    // premium meaningless.
+    const hold = (funding: number): number => {
+      const own = createWorld(makeSeed(4141), 200)
+      for (let i = 0; i < 20 * 12; i++) {
+        ;(own as { policy: typeof own.policy }).policy = { ...own.policy, schoolFunding: funding }
+        advanceTicks(own, 1)
+      }
+      const marks: number[] = []
+      for (const person of own.people.values()) {
+        if (person.deathTick !== null) continue
+        const record = own.education.get(person.id)
+        if (record?.schooling !== 'public') continue
+        marks.push(record.attainment)
+      }
+      return marks.length === 0 ? -1 : marks.reduce((a, b) => a + b, 0) / marks.length
+    }
+    expect(hold(1000)).toBeGreaterThan(hold(0))
+  }, 300_000)
 
   it('gives every party a design token rather than a colour', () => {
     // The lesson from the restyle: the mockups carry their own palette,

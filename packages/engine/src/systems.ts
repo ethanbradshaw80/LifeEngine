@@ -24,6 +24,7 @@ import {
   AID_PER_MILLE,
   MERIT_ATTAINMENT,
   GRADUATE_ADMISSION,
+  HALLS_PER_YEAR,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -284,6 +285,20 @@ function schoolTargetFor(world: World, person: Person, record: EducationRecord):
   target += parents >= 2 ? 45 : parents === 1 ? 0 : -70
   // Their own effort, once they are old enough to choose it.
   target += Math.min(60, world.habits.get(person.id)?.studied ?? 0)
+
+  // WHAT THE TOWN VOTED TO SPEND ON ITS SCHOOLS (government plan §4,
+  // phase 2's third lever). A STATE-SCHOOLED CHILD ONLY: the whole point
+  // of paying for a private education is that it does not depend on what
+  // the council decided this year, and a lever that moved both would have
+  // made the private premium meaningless.
+  //
+  // Centred on the default of 500 so the wiring changed nothing on the
+  // day it landed. At the extremes it is worth about two thirds of what
+  // private school buys — enough that a town starving its schools is
+  // visible in its children, not enough to overwhelm who they are.
+  if (record.schooling !== 'private') {
+    target += Math.trunc(((world.policy.schoolFunding - 500) * 60) / 500)
+  }
   return Math.max(0, Math.min(1000, target))
 }
 
@@ -662,6 +677,10 @@ export function runEducation(world: World, tick: Tick): void {
         enrolledAtTick: null,
         completesAtTick: null,
         attainment,
+        // THE HALL EMPTIES WHEN THE COURSE DOES. A graduate is back in
+        // the housing market like everybody else, which is the point at
+        // which having a degree is supposed to start paying for itself.
+        inHalls: false,
       })
       recordEvent(world, tick, {
         type: 'finished-school',
@@ -699,7 +718,13 @@ export function runEducation(world: World, tick: Tick): void {
         // the first place — which is the whole point of §4. A fully
         // funded one is charged nothing and chargeTuition is never called.
         const aid = AID_PER_MILLE[record.funding ?? 'self'] ?? 0
-        const gross = atTodaysPrices(world, fee)
+        // ROOM AND BOARD RIDES WITH THE TUITION, which is the owner's own
+        // framing: "living in the dorms and paying through tuition". Aid
+        // covers it on the same terms — a scholarship that paid the fees
+        // and left somebody unable to afford a bed would not be a
+        // scholarship.
+        const room = record.inHalls === true ? atTodaysPrices(world, HALLS_PER_YEAR) : 0
+        const gross = atTodaysPrices(world, fee) + room
         const owed = (gross - Math.floor((gross * aid) / 1000)) as Money
         const borrowed = owed <= 0 ? (0 as Money) : chargeTuition(world, tick, person.id, owed)
         if (borrowed > 0) {
@@ -927,6 +952,8 @@ export function dropOut(world: World, tick: Tick, personId: EntityId): boolean {
     enrolledIn: null,
     enrolledAtTick: null,
     completesAtTick: null,
+    // Walking out of the course walks out of the hall with it.
+    inHalls: false,
   })
   recordEvent(world, tick, { type: 'left-course', subjectId: personId, detail: leaving })
   recordDecision(world, tick, {
@@ -964,6 +991,34 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
   // their bad year move them back, which is not how anybody's childhood
   // goes; and it is the K-12 years that cost money, so a trade or college
   // enrolment leaves whatever was already there alone.
+  // WHICH SCHOOL — and WHO DECIDES.
+  //
+  // The spec splits this precisely: when the player IS the child their
+  // parents' finances decide it, which is inequality that is caused
+  // rather than chosen (Law 10). But "when the player is later a PARENT,
+  // THEY choose public vs private for their own kids and pay for it".
+  // That half was never built — the owner, playing, got no popup at all.
+  //
+  // So a played parent is asked, and the answer is applied on the next
+  // pass; everybody else's is settled here as before. A lapsed question
+  // falls through to the same draw, so a child is never left unschooled
+  // because a popup went unanswered.
+  const playerParent =
+    world.player.personId !== null && person.parentIds.includes(world.player.personId)
+  if (level === 'primary' && record.schooling === undefined && playerParent) {
+    const asked = raisePending(world, {
+      tick,
+      kind: 'school-choice',
+      personId: world.player.personId as EntityId,
+      otherId: person.id,
+      occupationId: null,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['private', 'public'],
+    })
+    if (asked) return
+  }
   const schooling =
     record.schooling ??
     (level === 'primary' && choosePrivate(world, person, rng) ? 'private' : 'public')
@@ -979,6 +1034,16 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
   // scholarship on a childhood.
   const funding =
     tuitionPerYearFor(level) > 0 ? fundingFor(world, person, record, level, rng) : record.funding
+  // HALLS, for a full-time student who would otherwise be holding a roof
+  // up on no wage. Somebody still at home stays at home — that is where
+  // most students are — and only a person heading their own household
+  // moves into the institution's.
+  const alone =
+    person.householdId !== null &&
+    !(world.households.get(person.householdId)?.memberIds ?? []).some(
+      (id) => person.parentIds.includes(id) && world.people.get(id)?.deathTick === null,
+    )
+  const inHalls = isHigherEducation(level) && alone
   world.education.set(person.id, {
     ...record,
     enrolledIn: level,
@@ -990,6 +1055,7 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
     // explicit `undefined` is not the same as an absent key, and the
     // absent one is what "nobody ever asked" has to look like.
     ...(funding === undefined ? {} : { funding }),
+    ...(inHalls ? { inHalls: true } : {}),
   })
   if (funding !== undefined && funding !== 'self') {
     recordEvent(world, tick, { type: 'won-funding', subjectId: person.id, detail: funding })
@@ -1944,14 +2010,18 @@ export function runHouseholds(world: World, tick: Tick): void {
           workplaceId: null,
           monthlyPay: null,
           placeId: home.id,
-          options: [
-            'accept',
-            'decline',
-            ...affordable
-              .filter((p) => p.id !== home.id)
-              .sort((x, y) => x.id - y.id)
-              .map((p) => `to-${String(p.id)}`),
-          ],
+          // NO STREET MENU. This offered every affordable neighbourhood as
+          // a `to-<placeId>` button — the abstract housing model the
+          // property market replaced, arriving as a popup after the list
+          // that carried it was deleted from the Money tab.
+          //
+          // The question is now the only one worth asking: do you want to
+          // leave? Yes takes the place the engine found. Somebody who
+          // wants to CHOOSE where they live does it in Property, against
+          // actual houses with prices, conditions and owners — and
+          // somebody who would rather stay at home while they study or
+          // work simply declines, which was the whole of the complaint.
+          options: ['accept', 'decline'],
         })
         continue
       }

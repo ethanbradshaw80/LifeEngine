@@ -2954,6 +2954,22 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'school-choice': {
+      // THE PARENT'S CALL, and the parent's bill. Written onto the
+      // CHILD'S record — `otherId` is whose schooling this is — and the
+      // household pays for it through householdCosts like any other
+      // month's expense.
+      const childId = pending.otherId
+      const child = childId === null ? undefined : world.education.get(childId)
+      if (childId !== null && child !== undefined) {
+        world.education.set(childId, {
+          ...child,
+          schooling: choice === 'private' ? 'private' : 'public',
+        })
+      }
+      break
+    }
+
     case 'major': {
       // WHAT THEY READ. Written straight onto the record because education
       // owns it, and validated against the school they are actually at so
@@ -4108,6 +4124,11 @@ export function describePending(world: World, pending: PendingDecision): string 
     }
     case 'graduate': {
       return 'Your record is strong enough for graduate work. Two more years, and it is not cheap. Do you go?'
+    }
+    case 'school-choice': {
+      const child = pending.otherId === null ? undefined : world.people.get(pending.otherId)
+      const name = child === undefined ? 'your child' : child.givenName
+      return `${name} starts school this year. The private school charges, and the money comes out of the household every month. Where do they go?`
     }
     case 'major': {
       const where = pending.occupationId === 'trade' ? 'the trade school' : 'the university'

@@ -1214,6 +1214,15 @@ export interface EducationRecord {
    * ladder, which nobody is billed for.
    */
   readonly funding?: 'self' | 'merit' | 'need' | 'rotc' | 'gi-bill'
+  /**
+   * IN HALLS. The institution houses them, and it is billed with the
+   * tuition rather than as rent.
+   *
+   * Only for somebody who would otherwise be keeping a roof up alone: a
+   * student still living with their parents is at home, which is where
+   * most of them are and what most of them can afford.
+   */
+  readonly inHalls?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -1907,6 +1916,7 @@ export type PendingKind =
   | 'promotion-offer'
   | 'work-moment'
   | 'graduate'
+  | 'school-choice'
   | 'major'
   | 'school-moment'
   | 'interview'

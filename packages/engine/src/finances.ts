@@ -1066,6 +1066,10 @@ export function livingCostAt(world: World, base: number): Money {
  * and both of the others silently stopped summing to it — which is
  * exactly the invariant those two tests exist to catch.
  */
+function inHalls(world: World, personId: EntityId): boolean {
+  return world.education.get(personId)?.inHalls === true
+}
+
 function tuitionFor(world: World, personId: EntityId): Money {
   const record = world.education.get(personId)
   if (record?.schooling !== 'private' || record.enrolledIn === null) return 0 as Money
@@ -1100,6 +1104,22 @@ export function householdCosts(world: World, household: Household): Money {
   //     the same roof.
   //   neither — the old behaviour, the neighbourhood's going rate, which is
   //     the right answer for anybody housed without a tracked agreement.
+  // A HOUSEHOLD OF NOTHING BUT STUDENTS IN HALLS PAYS NO RENT.
+  //
+  // This is the bug the owner hit: move out at eighteen with a job, enrol
+  // in college, full-time study ends the job, and a household head with
+  // zero income is downsized every single month — street to street until
+  // the town runs out and the housing is lost. They are not living there;
+  // they are in halls, and halls were already paid for with the fees.
+  const everybodyInHalls =
+    household.memberIds.length > 0 &&
+    household.memberIds.every((id) => {
+      const member = world.people.get(id)
+      if (!member || member.deathTick !== null) return true
+      return world.education.get(id)?.inHalls === true
+    })
+  if (everybodyInHalls) return 0 as Money
+
   const lease = world.leases.get(household.id)
   // WHO OWNS THE ROOF, read off the DEED rather than by opening every
   // member's bank accounts. The first version called accountsOf once per
@@ -1130,6 +1150,10 @@ export function householdCosts(world: World, household: Household): Money {
     if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
       continue
     }
+    // IN HALLS IS ABSENCE, the same way a cell is. The institution is
+    // feeding and housing them and it was billed with the tuition, so
+    // charging the household again would be charging twice for one bed.
+    if (inHalls(world, memberId)) continue
     total +=
       ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
         ? livingCostAt(world, LIVING_COST_ADULT)
@@ -1284,6 +1308,11 @@ export function unitCosts(world: World, household: Household, unit: readonly Ent
     if (criminal !== undefined && criminal.jailedUntilTick !== null && world.tick < criminal.jailedUntilTick) {
       continue
     }
+    // AND HALLS HERE TOO. `householdCosts` skips a student in halls; if
+    // this did not, the parts would stop summing to the whole — which is
+    // the third time that trio has had to be kept in step, after the
+    // tuition line and the jail exemption before it.
+    if (inHalls(world, id)) continue
     mouths +=
       ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
         ? livingCostAt(world, LIVING_COST_ADULT)
@@ -1550,6 +1579,7 @@ export function householdLedger(world: World, household: Household): HouseholdLe
       jailed++
       continue
     }
+    if (inHalls(world, memberId)) continue
     if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults++
     else children++
     tuition = (tuition + tuitionFor(world, memberId)) as Money
