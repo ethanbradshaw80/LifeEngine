@@ -817,14 +817,19 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
 }
 
 /** Sell the house you own. */
-export function sellHomePlayer(world: World): { done: boolean; reason: string } {
+export function sellHomePlayer(
+  world: World,
+  propertyId?: string,
+): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
-  if (accountsOf(world, person.id).homePlaceId === null) {
-    return { done: false, reason: 'You do not own a home.' }
+  if (propertyId !== undefined) {
+    const deed = world.properties.get(propertyId)
+    if (deed === undefined) return { done: false, reason: 'No such address.' }
+    if (deed.ownerId !== person.id) return { done: false, reason: 'That is not yours to sell.' }
   }
-  logVerb(world, 'sell-home', '')
-  return sellHome(world, world.tick, person.id)
+  logVerb(world, 'sell-home', propertyId ?? '')
+  return sellHome(world, world.tick, person.id, propertyId)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The sale did not go through.' }
 }

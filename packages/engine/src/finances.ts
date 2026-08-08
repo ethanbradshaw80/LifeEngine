@@ -47,6 +47,7 @@ import {
   leaseBar,
   rentOf as propertyRentOf,
   saleProceedsOf,
+  setOwner,
   useRentCurve,
   valueOf as propertyValueOf,
 } from './realestate.js'
@@ -280,7 +281,9 @@ export function homePurchaseBar(
   const place = world.places.get(placeId)
   if (!place) return 'No such address.'
   const accounts = accountsOf(world, personId)
-  if (accounts.homePlaceId !== null) return 'You already own a home.'
+  // OWNING ONE NO LONGER STOPS YOU BUYING ANOTHER. The bar that said "you
+  // already own a home" was the single-home model talking; what stops a
+  // second purchase now is the money, which is the honest constraint.
   const price = homePriceFor(rentAt(world, place.desirability))
   const cash = (accounts.savings + accounts.checking) as Money
   if (method === 'cash') {
@@ -389,17 +392,38 @@ export function endLease(world: World, tick: Tick, householdId: EntityId): boole
  * bankruptcy machinery already knows what to do with a debt somebody cannot
  * pay.
  */
-export function sellHome(world: World, tick: Tick, personId: EntityId): boolean {
+export function sellHome(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  /**
+   * WHICH house. Optional, and defaults to the one they live in — which is
+   * what every caller meant while a person could own exactly one.
+   *
+   * With a portfolio that default is dangerous: "sell" with no argument
+   * would have sold whichever house the family happened to be standing in
+   * rather than the one whose button was pressed. The id travels now.
+   */
+  sellPropertyId?: string,
+): boolean {
   const person = world.people.get(personId)
   if (!person || person.householdId === null) return false
   const household = world.households.get(person.householdId)
   const accounts = accountsOf(world, personId)
-  const propertyId = household?.propertyId
-  if (accounts.homePlaceId === null || typeof propertyId !== 'string') return false
+  const propertyId = sellPropertyId ?? household?.propertyId
+  if (typeof propertyId !== 'string') return false
+  const deed = world.properties.get(propertyId)
+  // YOU CANNOT SELL WHAT YOU DO NOT OWN. The old check asked whether the
+  // seller owned *a* home; with several it has to ask about THIS one.
+  if (deed === undefined || deed.ownerId !== personId) return false
 
   const { price, fee, net } = saleProceedsOf(world, propertyId)
   if (price <= 0) return false
-  const mortgage = accounts.loans.find((l) => l.kind === 'mortgage')
+  // THE MORTGAGE IS THE RESIDENCE'S. Settling it out of the proceeds of a
+  // different house would be paying off a loan the buyer never touched —
+  // and would clear the debt on a home the seller still lives in.
+  const isResidence = household?.propertyId === propertyId
+  const mortgage = isResidence ? accounts.loans.find((l) => l.kind === 'mortgage') : undefined
   const owed = (mortgage?.balance ?? 0) as Money
 
   // The mortgage is settled out of the proceeds first — a buyer's money
@@ -407,9 +431,10 @@ export function sellHome(world: World, tick: Tick, personId: EntityId): boolean 
   const toSeller = net - owed
   setAccounts(world, {
     ...accounts,
-    loans: accounts.loans.filter((l) => l.kind !== 'mortgage'),
-    homePlaceId: null,
-    homePurchasePrice: 0 as Money,
+    loans: isResidence ? accounts.loans.filter((l) => l.kind !== 'mortgage') : accounts.loans,
+    // Only give up the residence marker when the residence is what sold.
+    homePlaceId: isResidence ? null : accounts.homePlaceId,
+    homePurchasePrice: isResidence ? (0 as Money) : accounts.homePurchasePrice,
     ...(toSeller >= 0
       ? { savings: (accounts.savings + toSeller) as Money }
       : // Underwater: the shortfall follows them as a personal debt rather
@@ -424,7 +449,9 @@ export function sellHome(world: World, tick: Tick, personId: EntityId): boolean 
           ],
         }),
   })
-  if (household !== undefined) {
+  // The deed goes, always. The family only moves out if it was their home.
+  setOwner(world, propertyId, null)
+  if (household !== undefined && isResidence) {
     world.households.set(household.id, { ...household, propertyId: null })
   }
   recordEvent(world, tick, {
@@ -488,11 +515,25 @@ export function buyHome(
   // THE DOOR, NOT JUST THE STREET. Recorded on the household because a home
   // is where a FAMILY lives, not where one earner's bank account points.
   if (property !== undefined) {
+    setOwner(world, property.id, personId)
     const person = world.people.get(personId)
     const household = person?.householdId === null || person === undefined
       ? undefined
       : world.households.get(person.householdId)
-    if (household !== undefined) {
+    // A SECOND HOUSE IS NOT A MOVE — but a FIRST one is.
+    //
+    // The rule is "do they already own where they live", not "do they live
+    // anywhere". Every household is seated in a home at worldgen, so asking
+    // the second question meant a first-time buyer never moved into the
+    // house they had just bought: they stayed in the place they were seated
+    // in, and "sell your home" then defaulted to a house they did not own.
+    // Buying a rental while owning your home still leaves you where you are.
+    const livesIn =
+      household === undefined || typeof household.propertyId !== 'string'
+        ? undefined
+        : world.properties.get(household.propertyId)
+    const alreadyOwnsHome = livesIn !== undefined && livesIn.ownerId === personId
+    if (household !== undefined && !alreadyOwnsHome) {
       world.households.set(household.id, {
         ...household,
         placeId: property.neighbourhoodPlaceId,

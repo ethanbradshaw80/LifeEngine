@@ -3819,3 +3819,10 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .hall-deeds li { display: flex; gap: 0.5rem; font-size: 0.75rem; }
 .deed-addr { color: var(--fg); }
 .deed-who { margin-left: auto; color: var(--muted); }
+
+/* The portfolio header — how many, and what they are worth together. */
+.re-portfolio {
+  display: flex; align-items: baseline; gap: 0.5rem; padding: 0.5rem 0.1rem 0.7rem;
+  font-size: 0.78rem; color: var(--muted);
+}
+.re-portfolio b { margin-left: auto; font-size: 0.95rem; font-weight: 800; color: var(--fg); }

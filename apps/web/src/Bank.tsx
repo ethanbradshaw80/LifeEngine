@@ -50,16 +50,14 @@ import type { LoanKind, Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
-import { RealEstate } from './RealEstate.js'
 
-type BankTab = 'home' | 'accounts' | 'invest' | 'loans' | 'property' | 'taxes'
+type BankTab = 'home' | 'accounts' | 'invest' | 'loans' | 'taxes'
 
 const TABS: readonly { id: BankTab; icon: string; label: string }[] = [
   { id: 'home', icon: '🏦', label: 'Home' },
   { id: 'accounts', icon: '💳', label: 'Accounts' },
   { id: 'invest', icon: '📈', label: 'Invest' },
   { id: 'loans', icon: '🏷️', label: 'Loans' },
-  { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'taxes', icon: '🧾', label: 'Taxes' },
 ]
 
@@ -432,21 +430,6 @@ export function Bank({
         {/* REAL ESTATE (owner's real_estate_revamp.md). The mockup puts
             this under Money, and the Money tab already has sub-tabs, so
             it lives here rather than becoming a twelfth top-level tab. */}
-        {/* REAL ESTATE (owner's `real_estate.html`). Its own component:
-            the marketplace has two screens of its own — a browse list and a
-            property page — and inlining that here would have buried it. */}
-        {tab === 'property' && (
-          <RealEstate
-            world={world}
-            cash={accounts.checking + accounts.savings}
-            owns={accounts.homePlaceId !== null}
-            hasLease={
-              person.householdId !== null && world.leases.has(person.householdId)
-            }
-            onAct={onAct}
-          />
-        )}
-
         {tab === 'taxes' && (
           <section className="bank-card">
             <h4>This tax year</h4>

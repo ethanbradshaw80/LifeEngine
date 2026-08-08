@@ -167,6 +167,27 @@ export function generateProperties(world: World, neighbourhoodIds: readonly Enti
   }
 }
 
+/** Everything this person holds the deed to, dearest first. */
+export function propertiesOwnedBy(world: World, personId: EntityId): readonly Property[] {
+  return [...world.properties.values()]
+    .filter((p) => p.ownerId === personId)
+    .sort((a, b) => valueOf(world, b) - valueOf(world, a) || (a.id < b.id ? -1 : 1))
+}
+
+/** What the whole portfolio is worth. */
+export function portfolioValueOf(world: World, personId: EntityId): Money {
+  let total = 0
+  for (const property of propertiesOwnedBy(world, personId)) total += valueOf(world, property)
+  return total as Money
+}
+
+/** Set or clear a deed. The single writer for who owns what. */
+export function setOwner(world: World, propertyId: string, ownerId: EntityId | null): void {
+  const property = world.properties.get(propertyId)
+  if (!property) return
+  world.properties.set(propertyId, { ...property, ownerId })
+}
+
 /** Everything in a neighbourhood, oldest id first — a stable order. */
 export function propertiesIn(world: World, placeId: EntityId): readonly Property[] {
   return [...world.properties.values()]
@@ -231,6 +252,11 @@ export function listingsFor(world: World, options?: {
   const out: Listing[] = []
   for (const property of world.properties.values()) {
     if (!isVacant(world, property.id)) continue
+    // AND NOT SOMEBODY ELSE'S EMPTY SECOND HOME. An owner's vacant property
+    // is theirs to let or sell, not stock for the next buyer to take out
+    // from under them — which is what an occupancy-only test would have done
+    // the moment anybody owned two.
+    if (property.ownerId !== undefined && property.ownerId !== null) continue
     if (options?.minBeds !== undefined && property.beds < options.minBeds) continue
     if (options?.type !== undefined && property.type !== options.type) continue
     if (

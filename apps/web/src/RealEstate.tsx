@@ -19,6 +19,10 @@ import {
   listingsFor,
   monthlyPaymentFor,
   ownershipCostOf,
+  portfolioValueOf,
+  propertiesOwnedBy,
+  saleProceedsOf,
+  valueOf,
 } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
 
@@ -102,22 +106,23 @@ function Illustration({
 
 export function RealEstate({
   world,
+  personId,
   cash,
-  owns,
   hasLease,
   onAct,
 }: {
   readonly world: World
+  readonly personId: number
   readonly cash: number
-  readonly owns: boolean
   readonly hasLease: boolean
   readonly onAct: (action: VerbRequest) => void
 }): React.ReactElement {
-  const [mode, setMode] = useState<'buy' | 'rent'>('buy')
+  const [mode, setMode] = useState<'own' | 'buy' | 'rent'>('own')
   const [open, setOpen] = useState<string | null>(null)
   const [minBeds, setMinBeds] = useState<number>(0)
   const [downPerMille, setDownPerMille] = useState<number>(200)
 
+  const mine = propertiesOwnedBy(world, personId as never)
   const all = listingsFor(world, minBeds > 0 ? { minBeds } : undefined)
   const shown = all.filter((l) => (mode === 'buy' ? l.forSale : l.forRent))
   const detail = open === null ? null : (shown.find((l) => l.property.id === open) ?? null)
@@ -200,10 +205,10 @@ export function RealEstate({
             <button
               type="button"
               className="re-buy"
-              disabled={owns || cash < floor}
+              disabled={cash < floor}
               onClick={() => onAct({ verb: 'buy-property', propertyId: property.id })}
             >
-              {owns ? 'You already own a home' : cash < floor ? `Needs ${formatMoney(floor as never)} down` : 'Make an offer'}
+              {cash < floor ? `Needs ${formatMoney(floor as never)} down` : 'Make an offer'}
             </button>
           )}
           {mode === 'rent' && detail.forRent && (
@@ -225,6 +230,9 @@ export function RealEstate({
   return (
     <div className="re">
       <div className="re-toggle">
+        <button type="button" className={mode === 'own' ? 'on' : ''} onClick={() => setMode('own')}>
+          Yours{mine.length > 0 ? ` (${String(mine.length)})` : ''}
+        </button>
         <button type="button" className={mode === 'buy' ? 'on' : ''} onClick={() => setMode('buy')}>
           Buy
         </button>
@@ -232,6 +240,62 @@ export function RealEstate({
           Rent
         </button>
       </div>
+      {mode === 'own' && (
+        <>
+          {mine.length === 0 ? (
+            <p className="bank-note">
+              You do not own any property. Buying and renting are both on the tabs above.
+            </p>
+          ) : (
+            <>
+              <div className="re-portfolio">
+                <span>{mine.length} propert{mine.length === 1 ? 'y' : 'ies'}</span>
+                <b>{formatMoney(portfolioValueOf(world, personId as never))}</b>
+              </div>
+              {mine.map((property) => {
+                const place = world.places.get(property.neighbourhoodPlaceId)
+                const lived = world.households.get(
+                  [...world.households.values()].find((h) => h.propertyId === property.id)?.id ??
+                    (-1 as never),
+                )
+                return (
+                  <article className="re-card" key={property.id}>
+                    <div className="re-thumb">
+                      <Illustration type={property.type} desirability={place?.desirability ?? 500} />
+                      <span className="re-badge sale">Owned</span>
+                      <span className="re-tagpx">{formatMoney(valueOf(world, property))}</span>
+                    </div>
+                    <div className="re-cbody">
+                      <div className="re-addr-sm">{property.address}</div>
+                      <div className="re-hood">
+                        {place?.name ?? 'town'} · {property.type} ·{' '}
+                        {lived === undefined ? 'empty' : 'you live here'}
+                      </div>
+                      <div className="re-facts">
+                        <span><b>{property.beds}</b> bd</span>
+                        <span><b>{property.baths}</b> ba</span>
+                        <span><b>{property.sqft.toLocaleString()}</b> sqft</span>
+                        <span>{conditionWords(property.condition)}</span>
+                      </div>
+                      <div className="re-trade">
+                        <button
+                          type="button"
+                          className="re-buy"
+                          onClick={() => onAct({ verb: 'sell-property', propertyId: property.id })}
+                        >
+                          Sell — {formatMoney(saleProceedsOf(world, property.id).net)} after fees
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </>
+          )}
+        </>
+      )}
+
+      {mode !== 'own' && (
       <div className="re-filters">
         {[0, 2, 3, 4].map((n) => (
           <button
@@ -244,8 +308,9 @@ export function RealEstate({
           </button>
         ))}
       </div>
+      )}
 
-      {shown.length === 0 ? (
+      {mode !== 'own' && (shown.length === 0 ? (
         <p className="bank-note">Nothing on the market matches that right now.</p>
       ) : (
         shown.slice(0, 20).map((listing) => (
@@ -282,11 +347,13 @@ export function RealEstate({
             </div>
           </button>
         ))
+      ))}
+      {mode !== 'own' && (
+        <p className="bank-note">
+          {shown.length} on the market. Prices follow the neighbourhood, the size and the state of
+          the place — and every one of these is a home somebody could be living in instead.
+        </p>
       )}
-      <p className="bank-note">
-        {shown.length} on the market. Prices follow the neighbourhood, the size and the state of the
-        place — and every one of these is a home somebody could be living in instead.
-      </p>
     </div>
   )
 }

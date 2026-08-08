@@ -906,6 +906,19 @@ export interface Property {
   readonly yearBuilt: number
   /** 0-1000. Degrades with the years; repairs and renovations raise it. */
   readonly condition: number
+  /**
+   * WHO OWNS IT (owner, playing: "we still can't see houses we buy if we get
+   * multiple or sell houses we buy").
+   *
+   * Ownership used to be one field on one person's bank accounts —
+   * `accounts.homePlaceId` — which meant a person could own exactly one
+   * home, and it was a NEIGHBOURHOOD rather than a house. Buying a second
+   * silently overwrote the first.
+   *
+   * The deed belongs on the property. One owner, many properties, and the
+   * question "what do I own?" is a filter rather than a field.
+   */
+  readonly ownerId?: EntityId | null
 }
 
 /**

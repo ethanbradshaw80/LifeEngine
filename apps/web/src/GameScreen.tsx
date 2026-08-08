@@ -33,6 +33,7 @@ import {
   wellbeingOf,
 } from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
+import { RealEstate } from './RealEstate.js'
 import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
@@ -244,6 +245,7 @@ type Tab =
   | 'story'
   | 'home'
   | 'money'
+  | 'property'
   | 'family'
   | 'people'
   | 'career'
@@ -276,6 +278,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
   { id: 'home', icon: '📊', label: 'You' },
   { id: 'money', icon: '💰', label: 'Money' },
+  { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'career', icon: '📈', label: 'Career' },
   { id: 'family', icon: '👪', label: 'Family' },
@@ -1118,6 +1121,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               </dd>
             </dl>
           )}
+        </div>
+      )}
+
+      {/* PROPERTY, ON ITS OWN (owner, playing: "property needs to be removed
+          from the bank tab and actually be its own tab to where we can buy
+          and sell the houses and see all the houses we own").
+
+          It was a sub-tab of Money, which was fine while a person could own
+          exactly one home. Owning several is a different thing to look at —
+          a portfolio, not a line item. */}
+      {tab === 'property' && (
+        <div className="panel" aria-label="Property">
+          <RealEstate
+            world={world}
+            personId={person.id}
+            cash={moneyOnHand(world, person.id)}
+            hasLease={person.householdId !== null && world.leases.has(person.householdId)}
+            onAct={onAct}
+          />
         </div>
       )}
 

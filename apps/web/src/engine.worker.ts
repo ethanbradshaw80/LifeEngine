@@ -112,6 +112,7 @@ export type VerbRequest =
   | { readonly verb: 'buy-property'; readonly propertyId: string }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
+  | { readonly verb: 'sell-property'; readonly propertyId: string }
   | { readonly verb: 'start-business'; readonly kindId: string }
 
 export type WorkerRequest =
@@ -437,6 +438,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'rent-property': {
             const r = rentPropertyPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'sell-property': {
+            const r = sellHomePlayer(world, a.propertyId)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

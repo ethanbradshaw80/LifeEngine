@@ -14,6 +14,8 @@ import {
   improveProperty,
   renovationCostOf,
   saleProceedsOf,
+  portfolioValueOf,
+  propertiesOwnedBy,
   leaseBar,
   leaseOf,
   listingsFor,
@@ -324,7 +326,7 @@ describe('a house is wealth, or a loss', () => {
     const owed = before.loans.find((l) => l.kind === 'mortgage')?.balance ?? 0
     const { net } = saleProceedsOf(w, listing.property.id)
 
-    expect(sellHome(w, w.tick, person.id)).toBe(true)
+    expect(sellHome(w, w.tick, person.id, listing.property.id)).toBe(true)
     const after = accountsOf(w, person.id)
     expect(after.loans.some((l) => l.kind === 'mortgage'), 'still owes a mortgage').toBe(false)
     expect(after.homePlaceId, 'still owns a home').toBeNull()
@@ -358,5 +360,90 @@ describe('a house is wealth, or a loss', () => {
     expect(w.properties.get(worn.id)?.condition).toBe(950)
     // And a better house is worth more, which is the whole return on it.
     expect(renovationCostOf(w, worn.id, 950)).toBe(0)
+  })
+})
+
+describe('a portfolio, not a single home', () => {
+  function aBuyerWithMoney() {
+    const w = createWorld(makeSeed(4141), 400)
+    const person = livingPeople(w)
+      .filter((p) => p.householdId !== null)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('nobody')
+    const acc = accountsOf(w, person.id)
+    w.accounts.set(person.id, { ...acc, savings: 500_000_000 as never })
+    return { w, person }
+  }
+
+  it('lets one person hold the deed to several homes', () => {
+    // OWNERSHIP USED TO BE ONE FIELD on one person's bank accounts — a
+    // NEIGHBOURHOOD, not a house — so buying a second silently overwrote
+    // the first. The deed belongs on the property.
+    const { w, person } = aBuyerWithMoney()
+    const forSale = listingsFor(w).filter((l) => l.forSale).slice(0, 3)
+    expect(forSale.length).toBe(3)
+    for (const l of forSale) {
+      expect(
+        buyHome(w, w.tick, person.id, l.property.neighbourhoodPlaceId, 'cash', l.property.id),
+      ).toBe(true)
+    }
+    const mine = propertiesOwnedBy(w, person.id)
+    expect(mine.length, 'a second purchase overwrote the first').toBe(3)
+    expect(portfolioValueOf(w, person.id)).toBeGreaterThan(0)
+  })
+
+  it('moves you into your FIRST home and leaves you put for the rest', () => {
+    // THE BUG THIS PINS. The rule was "move in if you have nowhere", but
+    // every household is seated in a home at worldgen — so a first-time
+    // buyer never moved into the house they had just bought, and "sell your
+    // home" then defaulted to a house they did not own. The question is
+    // whether they already OWN where they live.
+    const { w, person } = aBuyerWithMoney()
+    const forSale = listingsFor(w).filter((l) => l.forSale).slice(0, 2)
+    const first = forSale[0]
+    const second = forSale[1]
+    if (!first || !second) throw new Error('need two')
+
+    buyHome(w, w.tick, person.id, first.property.neighbourhoodPlaceId, 'cash', first.property.id)
+    expect(w.households.get(person.householdId as never)?.propertyId).toBe(first.property.id)
+
+    buyHome(w, w.tick, person.id, second.property.neighbourhoodPlaceId, 'cash', second.property.id)
+    expect(
+      w.households.get(person.householdId as never)?.propertyId,
+      'buying a second house moved the family into it',
+    ).toBe(first.property.id)
+  })
+
+  it('keeps an owner’s empty second home off the open market', () => {
+    // An occupancy-only vacancy test would let the next buyer take it out
+    // from under them the moment anybody owned two.
+    const { w, person } = aBuyerWithMoney()
+    const forSale = listingsFor(w).filter((l) => l.forSale).slice(0, 2)
+    const second = forSale[1]
+    if (!second) throw new Error('need two')
+    buyHome(w, w.tick, person.id, second.property.neighbourhoodPlaceId, 'cash', second.property.id)
+    expect(listingsFor(w).some((l) => l.property.id === second.property.id)).toBe(false)
+  })
+
+  it('sells the house you named, not the one you are standing in', () => {
+    const { w, person } = aBuyerWithMoney()
+    const forSale = listingsFor(w).filter((l) => l.forSale).slice(0, 2)
+    const home = forSale[0]
+    const rental = forSale[1]
+    if (!home || !rental) throw new Error('need two')
+    buyHome(w, w.tick, person.id, home.property.neighbourhoodPlaceId, 'cash', home.property.id)
+    buyHome(w, w.tick, person.id, rental.property.neighbourhoodPlaceId, 'cash', rental.property.id)
+
+    expect(sellHome(w, w.tick, person.id, rental.property.id)).toBe(true)
+    // The one they live in is untouched, and still theirs.
+    expect(w.households.get(person.householdId as never)?.propertyId).toBe(home.property.id)
+    expect(propertiesOwnedBy(w, person.id).map((p) => p.id)).toEqual([home.property.id])
+  })
+
+  it('will not sell what somebody else owns', () => {
+    const { w, person } = aBuyerWithMoney()
+    const other = listingsFor(w).filter((l) => l.forSale)[0]
+    if (!other) throw new Error('nothing for sale')
+    expect(sellHome(w, w.tick, person.id, other.property.id)).toBe(false)
   })
 })
