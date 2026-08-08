@@ -1147,6 +1147,63 @@ function tuitionFor(world: World, personId: EntityId): Money {
   return livingCostAt(world, PRIVATE_SCHOOL_TUITION)
 }
 
+/**
+ * IS THIS WHOLE HOUSEHOLD AWAY AT COLLEGE?
+ *
+ * Extracted so the roof cost and the itemisation cannot answer it
+ * differently. A dead member counts as away — they are not in the house
+ * either, and treating them as present would keep a roof billed by a
+ * corpse.
+ */
+function everybodyInHalls(world: World, household: Household): boolean {
+  return (
+    household.memberIds.length > 0 &&
+    household.memberIds.every((id) => {
+      const member = world.people.get(id)
+      if (!member || member.deathTick !== null) return true
+      return world.education.get(id)?.inHalls === true
+    })
+  )
+}
+
+/**
+ * WHAT THE ROOF COSTS THIS HOUSEHOLD THIS MONTH — the one answer.
+ *
+ * THE FOURTH TIME THIS TRIO HAS DRIFTED, and the first time it is fixed
+ * structurally rather than by hand. `householdCosts`, `unitCosts` and
+ * `householdLedger` each walked the roof separately; the ledger's copy
+ * still charged the neighbourhood's going rate to a household that held a
+ * LEASE, to one that OWNED the place outright, and to one whose members
+ * were all away in halls. MEASURED: a household in halls billed $1,003.44
+ * a month in the itemisation and nothing at all by the tick loop, so the
+ * screen showed a family a bill that was never taken from them.
+ *
+ * The previous three fixes were comments asking the next person to keep
+ * the copies in step. Comments do not keep anything in step. This is a
+ * function, and drift is now a compile-time impossibility rather than a
+ * discipline.
+ */
+function roofCostFor(world: World, household: Household): Money {
+  // No roof, and no rent for one — the caller bills shelter instead.
+  if (household.homelessSinceTick !== null) return 0 as Money
+  // Halls were paid for with the fees; billing again is billing twice.
+  if (everybodyInHalls(world, household)) return 0 as Money
+  // A tenancy is an agreement about a SPECIFIC home, so the number is the
+  // property's rather than the postcode's.
+  const lease = world.leases.get(household.id)
+  if (lease !== undefined) return lease.monthlyRent
+  // An owner pays no rent. The mortgage is the loan system's to charge, and
+  // street rent on top bills one roof twice.
+  const home =
+    typeof household.propertyId === 'string' ? world.properties.get(household.propertyId) : undefined
+  const ownerId = home?.ownerId
+  if (ownerId !== undefined && ownerId !== null && household.memberIds.includes(ownerId)) {
+    return 0 as Money
+  }
+  const place = world.places.get(household.placeId)
+  return (place ? rentAt(world, place.desirability) : 0) as Money
+}
+
 export function householdCosts(world: World, household: Household): Money {
   // M-SAFETY §3. NO ROOF, NO RENT. This is the single largest reason the
   // old model could free-fall: a household that could not pay rent went on
@@ -1182,35 +1239,8 @@ export function householdCosts(world: World, household: Household): Money {
   // zero income is downsized every single month — street to street until
   // the town runs out and the housing is lost. They are not living there;
   // they are in halls, and halls were already paid for with the fees.
-  const everybodyInHalls =
-    household.memberIds.length > 0 &&
-    household.memberIds.every((id) => {
-      const member = world.people.get(id)
-      if (!member || member.deathTick !== null) return true
-      return world.education.get(id)?.inHalls === true
-    })
-  if (everybodyInHalls) return 0 as Money
-
-  const lease = world.leases.get(household.id)
-  // WHO OWNS THE ROOF, read off the DEED rather than by opening every
-  // member's bank accounts. The first version called accountsOf once per
-  // member per household per month, and householdCosts is called several
-  // times a tick — profiled at 82.8ms a tick, more than the whole rest of
-  // the simulation put together.
-  const home =
-    typeof household.propertyId === 'string' ? world.properties.get(household.propertyId) : undefined
-  const ownerId = home?.ownerId
-  const owner =
-    ownerId !== undefined && ownerId !== null && household.memberIds.includes(ownerId)
-  const place = world.places.get(household.placeId)
-  let total: number =
-    lease !== undefined
-      ? lease.monthlyRent
-      : owner
-        ? 0
-        : place
-          ? rentAt(world, place.desirability)
-          : 0
+  if (everybodyInHalls(world, household)) return 0 as Money
+  let total: number = roofCostFor(world, household)
   for (const memberId of household.memberIds) {
     const member = world.people.get(memberId)
     if (!member || member.deathTick !== null) continue
@@ -1632,10 +1662,10 @@ export function householdLedger(world: World, household: Household): HouseholdLe
 
   // Same iteration as householdCosts, including the jail exemption AND the
   // homelessness case — the two must agree to the cent or the itemisation
-  // stops summing to the month the tick loop actually spends.
+  // stops summing to the month the tick loop actually spends. The ROOF is
+  // no longer walked here at all: it comes from the one function both use.
   const homeless = household.homelessSinceTick !== null
-  const place = world.places.get(household.placeId)
-  const rent = (homeless ? 0 : place ? rentAt(world, place.desirability) : 0) as Money
+  const rent = roofCostFor(world, household)
   let adults = 0
   let children = 0
   let jailed = 0

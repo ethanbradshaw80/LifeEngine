@@ -57,6 +57,7 @@ export function App() {
     tryUnit,
     requestDeploy,
     fitnessTest,
+    extraDuty,
     act,
     choose,
     discardSave,
@@ -209,6 +210,7 @@ export function App() {
           onTryUnit={tryUnit}
           onRequestDeploy={requestDeploy}
           onFitnessTest={fitnessTest}
+          onExtraDuty={extraDuty}
           onAct={act}
           notice={message}
         />

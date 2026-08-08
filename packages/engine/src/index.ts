@@ -100,6 +100,8 @@ export {
   setPlayer,
   spendTimeWith,
   tendTheMarriage,
+  extraDutyBar,
+  takeExtraDuty,
   trainFitness,
   tryForChild,
   tryOutForUnit,

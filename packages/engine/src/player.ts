@@ -51,6 +51,7 @@ import {
 } from './deployment.js'
 import { activeWars, combatPowerOf, homeland, sueForPeace } from './geopolitics.js'
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
+import { nudgeWellbeing } from './wellbeing.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import {
@@ -1345,6 +1346,94 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
     detail: 'a block of fitness training',
   })
   return { trained: true, score, reason: '' }
+}
+
+/**
+ * PUT IN THE WORK ON YOUR RECORD (owner, playing: "I have a 300 pt score and
+ * I am still not meeting the bar... it was all the schoolhouses").
+ *
+ * THE BAR HAD NO PATH BEHIND IT. Every schoolhouse card carries a checklist
+ * with "Standing meets the bar" on it, and standing was written by exactly
+ * three things: graduating a school, finishing a deployment, and one
+ * reporting-in moment that happens once. The first is CIRCULAR — standing is
+ * what gets you into the school that raises standing — and the other two are
+ * not choices. A player who read "✕ Standing meets the bar" had nothing to
+ * do about it but wait, and waiting did not work either, because the drift
+ * target was a birth trait.
+ *
+ * The seasoning term fixes the waiting. THIS is the doing: extra duty, the
+ * detail nobody volunteers for, the range you run on a weekend. It is the
+ * same shape as `trainFitness` because it is the same kind of act — months
+ * of effort, a real gain, and a cooldown so it is a decision rather than a
+ * button to hold down.
+ *
+ * IT COSTS SOMETHING REAL. The hours come out of a life, and wellbeing is
+ * where a life keeps its score. A soldier who volunteers for everything is
+ * well thought of and tired, which is true of every soldier who volunteers
+ * for everything.
+ */
+const EXTRA_DUTY_GAIN = 30
+const EXTRA_DUTY_COOLDOWN = 6
+
+export function takeExtraDuty(world: World): { done: boolean; standing: number; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) {
+    return { done: false, standing: 0, reason: 'Nobody is being played.' }
+  }
+  const bar = extraDutyBar(world)
+  if (bar !== null) return { done: false, standing: 0, reason: bar }
+
+  world.player.log.push({
+    decisionId: world.player.nextDecisionId,
+    ...(world.player.personId !== null ? { personId: world.player.personId } : {}),
+    tick: world.tick,
+    kind: 'extra-duty',
+    choice: 'volunteered',
+  })
+  world.player.nextDecisionId += 1
+
+  boostServicePerformance(world, person.id, EXTRA_DUTY_GAIN)
+  nudgeWellbeing(world, world.tick, person.id, -25, 'the extra duty')
+  recordEvent(world, world.tick, {
+    type: 'completed-training',
+    subjectId: person.id,
+    detail: 'extra duty nobody else volunteered for',
+  })
+  return {
+    done: true,
+    standing: world.service.get(person.id)?.performance ?? 0,
+    reason: '',
+  }
+}
+
+/**
+ * Why the extra duty is not available, or null. The bar pattern: the greyed
+ * button and the refusal come from one place, so they cannot disagree.
+ */
+export function extraDutyBar(world: World): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  if (world.player.pending !== null) return 'A decision is already waiting.'
+  const record = world.service.get(person.id)
+  if (record === undefined || record.dischargedAtTick !== null) {
+    return 'Only somebody serving can pick up extra duty.'
+  }
+  if (isCaptive(world, person.id)) return 'Held prisoner. None of this is yours to ask for.'
+  if (record.schoolId !== null) return 'You are away at a course.'
+  // A BODY THAT IS ALREADY HURT IS NOT WORKED THROUGH, the same rule the
+  // fitness training keeps, and for the same reason.
+  const health = world.health.get(person.id)
+  if (health !== undefined && health.ailment !== null && health.severity >= 500) {
+    return 'Not while you are laid up like this.'
+  }
+  if (
+    world.player.log.some(
+      (entry) => entry.kind === 'extra-duty' && world.tick - entry.tick < EXTRA_DUTY_COOLDOWN,
+    )
+  ) {
+    return 'You have been carrying the extra load already. It has to be earned over months.'
+  }
+  return null
 }
 
 /**
@@ -2903,6 +2992,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'school-request':
     case 'unit-tryout':
     case 'fitness-test':
+    case 'extra-duty':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -4191,6 +4281,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Put in for selection.' // log-only
     case 'fitness-test':
       return 'Took the fitness test.' // log-only
+    case 'extra-duty':
+      return 'Picked up extra duty.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':

@@ -77,6 +77,7 @@ import {
 } from '@life-engine/engine'
 import {
   boardStandingFor,
+  extraDutyBar,
   upOrOutStandingFor,
   currentDeployment,
   disciplinaryFileOf,
@@ -334,6 +335,7 @@ interface Props {
   readonly onTryUnit: (unitId: string) => void
   readonly onRequestDeploy: () => void
   readonly onFitnessTest: () => void
+  readonly onExtraDuty: () => void
   /** P2: any player-initiated verb; the engine's honest refusal returns as
    *  the notice. One channel for court/propose/quit/move/… */
   readonly onAct: (action: VerbRequest) => void
@@ -601,7 +603,7 @@ function RibbonRack({ world, personId }: { readonly world: World; readonly perso
   )
 }
 
-export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onAct, notice }: Props) {
+export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onExtraDuty, onAct, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
   // Which news articles are open. Keyed by tick+headline: news items have no
   // id of their own because they are derived from events, not stored.
@@ -2337,6 +2339,26 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <button type="button" className="apply" disabled={busy} onClick={onFitnessTest}>
                         🏃 Train for the fitness test
                       </button>
+                      {/* THE PATH BEHIND THE BAR. Every schoolhouse card
+                          lists "Standing meets the bar" and until now there
+                          was nothing a player could DO about it — the only
+                          things that raised standing were graduating a
+                          school (which needs standing), finishing a
+                          deployment, and one moment that happens once. */}
+                      {(() => {
+                        const bar = extraDutyBar(world)
+                        return (
+                          <button
+                            type="button"
+                            className="apply"
+                            disabled={busy || bar !== null}
+                            title={bar ?? 'Volunteer for the detail nobody wants. Your standing rises; the hours come out of your life.'}
+                            onClick={onExtraDuty}
+                          >
+                            🎖 Pick up extra duty
+                          </button>
+                        )
+                      })()}
                       <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'request-discharge' })}>
                         📜 Request discharge
                       </button>

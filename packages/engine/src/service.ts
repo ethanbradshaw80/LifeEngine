@@ -127,12 +127,28 @@ const HYT_BELOW_GRADE = 5
  * also the honest shape, because a strong performer at a junior grade is
  * somebody the board eventually reaches.
  */
-function highYearTenureMonthsFor(record: {
-  readonly performance: number
-  readonly qualifications: readonly string[]
-}): number {
+function highYearTenureMonthsFor(
+  record: {
+    readonly performance: number
+    readonly qualifications: readonly string[]
+    readonly enlistedAtTick: Tick
+  },
+  diligence: number,
+  tick: Tick,
+): number {
+  // NET OF WHAT THE CLOCK ITSELF GAVE THEM, and this is the whole subtlety.
+  //
+  // The extension exists because a strong evaluation is EVIDENCE OF EFFORT.
+  // Once time served also raises the evaluation, a clock that measures time
+  // is being extended by time, and the reasoning eats itself: MEASURED, a
+  // career corporal rode that circle to seventeen years.
+  //
+  // So the bar is read against the part of the evaluation that is the
+  // person rather than the calendar. Somebody genuinely working at it still
+  // buys the two years; somebody who merely stayed does not.
+  const own = record.performance - seasoningFor(tick - record.enlistedAtTick, diligence)
   let months = HIGH_YEAR_TENURE_TIG
-  if (record.performance >= 550) months += 24
+  if (own >= 550) months += 24
   if (record.qualifications.length >= 2) months += 24
   return months
 }
@@ -1056,7 +1072,11 @@ export function upOrOutStandingFor(
   if (record.commissioned === true) return null
   const grade = gradeOf(world, record, 9)
   if (grade >= HYT_BELOW_GRADE) return null
-  const monthsAllowed = highYearTenureMonthsFor(record)
+  const monthsAllowed = highYearTenureMonthsFor(
+    record,
+    world.people.get(personId)?.traits.diligence ?? 500,
+    world.tick,
+  )
   const monthsInGrade = world.tick - record.rankSinceTick
   return {
     monthsInGrade,
@@ -1852,8 +1872,27 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // felt at work. Wellbeing shifts the ceiling by up to about fifty points
   // either way — real, and never enough to make a miserable diligent
   // soldier worse than a cheerful idle one.
+  //
+  // AND TIME SERVED IS PART OF WHAT SOMEBODY CAN DELIVER (owner, playing:
+  // "I have a 300 pt score and I am still not meeting the bar... it was all
+  // the schoolhouses").
+  //
+  // Without this term the drift target was diligence plus morale, and
+  // DILIGENCE IS FIXED AT BIRTH. A soldier of median temperament parked at
+  // about 500 for a whole career, so which schools they could ever attend
+  // was settled before they were born and twenty years in uniform moved it
+  // by nothing. MEASURED at forty-five years: median standing 504, and the
+  // single commonest refusal in the schoolhouse — 102 of 324, four times
+  // the next — was "the work is not there yet".
+  //
+  // This is the same fix civilian careers already got: a ceiling made of
+  // temperament PLUS what the years actually taught. A sergeant with twelve
+  // years in is better at soldiering than the private they were, and now
+  // the number says so.
+  const monthsServed = Math.max(0, tick - record.enlistedAtTick)
+  const seasoning = seasoningFor(monthsServed, person.traits.diligence)
   const morale = Math.floor((wellbeingOf(world, person.id) - 550) / 9)
-  const pull = person.traits.diligence + morale - record.performance
+  const pull = person.traits.diligence + morale + seasoning - record.performance
   let performance = held
     ? record.performance
     : Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
@@ -2522,7 +2561,8 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   if (
     !commissioned &&
     grade < HYT_BELOW_GRADE &&
-    tick - rankSinceTick >= highYearTenureMonthsFor(world.service.get(person.id)!)
+    tick - rankSinceTick >=
+      highYearTenureMonthsFor(world.service.get(person.id)!, person.traits.diligence, tick)
   ) {
     discharge(world, tick, person, world.service.get(person.id)!, 'high-year tenure', [
       factor('time-in-grade', 1000),
@@ -2735,7 +2775,8 @@ export function eligibilityOf(
     hitHighYearTenure:
       !commissionedHere &&
       grade < HYT_BELOW_GRADE &&
-      tick - record.rankSinceTick >= highYearTenureMonthsFor(record),
+      tick - record.rankSinceTick >=
+        highYearTenureMonthsFor(record, person.traits.diligence, tick),
     age: ageAt(person.birthTick, tick),
     // The twelve-year wall (ADR-0032). Whole years, so the month a career
     // turns twelve is the month the question changes.
@@ -3053,6 +3094,41 @@ export interface FlagStatus {
   readonly liftsAtTick: Tick | null
 }
 
+
+/**
+ * WHAT THE YEARS ARE WORTH to an evaluation, and how long they take.
+ *
+ * Fifteen years to the full amount, so a twenty-year career spends its last
+ * stretch fully seasoned rather than still climbing. The cap is deliberately
+ * short of the top gates: Special Forces at 700 and the top selection at 800
+ * still want the person as well as the time, which is the point of having
+ * both. Longevity alone should reach the professional courses and stop.
+ */
+const SEASONING_CAP = 300
+const SEASONING_MONTHS = 180
+
+/**
+ * WHAT THIS PERSON'S YEARS ARE ACTUALLY WORTH TO THEM.
+ *
+ * SCALED BY DILIGENCE, and the first cut was not — it added the same amount
+ * to everybody, which is a different claim and a wrong one. Experience
+ * raises what somebody CAN deliver; it does not make a coaster deliver it.
+ *
+ * MEASURED, and the flat version did real damage three tables away: 23 per
+ * cent more people stayed in uniform, because a mediocre evaluation drifted
+ * over every threshold that decides who is kept. Completed families fell
+ * from 1.75 children to 1.53 — service suppresses family formation, so
+ * retaining the marginal soldier costs the town births — and career
+ * corporals survived to seventeen years. One number, three tables.
+ *
+ * Scaled, the coaster stays a coaster and the schoolhouse still opens to
+ * somebody who has both put in the years AND done the work, which is what
+ * the spec means by "performance is caused".
+ */
+export function seasoningFor(monthsServed: number, diligence: number): number {
+  const years = Math.min(SEASONING_CAP, Math.floor((Math.max(0, monthsServed) * SEASONING_CAP) / SEASONING_MONTHS))
+  return Math.floor((years * diligence) / 1000)
+}
 
 /** How long a single adverse action holds the flag up. */
 const ADVERSE_ACTION_MONTHS = 12

@@ -49,6 +49,7 @@ export interface WorldController {
   requestDeploy: () => void
   /** Take the annual fitness test — promotion points for the body. */
   fitnessTest: () => void
+  extraDuty: () => void
   /** P2: any player-initiated verb — court, propose, quit, look for a place…
    *  One channel; the engine's honest refusal comes back as the notice. */
   act: (action: VerbRequest) => void
@@ -245,6 +246,10 @@ export function useWorld(initialSeed: number): WorldController {
     send({ type: 'fitness-test' })
   }, [send])
 
+  const extraDuty = useCallback(() => {
+    send({ type: 'extra-duty' })
+  }, [send])
+
   const act = useCallback(
     (action: VerbRequest) => {
       send({ type: 'verb', action })
@@ -295,6 +300,7 @@ export function useWorld(initialSeed: number): WorldController {
     tryUnit,
     requestDeploy,
     fitnessTest,
+    extraDuty,
     act,
     choose,
     save,

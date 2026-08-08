@@ -67,6 +67,7 @@ import {
   SIMULATION_VERSION,
   spendTimeWith,
   tendTheMarriage,
+  takeExtraDuty,
   trainFitness,
   tryForChild,
   tryOutForUnit,
@@ -152,6 +153,7 @@ export type WorkerRequest =
   | { readonly type: 'try-unit'; readonly unitId: string }
   | { readonly type: 'request-deploy' }
   | { readonly type: 'fitness-test' }
+  | { readonly type: 'extra-duty' }
   /** The main thread's ledger does not match; send the whole thing again. */
   | { readonly type: 'resync' }
   | { readonly type: 'verb'; readonly action: VerbRequest }
@@ -323,6 +325,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         }
         const result = trainFitness(world)
         send(0, result.trained ? undefined : result.reason)
+        return
+      }
+
+      case 'extra-duty': {
+        if (!world) {
+          post({ type: 'error', message: 'No world.' })
+          return
+        }
+        const result = takeExtraDuty(world)
+        send(0, result.done ? undefined : result.reason)
         return
       }
 
