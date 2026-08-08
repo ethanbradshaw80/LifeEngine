@@ -1026,6 +1026,50 @@ export type EducationLevel =
   | 'college'
   | 'graduate'
 
+/**
+ * A LISTED COMPANY (owner's `stock_market_revamp.md` §1).
+ *
+ * The sector engine was never the problem — the owner's own words: "the
+ * engine is fine; the experience is missing." You could buy units of four
+ * sectors and there was nothing to tap into: no company, no chart, no
+ * identity.
+ *
+ * So a stock sits ON TOP of a sector rather than replacing it. The sector
+ * still supplies the systematic move — the thing every company in it does
+ * together — and the company adds how hard it takes that move, plus noise
+ * that is its own. Fictional names and tickers in REAL sectors, which is
+ * the charter §3 line: no real company is ever named here.
+ */
+export interface Stock {
+  readonly id: string
+  readonly ticker: string
+  readonly name: string
+  readonly sectorId: string
+  readonly subIndustry: string
+  /** How much MORE this name swings than its sector, per mille of 1000. */
+  readonly betaMultiplier: number
+  /** Company-specific noise, basis points a month. */
+  readonly idioVolatility: number
+  readonly sharesOutstanding: number
+  /** Seed for the earnings figure; grows with the economy. */
+  readonly baseEarnings: Money
+  readonly blurb: string
+}
+
+/** What the analyst panel currently thinks. Cached between refreshes. */
+export interface AnalystView {
+  readonly stockId: string
+  readonly analysts: number
+  readonly buy: number
+  readonly hold: number
+  readonly sell: number
+  /** Basis points, like every other price in this system. */
+  readonly targetLow: number
+  readonly targetAvg: number
+  readonly targetHigh: number
+  readonly refreshedAtTick: Tick
+}
+
 export interface EducationRecord {
   readonly personId: EntityId
   readonly level: EducationLevel
@@ -1940,6 +1984,7 @@ export type EventType =
   | 'recycled-in-training'
   | 'work-moment'
   | 'left-course'
+  | 'analyst-change'
   | 'won-funding'
   | 'took-student-loan'
   | 'chose-major'
@@ -2276,6 +2321,16 @@ export interface World {
   readonly economy: EconomyState
   /** M-ECON §5: what each fictional sector costs today, in basis points. */
   readonly sectorPrices: Readonly<Record<string, number>>
+  /** Live share prices in basis points, keyed by stock id. Owned by market.ts. */
+  readonly stockPrices: Readonly<Record<string, number>>
+  /**
+   * Monthly closes, oldest first, BOUNDED. Law 6: summarise, do not hoard —
+   * a century of monthly closes for forty companies is 48,000 numbers in
+   * every save, and no chart in this game can show more than a few years.
+   */
+  readonly stockHistory: Readonly<Record<string, readonly number[]>>
+  /** The analyst panel's standing view, refreshed quarterly. */
+  readonly analystViews: Map<string, AnalystView>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */

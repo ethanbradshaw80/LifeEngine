@@ -27,7 +27,7 @@ import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances } from './finances.js'
 import { stepEconomy } from './economy.js'
-import { stepSectors } from './market.js'
+import { pushHistory, runAnalysts, stepSectors, stepStocks } from './market.js'
 import type { EconomyState } from './types.js'
 import { activeWars, homeland, runGeopolitics } from './geopolitics.js'
 import { runSchools, runWartimeService } from './service.js'
@@ -72,12 +72,19 @@ export function advanceTick(world: World): World {
   const atWar =
     home !== undefined && activeWars(world).some((w) => w.a === home.id || w.b === home.id)
   ;(world as { economy: EconomyState }).economy = stepEconomy(world, next, atWar)
-  ;(world as { sectorPrices: Readonly<Record<string, number>> }).sectorPrices = stepSectors(
-    world,
-    next,
-    world.economy,
-    atWar,
-  )
+  const nextSectorPrices = stepSectors(world, next, world.economy, atWar)
+  // THE COMPANIES MOVE WITH THEIR SECTOR, so the stock step is handed
+  // where the sector actually WENT this month rather than re-rolling it.
+  // It has to run BEFORE sectorPrices is overwritten — it needs both the
+  // old price and the new one to know the size of the move.
+  const nextStockPrices = stepStocks(world, next, nextSectorPrices)
+  ;(world as { sectorPrices: Readonly<Record<string, number>> }).sectorPrices = nextSectorPrices
+  ;(world as { stockPrices: Readonly<Record<string, number>> }).stockPrices = nextStockPrices
+  ;(world as { stockHistory: Readonly<Record<string, readonly number[]>> }).stockHistory =
+    pushHistory(world, nextStockPrices)
+  // The panel publishes after the month's prices are settled — an analyst
+  // reading a price that is about to change is reading last month's.
+  runAnalysts(world, next)
 
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

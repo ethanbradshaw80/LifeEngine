@@ -7,7 +7,8 @@
  * server (ADR-0003, ADR-0010).
  */
 
-import { generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
+import { freshStockPrices, generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
+import type { AnalystView } from '@life-engine/engine'
 import type {
   Accounts,
   AwardRecord,
@@ -284,6 +285,17 @@ function hydrate(
     businesses,
     economy: body['economy'] as World['economy'],
     sectorPrices: body['sectorPrices'] as World['sectorPrices'],
+    // A SAVE WRITTEN BEFORE THE STOCK LAYER HAS NONE OF THIS, and the
+    // fallbacks are the whole of the migration: no prices means every
+    // company opens at par on the next tick, no history means the chart
+    // starts filling from today, and no analyst view means the panel
+    // publishes at its first quarterly refresh. Nothing is invented — an
+    // old save simply has a market that begins the day it is loaded.
+    stockPrices: (body['stockPrices'] as World['stockPrices'] | undefined) ?? freshStockPrices(),
+    stockHistory: (body['stockHistory'] as World['stockHistory'] | undefined) ?? {},
+    analystViews: new Map(
+      ((body['analystViews'] as AnalystView[] | undefined) ?? []).map((view) => [view.stockId, view]),
+    ),
     education,
     employment,
     relationships,

@@ -50,6 +50,17 @@ export const Stream = {
    * adding a recruiting draw never reorders a deployment one.
    */
   Service: 13,
+  /**
+   * Appended at the stock module, by the sanctioned path. A company's own
+   * moves — the swing that is ITS news rather than its sector's — plus the
+   * analyst panel and the volume.
+   *
+   * Its OWN stream so that adding a stock can never reorder a sector draw.
+   * The sectors run on Stream.Economy and every holding in every save
+   * depends on that sequence; a company sharing it would have re-rolled
+   * the whole economy the first time the catalogue grew.
+   */
+  Market: 14,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

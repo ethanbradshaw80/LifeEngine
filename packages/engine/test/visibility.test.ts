@@ -40,6 +40,10 @@ const WORLD_LEVEL = new Set([
   'declined-call',
   'asked-exemption',
   'recruiting-drive',
+  // A rating change is news about a COMPANY, not about the person it is
+  // hung on. It belongs on the market screen, and putting it in somebody's
+  // life story would say "you were downgraded to Hold" about a human being.
+  'analyst-change',
 ])
 
 /**

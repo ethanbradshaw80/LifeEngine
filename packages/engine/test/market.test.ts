@@ -49,8 +49,18 @@ function anAdult(world: ReturnType<typeof createWorld>) {
 }
 
 describe('the sectors', () => {
-  it('are four, fictional, and shaped differently from each other', () => {
-    expect(SECTORS).toHaveLength(4)
+  it('are real sectors, fictional companies, and shaped differently', () => {
+    // WAS `toHaveLength(4)`. The stock revamp (§2) moves the sectors
+    // toward the real GICS set so the market reads like one, and the
+    // count is no longer the interesting claim — the ORIGINAL FOUR IDS
+    // SURVIVING is, because every holding in every existing save is keyed
+    // by one of those strings and renaming one would orphan a portfolio.
+    expect(SECTORS.length).toBeGreaterThanOrEqual(4)
+    const ids = SECTORS.map((s) => s.id)
+    for (const original of ['industrial', 'agricultural', 'defense', 'consumer']) {
+      expect(ids, `${original} was renamed; existing holdings are keyed by it`).toContain(original)
+    }
+    expect(new Set(ids).size).toBe(ids.length)
     const betas = new Set(SECTORS.map((s) => s.beta))
     const vols = new Set(SECTORS.map((s) => s.volatility))
     expect(betas.size).toBeGreaterThan(1)

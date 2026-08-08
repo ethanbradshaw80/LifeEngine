@@ -436,6 +436,16 @@ export {
 } from './workmoments.js'
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
 export { MAJORS, majorById, majorsFor } from './content.js'
+export {
+  HISTORY_MONTHS,
+  STOCKS,
+  freshStockPrices,
+  pushHistory,
+  stepStocks,
+  stockById,
+  stocksInSector,
+} from './market.js'
+export type { AnalystView, Stock } from './types.js'
 export { dropOut, dropOutBar } from './systems.js'
 export { dropOutPlayer } from './player.js'
 export type { Major } from './content.js'
