@@ -82,7 +82,8 @@ import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
-import { fitnessOf, fitnessStandardFor } from './stats.js'
+import { disciplineOf, fitnessOf, fitnessStandardFor } from './stats.js'
+import { wellbeingOf } from './wellbeing.js'
 import type { CausalFactor, Person, Place, World } from './types.js'
 import {
   optionsFor,
@@ -191,8 +192,13 @@ function convictionToAnswerFor(world: World, personId: EntityId, tick: Tick): st
  * roughly once a century — a career-ending path nobody would ever meet,
  * and the only removal path the E-5 tenure exemption leaves standing.
  */
-function misconductChance(person: Person, performance: number): number {
-  let chance = 2 + Math.floor(Math.max(0, 550 - person.traits.diligence) / 90)
+function misconductChance(world: World, person: Person, performance: number, tick: Tick): number {
+  // STATS PHASE 6. Read DISCIPLINE, not the diligence trait underneath it.
+  // The spec asks for the loop and this is where it closes: an Article 15
+  // dents discipline, and a dented discipline makes the next one likelier.
+  // Reading the birth trait meant a soldier's record could never affect his
+  // odds of adding to it, which is the opposite of how trouble works.
+  let chance = 2 + Math.floor(Math.max(0, 550 - disciplineOf(world, person.id, tick)) / 90)
   if (performance < 300) chance += 3
   return chance
 }
@@ -1781,7 +1787,13 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // drift meant a long captivity quietly improved the number the promotion
   // boards read and the next term's Good Conduct is judged on. Freezing the
   // running sum and not the value it comes from only fixed half of it.
-  const pull = person.traits.diligence - record.performance
+  // STATS PHASE 6. Performance drifts toward what somebody can deliver, and
+  // what they can deliver is not just temperament: a life going badly is
+  // felt at work. Wellbeing shifts the ceiling by up to about fifty points
+  // either way — real, and never enough to make a miserable diligent
+  // soldier worse than a cheerful idle one.
+  const morale = Math.floor((wellbeingOf(world, person.id) - 550) / 9)
+  const pull = person.traits.diligence + morale - record.performance
   let performance = held
     ? record.performance
     : Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
@@ -2084,7 +2096,7 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // Not `!deployed && ...`: that yields `false` rather than null on a
   // deployed member, and `false !== null` would fire the whole block.
   const convictedThisMonth = deployed ? null : convictionToAnswerFor(world, person.id, tick)
-  if (convictedThisMonth !== null || (!deployed && monthsIn > 2 && rng.chance(misconductChance(person, performance), 1_000))) {
+  if (convictedThisMonth !== null || (!deployed && monthsIn > 2 && rng.chance(misconductChance(world, person, performance, tick), 1_000))) {
     const priorStrikes = eventsFor(world, person.id).filter(
       (e) => e.type === 'disciplined' && tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
     ).length

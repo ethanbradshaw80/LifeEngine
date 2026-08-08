@@ -27,7 +27,6 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
-import { spouseOf } from './relationships.js'
 import type { Person, WellbeingCause, WellbeingRecord, World } from './types.js'
 
 /** The scale everything on the stats panel uses. Traits already use it. */
@@ -122,9 +121,21 @@ export function wellbeingBaselineFor(world: World, person: Person, tick: Tick): 
     base -= Math.floor(health.severity / 10)
   }
 
-  // PEOPLE. A marriage is worth more than a friendship, and both are worth
-  // something. Read off the relationship system rather than counted here.
-  if (spouseOf(world, person.id) !== null) base += 60
+  // PEOPLE. A marriage is worth something; read straight off the
+  // relationship table rather than through `spouseOf`.
+  //
+  // WHY THE LONG WAY ROUND: importing relationships.ts made this module a
+  // link in a five-module cycle, and every system that then wanted to read
+  // wellbeing dragged the cycle along with it — the ratchet caught it twice
+  // in a row, once for stats and once for service. Reading the world's own
+  // data keeps this module a LEAF: it imports the clock and the types and
+  // nothing else, so anybody can read a person's morale without importing
+  // half the engine to do it.
+  const married = [...world.relationships.values()].some(
+    (edge) =>
+      edge.type === 'spouse' && (edge.a === person.id || edge.b === person.id),
+  )
+  if (married) base += 60
 
   // MONEY, WHICH THE SPEC ASKS FOR AND THE FIRST PASS LEFT OUT ENTIRELY.
   // Not the amount — the SECURITY. What months of cover somebody has is
@@ -224,6 +235,19 @@ export function runWellbeing(world: World, tick: Tick): void {
         const move = struck[i]
         if (move === undefined) continue
         nudgeWellbeing(world, tick, person.id, move.delta, move.words)
+      }
+    }
+
+    // WHAT THEY MAKE TIME FOR. Read off `world.habits` as plain data — the
+    // stats module owns that table but this module owns this number, and
+    // neither imports the other (the import ratchet caught the version
+    // where they did).
+    const social = (world.habits.get(person.id)?.active ?? []).find((h) => h.kind === 'social')
+    if (social !== undefined) {
+      const months = tick - social.sinceTick
+      // A small, steady, recorded push rather than a lump.
+      if (months > 0 && months % 3 === 0) {
+        nudgeWellbeing(world, tick, person.id, 12, 'Keeping up with people')
       }
     }
 

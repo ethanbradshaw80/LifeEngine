@@ -28,6 +28,7 @@ import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
   creditPerson,
+  debitPerson,
   householdCosts,
   householdIncome,
   inArrears,
@@ -135,7 +136,15 @@ import {
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
 import { article15For } from './article15.js'
-import { fitnessOf, setFitness, STATS_FROM_AGE } from './stats.js'
+import type { HabitKind } from './types.js'
+import {
+  dropHabit,
+  fitnessOf,
+  keepsHabit,
+  setFitness,
+  STATS_FROM_AGE,
+  takeUpHabit,
+} from './stats.js'
 import { openFilingOf, planPayoffBar } from './bankruptcy.js'
 import {
   accessionOf,
@@ -668,6 +677,111 @@ export function payOffBankruptcyPlayer(world: World): { done: boolean; reason: s
   return payOffPlan(world, world.tick, person.id)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The court did not close the plan.' }
+}
+
+
+/**
+ * Take something up, or give it up. The activities from the stats spec,
+ * as habits rather than buttons.
+ *
+ * WHAT THIS DELIBERATELY IS NOT: a boost. Nothing here moves a stat on the
+ * spot. Taking up training changes where the body is HEADING and the months
+ * still have to happen; giving it up lets the target fall back and the body
+ * follows it down. That is the line the spec draws — the player chooses to
+ * invest, and the effect is modelled, gradual, caused and recorded.
+ */
+export function setHabit(
+  world: World,
+  kind: HabitKind,
+  keep: boolean,
+): { changed: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { changed: false, reason: 'Nobody is being played.' }
+  const age = ageAt(person.birthTick, world.tick)
+  if (age < STATS_FROM_AGE) {
+    return { changed: false, reason: 'Too young for that to mean anything yet.' }
+  }
+  if (!keep) {
+    if (!keepsHabit(world, person.id, kind)) return { changed: false, reason: 'Not something you do.' }
+    dropHabit(world, person.id, kind)
+    logVerb(world, 'habit', `${kind}:stop`)
+    return { changed: true, reason: '' }
+  }
+  if (keepsHabit(world, person.id, kind)) {
+    return { changed: false, reason: 'Already something you do.' }
+  }
+  // A BODY THAT IS BADLY HURT IS NOT TRAINED THROUGH (spec §2b). Study and
+  // company are exactly what a person laid up CAN do, so only training is
+  // gated on it.
+  if (kind === 'training') {
+    const health = world.health.get(person.id)
+    if (health !== undefined && health.ailment !== null && health.severity >= 500) {
+      return { changed: false, reason: 'Not while you are laid up like this.' }
+    }
+  }
+  takeUpHabit(world, world.tick, person.id, kind)
+  logVerb(world, 'habit', `${kind}:start`)
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'spending',
+    significance: 'notable',
+    inputs: [factor('own-choice', 1000)],
+    chosen:
+      kind === 'training'
+        ? 'took up training'
+        : kind === 'study'
+          ? 'took up studying'
+          : 'started making time for people',
+    rejected: [],
+    streamId: Stream.Health,
+  })
+  return { changed: true, reason: '' }
+}
+
+/**
+ * See a doctor.
+ *
+ * The one activity that is NOT a habit — it is a visit, and the spec
+ * describes it as one: "catches illness earlier, manages recovery; costs
+ * money and time." So it costs money and it takes the edge off whatever is
+ * wrong, which is what seeing somebody about it actually does.
+ *
+ * It cannot cure. The health system owns recovery and this only speeds it;
+ * a visit that made an ailment vanish would be this module writing state it
+ * does not own.
+ */
+export const DOCTOR_VISIT_COST = 12_000 as Money
+
+export function seeADoctor(world: World): { seen: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { seen: false, reason: 'Nobody is being played.' }
+  if (moneyOnHand(world, person.id) < DOCTOR_VISIT_COST) {
+    return {
+      seen: false,
+      reason: `A visit is ${String(Math.round(DOCTOR_VISIT_COST / 100))} dollars and you do not have it.`,
+    }
+  }
+  if (world.player.log.some((entry) => entry.kind === 'doctor' && world.tick - entry.tick < 6)) {
+    return { seen: false, reason: 'You were seen recently. Give it a few months.' }
+  }
+  const health = world.health.get(person.id)
+  if (health === undefined || health.ailment === null) {
+    return { seen: false, reason: 'Nothing to be seen about.' }
+  }
+
+  debitPerson(world, person.id, DOCTOR_VISIT_COST)
+  // A quarter off what is wrong. Real, bounded, and not a cure.
+  world.health.set(person.id, {
+    ...health,
+    severity: Math.max(0, Math.floor(health.severity * 0.75)),
+  })
+  logVerb(world, 'doctor', String(health.severity))
+  recordEvent(world, world.tick, {
+    type: 'saw-a-doctor',
+    subjectId: person.id,
+    detail: String(DOCTOR_VISIT_COST),
+  })
+  return { seen: true, reason: '' }
 }
 
 export function requestEnlistment(world: World): { asked: boolean; reason: string } {
@@ -2465,6 +2579,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'divest':
     case 'borrow':
     case 'buy-home':
+    case 'habit':
+    case 'doctor':
     case 'pay-off-plan':
     case 'school-request':
     case 'unit-tryout':
@@ -3650,6 +3766,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Took on a debt.' // log-only
     case 'buy-home':
       return 'Bought a home.' // log-only
+    case 'habit':
+      return 'Changed what you make time for.' // log-only
+    case 'doctor':
+      return 'Saw a doctor.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':

@@ -63,12 +63,52 @@ Push normally with `git push`.
 
 ---
 
-## START HERE (handoff, end of 2026-08-04)
+## START HERE (handoff, end of 2026-08-06)
 
 **STATE:** clean tree, everything pushed.
-SIMULATION_VERSION **95** · SCHEMA_VERSION **40** · Classic golden
-**967a2f7e** · Heartland golden **48030648** · **890 tests** across 77
-files, all green. Full suite ~7 minutes on a quiet machine.
+SIMULATION_VERSION **105** · SCHEMA_VERSION **44** · Classic golden
+**e53ee9f0** · Heartland golden **be85483a** · **~956 tests** across 84
+files, all green. Full suite ~8 minutes on a quiet machine.
+
+### THE ONE HABIT THAT FOUND THE MOST BUGS
+
+**Measure the distribution before picking a threshold.** Six numbers were
+set by reasoning in one session and every single one was wrong, each caught
+only by measuring afterwards:
+
+| the number | what it was | what it did |
+|---|---|---|
+| school `minFitness` | 380–540 | fitness caps at **300** — unreachable |
+| school `minAptitude` | 560–640 | aptitude is a percentile, **1–99** |
+| fitness-failure bar | flat 128 | above the army's median — flagged 15 of 17 |
+| the same bar, by age | one number for all | flagged 9 of 31, every one 33+ |
+| wellbeing drift | a twelfth | erased all memory; 90% read "about 60" |
+| Looks weights | vs 0–300 | capped at 539/1000 — top half of the dial dead |
+
+Two of these were hiding each other: the school gates were never enforced,
+which is the only reason impossible numbers did not shut the schoolhouse.
+
+**The corollary: a stat must be checkable, not just correct.** The stats
+tests assert every stat REACHES above 600 and SPREADS more than 250, rather
+than asserting a particular value. A stat nobody can score well on is as
+useless as one everybody scores the same on.
+
+**RUN ONE SUITE AT A TIME — AND STOP THE DEV SERVER FIRST.** Two concurrent
+runs starve each other, and so does a running Vite server: a suite that
+normally takes ~450s took **1,429s** with `npm run dev` alive beside it, and
+ten tests failed that pass clean. A starved vitest run reports its in-flight
+files as FAIL **with no assertion text**. The tell: failures cluster in the
+slowest files and the reason line is missing. **If there is no
+AssertionError, suspect the process.**
+
+But do not dismiss a whole batch on that heuristic — check each one. The
+1,429s run mixed ten starved failures with **two real ones**, and in the
+summary they look identical.
+
+**RE-PIN GOLDENS AFTER THE VERSION BUMP, NEVER BEFORE.** `SIMULATION_VERSION`
+is part of the state hash. Measuring a hash, then bumping the version, then
+pinning the measured value writes a number that was stale before it was
+written. Order: bump → measure → pin → verify.
 
 **RUN ONE SUITE AT A TIME.** Two concurrent runs on this box starve each
 other, and a killed or starved vitest run reports its in-flight files as
@@ -110,6 +150,35 @@ for new work is below that.
 - **M-MONEY2 — a household is a building, not a purse** (ADR-0030). Money
   belongs to a financial unit: you, your partner, and dependants — where
   dependency is about INCOME, not age.
+- **The stats panel**, all six phases of the owner's `player_stats_spec.md`.
+  Wellbeing is the one new STORED stat and it has memory — a life that went
+  badly reads differently from an identical life that did not, which is the
+  whole argument for storing rather than deriving it. The body moved off the
+  service record onto the PERSON, from age twelve, civilians included: a
+  teenager who trains enlists fitter. Health, Looks, Smarts and Discipline
+  are derived. Activities are HABITS with trajectories — training climbs a
+  body 149→211 over two years, plateaus, and falls back to 150 three years
+  after it is dropped. Nothing moves the month you press it.
+  - THE CALL: fitness stays on 0–300 while every other stat is 0–1000,
+    because 0–300 IS the promotion-points scale. Rescaling would have
+    rebalanced the entire military ladder as a side effect of building a
+    panel. The display divides by three.
+  - NOT WIRED, deliberately: romance (looks + wellbeing driving partnering)
+    and health (chronic low wellbeing dragging health). They are the two
+    most likely to move demographics, and phase 6 was already three systems.
+  - MEASURED AND HONEST: phase 6's interconnections touch 71 of 277 adults
+    and do **not** move town-level crime or misconduct rates. The loop
+    closes for people in trouble and does nothing for anyone else. Do not
+    claim more for it than that without a number.
+- **A mortgage is not bankruptcy** (owner, playing). Insolvency compared
+  TOTAL DEBT against six months of income, so signing a mortgage declared
+  you insolvent the same month, every time. It reads distress now — missed
+  payments count, principal does not — and filing is the player's own
+  choice with a twelve-month cooling-off.
+  - FOUND WHILE MEASURING: **no NPC in this game has ever owned a home.**
+    `buyHome` is called from one place, the player's verb. That is why the
+    bug survived every test. The owner has a real-estate module planned;
+    leave it alone until then.
 - **A bankruptcy you can see and pay off** (ADR-0038), owner-reported. A
   chapter 13 plan was **entirely invisible** — no screen said what the
   payment was or how long it ran — and there was no early payoff. Both
@@ -142,6 +211,20 @@ for new work is below that.
 ### Recurring failure shapes, worth knowing before writing more
 
 These have each cost real time more than once:
+
+0. **A number invented without measuring its distribution is wrong.** Six
+   for six in one session — see the table at the top. Before choosing any
+   threshold, print the range the engine actually produces. Two of the six
+   were sitting above the achievable maximum of the thing they gated.
+
+0b. **TWO PARALLEL TABLES INDEXED BY THE SAME VARIABLE.** `BRANCH_GRADES`
+   is the ENLISTED table; indexing it with an officer's rank returned an
+   E-4 for a major and the twelve-year wall threw him out as a career
+   corporal — 30% of all officer careers, and nobody had ever reached
+   lieutenant colonel. The tables agree for the first five rungs, which is
+   why it read as correct and no test caught it. Fixed with one accessor,
+   `gradeOf`, that cannot be called wrongly. **The same bug then turned up
+   in two TESTS** that were reading the tables by hand.
 
 1. **A follow-up pending must be raised AFTER `commit()`** in
    `resolvePending`, or `raisePending` silently refuses it. Hit **about

@@ -470,6 +470,28 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
  * Move money into a person's checking, from a wage or anywhere else.
  * Exported because pay is not the only thing that lands there.
  */
+/**
+ * Take money from somebody, checking first and savings behind it.
+ *
+ * The mirror of creditPerson, and it lives here for the same reason: this
+ * module owns the accounts. A caller that reached in and wrote them itself
+ * would be a second writer, and `setAccounts` stays unexported so nobody
+ * can. Returns what was actually taken, which may be less than asked.
+ */
+export function debitPerson(world: World, personId: EntityId, amount: Money): Money {
+  if (amount <= 0) return 0 as Money
+  const accounts = accountsOf(world, personId)
+  const fromChecking = Math.max(0, Math.min(amount, accounts.checking))
+  const fromSavings = Math.max(0, Math.min(amount - fromChecking, accounts.savings))
+  if (fromChecking + fromSavings <= 0) return 0 as Money
+  setAccounts(world, {
+    ...accounts,
+    checking: (accounts.checking - fromChecking) as Money,
+    savings: (accounts.savings - fromSavings) as Money,
+  })
+  return (fromChecking + fromSavings) as Money
+}
+
 export function creditPerson(world: World, personId: EntityId, amount: Money): number {
   if (amount <= 0) return 0
   const accounts = accountsOf(world, personId)

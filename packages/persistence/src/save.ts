@@ -15,6 +15,7 @@ import type {
   Business,
   CausalRecord,
   CriminalRecord,
+  HabitRecord,
   WellbeingRecord,
   EducationRecord,
   EmploymentRecord,
@@ -231,6 +232,13 @@ function hydrate(
     wellbeing.set(record.personId, record)
   }
 
+  // Habits. Absent from every save written before the activities; an empty
+  // map is right for those, because nobody had taken anything up.
+  const habits = new Map<import('@life-engine/shared').EntityId, HabitRecord>()
+  for (const record of (body['habits'] as HabitRecord[] | undefined) ?? []) {
+    habits.set(record.personId, record)
+  }
+
   const relationships = new Map<string, Relationship>()
   for (const relationship of body['relationships'] as Relationship[]) {
     relationships.set(relationshipKey(relationship.a, relationship.b), relationship)
@@ -273,6 +281,7 @@ function hydrate(
     awards,
     criminal,
     wellbeing,
+    habits,
     deployments,
     nations,
     geoRelations,

@@ -40,6 +40,8 @@ import {
 import type { NewsItem } from './geopolitics.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import { disciplineOf } from './stats.js'
+import { wellbeingOf } from './wellbeing.js'
 import {
   acquits,
   beatSwing,
@@ -386,10 +388,22 @@ export function runCrime(world: World, tick: Tick): void {
     // than either of the others.
     if (isHomeless(world, person.id)) pressure += 120
     if (behind && jobless) pressure += 30 // both at once is its own weather
-    pressure += Math.floor((1000 - person.traits.diligence) / 50) // 0..20
-    // Resilience is what carries somebody through a bad month without doing
-    // something stupid in it.
+    // STATS PHASE 6. These two were reading raw TRAITS — the fixed things
+    // somebody was born with. There are now surfaced stats that say the
+    // same thing better, because they MOVE: discipline is diligence plus
+    // what service steadied and what misconduct dented, and wellbeing is
+    // how the life is actually going.
+    //
+    // The spec's claim is that "low Wellbeing + low Discipline + money
+    // stress raise the offence pressure", and the reason it is worth doing
+    // is that it closes a loop: a conviction dents discipline, and a
+    // dented discipline makes the next offence likelier. A trait could
+    // never do that.
+    pressure += Math.floor((1000 - disciplineOf(world, person.id, tick)) / 50) // 0..20
+    // Resilience still carries somebody through a bad month — but a life
+    // that is already going badly has less to lose by a bad decision.
     pressure += Math.floor((1000 - person.traits.resilience) / 100) // 0..10
+    pressure += Math.floor(Math.max(0, 500 - wellbeingOf(world, person.id)) / 25) // 0..20
     if (pressure < BASELINE_PRESSURE) continue
 
     const rng = openStream(world.seed, Stream.Crime, person.id, tick)

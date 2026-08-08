@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { advanceTicks, createWorld } from '../src/index.js'
+import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { livingPeople } from '../src/systems.js'
 import { flagStatus } from '../src/service.js'
@@ -19,8 +19,11 @@ import {
   looksOf,
   smartsOf,
   STATS_FROM_AGE,
+  takeUpHabit,
+  dropHabit,
 } from '../src/stats.js'
 import { recordEvent } from '../src/records.js'
+import { setHabit, setPlayer } from '../src/player.js'
 
 describe('a body belongs to the person, not the army', () => {
   it('gives civilians one, and gives it to them from twelve', () => {
@@ -163,5 +166,88 @@ describe('the stats that are read, not stored', () => {
     expect(healthStatOf(world, person.id, world.tick)).toBeLessThan(wellHealth)
     // Condition carries most of looks: somebody unwell looks unwell.
     expect(looksOf(world, person.id, world.tick)).toBeLessThan(wellLooks)
+  })
+})
+
+/**
+ * The activities — phase 5. The spec's line: "an activity is a HABIT with a
+ * modelled trajectory... not a +5 click."
+ */
+describe('a habit, not a button', () => {
+  function aYoungAdult(world: ReturnType<typeof createWorld>) {
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 22 && ageAt(p.birthTick, world.tick) <= 30)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) throw new Error('no young adult')
+    return person
+  }
+
+  it('moves nothing the month it is taken up', () => {
+    // THE WHOLE POINT. Taking up running does not hand you fitness; it
+    // changes where the body is heading, and the months still have to
+    // happen. A stat that jumped on the click would be the arcade the spec
+    // is explicitly avoiding.
+    const world = createWorld(makeSeed(4141), 200)
+    advanceTicks(world, 12)
+    const person = aYoungAdult(world)
+    const before = fitnessOf(world, person.id)
+    takeUpHabit(world, world.tick, person.id, 'training')
+    expect(fitnessOf(world, person.id)).toBe(before)
+  })
+
+  it('climbs over months, plateaus, and falls back when given up', () => {
+    // MEASURED: 149 at rest, then 176, 192, 203, 211 over three years, and
+    // back to 150 three years after stopping.
+    const world = createWorld(makeSeed(4141), 200)
+    advanceTicks(world, 12)
+    const person = aYoungAdult(world)
+    const rest = fitnessOf(world, person.id)
+
+    takeUpHabit(world, world.tick, person.id, 'training')
+    for (let i = 0; i < 36; i++) advanceTick(world)
+    const trained = fitnessOf(world, person.id)
+    expect(trained, 'training did nothing over three years').toBeGreaterThan(rest + 30)
+
+    // A HABIT GIVEN UP IS A HABIT LOST. Conditioning is not kept.
+    dropHabit(world, person.id, 'training')
+    for (let i = 0; i < 36; i++) advanceTick(world)
+    expect(fitnessOf(world, person.id), 'the body kept what it stopped earning').toBeLessThan(trained - 30)
+  }, 300_000)
+
+  it('keeps what studying taught, because a mind is not a body', () => {
+    const world = createWorld(makeSeed(4141), 200)
+    advanceTicks(world, 12)
+    const person = aYoungAdult(world)
+    const before = smartsOf(world, person.id)
+
+    takeUpHabit(world, world.tick, person.id, 'study')
+    for (let i = 0; i < 24; i++) advanceTick(world)
+    const learned = smartsOf(world, person.id)
+    expect(learned).toBeGreaterThan(before)
+
+    dropHabit(world, person.id, 'study')
+    for (let i = 0; i < 36; i++) advanceTick(world)
+    // Conditioning decays; learning does not.
+    expect(smartsOf(world, person.id)).toBeGreaterThanOrEqual(learned)
+  }, 300_000)
+
+  it('will not train a body that is badly hurt', () => {
+    // Spec §2b: "gated out by a serious injury."
+    const world = createWorld(makeSeed(4141), 200)
+    advanceTicks(world, 12)
+    const person = aYoungAdult(world)
+    setPlayer(world, person.id)
+    const health = world.health.get(person.id)
+    world.health.set(person.id, {
+      ...(health ?? { personId: person.id }),
+      ailment: 'injury',
+      severity: 800,
+    } as never)
+    const result = setHabit(world, 'training', true)
+    expect(result.changed).toBe(false)
+    expect(result.reason).toContain('laid up')
+    // But studying and company are exactly what somebody laid up CAN do.
+    expect(setHabit(world, 'study', true).changed).toBe(true)
+    expect(setHabit(world, 'social', true).changed).toBe(true)
   })
 })

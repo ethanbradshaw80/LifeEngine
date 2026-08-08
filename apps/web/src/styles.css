@@ -3705,3 +3705,18 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   padding: 0.3rem 0.5rem; font-size: 0.73rem;
 }
 .stats-note { font-size: 0.7rem; color: var(--muted); margin-top: 0.7rem; line-height: 1.5; }
+
+/* The activities. Tap targets are deliberately large — this is a phone. */
+.stat-acts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; }
+.stat-act {
+  display: flex; flex-direction: column; gap: 0.25rem; text-align: left;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+  padding: 0.55rem 0.6rem; min-height: 44px; cursor: pointer; color: inherit;
+  font: inherit;
+}
+.stat-act.on { border-color: var(--ok); }
+.stat-act:disabled { opacity: 0.5; cursor: not-allowed; }
+.act-top { display: flex; align-items: center; gap: 0.35rem; }
+.act-ic { font-size: 0.95rem; }
+.act-t { font-size: 0.78rem; font-weight: 700; }
+.act-d { font-size: 0.66rem; color: var(--muted); line-height: 1.35; }

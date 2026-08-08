@@ -36,7 +36,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { MAX_FITNESS_POINTS } from './content.js'
 import { openStream, Stream } from './rng.js'
-import type { Person, World } from './types.js'
+import type { HabitKind, HabitRecord, Person, World } from './types.js'
 
 /**
  * The age a body starts being something a person can work on.
@@ -52,6 +52,18 @@ export const STATS_FROM_AGE = 12
 const FITNESS_FLOOR = 40
 
 /**
+ * What keeping at it is worth, at the top of the drift.
+ *
+ * TUNED. Big enough that a trained body is visibly a different body — sixty
+ * points is a fifth of the whole scale — and small enough that it does not
+ * out-run age or make a fifty-year-old the fittest person in town.
+ */
+const TRAINING_LIFT = 60
+
+/** What a month of study adds, before curiosity has its say. */
+const STUDY_STEP = 3
+
+/**
  * Where a body settles at a given age, before anything is done about it.
  *
  * The same shape the service's own test used — vitality and resilience,
@@ -59,14 +71,20 @@ const FITNESS_FLOOR = 40
  * silently re-tune it. What is new is that it applies to everybody from
  * twelve, and that a training habit can lift the target above it.
  */
-export function fitnessTargetFor(person: Person, age: number): number {
+export function fitnessTargetFor(person: Person, age: number, training = false): number {
   if (age < STATS_FROM_AGE) return 0
   const base = Math.floor(person.traits.vitality / 5) + Math.floor(person.traits.resilience / 10)
   // Young bodies are still arriving; the teens ramp in rather than starting
   // at an adult's number.
   const youth = age < 18 ? Math.floor(((age - STATS_FROM_AGE) * 100) / (18 - STATS_FROM_AGE)) : 100
   const ageDrag = Math.max(0, (age - 30) * 3)
-  const target = Math.floor((base * youth) / 100) - ageDrag
+  let target = Math.floor((base * youth) / 100) - ageDrag
+  // TRAINING MOVES THE TARGET, NOT THE NUMBER. This is the whole shape the
+  // spec asks for: taking up running does not hand you fitness, it changes
+  // where your body is heading, and the drift still has to walk you there
+  // over months. Stop, and the target drops back and the body follows it
+  // down — which is what a habit decaying actually looks like.
+  if (training) target += TRAINING_LIFT
   return Math.max(FITNESS_FLOOR, Math.min(MAX_FITNESS_POINTS, target))
 }
 
@@ -91,7 +109,8 @@ export function runStats(world: World, tick: Tick): void {
     const age = ageAt(person.birthTick, tick)
     if (age < STATS_FROM_AGE) continue
 
-    const target = fitnessTargetFor(person, age)
+    runHabits(world, person)
+    const target = fitnessTargetFor(person, age, keepsHabit(world, person.id, 'training'))
     const current = person.fitness ?? 0
     if (current === 0) {
       // First month at twelve: a body arrives at its own level rather than
@@ -247,7 +266,11 @@ export function smartsOf(world: World, personId: EntityId): number {
   const person = world.people.get(personId)
   if (!person) return 0
   const attainment = world.education.get(personId)?.attainment ?? 0
-  return Math.max(0, Math.min(STAT_MAX, Math.floor(attainment * 0.6 + person.traits.curiosity * 0.4)))
+  const studied = world.habits.get(personId)?.studied ?? 0
+  return Math.max(
+    0,
+    Math.min(STAT_MAX, Math.floor(attainment * 0.6 + person.traits.curiosity * 0.4) + studied),
+  )
 }
 
 /**
@@ -277,4 +300,74 @@ export function disciplineOf(world: World, personId: EntityId, tick: Tick): numb
   ).length
   value -= marks * 70
   return Math.max(0, Math.min(STAT_MAX, value))
+}
+
+// ---------------------------------------------------------------------------
+// Habits — the activities, as trajectories rather than buttons.
+// ---------------------------------------------------------------------------
+
+export function habitsOf(world: World, personId: EntityId): HabitRecord | undefined {
+  return world.habits.get(personId)
+}
+
+export function keepsHabit(world: World, personId: EntityId, kind: HabitKind): boolean {
+  return (world.habits.get(personId)?.active ?? []).some((entry) => entry.kind === kind)
+}
+
+/** How long they have kept it up, in months. Zero when they have not. */
+export function habitMonths(world: World, personId: EntityId, kind: HabitKind, tick: Tick): number {
+  const entry = (world.habits.get(personId)?.active ?? []).find((e) => e.kind === kind)
+  return entry === undefined ? 0 : Math.max(0, tick - entry.sinceTick)
+}
+
+/** Take one up. Idempotent — taking up a habit you already keep is nothing. */
+export function takeUpHabit(world: World, tick: Tick, personId: EntityId, kind: HabitKind): void {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return
+  if (keepsHabit(world, personId, kind)) return
+  const record = world.habits.get(personId)
+  world.habits.set(personId, {
+    personId,
+    active: [...(record?.active ?? []), { kind, sinceTick: tick }],
+    studied: record?.studied ?? 0,
+  })
+}
+
+/** Give one up. The body will notice; the mind keeps what it learned. */
+export function dropHabit(world: World, personId: EntityId, kind: HabitKind): void {
+  const record = world.habits.get(personId)
+  if (record === undefined) return
+  world.habits.set(personId, {
+    ...record,
+    active: record.active.filter((entry) => entry.kind !== kind),
+  })
+}
+
+/**
+ * The month's work on whatever somebody has taken up.
+ *
+ * Runs inside `runStats`, before the body drifts, so a month of training is
+ * felt in the same month's fitness rather than the next one.
+ */
+function runHabits(world: World, person: Person): void {
+  const record = world.habits.get(person.id)
+  if (record === undefined || record.active.length === 0) return
+
+  for (const entry of record.active) {
+    if (entry.kind === 'study') {
+      // A curious mind gets more from the same hour. Never decays.
+      const gain = STUDY_STEP + Math.floor(person.traits.curiosity / 250)
+      world.habits.set(person.id, {
+        ...(world.habits.get(person.id) ?? record),
+        studied: Math.min(1000, (world.habits.get(person.id)?.studied ?? 0) + gain),
+      })
+    }
+    // The 'social' habit's effect is applied by `wellbeing.ts`, which owns
+    // that number. THE IMPORT RATCHET CAUGHT THIS: calling nudgeWellbeing
+    // from here made stats and wellbeing import each other, and through
+    // relationships and service that closed a five-module cycle. Habits are
+    // plain world state, so the wellbeing module can read them without
+    // importing anything from this one — which is the seam rather than an
+    // entry on the allowlist.
+  }
 }

@@ -543,6 +543,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'recycled-in-training':
       return `${year} — Recycled at ${event.detail ?? 'the course'}; back a phase, and going again.`
+    case 'saw-a-doctor':
+      return `${year} — Saw a doctor about it.`
     case 'billet-taken':
       return `${year} — Made ${event.detail ?? 'a leadership billet'}.`
     case 'billet-ended':

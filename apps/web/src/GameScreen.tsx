@@ -22,7 +22,9 @@ import type { ReactElement } from 'react'
 import {
   disciplineOf,
   fitnessOf,
+  habitMonths,
   healthStatOf,
+  keepsHabit,
   looksOf,
   sentenceInWords,
   smartsOf,
@@ -1003,6 +1005,54 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           {chip}
                         </span>
                       ))}
+                    </div>
+                  </>
+                )}
+                {age >= STATS_FROM_AGE && (
+                  <>
+                    <div className="stats-group">Invest in yourself</div>
+                    <div className="stat-acts">
+                      {(
+                        [
+                          ['training', '🏃', 'Train', 'The body climbs over months.'],
+                          ['study', '📚', 'Study', 'Smarts, slowly. Never lost.'],
+                          ['social', '🍻', 'See people', 'Wellbeing, a little at a time.'],
+                        ] as const
+                      ).map(([kind, icon, label, blurb]) => {
+                        const kept = keepsHabit(world, person.id, kind)
+                        const months = habitMonths(world, person.id, kind, world.tick)
+                        return (
+                          <button
+                            type="button"
+                            key={kind}
+                            className={`stat-act${kept ? ' on' : ''}`}
+                            disabled={busy}
+                            onClick={() => onAct({ verb: 'habit', kind, keep: !kept })}
+                          >
+                            <span className="act-top">
+                              <span className="act-ic">{icon}</span>
+                              <span className="act-t">{label}</span>
+                            </span>
+                            <span className="act-d">
+                              {kept
+                                ? `Keeping it up — ${String(months)} month${months === 1 ? '' : 's'}. Tap to stop.`
+                                : blurb}
+                            </span>
+                          </button>
+                        )
+                      })}
+                      <button
+                        type="button"
+                        className="stat-act"
+                        disabled={busy}
+                        onClick={() => onAct({ verb: 'doctor' })}
+                      >
+                        <span className="act-top">
+                          <span className="act-ic">🩺</span>
+                          <span className="act-t">See a doctor</span>
+                        </span>
+                        <span className="act-d">Takes the edge off. $120.</span>
+                      </button>
                     </div>
                   </>
                 )}

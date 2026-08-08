@@ -849,6 +849,31 @@ export type BodySite = 'leg' | 'arm' | 'hand' | 'chest' | 'head' | 'back' | 'sho
  * One thing that moved a life's morale, and what to call it on the screen.
  * Bounded: a person keeps only their last few.
  */
+/**
+ * Something a person has taken up and keeps doing.
+ *
+ * The spec's whole point about activities: *"an activity is a HABIT with a
+ * modelled trajectory... not a +5 click."* You do not buy fitness, you take
+ * up running, and then the months do the work — or you stop, and the months
+ * undo it.
+ */
+export type HabitKind = 'training' | 'study' | 'social'
+
+export interface HabitRecord {
+  readonly personId: EntityId
+  /** What they keep doing, and since when. */
+  readonly active: readonly { readonly kind: HabitKind; readonly sinceTick: Tick }[]
+  /**
+   * Study accrued, 0–1000, feeding Smarts.
+   *
+   * IT DOES NOT DECAY, and that is the difference between a mind and a
+   * body. Conditioning is lost when you stop training — the fitness target
+   * drops and the body drifts down to meet it. What you have learned is
+   * simply yours.
+   */
+  readonly studied: number
+}
+
 export interface WellbeingCause {
   readonly tick: Tick
   /** Signed, and already softened by resilience if it was a blow. */
@@ -1538,6 +1563,10 @@ export type PendingKind =
   | 'buy-home'
   /** ADR-0038. Settling a chapter 13 plan in full, early. */
   | 'pay-off-plan'
+  /** Taking up or giving up an activity (stats phase 5). */
+  | 'habit'
+  /** A visit about whatever is wrong. */
+  | 'doctor'
   /** LOG-ONLY: asked for a school slot from the Service tab. */
   | 'school-request'
   /** LOG-ONLY: put in for a special unit's selection. */
@@ -1709,6 +1738,8 @@ export type EventType =
   | 'passed-over'
   /** M-PROMO. A leadership billet taken up — First Sergeant, Command
    *  Sergeant Major and their equivalents. A title over the pay grade. */
+  /** Seen about an ailment — costs money, takes the edge off, never cures. */
+  | 'saw-a-doctor'
   | 'billet-taken'
   /** And handed on. The reversion is the part that makes a billet a billet
    *  rather than a rank. */
@@ -2068,6 +2099,8 @@ export interface World {
    * its own table (DOMAIN_MAP §2).
    */
   readonly wellbeing: Map<EntityId, WellbeingRecord>
+  /** Habits, owned by `stats.ts`. */
+  readonly habits: Map<EntityId, HabitRecord>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and
