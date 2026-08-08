@@ -1055,6 +1055,15 @@ export interface EducationRecord {
    * save written before this loads unchanged.
    */
   readonly major?: string | null
+  /**
+   * WHO IS PAYING FOR THE COURSE (education master §4).
+   *
+   * Settled once at enrolment and kept, so a good year cannot move
+   * somebody onto a scholarship halfway through and a bad one cannot take
+   * it away. Absent means nobody ever asked — an old save, or the K-12
+   * ladder, which nobody is billed for.
+   */
+  readonly funding?: 'self' | 'merit' | 'need' | 'rotc' | 'gi-bill'
 }
 
 // ---------------------------------------------------------------------------
@@ -1870,6 +1879,7 @@ export type EventType =
   /** A phase repeated. Costs time, costs nothing on the record. */
   | 'recycled-in-training'
   | 'work-moment'
+  | 'won-funding'
   | 'took-student-loan'
   | 'chose-major'
   | 'school-moment'

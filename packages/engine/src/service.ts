@@ -1259,7 +1259,7 @@ export function veteranUnlocks(world: World, personId: EntityId): readonly strin
   return unlocks
 }
 
-function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
+export function eligibleSpecialties(world: World, person: Person): ServiceSpecialty[] {
   const education = world.education.get(person.id)
   const level = education?.level ?? 'none'
   return world.spec.specialties.filter((sp) => meetsRequirement(level, sp.requires))

@@ -13,13 +13,14 @@ import { ageAt } from '../src/clock.js'
 import {
   educationRank,
   isHigherEducation,
+  MERIT_ATTAINMENT,
   majorById,
   majorsFor,
   meetsRequirement,
   occupationById,
 } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
-import { accountsOf } from '../src/finances.js'
+import { accountsOf, debitPerson, takeLoan } from '../src/finances.js'
 import { CREDIT_MIN, LOAN_TERMS } from '../src/credit.js'
 
 /**
@@ -365,12 +366,69 @@ describe('tuition and student loans', () => {
     // MEASURED at 71 defaults against 61 payoffs before the change, more
     // than half of all borrowers walking away. Charged off it stops
     // compounding, so a surviving debt is not a permanent trap (Law 7).
-    const chargedOff = livingPeople(world)
-      .map((person) => accountsOf(world, person.id).loans.find((l) => l.kind === 'student'))
-      .filter((loan) => loan !== undefined && loan.missedMonths >= 3)
-    expect(chargedOff.length).toBeGreaterThan(0)
-    for (const loan of chargedOff) {
-      expect(loan?.balance).toBeGreaterThan(0)
+    //
+    // BUILT, NOT LOOKED FOR. The first version of this scanned the shared
+    // world for somebody who happened to be in default, which made it a
+    // test of whether the town produced an example rather than of whether
+    // the rule works — and phase 6 promptly made funded students common
+    // enough that it found none. The situation is constructed now.
+    const own = createWorld(makeSeed(4141), 200)
+    advanceTicks(own, 30 * 12)
+    const debtor = livingPeople(own).find((person) => {
+      const age = ageAt(person.birthTick, own.tick)
+      const record = own.education.get(person.id)
+      return age > 30 && age < 55 && record?.enrolledIn === null
+    })
+    expect(debtor).toBeDefined()
+    if (debtor === undefined) return
+
+    // Deliberately far beyond anything this person could service: the
+    // claim under test is what happens when the payments CANNOT be made,
+    // so the debt has to be unpayable rather than merely inconvenient.
+    expect(takeLoan(own, own.tick, debtor.id, 'student', 900_000_000 as never)).toBe(true)
+    // Nothing to pay it with, and no wages coming in. Emptied through
+    // the module's own door rather than by reaching for a private writer.
+    const before = accountsOf(own, debtor.id)
+    debitPerson(own, debtor.id, (before.checking + before.savings) as never)
+    own.employment.delete(debtor.id)
+
+    for (let i = 0; i < 8; i++) advanceTicks(own, 1)
+    const after = accountsOf(own, debtor.id).loans.find((l) => l.kind === 'student')
+    // It is still there — every other kind of loan would have been closed
+    // by the default — and it stopped growing once it was charged off.
+    expect(after).toBeDefined()
+    expect(after?.missedMonths).toBeGreaterThanOrEqual(3)
+    // AND IT STOPPED GROWING — but only measured across a window where
+    // this person is definitely not back at school. A student loan also
+    // defers WHILE ENROLLED, and deferred interest still accrues, so a
+    // debtor who re-enrols mid-window grows their balance for an entirely
+    // legitimate reason. (The veteran door opened in phase 6 makes that
+    // reachable at this age, which is how the first version of this
+    // assertion failed.)
+    // AND WHILE IT STAYS IN DEFAULT IT DOES NOT GROW.
+    //
+    // Stated exactly, because two rounds of getting this wrong showed the
+    // property is narrower than "the balance is frozen". Charged off is
+    // not a permanent state: it tracks the CURRENT missed months, so a
+    // debtor who finds the money and pays a full month is current again
+    // and accrues normally afterwards — which is right, and which makes
+    // the balance both fall and rise across a long window.
+    //
+    // The protection Law 7 actually needs is against the debtor who can
+    // NEVER pay, and that is what this checks: across any month where the
+    // loan was in default at both ends, the balance did not increase. The
+    // person who never pays is frozen; the person who pays is not
+    // punished for it.
+    let previous = after
+    for (let i = 0; i < 24; i++) {
+      if (own.education.get(debtor.id)?.enrolledIn !== null) break
+      advanceTicks(own, 1)
+      const now = accountsOf(own, debtor.id).loans.find((l) => l.kind === 'student')
+      if (now === undefined || previous === undefined) break
+      if (previous.missedMonths >= 3 && now.missedMonths >= 3) {
+        expect(now.balance).toBeLessThanOrEqual(previous.balance)
+      }
+      previous = now
     }
   })
 
@@ -380,5 +438,84 @@ describe('tuition and student loans', () => {
     // be both an exploit and a trap.
     expect(LOAN_TERMS.find((t) => t.kind === 'student')?.minCredit).toBe(CREDIT_MIN)
     expect(OVER_THE_COUNTER_KINDS).not.toContain('student')
+  })
+})
+
+/**
+ * Education phase 6 — scholarships and funded paths.
+ */
+describe('who pays for the course', () => {
+  it('runs every path the spec asks for, and none of them nominally', () => {
+    const seen = new Set<string>()
+    for (const person of livingPeople(world)) {
+      const funding = world.education.get(person.id)?.funding
+      if (funding !== undefined) seen.add(funding)
+    }
+    // The GI Bill in particular: it was written, wired and MEASURED at
+    // zero people, because the enrolment window shut at 24 and almost
+    // nobody is discharged that young. A benefit that exists in the code
+    // and is unreachable in the world is the most expensive kind of
+    // feature there is, so this pins that it is actually reachable.
+    for (const path of ['self', 'need', 'merit', 'rotc', 'gi-bill']) {
+      expect(seen).toContain(path)
+    }
+  })
+
+  it('never leaves a fully funded student holding a debt', () => {
+    // The whole point of §4: aid comes off the year's BILL, not off the
+    // loan afterwards, so a funded student never borrows in the first
+    // place. If this fails the discount is being applied too late.
+    for (const person of livingPeople(world)) {
+      const funding = world.education.get(person.id)?.funding
+      if (funding !== 'rotc' && funding !== 'gi-bill') continue
+      const owes = accountsOf(world, person.id).loans.some((l) => l.kind === 'student')
+      // ...unless ROTC fell through and the fees became a debt, which is
+      // the spec's own alternative and a different thing entirely.
+      const repaid = world.events.some(
+        (event) =>
+          event.type === 'won-funding' &&
+          event.subjectId === person.id &&
+          event.detail === 'rotc-repaid',
+      )
+      if (!repaid) expect(owes).toBe(false)
+    }
+  })
+
+  it('collects what ROTC is owed', () => {
+    // A debt nobody ever collects is not a bargain, it is a scholarship
+    // with a longer name. Everybody the fees were paid for either took the
+    // commission or owes the money back.
+    const signed = livingPeople(world).filter(
+      (person) => world.education.get(person.id)?.funding === 'rotc',
+    )
+    expect(signed.length).toBeGreaterThan(0)
+    const honoured = world.events.filter(
+      (event) =>
+        event.type === 'won-funding' &&
+        (event.detail === 'rotc-served' || event.detail === 'rotc-repaid'),
+    )
+    expect(honoured.length).toBeGreaterThan(0)
+  })
+
+  it('awards merit for the record and need for the money', () => {
+    // Order of precedence, and it is not cosmetic: merit is tested before
+    // need so a poor child with a strong record is on a scholarship for
+    // the record, not for the poverty.
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record?.funding !== 'merit') continue
+      expect(record.attainment).toBeGreaterThanOrEqual(MERIT_ATTAINMENT)
+    }
+  })
+
+  it('puts nobody in the K-12 ladder on a scholarship', () => {
+    // Nobody is billed for childhood, so nobody is funded through it.
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record?.funding === undefined) continue
+      const everHigher =
+        isHigherEducation(record.level) || isHigherEducation(record.enrolledIn)
+      expect(everHigher).toBe(true)
+    }
   })
 })

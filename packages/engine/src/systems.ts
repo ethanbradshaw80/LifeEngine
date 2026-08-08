@@ -21,6 +21,8 @@ import {
   PRIVATE_SCHOOL_TUITION,
   majorsFor,
   tuitionPerYearFor,
+  AID_PER_MILLE,
+  MERIT_ATTAINMENT,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -88,6 +90,10 @@ import {
   isServing,
   openSurvivorPension,
   veteranUnlocks,
+  isVeteran,
+  enlistmentBar,
+  enlistPerson,
+  eligibleSpecialties,
 } from './service.js'
 import { placesOfKind } from './worldgen.js'
 
@@ -435,6 +441,80 @@ function pickMajor(person: Person, level: EducationLevel, rng: Rng): string | nu
   return rng.pickWeighted(open, weights)?.id ?? null
 }
 
+/**
+ * WHO IS PAYING FOR THIS COURSE (education master §4).
+ *
+ * Decided once, at enrolment, in a fixed order of precedence rather than
+ * by a roll — every one of these is EARNED by something already true
+ * about the person, which is what makes the answer explainable when the
+ * game is asked why (Law 3).
+ *
+ * The GI Bill comes first because a veteran has already paid. ROTC next,
+ * because it is a bargain struck rather than an award granted. Merit
+ * before need, so a poor child with a strong record is on a scholarship
+ * for their record and not for their poverty.
+ */
+function fundingFor(
+  world: World,
+  person: Person,
+  record: EducationRecord,
+  level: EducationLevel,
+  rng: Rng,
+): 'self' | 'merit' | 'need' | 'rotc' | 'gi-bill' {
+  // ALREADY SERVED. The service bought this in arrears.
+  if (isVeteran(world, person.id)) return 'gi-bill'
+
+  // THE BARGAIN. Only at university, only where a commission is the thing
+  // being bought, and only for somebody the service would actually take.
+  // Offered rather than assumed: most students do not sign this.
+  if (level === 'college' && enlistmentBar(world, person, world.tick) === null) {
+    const willing = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
+    if (rng.chance(Math.min(260, Math.floor(willing / 5)), 1000)) return 'rotc'
+  }
+
+  if (record.attainment >= MERIT_ATTAINMENT) return 'merit'
+
+  // NEED. Measured against what the course actually costs rather than an
+  // absolute, so it keeps meaning the same thing as prices move.
+  if (person.householdId !== null) {
+    const household = world.households.get(person.householdId)
+    if (household !== undefined) {
+      const yearly = atTodaysPrices(world, tuitionPerYearFor(level))
+      if (householdIncome(world, household) * 12 < yearly * 4) return 'need'
+    }
+  }
+  return 'self'
+}
+
+/**
+ * WHAT ROTC OWES, COLLECTED.
+ *
+ * The spec's own alternative when the commitment cannot be kept —
+ * "repayment or enlisted service" — is what happens to anybody the
+ * service will no longer take: the aid becomes an ordinary student debt,
+ * charged in one go, because the country paid for a degree and got
+ * nothing for it. Nobody is trapped, and nobody gets it free.
+ */
+function honourRotc(world: World, tick: Tick, person: Person): void {
+  if (enlistmentBar(world, person, tick) === null) {
+    const rng = openStream(world.seed, Stream.Education, person.id, tick + 88_300)
+    const options = eligibleSpecialties(world, person)
+    const chosen = options.length > 0 ? rng.pick(options) : undefined
+    if (chosen !== undefined && chosen !== null) {
+      enlistPerson(world, tick, person, chosen, [
+        factor('holds-a-degree', 900),
+        factor('honorable-term', 400),
+      ])
+      recordEvent(world, tick, { type: 'won-funding', subjectId: person.id, detail: 'rotc-served' })
+      return
+    }
+  }
+  // THE COMMISSION CANNOT BE HONOURED. Four years of fees become a debt.
+  const owed = atTodaysPrices(world, tuitionPerYearFor('college') * 4) as Money
+  chargeTuition(world, tick, person.id, owed)
+  recordEvent(world, tick, { type: 'won-funding', subjectId: person.id, detail: 'rotc-repaid' })
+}
+
 export function runEducation(world: World, tick: Tick): void {
   runSchoolMoments(world, tick)
   for (const person of livingPeople(world)) {
@@ -494,6 +574,18 @@ export function runEducation(world: World, tick: Tick): void {
         subjectId: person.id,
         detail: record.enrolledIn,
       })
+      // THE BARGAIN FALLS DUE (education master §4). ROTC paid for the
+      // degree in advance against a commission owed on the other side of
+      // it, and a debt nobody ever collects is not a bargain — it is just
+      // a scholarship with a longer name.
+      //
+      // The degree itself does the commissioning: `commissionsOnEntry`
+      // already reads a college record and puts that person on the
+      // officer ladder, so honouring this is a matter of getting them to
+      // the door, not of a second mechanism.
+      if (record.funding === 'rotc' && record.enrolledIn === 'college') {
+        honourRotc(world, tick, person)
+      }
       continue
     }
 
@@ -508,12 +600,14 @@ export function runEducation(world: World, tick: Tick): void {
       const fee = tuitionPerYearFor(record.enrolledIn)
       const since = tick - (record.enrolledAtTick ?? tick)
       if (fee > 0 && since % TICKS_PER_YEAR === 0) {
-        const borrowed = chargeTuition(
-          world,
-          tick,
-          person.id,
-          atTodaysPrices(world, fee) as Money,
-        )
+        // WHAT THE AID TAKES OFF. Applied to the year's bill rather than
+        // to the debt afterwards, so a funded student never borrows in
+        // the first place — which is the whole point of §4. A fully
+        // funded one is charged nothing and chargeTuition is never called.
+        const aid = AID_PER_MILLE[record.funding ?? 'self'] ?? 0
+        const gross = atTodaysPrices(world, fee)
+        const owed = (gross - Math.floor((gross * aid) / 1000)) as Money
+        const borrowed = owed <= 0 ? (0 as Money) : chargeTuition(world, tick, person.id, owed)
         if (borrowed > 0) {
           recordEvent(world, tick, {
             type: 'took-student-loan',
@@ -589,7 +683,16 @@ export function runEducation(world: World, tick: Tick): void {
     }
 
     // After secondary: trade or college, driven by curiosity and diligence.
-    if (record.level === 'secondary' && age >= 18 && age <= 24) {
+    //
+    // THE DOOR STAYS OPEN LONGER FOR A VETERAN, and it had to: the GI Bill
+    // was written, wired and MEASURED at zero people, because a window
+    // closing at twenty-four is shut before almost anybody is discharged.
+    // The benefit existed in the code and was unreachable in the world,
+    // which is the most expensive kind of feature there is. Somebody who
+    // served four years and comes home at twenty-three could just squeeze
+    // through; somebody who served twenty never could.
+    const window = isVeteran(world, person.id) ? 45 : 24
+    if (record.level === 'secondary' && age >= 18 && age <= window) {
       // The player is asked once, at 18, rather than rolled for: this is the
       // first fork in a life and it should never happen off-screen. An NPC's
       // appetite roll decides the same question for them.
@@ -682,6 +785,11 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
   // lapsed pending is never a person studying nothing for four years.
   const major =
     person.id === world.player.personId ? (record.major ?? null) : pickMajor(person, level, rng)
+  // WHO IS PAYING. Only asked where there is a bill; the K-12 ladder has
+  // none, and settling a funding source for a nine-year-old would put a
+  // scholarship on a childhood.
+  const funding =
+    tuitionPerYearFor(level) > 0 ? fundingFor(world, person, record, level, rng) : record.funding
   world.education.set(person.id, {
     ...record,
     enrolledIn: level,
@@ -689,7 +797,26 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
     completesAtTick: (tick + months) as Tick,
     schooling,
     major,
+    // Spread rather than assigned: `exactOptionalPropertyTypes` means an
+    // explicit `undefined` is not the same as an absent key, and the
+    // absent one is what "nobody ever asked" has to look like.
+    ...(funding === undefined ? {} : { funding }),
   })
+  if (funding !== undefined && funding !== 'self') {
+    recordEvent(world, tick, { type: 'won-funding', subjectId: person.id, detail: funding })
+    recordDecision(world, tick, {
+      subjectId: person.id,
+      decision: 'training',
+      significance: 'notable',
+      inputs: [
+        factor('strong-performance', record.attainment),
+        factor('qualification-earned', funding === 'gi-bill' ? 1000 : 500),
+      ],
+      chosen: `${level} paid for by ${funding}`,
+      rejected: ['paying for it themselves'],
+      streamId: Stream.Education,
+    })
+  }
   recordEvent(world, tick, { type: 'started-school', subjectId: person.id, detail: level })
 }
 

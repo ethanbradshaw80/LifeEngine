@@ -355,6 +355,20 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
     }
+    case 'won-funding': {
+      switch (event.detail) {
+        case 'merit':
+          return `${year} \u2014 Won a scholarship on the strength of the record.`
+        case 'need':
+          return `${year} \u2014 Awarded assistance with the fees.`
+        case 'rotc':
+          return `${year} \u2014 Signed for ROTC: the fees paid, a commission owed.`
+        case 'gi-bill':
+          return `${year} \u2014 Went back to school on the service's money.`
+        default:
+          return `${year} \u2014 Found a way to pay for the fees.`
+      }
+    }
     case 'took-student-loan': {
       const where = event.detail === 'trade' ? 'the trade school' : 'university'
       return `${year} — Borrowed to pay for a year at ${where}.`

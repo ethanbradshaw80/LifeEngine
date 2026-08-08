@@ -301,6 +301,28 @@ export const PRIVATE_SCHOOL_TUITION = dollars(150)
 export const COLLEGE_TUITION_PER_YEAR = dollars(2_600)
 export const TRADE_TUITION_PER_YEAR = dollars(1_250)
 
+/**
+ * WHAT EACH WAY OF PAYING IS WORTH, in per-mille off the year's bill.
+ * BALANCE NUMBERS.
+ *
+ * The two funded paths are whole because that is what they are: the
+ * service buys the degree outright, in advance for ROTC and in arrears
+ * for the GI Bill. The two scholarships are partial on purpose — a merit
+ * award that covered everything would make a strong high-school record
+ * worth more than any amount of money, and the point of §4 is that these
+ * REDUCE tuition, not that they abolish the choice.
+ */
+export const AID_PER_MILLE: Readonly<Record<string, number>> = {
+  self: 0,
+  merit: 450,
+  need: 550,
+  rotc: 1000,
+  'gi-bill': 1000,
+}
+
+/** The high-school record a merit award wants. Tuned, not a fact. */
+export const MERIT_ATTAINMENT = 720
+
 export function tuitionPerYearFor(level: EducationLevel): number {
   return level === 'college'
     ? COLLEGE_TUITION_PER_YEAR
