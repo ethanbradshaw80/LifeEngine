@@ -468,6 +468,22 @@ export type { AnalystView, Stock } from './types.js'
 export type { CompanyNews } from './market.js'
 export { dropOut, dropOutBar, hiringBar, serviceEdgeFor } from './systems.js'
 export { isEntryWork, meritedRung } from './careers.js'
+export {
+  CAMPAIGN_MONTHS,
+  OFFICES,
+  PARTIES,
+  SEATED_OFFICES,
+  castVote,
+  eligibleFor,
+  freshPolicy,
+  heldOffices,
+  holderOf,
+  officeById,
+  openBallots,
+  partyById,
+  voteBar,
+} from './government.js'
+export type { Election, Office, Officeholder, Party, PolicyState } from './types.js'
 export { dropOutPlayer, buySharesPlayer, sellSharesPlayer } from './player.js'
 export type { Major } from './content.js'
 export {

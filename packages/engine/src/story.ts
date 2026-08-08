@@ -30,6 +30,7 @@ import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
 import { schoolMomentById } from './schoolmoments.js'
 import { majorById } from './content.js'
+import { officeById } from './government.js'
 import { workMomentById } from './workmoments.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
@@ -366,6 +367,24 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
             ? 'the trade school'
             : 'university'
       return `${year} — Left ${words} without finishing. The fees still stand.`
+    }
+    case 'took-office': {
+      const office = officeById(event.detail ?? '')
+      return office === undefined
+        ? `${year} — Took office.`
+        : `${year} — Elected ${office.title}.`
+    }
+    case 'voted': {
+      // Not every ballot is a life event, but the first one is, and a
+      // timeline that never mentions politics in a game about a town
+      // governing itself would be strange.
+      // No allowlist entry: unlike a company's news, whose whole content
+      // is in the detail, "voted" is a real thing to have done even when
+      // the record does not say in which race.
+      const office = officeById(event.detail ?? '')
+      return office === undefined
+        ? `${year} — Voted.`
+        : `${year} — Voted in the race for ${office.title}.`
     }
     case 'won-funding': {
       switch (event.detail) {

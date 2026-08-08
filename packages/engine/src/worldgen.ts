@@ -24,6 +24,7 @@ import { relationshipKey } from './types.js'
 import { foundingSavings, seedFoundingAccounts } from './finances.js'
 import { freshEconomy } from './economy.js'
 import { freshSectorPrices, freshStockPrices } from './market.js'
+import { freshPolicy } from './government.js'
 import { generateProperties, seatHouseholds } from './realestate.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
@@ -155,6 +156,9 @@ export function createWorld(
     stockPrices: freshStockPrices(),
     stockHistory: {},
     analystViews: new Map(),
+    officials: new Map(),
+    elections: new Map(),
+    policy: freshPolicy(),
     education: new Map(),
     employment: new Map(),
     health: new Map(),

@@ -22,6 +22,7 @@ import type { Tick } from '@life-engine/shared'
 import { compactHistory } from './compaction.js'
 import { tick as makeTick } from '@life-engine/shared'
 import { runCrime } from './crime.js'
+import { runGovernment } from './government.js'
 import { runProperties, seatHouseholds } from './realestate.js'
 import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
@@ -97,6 +98,10 @@ export function advanceTick(world: World): World {
   recordCompanyNews(world, next, companyNews)
   runAnalysts(world, next)
 
+  // The seats are filled before anybody acts in the month, the same way
+  // the economy is settled first: a town's government is a condition of
+  // the month rather than an event inside it.
+  runGovernment(world, next)
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's
   // work, and a recovery clears the way for this month's hiring.

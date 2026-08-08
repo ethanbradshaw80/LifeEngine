@@ -7,8 +7,8 @@
  * server (ADR-0003, ADR-0010).
  */
 
-import { freshStockPrices, generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
-import type { AnalystView } from '@life-engine/engine'
+import { freshPolicy, freshStockPrices, generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
+import type { AnalystView, Election, Officeholder, PolicyState } from '@life-engine/engine'
 import type {
   Accounts,
   AwardRecord,
@@ -291,6 +291,17 @@ function hydrate(
     // starts filling from today, and no analyst view means the panel
     // publishes at its first quarterly refresh. Nothing is invented — an
     // old save simply has a market that begins the day it is loaded.
+    // A SAVE FROM BEFORE THE GOVERNMENT has no seats and no levers, and
+    // the fallbacks are the migration: an empty map means the first tick
+    // opens an election for every seat, and default policy is what a town
+    // that has never argued about it would have.
+    officials: new Map(
+      ((body['officials'] as Officeholder[] | undefined) ?? []).map((o) => [o.officeId, o]),
+    ),
+    elections: new Map(
+      ((body['elections'] as Election[] | undefined) ?? []).map((e) => [e.officeId, e]),
+    ),
+    policy: (body['policy'] as PolicyState | undefined) ?? freshPolicy(),
     stockPrices: (body['stockPrices'] as World['stockPrices'] | undefined) ?? freshStockPrices(),
     stockHistory: (body['stockHistory'] as World['stockHistory'] | undefined) ?? {},
     analystViews: new Map(

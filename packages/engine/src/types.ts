@@ -1084,6 +1084,97 @@ export interface AnalystView {
   readonly refreshedAtTick: Tick
 }
 
+/**
+ * A PARTY. Fictional, like every organisation in this world (charter §3).
+ *
+ * Three of them, named in the owner's `government.html`. They are not
+ * left and right on a line — a town's politics is about what it is
+ * willing to pay for, so each leans on the levers differently and that
+ * lean is what a voter is actually choosing between.
+ */
+export interface Party {
+  readonly id: string
+  readonly name: string
+  /**
+   * WHICH DESIGN TOKEN THE BALLOT DOT USES — a name, never a hex.
+   *
+   * The mockup gives each party a colour and the first instinct is to put
+   * `#5b8def` here. That is exactly what made the market and school
+   * screens look pasted in: the mockups carry their own palette and this
+   * app has eight semantic tokens and a light mode.
+   */
+  readonly tone: 'accent' | 'bad' | 'ok'
+  /** Where it pulls each lever, per-mille of the range. Balance numbers. */
+  readonly taxLean: number
+  readonly policeLean: number
+  readonly schoolLean: number
+}
+
+/** A seat somebody holds. */
+export interface Office {
+  readonly id: string
+  readonly title: string
+  readonly level: 'local' | 'state' | 'national'
+  /** Years between elections. */
+  readonly termYears: number
+  /** The youngest anybody may hold it. */
+  readonly minAge: number
+  /** A seat you cannot reach without having held one of these first. */
+  readonly needsPrior?: readonly string[]
+}
+
+/**
+ * AN ELECTION IN PROGRESS.
+ *
+ * The mockup shows a BALLOT — candidates, parties, live polling, a Vote
+ * button — which means an election cannot be an instant that resolves the
+ * month a term ends. It is a season: the ballot opens, the town can see
+ * who is standing and how they are polling, the player marks it, and then
+ * it decides.
+ */
+export interface Election {
+  readonly officeId: string
+  readonly opensAtTick: Tick
+  readonly decidesAtTick: Tick
+  readonly runners: readonly {
+    readonly personId: EntityId
+    readonly partyId: string
+    /** Per-mille of the vote, as the polls have it. Sums to under 1000. */
+    readonly polling: number
+  }[]
+  /** Who the player marked, if they have. */
+  readonly playerVote?: EntityId
+}
+
+/** Who holds a seat, and until when. */
+export interface Officeholder {
+  readonly officeId: string
+  readonly personId: EntityId
+  readonly partyId: string
+  readonly sinceTick: Tick
+  readonly termEndsTick: Tick
+  /** 0-1000. What the town thinks of them today. */
+  readonly approval: number
+}
+
+/**
+ * WHAT THE TOWN HAS DECIDED TO DO. The levers, in one place.
+ *
+ * Phase 1 seeds these and lets them be READ; the systems they are meant
+ * to move are wired one at a time in phase 2, so that when a golden shifts
+ * there is one plausible cause for it (spec §8).
+ */
+export interface PolicyState {
+  /** Property tax, per-mille of assessed value, annual. */
+  readonly propertyTaxPerMille: number
+  /** 0-1000. Feeds crime clearance when phase 2 wires it. */
+  readonly policeFunding: number
+  /** 0-1000. Feeds public-school quality when phase 2 wires it. */
+  readonly schoolFunding: number
+  /** Per-mille. The national lever; tax.ts reads it in phase 2. */
+  readonly incomeTaxPerMille: number
+}
+
 export interface EducationRecord {
   readonly personId: EntityId
   readonly level: EducationLevel
@@ -1998,6 +2089,8 @@ export type EventType =
   | 'recycled-in-training'
   | 'work-moment'
   | 'left-course'
+  | 'took-office'
+  | 'voted'
   | 'company-news'
   | 'analyst-change'
   | 'won-funding'
@@ -2346,6 +2439,12 @@ export interface World {
   readonly stockHistory: Readonly<Record<string, readonly number[]>>
   /** The analyst panel's standing view, refreshed quarterly. */
   readonly analystViews: Map<string, AnalystView>
+  /** Who holds which seat. Keyed by office id. Owned by `government.ts`. */
+  readonly officials: Map<string, Officeholder>
+  /** The levers as they currently stand. */
+  readonly policy: PolicyState
+  /** Elections whose ballots are open. Keyed by office id. */
+  readonly elections: Map<string, Election>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
   /** L4-M2. Keyed by personId; single writer is the health system. */

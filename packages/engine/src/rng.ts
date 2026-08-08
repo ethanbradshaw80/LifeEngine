@@ -61,6 +61,13 @@ export const Stream = {
    * the whole economy the first time the catalogue grew.
    */
   Market: 14,
+  /**
+   * Appended for the government module: who stands, who wins, and how a
+   * town votes. Its own stream because an election is drawn every few
+   * years for every office, and sharing one with the economy would have
+   * meant adding a seat on the council re-rolled the market.
+   */
+  Politics: 15,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]
