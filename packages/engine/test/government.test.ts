@@ -28,6 +28,7 @@ import {
 import { livingPeople } from '../src/systems.js'
 import { ownershipCostOf } from '../src/realestate.js'
 import { clearanceBonusOf } from '../src/crime.js'
+import { BASELINE_INCOME_RATE, withholdingFor } from '../src/tax.js'
 
 const world = createWorld(makeSeed(4141), 400)
 advanceTicks(world, 60 * 12)
@@ -249,6 +250,33 @@ describe('policy', () => {
     }
     expect(hold(1000)).toBeGreaterThan(hold(0))
   }, 300_000)
+
+  it('puts the federal rate into what a wage actually keeps', () => {
+    // Phase 2, step 4 — the last lever, and the one that reaches
+    // everybody rather than only homeowners, only the policed or only
+    // state-schooled children.
+    //
+    // SCALED IN PROPORTION so the schedule keeps its shape. Flattening
+    // every band to one rate would turn a progressive system into a flat
+    // one the moment a government touched it, which is not what a rate
+    // change is.
+    const wage = 400_000 as never
+    const low = withholdingFor(wage, 1000, 110)
+    const base = withholdingFor(wage, 1000, BASELINE_INCOME_RATE)
+    const high = withholdingFor(wage, 1000, 440)
+    expect(low).toBeLessThan(base)
+    expect(high).toBeGreaterThan(base)
+
+    // The default reproduces the schedule exactly as it was written, so
+    // the wiring changed nobody's bill on the day it landed.
+    expect(withholdingFor(wage, 1000)).toBe(base)
+    // And it stays progressive: a big earner keeps paying a larger share
+    // than a small one at every setting.
+    const small = 200_000 as never
+    const shareSmall = (withholdingFor(small, 1000, 440) * 1000) / small
+    const shareBig = (withholdingFor(wage, 1000, 440) * 1000) / wage
+    expect(shareBig).toBeGreaterThan(shareSmall)
+  })
 
   it('gives every party a design token rather than a colour', () => {
     // The lesson from the restyle: the mockups carry their own palette,

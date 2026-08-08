@@ -38,10 +38,31 @@ export const INCOME_TAX_BRACKETS: readonly TaxBracket[] = [
 ]
 
 /**
+ * THE RATE THE BRACKETS ARE WRITTEN AT.
+ *
+ * The government's lever is one number for the whole schedule, and this
+ * is what that number MEANS when nobody has moved it — the middle band's
+ * 22%. Every bracket scales in proportion to it, so a government raising
+ * taxes raises them across the board and keeps the shape progressive
+ * rather than flattening it.
+ */
+export const BASELINE_INCOME_RATE = 220
+
+/**
  * Income tax owed on a year's income. Marginal, band by band, floored per
  * band so the total is exact and never a float.
+ *
+ * `ratePerMille` is the government's lever (government plan §4, phase 2's
+ * fourth). It defaults to the baseline so every existing caller and every
+ * old save behaves exactly as before — the wiring changed nobody's bill
+ * on the day it landed, and only a government moving the number changes
+ * what anybody pays.
  */
-export function incomeTaxFor(annualIncome: Money, priceLevelPerMille = 1000): Money {
+export function incomeTaxFor(
+  annualIncome: Money,
+  priceLevelPerMille = 1000,
+  ratePerMille = BASELINE_INCOME_RATE,
+): Money {
   if (annualIncome <= 0) return 0 as Money
   let owed = 0
   let floor = 0
@@ -56,7 +77,14 @@ export function incomeTaxFor(annualIncome: Money, priceLevelPerMille = 1000): Mo
         : ((Math.floor((bracket.upTo * priceLevelPerMille) / 1000)) as Money)
     if (annualIncome <= floor) break
     const inBand = Math.min(annualIncome, ceiling) - floor
-    if (inBand > 0) owed += Math.floor((inBand * bracket.perMille) / 1000)
+    if (inBand > 0) {
+      // SCALED IN PROPORTION, so raising taxes raises the whole schedule
+      // and keeps its shape. Flattening every band to one rate would turn
+      // a progressive system into a flat one the moment a government
+      // touched it, which is not what a rate change is.
+      const banded = Math.floor((bracket.perMille * ratePerMille) / BASELINE_INCOME_RATE)
+      owed += Math.floor((inBand * banded) / 1000)
+    }
     floor = ceiling
     if (bracket.upTo === null) break
   }
@@ -71,10 +99,14 @@ export function incomeTaxFor(annualIncome: Money, priceLevelPerMille = 1000): Mo
  * and why a year of steady pay lands close to square while a year with a
  * raise or a spell out of work does not. That gap is the refund or the bill.
  */
-export function withholdingFor(monthlyPay: Money, priceLevelPerMille = 1000): Money {
+export function withholdingFor(
+  monthlyPay: Money,
+  priceLevelPerMille = 1000,
+  ratePerMille = BASELINE_INCOME_RATE,
+): Money {
   if (monthlyPay <= 0) return 0 as Money
   const annualised = (monthlyPay * 12) as Money
-  return Math.floor(incomeTaxFor(annualised, priceLevelPerMille) / 12) as Money
+  return Math.floor(incomeTaxFor(annualised, priceLevelPerMille, ratePerMille) / 12) as Money
 }
 
 /** The marginal band a year's income sits in, for the screen. */

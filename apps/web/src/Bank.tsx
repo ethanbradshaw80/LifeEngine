@@ -154,7 +154,7 @@ export function Bank({
                 // disagree about it. The gross is personal; the outgoings
                 // are the roof's, because rent genuinely is.
                 const gross = personalIncome(world, person.id)
-                const withheld = withholdingFor(gross)
+                const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
                 const costs = household ? householdCosts(world, household) : (0 as Money)
                 const lifestyle = household ? discretionaryFor(world, household) : (0 as Money)
                 const left = household ? monthlyNetOf(world, household) : (0 as Money)
@@ -404,7 +404,7 @@ export function Bank({
               tone="muted"
             />
             {(() => {
-              const owed = incomeTaxFor(accounts.taxableYtd)
+              const owed = incomeTaxFor(accounts.taxableYtd, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
               const settled = (accounts.withheldYtd - owed) as Money
               return (
                 <Row

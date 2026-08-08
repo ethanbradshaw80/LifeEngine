@@ -824,7 +824,7 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
   const accounts = accountsOf(world, personId)
   const insurance = unemploymentOf(world, personId, accounts, tick)
   const gross = personalIncome(world, personId)
-  const inHand = (gross - withholdingFor(gross, world.economy.priceLevelPerMille) + insurance) as Money
+  const inHand = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) + insurance) as Money
   return (insurance + assistanceOf(world, person, inHand, tick)) as Money
 }
 
@@ -881,7 +881,7 @@ export function householdIncome(world: World, household: Household): Money {
   let total = 0
   for (const memberId of household.memberIds) {
     const gross = personalIncome(world, memberId)
-    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille) + supportOf(world, memberId, world.tick)
+    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) + supportOf(world, memberId, world.tick)
   }
   return total as Money
 }
@@ -1277,7 +1277,7 @@ export function unitIncome(world: World, unit: readonly EntityId[]): Money {
   let total = 0
   for (const id of unit) {
     const gross = personalIncome(world, id)
-    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille) + supportOf(world, id, world.tick)
+    total += gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) + supportOf(world, id, world.tick)
   }
   return total as Money
 }
@@ -1737,7 +1737,7 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
   // everything is one purse, and the number shown to either of them is the
   // purse's. A unit of one is the whole of it.
   const gross = personalIncome(world, personId)
-  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille) +
+  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) +
     supportOf(world, personId, world.tick)) as Money
   if (income <= 0) return (left > 0 ? left : Math.floor(left / Math.max(1, unit.length))) as Money
   return Math.floor((left * mine) / income) as Money
@@ -1817,7 +1817,7 @@ export function runFinances(world: World, tick: Tick): void {
       // M-ECON §3. WITHHELD AT SOURCE, because that is what a wage feels
       // like: the money that arrives is what is left. The yearly return
       // settles the difference, which is the only moment tax is a decision.
-      const withheld = withholdingFor(gross, world.economy.priceLevelPerMille)
+      const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
       // M-SAFETY §4. The two untaxed floors arrive whole, alongside the wage.
       //
       // AND THEY ARRIVE FOR PEOPLE WITH NO WAGE AT ALL, which is the entire
@@ -3137,7 +3137,7 @@ function runTaxSeason(world: World, tick: Tick): void {
     const person = world.people.get(personId)
     if (!person || person.deathTick !== null) continue
 
-    const owed = incomeTaxFor(accounts.taxableYtd, world.economy.priceLevelPerMille)
+    const owed = incomeTaxFor(accounts.taxableYtd, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
     const settled = (accounts.withheldYtd - owed) as Money
 
     // A refund is money back; a bill comes out of checking and may overdraw
