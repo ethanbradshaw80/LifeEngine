@@ -1049,6 +1049,12 @@ export interface EducationRecord {
    * child was, having never been charged a penny of tuition.
    */
   readonly schooling?: 'public' | 'private'
+  /**
+   * The field of study, once there is one. Null through the whole of the
+   * K-12 ladder because a diploma is not in anything, and optional so a
+   * save written before this loads unchanged.
+   */
+  readonly major?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -1061,6 +1067,13 @@ export interface Occupation {
   readonly requires: EducationLevel
   readonly minMonthlyPay: Money
   readonly maxMonthlyPay: Money
+  /**
+   * The fields this work actually wants. A match opens the door wider; a
+   * mismatch is NOT a bar — the spec is explicit that a mismatched
+   * graduate still works, just without the edge. Absent means the job
+   * does not care what you studied, which is most of them.
+   */
+  readonly preferredMajors?: readonly string[]
 }
 
 export interface EmploymentRecord {
@@ -1688,6 +1701,7 @@ export type PendingKind =
   | 'bankruptcy'
   | 'promotion-offer'
   | 'work-moment'
+  | 'major'
   | 'school-moment'
   | 'interview'
   | 'promotion-offer'
@@ -1856,6 +1870,7 @@ export type EventType =
   /** A phase repeated. Costs time, costs nothing on the record. */
   | 'recycled-in-training'
   | 'work-moment'
+  | 'chose-major'
   | 'school-moment'
   | 'promoted-at-work'
   | 'passed-over'

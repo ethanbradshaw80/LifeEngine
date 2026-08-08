@@ -10,7 +10,14 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
-import { educationRank, isHigherEducation, meetsRequirement } from '../src/content.js'
+import {
+  educationRank,
+  isHigherEducation,
+  majorById,
+  majorsFor,
+  meetsRequirement,
+  occupationById,
+} from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
 import { timelineFor } from '../src/story.js'
 
@@ -209,5 +216,72 @@ describe('school-age moments', () => {
     }
     const worst = Math.max(...perChild.values())
     expect(worst).toBeLessThanOrEqual(12)
+  })
+})
+
+/**
+ * Education phase 3 — a field of study, and what it opens.
+ */
+describe('majors', () => {
+  it('gives every graduate a field and nobody else one', () => {
+    for (const person of livingPeople(world)) {
+      const record = world.education.get(person.id)
+      if (record === undefined) continue
+      const field = record.major ?? null
+      if (field === null) continue
+      // A field only exists where a school teaches one. A diploma is not
+      // in anything, and neither is middle school.
+      const at = record.enrolledIn ?? record.level
+      expect(['trade', 'college']).toContain(at)
+      expect(majorById(field)).toBeDefined()
+      // And it has to be a field that school actually teaches.
+      expect(majorsFor(at as never).map((major) => major.id)).toContain(field)
+    }
+  })
+
+  it('never leaves somebody studying nothing for four years', () => {
+    // The player is asked; if the question lapses their own character
+    // answers it. Anybody well into a course has a field on the record.
+    const adrift = livingPeople(world).filter((person) => {
+      const record = world.education.get(person.id)
+      if (record === undefined || record.enrolledIn === null) return false
+      if (record.enrolledIn !== 'trade' && record.enrolledIn !== 'college') return false
+      if (world.tick - (record.enrolledAtTick ?? world.tick) <= 6) return false
+      return (record.major ?? null) === null
+    })
+    expect(adrift).toEqual([])
+  })
+
+  it('pulls graduates toward the work their field is for', () => {
+    let matched = 0
+    let mismatched = 0
+    for (const person of livingPeople(world)) {
+      const field = world.education.get(person.id)?.major ?? null
+      const job = world.employment.get(person.id)
+      if (field === null || job === undefined) continue
+      const wanted = occupationById(job.occupationId).preferredMajors
+      if (wanted === undefined) continue
+      if (wanted.includes(field)) matched += 1
+      else mismatched += 1
+    }
+    expect(matched + mismatched).toBeGreaterThan(20)
+    // MEASURED at roughly a third, against the ~9% a blind draw gives.
+    // The claim is that a field visibly moves where people end up — not
+    // that it decides it, because most graduates do not work in theirs.
+    expect(matched * 4).toBeGreaterThan(mismatched)
+    expect(matched).toBeLessThan(mismatched)
+  })
+
+  it('does not bar anybody from work their field is not for', () => {
+    // Law 7, and the spec's own rule: a mismatch costs the edge, not the
+    // job. Somebody, somewhere, is working outside what they studied.
+    const offPiste = livingPeople(world).filter((person) => {
+      const field = world.education.get(person.id)?.major ?? null
+      const job = world.employment.get(person.id)
+      if (field === null || job === undefined) return false
+      const wanted = occupationById(job.occupationId).preferredMajors
+      return wanted !== undefined && !wanted.includes(field)
+    })
+    expect(offPiste.length).toBeGreaterThan(0)
   })
 })

@@ -19,6 +19,7 @@ import {
   occupationById,
   typicalPay,
   PRIVATE_SCHOOL_TUITION,
+  majorsFor,
 } from './content.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
@@ -91,6 +92,18 @@ import { placesOfKind } from './worldgen.js'
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
 
 const SCHOOL_START_AGE = 6
+
+/**
+ * HOW HARD A MATCHING FIELD PULLS a graduate toward the work it is for.
+ *
+ * A BALANCE NUMBER. It started at 3 and MEASURED 22% of graduates in a
+ * job that wanted their field — better than the ~9% a blind draw gives,
+ * but too quiet to be the "visibly affects which careers open" the spec
+ * asks for. The reason it reads quiet is that eligibility is a FLOOR: a
+ * university graduate is eligible for all forty-odd occupations, so a
+ * multiplier on the one or two that match is fighting a wide field.
+ */
+const MAJOR_PULL = 8
 // ELEMENTARY, MIDDLE, HIGH — five, three and four years, which lands the
 // diploma at eighteen exactly as before. The age-18 fork is the hinge of a
 // whole life in this game and moving it was never on the table.
@@ -398,6 +411,28 @@ export function applySchoolMoment(
   })
 }
 
+/**
+ * WHAT THEY CHOSE TO STUDY, when nobody is playing them.
+ *
+ * Weighted by how close the field sits to the person: a curious mind
+ * leans to the sciences and a dogged one to nursing, and the weight is
+ * the INVERSE of the distance between them so nobody is barred from
+ * anything. A determined incurious person can still read liberal arts —
+ * it is just not the way to bet (Law 10).
+ */
+function pickMajor(person: Person, level: EducationLevel, rng: Rng): string | null {
+  const open = majorsFor(level)
+  if (open.length === 0) return null
+  const weights = open.map((major) => {
+    const gap =
+      Math.abs(major.curiosity - person.traits.curiosity) +
+      Math.abs(major.diligence - person.traits.diligence)
+    // Never zero: every field keeps a floor of a chance.
+    return Math.max(20, 1400 - Math.floor(gap / 2))
+  })
+  return rng.pickWeighted(open, weights)?.id ?? null
+}
+
 export function runEducation(world: World, tick: Tick): void {
   runSchoolMoments(world, tick)
   for (const person of livingPeople(world)) {
@@ -461,6 +496,41 @@ export function runEducation(world: World, tick: Tick): void {
     }
 
     if (record.enrolledIn !== null) {
+      // WHAT ARE YOU READING? Asked once, of the player only, and only
+      // where there is a real menu — a high-school diploma is not in
+      // anything. Gated on the field still being empty rather than on
+      // hasAnswered, so somebody who does a trade and later a degree is
+      // asked both times.
+      if (
+        person.id === world.player.personId &&
+        (record.major ?? null) === null &&
+        majorsFor(record.enrolledIn).length > 0
+      ) {
+        const menu = majorsFor(record.enrolledIn)
+        const raised = raisePending(world, {
+          tick,
+          kind: 'major',
+          personId: person.id,
+          otherId: null,
+          occupationId: record.enrolledIn,
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: menu.map((major) => major.id),
+        })
+        // NEVER A PERSON STUDYING NOTHING. If the question was not raised
+        // — one is already up, or it lapsed — their own character answers
+        // it rather than the field staying empty for four years.
+        if (!raised && tick - (record.enrolledAtTick ?? tick) > 6) {
+          const rng = openStream(world.seed, Stream.Education, person.id, tick + 61_700)
+          world.education.set(person.id, {
+            ...record,
+            attainment,
+            major: pickMajor(person, record.enrolledIn, rng),
+          })
+          continue
+        }
+      }
       if (attainment !== record.attainment) {
         world.education.set(person.id, { ...record, attainment })
       }
@@ -578,12 +648,20 @@ function enrol(world: World, tick: Tick, person: Person, level: EducationLevel, 
   const schooling =
     record.schooling ??
     (level === 'primary' && choosePrivate(world, person, rng) ? 'private' : 'public')
+  // THE FIELD OF STUDY. An NPC's is settled here; the PLAYER'S is left
+  // null on purpose, because what you read at university is not a thing
+  // that should happen to somebody off-screen. `runEducation` asks them on
+  // the next tick and fills it in if the question goes unanswered, so a
+  // lapsed pending is never a person studying nothing for four years.
+  const major =
+    person.id === world.player.personId ? (record.major ?? null) : pickMajor(person, level, rng)
   world.education.set(person.id, {
     ...record,
     enrolledIn: level,
     enrolledAtTick: tick,
     completesAtTick: (tick + months) as Tick,
     schooling,
+    major,
   })
   recordEvent(world, tick, { type: 'started-school', subjectId: person.id, detail: level })
 }
@@ -921,15 +999,35 @@ export function runEmployment(world: World, tick: Tick): void {
 
     // Prefer better-paid roles, weighted rather than always-the-best, so two
     // people with identical qualifications do not lead identical lives.
-    const weights = eligible.map((o) => 1 + Math.floor(typicalPay(o) / 10_000))
+    // WHAT THEY STUDIED OPENS DOORS (spec §1). A matching field triples
+    // the weight rather than unlocking anything: an engineering graduate
+    // is far likelier to end up an engineer, and a liberal-arts one is
+    // not barred from it. A mismatch costs nothing — the spec is explicit
+    // that you still work, you just do it without the edge.
+    const field = education.major ?? null
+    const weights = eligible.map((o) => {
+      const base = 1 + Math.floor(typicalPay(o) / 10_000)
+      const wanted = o.preferredMajors
+      if (wanted === undefined || field === null) return base
+      return wanted.includes(field) ? base * MAJOR_PULL : base
+    })
     const chosen = rng.pickWeighted(eligible, weights)
     const workplace = rng.pick(workplaces)
     // M-ECON §4. THE BAND IS BASE-YEAR; a wage is offered at TODAY'S prices.
     // Without this, rent inflates over a century and pay does not, and every
     // household in the world ends up permanently behind.
+    // AND HOW WELL THEY START (spec §1: a match "unlocks or boosts access
+    // AND starting quality"). Matched, the offer is drawn from the top
+    // half of the band instead of the whole of it — the same job, entered
+    // from a better place. Never above the ceiling; the band is the band.
+    const matched =
+      field !== null && (chosen.preferredMajors?.includes(field) ?? false)
+    const floorPay = matched
+      ? chosen.minMonthlyPay + Math.floor((chosen.maxMonthlyPay - chosen.minMonthlyPay) / 2)
+      : chosen.minMonthlyPay
     const pay = atTodaysPrices(
       world,
-      rng.nextIntInclusive(chosen.minMonthlyPay, chosen.maxMonthlyPay),
+      rng.nextIntInclusive(floorPay, chosen.maxMonthlyPay),
     ) as Money
 
     // The roll decided an opportunity exists this month. For the player it

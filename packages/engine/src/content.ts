@@ -126,6 +126,53 @@ export const TOWN_NAME = 'Haverlock'
  * accounts (ADR-0008). The annual figure in each comment is what the screen
  * shows — `annualPay` is the one place that multiplication happens.
  */
+/**
+ * A FIELD OF STUDY (education master §1).
+ *
+ * Kept short and data-driven on the spec's own advice — eight for the
+ * university and four for the trade school, which is enough for the
+ * choice at eighteen to mean something without pretending this town has
+ * a course catalogue.
+ *
+ * `forLevel` matters: a trade school does not teach liberal arts and a
+ * university does not run a welding certificate, and offering either
+ * would make the menu at enrolment read as nonsense.
+ */
+export interface Major {
+  readonly id: string
+  readonly title: string
+  readonly forLevel: 'college' | 'trade'
+  /** What it says about the person who picks it, for the NPC draw. */
+  readonly curiosity: number
+  readonly diligence: number
+}
+
+export const MAJORS: readonly Major[] = [
+  { id: 'business', title: 'business', forLevel: 'college', curiosity: 380, diligence: 600 },
+  { id: 'engineering', title: 'engineering', forLevel: 'college', curiosity: 720, diligence: 780 },
+  { id: 'health', title: 'health sciences', forLevel: 'college', curiosity: 600, diligence: 800 },
+  { id: 'computing', title: 'computing', forLevel: 'college', curiosity: 760, diligence: 620 },
+  { id: 'education', title: 'education', forLevel: 'college', curiosity: 520, diligence: 640 },
+  { id: 'criminal-justice', title: 'criminal justice', forLevel: 'college', curiosity: 420, diligence: 560 },
+  { id: 'liberal-arts', title: 'liberal arts', forLevel: 'college', curiosity: 820, diligence: 380 },
+  { id: 'science', title: 'the sciences', forLevel: 'college', curiosity: 880, diligence: 700 },
+  { id: 'construction', title: 'construction', forLevel: 'trade', curiosity: 300, diligence: 620 },
+  { id: 'machining', title: 'machining', forLevel: 'trade', curiosity: 480, diligence: 720 },
+  { id: 'electrical', title: 'electrical work', forLevel: 'trade', curiosity: 540, diligence: 700 },
+  { id: 'nursing', title: 'nursing', forLevel: 'trade', curiosity: 560, diligence: 820 },
+]
+
+export function majorById(id: string | null | undefined): Major | undefined {
+  return id === null || id === undefined ? undefined : MAJORS.find((m) => m.id === id)
+}
+
+/** What this school actually teaches. */
+export function majorsFor(level: EducationLevel): readonly Major[] {
+  return level === 'college' || level === 'trade'
+    ? MAJORS.filter((m) => m.forLevel === level)
+    : []
+}
+
 export const OCCUPATIONS: readonly Occupation[] = [
   // Working class — $30k to $50k.
   { id: 'labourer', title: 'labourer', requires: 'none', minMonthlyPay: dollars(354), maxMonthlyPay: dollars(604) },
@@ -134,21 +181,21 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'millhand', title: 'mill hand', requires: 'primary', minMonthlyPay: dollars(375), maxMonthlyPay: dollars(625) },
   // Lower-middle — $50k to $70k.
   { id: 'clerk', title: 'office clerk', requires: 'secondary', minMonthlyPay: dollars(354), maxMonthlyPay: dollars(562) },
-  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(417), maxMonthlyPay: dollars(646) },
-  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(573), maxMonthlyPay: dollars(938) },
-  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875) },
-  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(438), maxMonthlyPay: dollars(688) },
-  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_250) },
+  { id: 'bookkeeper', title: 'bookkeeper', requires: 'secondary', minMonthlyPay: dollars(417), maxMonthlyPay: dollars(646), preferredMajors: ['business'] },
+  { id: 'constable', title: 'constable', requires: 'secondary', minMonthlyPay: dollars(573), maxMonthlyPay: dollars(938), preferredMajors: ['criminal-justice'] },
+  { id: 'carpenter', title: 'carpenter', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875), preferredMajors: ['construction'] },
+  { id: 'machinist', title: 'machinist', requires: 'trade', minMonthlyPay: dollars(438), maxMonthlyPay: dollars(688), preferredMajors: ['machining'] },
+  { id: 'nurse', title: 'nurse', requires: 'trade', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_250), preferredMajors: ['nursing', 'health'] },
   // Middle — $70k to $100k.
   { id: 'foreman', title: 'foreman', requires: 'secondary', minMonthlyPay: dollars(573), maxMonthlyPay: dollars(896) },
-  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875) },
-  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_021) },
+  { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875), preferredMajors: ['electrical'] },
+  { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_021), preferredMajors: ['education'] },
   // Upper-middle — $100k to $150k.
-  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(646), maxMonthlyPay: dollars(1_104) },
-  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(1_198), maxMonthlyPay: dollars(1_667) },
-  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(792), maxMonthlyPay: dollars(1_312) },
+  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(646), maxMonthlyPay: dollars(1_104), preferredMajors: ['business'] },
+  { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(1_198), maxMonthlyPay: dollars(1_667), preferredMajors: ['health', 'science'] },
+  { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(792), maxMonthlyPay: dollars(1_312), preferredMajors: ['engineering', 'science'] },
   // Professional — $150k and up.
-  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(2_135), maxMonthlyPay: dollars(3_646) },
+  { id: 'doctor', title: 'doctor', requires: 'college', minMonthlyPay: dollars(2_135), maxMonthlyPay: dollars(3_646), preferredMajors: ['health', 'science'] },
 
   // --- M-CAREER §1. THE RUNGS ABOVE, AND THE ONES BELOW ------------------
   //
@@ -160,9 +207,9 @@ export const OCCUPATIONS: readonly Occupation[] = [
   // Priced on the same real annual scale as everything above (M-ECON §7),
   // each rung a real step up from the one below it.
   { id: 'apprentice', title: 'apprentice', requires: 'trade', minMonthlyPay: dollars(344), maxMonthlyPay: dollars(521) },
-  { id: 'master-tradesman', title: 'master tradesman', requires: 'trade', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_000) },
-  { id: 'site-foreman', title: 'site foreman', requires: 'trade', minMonthlyPay: dollars(875), maxMonthlyPay: dollars(1_375) },
-  { id: 'contractor', title: 'contractor', requires: 'trade', minMonthlyPay: dollars(990), maxMonthlyPay: dollars(1_823) },
+  { id: 'master-tradesman', title: 'master tradesman', requires: 'trade', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_000), preferredMajors: ['machining'] },
+  { id: 'site-foreman', title: 'site foreman', requires: 'trade', minMonthlyPay: dollars(875), maxMonthlyPay: dollars(1_375), preferredMajors: ['construction'] },
+  { id: 'contractor', title: 'contractor', requires: 'trade', minMonthlyPay: dollars(990), maxMonthlyPay: dollars(1_823), preferredMajors: ['construction'] },
 
   { id: 'shift-lead', title: 'shift lead', requires: 'primary', minMonthlyPay: dollars(375), maxMonthlyPay: dollars(583) },
   { id: 'assistant-manager', title: 'assistant manager', requires: 'primary', minMonthlyPay: dollars(438), maxMonthlyPay: dollars(688) },
@@ -172,30 +219,30 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'associate', title: 'associate', requires: 'secondary', minMonthlyPay: dollars(521), maxMonthlyPay: dollars(812) },
   { id: 'senior-associate', title: 'senior associate', requires: 'secondary', minMonthlyPay: dollars(688), maxMonthlyPay: dollars(1_125) },
   { id: 'manager', title: 'manager', requires: 'secondary', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_354) },
-  { id: 'director', title: 'director', requires: 'college', minMonthlyPay: dollars(1_229), maxMonthlyPay: dollars(1_854) },
-  { id: 'vice-president', title: 'vice president', requires: 'college', minMonthlyPay: dollars(1_615), maxMonthlyPay: dollars(2_448) },
-  { id: 'executive', title: 'executive', requires: 'college', minMonthlyPay: dollars(1_927), maxMonthlyPay: dollars(3_333) },
+  { id: 'director', title: 'director', requires: 'college', minMonthlyPay: dollars(1_229), maxMonthlyPay: dollars(1_854), preferredMajors: ['business'] },
+  { id: 'vice-president', title: 'vice president', requires: 'college', minMonthlyPay: dollars(1_615), maxMonthlyPay: dollars(2_448), preferredMajors: ['business'] },
+  { id: 'executive', title: 'executive', requires: 'college', minMonthlyPay: dollars(1_927), maxMonthlyPay: dollars(3_333), preferredMajors: ['business'] },
 
   { id: 'lead-hand', title: 'lead hand', requires: 'none', minMonthlyPay: dollars(458), maxMonthlyPay: dollars(708) },
   { id: 'superintendent', title: 'superintendent', requires: 'secondary', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_438) },
   { id: 'plant-manager', title: 'plant manager', requires: 'secondary', minMonthlyPay: dollars(1_125), maxMonthlyPay: dollars(1_750) },
 
   { id: 'aide', title: "nurse's aide", requires: 'none', minMonthlyPay: dollars(333), maxMonthlyPay: dollars(521) },
-  { id: 'charge-nurse', title: 'charge nurse', requires: 'trade', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_333) },
-  { id: 'nurse-manager', title: 'nurse manager', requires: 'trade', minMonthlyPay: dollars(1_021), maxMonthlyPay: dollars(1_510) },
+  { id: 'charge-nurse', title: 'charge nurse', requires: 'trade', minMonthlyPay: dollars(917), maxMonthlyPay: dollars(1_333), preferredMajors: ['nursing', 'health'] },
+  { id: 'nurse-manager', title: 'nurse manager', requires: 'trade', minMonthlyPay: dollars(1_021), maxMonthlyPay: dollars(1_510), preferredMajors: ['nursing', 'health'] },
 
-  { id: 'resident', title: 'resident physician', requires: 'college', minMonthlyPay: dollars(625), maxMonthlyPay: dollars(792) },
-  { id: 'chief-of-medicine', title: 'chief of medicine', requires: 'college', minMonthlyPay: dollars(2_604), maxMonthlyPay: dollars(3_958) },
+  { id: 'resident', title: 'resident physician', requires: 'college', minMonthlyPay: dollars(625), maxMonthlyPay: dollars(792), preferredMajors: ['health', 'science'] },
+  { id: 'chief-of-medicine', title: 'chief of medicine', requires: 'college', minMonthlyPay: dollars(2_604), maxMonthlyPay: dollars(3_958), preferredMajors: ['health'] },
 
-  { id: 'department-head', title: 'department head', requires: 'college', minMonthlyPay: dollars(708), maxMonthlyPay: dollars(1_094) },
-  { id: 'assistant-principal', title: 'assistant principal', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_167) },
-  { id: 'principal', title: 'principal', requires: 'college', minMonthlyPay: dollars(990), maxMonthlyPay: dollars(1_438) },
+  { id: 'department-head', title: 'department head', requires: 'college', minMonthlyPay: dollars(708), maxMonthlyPay: dollars(1_094), preferredMajors: ['education'] },
+  { id: 'assistant-principal', title: 'assistant principal', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_167), preferredMajors: ['education'] },
+  { id: 'principal', title: 'principal', requires: 'college', minMonthlyPay: dollars(990), maxMonthlyPay: dollars(1_438), preferredMajors: ['education'] },
 
-  { id: 'sergeant', title: 'police sergeant', requires: 'secondary', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_312) },
-  { id: 'police-chief', title: 'chief of police', requires: 'secondary', minMonthlyPay: dollars(1_042), maxMonthlyPay: dollars(1_583) },
+  { id: 'sergeant', title: 'police sergeant', requires: 'secondary', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_312), preferredMajors: ['criminal-justice'] },
+  { id: 'police-chief', title: 'chief of police', requires: 'secondary', minMonthlyPay: dollars(1_042), maxMonthlyPay: dollars(1_583), preferredMajors: ['criminal-justice'] },
 
-  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_271) },
-  { id: 'partner', title: 'partner', requires: 'college', minMonthlyPay: dollars(1_458), maxMonthlyPay: dollars(2_396) },
+  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_271), preferredMajors: ['business'] },
+  { id: 'partner', title: 'partner', requires: 'college', minMonthlyPay: dollars(1_458), maxMonthlyPay: dollars(2_396), preferredMajors: ['business'] },
 ]
 
 /**

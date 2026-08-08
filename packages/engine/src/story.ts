@@ -29,6 +29,7 @@ import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
 import { schoolMomentById } from './schoolmoments.js'
+import { majorById } from './content.js'
 import { workMomentById } from './workmoments.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
@@ -353,6 +354,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return citation === null
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
+    }
+    case 'chose-major': {
+      // No allowlist entry for this one: unlike a work moment, whose whole
+      // content is in the detail, "settled on a field" is a real thing to
+      // have happened even when the record does not say which.
+      const major = majorById(event.detail)
+      return major === undefined
+        ? `${year} — Settled on a field of study.`
+        : `${year} — Started reading ${major.title}.`
     }
     case 'school-moment': {
       // Only the ones that MOVED something reach a timeline. A quiet term

@@ -205,6 +205,7 @@ import {
   applyWorkMoment,
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
+import { majorsFor } from './content.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -2808,6 +2809,27 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'major': {
+      // WHAT THEY READ. Written straight onto the record because education
+      // owns it, and validated against the school they are actually at so
+      // an answer cannot put a welding certificate on a degree.
+      const record = world.education.get(person.id)
+      const enrolled = record?.enrolledIn ?? null
+      if (record !== undefined && enrolled !== null) {
+        const open = majorsFor(enrolled)
+        const chosen = open.find((major) => major.id === choice)
+        if (chosen !== undefined) {
+          world.education.set(person.id, { ...record, major: chosen.id })
+          recordEvent(world, pending.tick, {
+            type: 'chose-major',
+            subjectId: person.id,
+            detail: chosen.id,
+          })
+        }
+      }
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -3924,6 +3946,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
       return `Orders, ${title}: you are going to ${enemy?.name ?? 'the front'}. What do you do?`
+    }
+    case 'major': {
+      const where = pending.occupationId === 'trade' ? 'the trade school' : 'the university'
+      return `You are enrolled at ${where}. What are you going to study?`
     }
     default: {
       const never: never = pending.kind

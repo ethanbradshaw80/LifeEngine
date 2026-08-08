@@ -24,7 +24,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { decodeSchoolMoment, schoolMomentById } from '@life-engine/engine'
+import { decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -411,6 +411,12 @@ export function optionLabel(world: World, pending: PendingDecision, option: stri
   ) {
     const place = world.places.get(pending.placeId)
     if (place) return `Move to ${place.name}`
+  }
+  // A FIELD OF STUDY names its own buttons from the catalogue, so adding
+  // a major never needs a label added here to go with it.
+  if (pending.kind === 'major') {
+    const major = majorById(option)
+    if (major !== undefined) return `Study ${major.title}`
   }
   // A combat scene names its three answers in its own words — "charge the
   // position" is not "drive through it" — while the spectrum underneath is
