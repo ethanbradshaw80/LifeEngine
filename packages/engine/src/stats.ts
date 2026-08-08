@@ -292,12 +292,24 @@ export function disciplineOf(world: World, personId: EntityId, tick: Tick): numb
     value += Math.min(120, Math.floor(months / 3))
   }
   // Every company punishment in the window costs, and they stack.
-  const marks = world.events.filter(
-    (event) =>
-      event.subjectId === personId &&
-      event.type === 'disciplined' &&
-      tick - event.tick < 60,
-  ).length
+  //
+  // WALKED BACKWARDS, NOT FILTERED. `world.events.filter(...)` reads the
+  // WHOLE ledger — every event since the world began — and this function is
+  // called per person per month by the crime system. Profiled at twenty
+  // years: crime cost 23.7ms a tick, second only to finances, almost all of
+  // it here. Events are appended in tick order, so walking back from the end
+  // until the window closes reads only the months that matter.
+  //
+  // This is the third time this trap has been sprung in this codebase
+  // (ADR-0039, then runWellbeing, now here). The rule: never filter
+  // world.events inside a per-person loop.
+  let marks = 0
+  for (let i = world.events.length - 1; i >= 0; i--) {
+    const event = world.events[i]
+    if (event === undefined) break
+    if (tick - event.tick >= 60) break
+    if (event.type === 'disciplined' && event.subjectId === personId) marks += 1
+  }
   value -= marks * 70
   return Math.max(0, Math.min(STAT_MAX, value))
 }

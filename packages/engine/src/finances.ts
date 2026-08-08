@@ -955,9 +955,16 @@ export function householdCosts(world: World, household: Household): Money {
   //   neither — the old behaviour, the neighbourhood's going rate, which is
   //     the right answer for anybody housed without a tracked agreement.
   const lease = world.leases.get(household.id)
-  const owner = [...household.memberIds].some(
-    (id) => accountsOf(world, id).homePlaceId !== null,
-  )
+  // WHO OWNS THE ROOF, read off the DEED rather than by opening every
+  // member's bank accounts. The first version called accountsOf once per
+  // member per household per month, and householdCosts is called several
+  // times a tick — profiled at 82.8ms a tick, more than the whole rest of
+  // the simulation put together.
+  const home =
+    typeof household.propertyId === 'string' ? world.properties.get(household.propertyId) : undefined
+  const ownerId = home?.ownerId
+  const owner =
+    ownerId !== undefined && ownerId !== null && household.memberIds.includes(ownerId)
   const place = world.places.get(household.placeId)
   let total: number =
     lease !== undefined

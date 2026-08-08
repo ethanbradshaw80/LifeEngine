@@ -103,6 +103,34 @@ tests assert every stat REACHES above 600 and SPREADS more than 250, rather
 than asserting a particular value. A stat nobody can score well on is as
 useless as one everybody scores the same on.
 
+**THE TICK IS THREE TIMES ITS BUDGET, AND THAT IS THE REAL PROBLEM.**
+Profiled at twenty years, 400 people:
+
+| system | ms/tick |
+|---|---|
+| **finances** | **~79** |
+| crime | 6.1 (was 23.7) |
+| relationships | 5.3 |
+| health | 3.8 |
+| wellbeing | 3.7 |
+| everything else | < 2 each |
+
+Whole tick ~56ms at 400 people against `PERFORMANCE_BASELINE.md`'s 22ms at
+1,000 — accumulated over months of per-person monthly work, not one change.
+At that speed the full suite sits on its timeout and tips into DYING
+WORKERS depending on the machine's mood: the same tree gave 822s green and
+then 3,002s with ten failures, every one of which passed in isolation.
+
+**`runFinances` is the whole budget and wants a proper pass.** Note that
+instrumenting it from inside is not possible — `performance` is not
+available in the engine (purity rule, working as intended), so the timing
+has to come from the test side or from exported sub-functions.
+
+**AND NEVER FILTER `world.events` INSIDE A PER-PERSON LOOP.** That is now
+three separate instances — ADR-0039, `runWellbeing`, and `disciplineOf`,
+which cost crime 3.9x. Events are appended in tick order: walk backwards
+from the end until the window closes.
+
 **RUN ONE SUITE AT A TIME — AND STOP THE DEV SERVER FIRST.** Two concurrent
 runs starve each other, and so does a running Vite server: a suite that
 normally takes ~450s took **1,429s** with `npm run dev` alive beside it, and
