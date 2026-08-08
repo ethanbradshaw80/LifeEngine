@@ -52,6 +52,16 @@ import type {
   World,
 } from './types.js'
 import { withArticle } from './text.js'
+import {
+  SCHOOL_CHOICES,
+  encodeSchoolMoment,
+  schoolMomentById,
+  schoolMomentsFor,
+  schoolOutcomeOf,
+  schoolResultFor,
+} from './schoolmoments.js'
+import type { SchoolChoice, SchoolStage } from './schoolmoments.js'
+import { nudgeWellbeing } from './wellbeing.js'
 import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isTrustSensitive } from './content.js'
@@ -271,7 +281,125 @@ function choosePrivate(world: World, person: Person, rng: Rng): boolean {
   return rng.chance(Math.min(300, headroom), 1000)
 }
 
+
+/**
+ * THE MOMENTS A CHILDHOOD IS MADE OF (education master §0.5, §7).
+ *
+ * Same shape as the work moment next door: an occasional roll, the player
+ * asked and an NPC deciding by character, both answers running through
+ * one apply function so a played childhood and a simulated one obey the
+ * same rules.
+ *
+ * OCCASIONAL IS THE POINT. The owner's popup-fatigue rule means this
+ * cannot be a monthly interruption — at 14 in 1000 a child meets roughly
+ * two of these per stage, which is enough for a childhood to have shape
+ * and few enough that each one is worth reading.
+ */
+function runSchoolMoments(world: World, tick: Tick): void {
+  for (const person of livingPeople(world)) {
+    const record = world.education.get(person.id)
+    if (record === undefined || record.enrolledIn === null) continue
+    // Only the K-12 stages. A trade course is not a childhood.
+    const stage: SchoolStage | null =
+      record.enrolledIn === 'primary'
+        ? 'primary'
+        : record.enrolledIn === 'middle'
+          ? 'middle'
+          : record.enrolledIn === 'secondary'
+            ? 'secondary'
+            : null
+    if (stage === null) continue
+    // Not in the first term: a moment needs somebody to have been there
+    // long enough for the room to mean anything.
+    if (record.enrolledAtTick !== null && tick - record.enrolledAtTick < 4) continue
+
+    // Its own tick offset, so this cannot disturb the enrolment draws or
+    // the performance walk that share Stream.Education.
+    const rng = openStream(world.seed, Stream.Education, person.id, tick + 44_100)
+    if (!rng.chance(14, 1000)) continue
+
+    const open = schoolMomentsFor(stage)
+    if (open.length === 0) continue
+    const moment = open[rng.nextIntInclusive(0, open.length - 1)]
+    if (!moment) continue
+    const variant = rng.nextIntInclusive(0, 999)
+
+    if (person.id === world.player.personId) {
+      const raised = raisePending(world, {
+        tick,
+        kind: 'school-moment',
+        personId: person.id,
+        otherId: null,
+        occupationId: encodeSchoolMoment(moment.id, variant),
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: [...SCHOOL_CHOICES],
+      })
+      if (raised) continue
+    }
+
+    // WHAT A CHILD DOES when nobody is playing them. Their own character:
+    // curiosity and ambition reach, diligence carries the middle, and a
+    // child with neither keeps their head down. Deliberately a lower bar
+    // than the adult version — children are worse at not reaching.
+    const nerve = Math.floor((person.traits.ambition + person.traits.curiosity) / 2)
+    const choice: SchoolChoice = nerve > 580 ? 'reach' : nerve > 320 ? 'steady' : 'duck'
+    applySchoolMoment(world, tick, person.id, moment.id, choice, variant)
+  }
+}
+
+/**
+ * WHAT THE ANSWER COST OR BOUGHT.
+ *
+ * Attainment is education's own to write, so it is written here. Morale
+ * goes through wellbeing's door rather than being poked directly, for the
+ * same single-writer reason the work moment routes pay through
+ * `grantRaise`.
+ */
+export function applySchoolMoment(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  momentId: string,
+  choice: SchoolChoice,
+  variant: number,
+): void {
+  const moment = schoolMomentById(momentId)
+  const record = world.education.get(personId)
+  if (!moment || record === undefined) return
+  const result = schoolResultFor(moment, choice, record.attainment, variant % 1000)
+  const outcome = schoolOutcomeOf(moment, choice, result, variant)
+  if (outcome === undefined) return
+
+  world.education.set(personId, {
+    ...record,
+    attainment: Math.max(0, Math.min(1000, record.attainment + outcome.attainment)),
+  })
+  if (outcome.wellbeing !== 0) {
+    nudgeWellbeing(world, tick, personId, outcome.wellbeing, moment.title.toLowerCase())
+  }
+  recordEvent(world, tick, {
+    type: 'school-moment',
+    subjectId: personId,
+    detail: `${moment.id}:${choice}:${result}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'training',
+    significance: Math.abs(outcome.attainment) >= 35 ? 'major' : 'notable',
+    inputs: [
+      factor('own-choice', personId === world.player.personId ? 1000 : 500),
+      factor('strong-performance', record.attainment),
+    ],
+    chosen: `${moment.title.toLowerCase()}: ${outcome.title.toLowerCase()}`,
+    rejected: moment.options.filter((option) => option.id !== choice).map((option) => option.title),
+    streamId: Stream.Education,
+  })
+}
+
 export function runEducation(world: World, tick: Tick): void {
+  runSchoolMoments(world, tick)
   for (const person of livingPeople(world)) {
     const record = world.education.get(person.id)
     if (!record) continue

@@ -1688,6 +1688,7 @@ export type PendingKind =
   | 'bankruptcy'
   | 'promotion-offer'
   | 'work-moment'
+  | 'school-moment'
   | 'interview'
   | 'promotion-offer'
   | 'reenlist-term'
@@ -1855,6 +1856,7 @@ export type EventType =
   /** A phase repeated. Costs time, costs nothing on the record. */
   | 'recycled-in-training'
   | 'work-moment'
+  | 'school-moment'
   | 'promoted-at-work'
   | 'passed-over'
   /** Money passed to this person from a parent's estate. */

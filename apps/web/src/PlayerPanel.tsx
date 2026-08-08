@@ -24,6 +24,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
+import { decodeSchoolMoment, schoolMomentById } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -52,6 +53,7 @@ import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
+import { SchoolMomentView } from './SchoolMoment.js'
 import { InterviewView } from './Interview.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
 import { Article15Sheet } from './Article15Sheet.js'
@@ -365,9 +367,23 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
  * never pass through optionLabel, so the label table owes them nothing.
  * Exported for the test that checks every other kind has words on it.
  */
+/**
+ * How the year has been going, in the words a report card would use.
+ * Its own scale rather than the job's: "well regarded" is a thing said
+ * about an employee and not about a fourteen-year-old.
+ */
+function schoolStandingWords(attainment: number): string {
+  if (attainment >= 800) return 'top of the class'
+  if (attainment >= 650) return 'a good year so far'
+  if (attainment >= 450) return 'getting by'
+  if (attainment >= 300) return 'struggling'
+  return 'in trouble'
+}
+
 export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
   'crime-scene',
   'work-moment',
+  'school-moment',
   'interview',
   'separation-record',
   'retirement-certificate',
@@ -531,6 +547,33 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
         />
       </div>
     )
+  }
+
+  // A MOMENT AT SCHOOL. The same card as work, its own copy throughout,
+  // and a stakes line a child actually has: the stage and the year so far.
+  if (pending.kind === 'school-moment') {
+    const state = decodeSchoolMoment(pending.occupationId)
+    const moment = schoolMomentById(state.momentId)
+    const record = world.education.get(pending.personId)
+    if (moment && record) {
+      const stage =
+        record.enrolledIn === 'primary'
+          ? 'Elementary'
+          : record.enrolledIn === 'middle'
+            ? 'Middle school'
+            : 'High school'
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="A moment at school">
+          <SchoolMomentView
+            moment={moment}
+            variant={state.variant}
+            attainment={record.attainment}
+            standing={`${stage} · ${schoolStandingWords(record.attainment)}`}
+            onChoose={onChoose}
+          />
+        </div>
+      )
+    }
   }
 
   // A MOMENT AT WORK. Same rails as the crime scene, entirely its own copy.

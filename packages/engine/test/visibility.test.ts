@@ -62,6 +62,11 @@ const DELIBERATELY_SILENT = new Set([
   'bought-investment', // a portfolio is a balance
   'sold-investment',
   'work-moment', // only the ones that MOVED something reach a timeline
+  // Same shape, same reason: the detail carries which moment it was, and
+  // a bare event with none is not a thing that happened to anybody. The
+  // education suite pins that a REAL one renders, so this entry cannot
+  // quietly hide a school moment that shows up nowhere.
+  'school-moment',
 ])
 
 /** Every member of the EventType union, read from its own declaration. */

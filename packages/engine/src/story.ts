@@ -28,6 +28,7 @@ import { eventById } from './eventindex.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
 import { withArticle } from './text.js'
+import { schoolMomentById } from './schoolmoments.js'
 import { workMomentById } from './workmoments.js'
 import type { CausalRecord, FactorId, Person, World, WorldEvent } from './types.js'
 import { specialtyFor, unitFor } from './worldspec.js'
@@ -352,6 +353,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return citation === null
         ? `${year} — Awarded ${event.detail ?? 'a decoration'}.`
         : `${year} — Awarded ${event.detail ?? 'a decoration'} — ${citation}.`
+    }
+    case 'school-moment': {
+      // Only the ones that MOVED something reach a timeline. A quiet term
+      // is not a life event, and the feed is for what changed (Law 6).
+      const [momentId, , result] = (event.detail ?? '::').split(':')
+      const moment = schoolMomentById(momentId ?? '')
+      if (moment === undefined) return null
+      return result === 'bad'
+        ? `${year} — ${moment.title}, at school, and it went badly.`
+        : `${year} — ${moment.title}, at school.`
     }
     case 'work-moment': {
       // M-CAREER §3. Only the ones that MOVED something reach a timeline —

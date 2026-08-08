@@ -436,6 +436,23 @@ export {
 } from './workmoments.js'
 export type { WorkChoice, WorkMoment, WorkOption, WorkOutcome } from './workmoments.js'
 export {
+  SCHOOL_CHOICES,
+  SCHOOL_MOMENTS,
+  decodeSchoolMoment,
+  schoolMomentById,
+  schoolMomentsFor,
+  schoolOutcomeOf,
+  schoolResultFor,
+  schoolSituationOf,
+} from './schoolmoments.js'
+export type {
+  SchoolChoice,
+  SchoolMoment,
+  SchoolOption,
+  SchoolOutcome,
+  SchoolStage,
+} from './schoolmoments.js'
+export {
   INTERVIEW_APPROACHES,
   INTERVIEW_OPTIONS,
   decodeInterview,

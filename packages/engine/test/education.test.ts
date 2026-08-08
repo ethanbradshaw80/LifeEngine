@@ -12,6 +12,7 @@ import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { educationRank, isHigherEducation, meetsRequirement } from '../src/content.js'
 import { livingPeople } from '../src/systems.js'
+import { timelineFor } from '../src/story.js'
 
 const world = createWorld(makeSeed(4141), 400)
 advanceTicks(world, 40 * 12)
@@ -160,5 +161,53 @@ describe('the school years leave a mark', () => {
       // Anybody past primary who was ever assigned a school still has one.
       expect(['public', 'private']).toContain(record.schooling)
     }
+  })
+})
+
+/**
+ * Education phase 2 — the moments a childhood is made of.
+ *
+ * The school years were a countdown: a child enrolled, thirteen years
+ * passed, a diploma appeared, and nothing in between was ever a thing
+ * that happened.
+ */
+describe('school-age moments', () => {
+  it('fires during the school years and reaches the timeline', () => {
+    const seen = world.events.filter((event) => event.type === 'school-moment')
+    expect(seen.length).toBeGreaterThan(0)
+    // The visibility ratchet allows a DETAIL-LESS school-moment to render
+    // nothing, because a bare one is not a thing that happened. This is
+    // the other half of that bargain: a real one must be readable.
+    const real = seen.find((event) => (event.detail ?? '').split(':').length === 3)
+    expect(real).toBeDefined()
+    if (real === undefined) return
+    const line = timelineFor(world, real.subjectId as never).find((entry) =>
+      entry.text.includes('at school'),
+    )
+    expect(line).toBeDefined()
+  })
+
+  it('only happens to children who are actually at school', () => {
+    // A trade course is not a childhood, and neither is a degree.
+    for (const event of world.events) {
+      if (event.type !== 'school-moment') continue
+      const person = world.people.get(event.subjectId as never)
+      if (person === undefined) continue
+      const age = ageAt(person.birthTick, event.tick)
+      expect(age).toBeGreaterThanOrEqual(6)
+      expect(age).toBeLessThanOrEqual(20)
+    }
+  })
+
+  it('stays occasional, because a childhood is not a popup gallery', () => {
+    // The owner's popup-fatigue rule. Roughly two per stage is the aim;
+    // this catches it firing like a monthly interruption.
+    const perChild = new Map<number, number>()
+    for (const event of world.events) {
+      if (event.type !== 'school-moment') continue
+      perChild.set(event.subjectId, (perChild.get(event.subjectId) ?? 0) + 1)
+    }
+    const worst = Math.max(...perChild.values())
+    expect(worst).toBeLessThanOrEqual(12)
   })
 })

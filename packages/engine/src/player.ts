@@ -201,8 +201,10 @@ import {
   retirePerson,
   TRADE_YEARS,
   promoteTo,
+  applySchoolMoment,
   applyWorkMoment,
 } from './systems.js'
+import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
@@ -2043,6 +2045,21 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'school-moment': {
+      // The parity rule again: a played childhood and a simulated one run
+      // through one function, so being the player is never a discount.
+      const state = decodeSchoolMoment(pending.occupationId)
+      applySchoolMoment(
+        world,
+        pending.tick,
+        person.id,
+        state.momentId,
+        choice === 'reach' || choice === 'steady' ? choice : 'duck',
+        state.variant,
+      )
+      break
+    }
+
     case 'work-moment': {
       // M-CAREER §3. The answer runs through the same function an NPC's
       // does — the parity rule, and the reason a moment cannot be a
@@ -3621,6 +3638,15 @@ export function describePending(world: World, pending: PendingDecision): string 
       const state = decodeInterview(pending.occupationId)
       const title = occupationById(state.occupationId).title
       return `They are interviewing you for ${withArticle(title)}. ${interviewSituation(state.variant)}`
+    }
+
+    case 'school-moment': {
+      // The scene component draws the card; this is the fallback line.
+      const state = decodeSchoolMoment(pending.occupationId)
+      const moment = schoolMomentById(state.momentId)
+      return moment === undefined
+        ? 'Something has happened at school.'
+        : schoolSituationOf(moment, state.variant)
     }
 
     case 'work-moment': {
