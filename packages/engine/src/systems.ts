@@ -87,6 +87,7 @@ import {
 import { householdIncome as schoolIncomeOf } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
 import { isJailed, recordGateOf } from './crime.js'
+import { DEBATE_OPTIONS, debateDue } from './government.js'
 
 import { describeAilment, pickInjury } from './wounds.js'
 import {
@@ -345,6 +346,27 @@ function choosePrivate(world: World, person: Person, rng: Rng): boolean {
  * two of these per stage, which is enough for a childhood to have shape
  * and few enough that each one is worth reading.
  */
+/**
+ * DEBATE NIGHT. Government decides WHETHER one is due — it cannot raise a
+ * pending without closing an import cycle — and this raises it, because
+ * this module already holds both ends.
+ */
+function runDebateNight(world: World, tick: Tick): void {
+  const officeId = debateDue(world, tick)
+  if (officeId === null || world.player.personId === null) return
+  raisePending(world, {
+    tick,
+    kind: 'debate',
+    personId: world.player.personId,
+    otherId: null,
+    occupationId: officeId,
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: DEBATE_OPTIONS.map((option) => option.id),
+  })
+}
+
 function runSchoolMoments(world: World, tick: Tick): void {
   for (const person of livingPeople(world)) {
     const record = world.education.get(person.id)
@@ -625,6 +647,7 @@ export function serviceEdgeFor(world: World, personId: EntityId, occupationId: s
 }
 
 export function runEducation(world: World, tick: Tick): void {
+  runDebateNight(world, tick)
   runSchoolMoments(world, tick)
   for (const person of livingPeople(world)) {
     const record = world.education.get(person.id)

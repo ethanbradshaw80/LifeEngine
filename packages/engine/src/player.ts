@@ -211,7 +211,16 @@ import {
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import { majorsFor } from './content.js'
-import { castVote, voteBar } from './government.js'
+import {
+  DEBATE_LINES,
+  campaign,
+  candidacyBar,
+  castVote,
+  debate,
+  declareCandidacy,
+  voteBar,
+} from './government.js'
+import type { CampaignAction, DebateChoice } from './government.js'
 import { stockById } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
@@ -895,6 +904,39 @@ export function rentPropertyPlayer(world: World, propertyId: string): { done: bo
  * MARK A BALLOT. The bar and the verb read one function, so a greyed
  * button and a refusal cannot disagree.
  */
+/**
+ * STAND FOR OFFICE, and run the campaign. Each reads the engine's own
+ * bar, so a greyed button and a refusal cannot disagree.
+ */
+export function standPlayer(world: World, officeId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = candidacyBar(world, person.id, officeId, world.tick)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'stand', officeId)
+  return declareCandidacy(world, person.id, officeId, world.tick)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The nomination did not go through.' }
+}
+
+export function campaignPlayer(
+  world: World,
+  officeId: string,
+  action: CampaignAction,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  logVerb(world, 'campaign', action)
+  if (campaign(world, person.id, officeId, action, world.tick)) return { done: true, reason: '' }
+  return {
+    done: false,
+    reason:
+      action === 'advertise'
+        ? 'There is not enough in the war chest to buy anything worth having.'
+        : 'There is no campaign to run.',
+  }
+}
+
 export function votePlayer(
   world: World,
   officeId: string,
@@ -2785,6 +2827,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'rent-home':
     case 'sell-home':
     case 'vote':
+    case 'stand':
+    case 'campaign':
     case 'drop-out':
     case 'pay-off-plan':
     case 'school-request':
@@ -2951,6 +2995,17 @@ export function resolvePending(world: World, choice: string): void {
       if (choice === 'enrol') {
         enrolPlayer(world, pending.tick, person, 'graduate')
       }
+      break
+    }
+
+    case 'debate': {
+      // A MOMENT, on the same rails as every other. The answer runs
+      // through the same function the polls read, so a debate the player
+      // wins is a debate the town saw them win.
+      const officeId = pending.occupationId ?? ''
+      const answer: DebateChoice =
+        choice === 'attack' || choice === 'policy' || choice === 'personal' ? choice : 'policy'
+      debate(world, person.id, officeId, answer, pending.tick)
       break
     }
 
@@ -4049,6 +4104,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Left the course.' // log-only
     case 'vote':
       return 'Voted.' // log-only
+    case 'stand':
+      return 'Stood for office.' // log-only
+    case 'campaign':
+      return 'Campaigned.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
     case 'school-request':
@@ -4124,6 +4183,10 @@ export function describePending(world: World, pending: PendingDecision): string 
     }
     case 'graduate': {
       return 'Your record is strong enough for graduate work. Two more years, and it is not cheap. Do you go?'
+    }
+    case 'debate': {
+      const line = DEBATE_LINES[Math.abs(pending.tick) % DEBATE_LINES.length] ?? DEBATE_LINES[0]
+      return line ?? 'The debate is tonight.'
     }
     case 'school-choice': {
       const child = pending.otherId === null ? undefined : world.people.get(pending.otherId)

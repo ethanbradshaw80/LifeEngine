@@ -24,7 +24,7 @@ import {
   partnerOf,
   personSummary,
 } from '@life-engine/engine'
-import { decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
+import { DEBATE_OPTIONS, decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -411,6 +411,13 @@ export function optionLabel(world: World, pending: PendingDecision, option: stri
   ) {
     const place = world.places.get(pending.placeId)
     if (place) return `Move to ${place.name}`
+  }
+  // THE DEBATE NAMES ITS OWN ANSWERS, from the engine's authored content
+  // rather than a second copy kept here — adding a rail never needs a
+  // label added alongside it.
+  if (pending.kind === 'debate') {
+    const rail = DEBATE_OPTIONS.find((o) => o.id === option)
+    if (rail !== undefined) return rail.title
   }
   if (pending.kind === 'school-choice') {
     if (option === 'private') return 'Private school'

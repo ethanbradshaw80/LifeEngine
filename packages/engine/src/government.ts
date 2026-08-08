@@ -1,4 +1,24 @@
 /**
+ * IS A DEBATE DUE TONIGHT? The office id, or null.
+ *
+ * REPORTS rather than raises. Raising a pending needs player.ts, and
+ * player.ts already imports this module for the verbs — asking for it
+ * here would close a cycle the ratchet refuses. So government answers the
+ * question and `systems.ts`, which can already do both, acts on it.
+ *
+ * Once per campaign, halfway through: a campaign that debated every month
+ * would be a chore rather than a night that matters.
+ */
+export function debateDue(world: World, tick: Tick): string | null {
+  const playerId = world.player.personId
+  if (playerId === null) return null
+  for (const election of world.elections.values()) {
+    if (!election.runners.some((r) => r.personId === playerId)) continue
+    if (tick !== election.opensAtTick + 1) continue
+    return election.officeId
+  }
+  return null
+}/**
  * GOVERNMENT — who holds the seats, and how they got them.
  *
  * Phase 1 of the owner's `government_revamp_plan.md`, whose build order
@@ -16,7 +36,7 @@
  * government (charter §3). The parties are named in the mockup.
  */
 
-import type { EntityId, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { openStream, Stream } from './rng.js'
 import { recordEvent } from './records.js'
@@ -216,6 +236,237 @@ export function openBallots(world: World): readonly Election[] {
 }
 
 /**
+ * WHY THIS PERSON CANNOT STAND, or null when they can (spec §2b).
+ *
+ * The bar pattern once more: the screen greys the button from the same
+ * answer the verb refuses with, and a would-be candidate is told what is
+ * in the way rather than shown a dead control.
+ */
+export function candidacyBar(
+  world: World,
+  personId: EntityId,
+  officeId: string,
+  tick: Tick,
+): string | null {
+  const election = world.elections.get(officeId)
+  if (election === undefined) return 'No seat is up for election right now.'
+  if (tick >= election.decidesAtTick) return 'That race has already been decided.'
+  if (election.runners.some((r) => r.personId === personId)) return 'You are already on this ballot.'
+  const person = world.people.get(personId)
+  const office = officeById(officeId)
+  if (person === undefined || office === undefined) return 'No such race.'
+  if (person.deathTick !== null) return 'Nobody is being played.'
+  const age = ageAt(person.birthTick, tick)
+  if (age < office.minAge) {
+    return `You have to be ${String(office.minAge)} to stand for ${office.title}.`
+  }
+  if (office.needsPrior !== undefined && !eligibleFor(world, person, office, tick)) {
+    const wants = office.needsPrior
+      .map((id) => officeById(id)?.title ?? id)
+      .join(' or ')
+    return `${office.title} wants somebody who has served as ${wants} first.`
+  }
+  // A CONVICTION IS THE LOUDEST THING ON A BALLOT. It does not bar
+  // anybody outright — that is the voters' business — but the town has to
+  // be told, and standing for a trusted seat with a hard record does not
+  // happen (C1, the same gate that closes trusted work).
+  const criminal = world.criminal.get(personId)
+  if (criminal !== undefined && criminal.jailedUntilTick !== null && tick < criminal.jailedUntilTick) {
+    return 'Not from a cell.'
+  }
+  return null
+}
+
+/**
+ * STAND FOR THE SEAT.
+ *
+ * A late entrant starts where an unknown starts: at the bottom of the
+ * poll, with the undecideds still to win over. The campaign is what moves
+ * that, which is the point of there being one.
+ */
+export function declareCandidacy(
+  world: World,
+  personId: EntityId,
+  officeId: string,
+  tick: Tick,
+): boolean {
+  if (candidacyBar(world, personId, officeId, tick) !== null) return false
+  const election = world.elections.get(officeId)
+  const person = world.people.get(personId)
+  if (election === undefined || person === undefined) return false
+  const partyId = PARTIES[Math.abs(personId) % PARTIES.length]?.id ?? 'commonwealth'
+  // Their standing in the town, the same measure everybody else is drawn
+  // against, but with none of the seeded head start a declared runner got
+  // — nobody has heard of them yet.
+  const showing = Math.max(40, Math.floor(standingOf(world, person, tick) / 6))
+  world.elections.set(officeId, {
+    ...election,
+    warChest: (election.warChest ?? 0) as Money,
+    runners: [...election.runners, { personId, partyId, polling: showing }],
+  })
+  recordEvent(world, tick, { type: 'stood-for-office', subjectId: personId, detail: officeId })
+  return true
+}
+
+/** What a week of campaigning does. The mockup's three. */
+export type CampaignAction = 'fundraise' | 'rally' | 'advertise'
+
+/**
+ * ONE WEEK OF A CAMPAIGN.
+ *
+ * Fundraising fills the chest, a rally moves the polls a little on its
+ * own, and advertising converts money into reach — which is the only one
+ * of the three that costs anything, and the reason the chest exists.
+ *
+ * Everything comes OUT OF THE UNDECIDED first. A campaign that took
+ * points straight off an opponent would be a tug of war; a real one wins
+ * over the people who have not made their minds up, and only starts
+ * taking from the other side once those are gone.
+ */
+export function campaign(
+  world: World,
+  personId: EntityId,
+  officeId: string,
+  action: CampaignAction,
+  tick: Tick,
+): boolean {
+  const election = world.elections.get(officeId)
+  if (election === undefined || tick >= election.decidesAtTick) return false
+  const mine = election.runners.find((r) => r.personId === personId)
+  if (mine === undefined) return false
+
+  const rng = openStream(world.seed, Stream.Politics, personId, tick + 4_400)
+  let chest = (election.warChest ?? 0) as number
+  let gain = 0
+  if (action === 'fundraise') {
+    chest += rng.nextIntInclusive(80_000, 260_000)
+  } else if (action === 'rally') {
+    gain = rng.nextIntInclusive(8, 26)
+  } else {
+    // Advertising is bought. No money, no reach — and the refusal is the
+    // honest one rather than a free rally wearing another name.
+    const spend = Math.min(chest, 150_000)
+    if (spend < 40_000) return false
+    chest -= spend
+    gain = Math.floor(spend / 6_000)
+  }
+
+  const undecided = Math.max(
+    0,
+    1000 - election.runners.reduce((sum, r) => sum + r.polling, 0),
+  )
+  const fromUndecided = Math.min(gain, undecided)
+  let owed = gain - fromUndecided
+  const runners = election.runners.map((r) => {
+    if (r.personId === personId) return { ...r, polling: r.polling + gain }
+    if (owed <= 0) return r
+    // Taken from the strongest opponent first, and never below a floor —
+    // a campaign does not erase somebody, it overtakes them.
+    const take = Math.min(owed, Math.max(0, r.polling - 40))
+    owed -= take
+    return { ...r, polling: r.polling - take }
+  })
+
+  world.elections.set(officeId, { ...election, warChest: chest as Money, runners })
+  return true
+}
+
+/**
+ * THE DEBATE (the mockup's own scene).
+ *
+ * Same three rails every moment in this game runs on — the reaching
+ * answer, the measured one, the safe one — with its own words, because
+ * nothing here is selected from a shared string. What differs is the
+ * stake: this one moves a poll rather than a performance review, and it
+ * is the only place in a campaign where a bad night costs you.
+ */
+export type DebateChoice = 'attack' | 'policy' | 'personal'
+
+export const DEBATE_OPTIONS: readonly {
+  readonly id: DebateChoice
+  readonly title: string
+  readonly tag: string
+}[] = [
+  { id: 'attack', title: 'Hit back on their record', tag: 'attack' },
+  { id: 'policy', title: 'Pivot to what you would do', tag: 'policy' },
+  { id: 'personal', title: 'Get personal and real', tag: 'a gamble' },
+]
+
+export const DEBATE_LINES: readonly string[] = [
+  'They hit you on crime, live on local television. Six hundred people are watching and your answer sets tomorrow’s headline.',
+  'The moderator asks about the tax rise, and your opponent is smiling before you have finished the sentence.',
+  'Somebody in the audience asks what you have ever actually done for this town, and the room goes quiet.',
+]
+
+/**
+ * How the night went, and what it moved.
+ *
+ * The reaching answer is the one that can fail, as everywhere else. An
+ * attack lands hardest and rebounds hardest; a policy answer is nearly
+ * always worth a little; getting personal is the gamble the tag says it
+ * is — the biggest swing in either direction.
+ */
+export function debate(
+  world: World,
+  personId: EntityId,
+  officeId: string,
+  choice: DebateChoice,
+  tick: Tick,
+): { good: boolean; swing: number } {
+  const election = world.elections.get(officeId)
+  if (election === undefined) return { good: false, swing: 0 }
+  const person = world.people.get(personId)
+  const rng = openStream(world.seed, Stream.Politics, personId * 3 + 7, tick + 9_900)
+
+  // A candidate who has done the reading is harder to catch out.
+  const composure = Math.floor(
+    ((person?.traits.resilience ?? 500) + (world.education.get(personId)?.attainment ?? 500)) / 2,
+  )
+  const odds =
+    choice === 'attack' ? 420 + composure / 6 : choice === 'policy' ? 700 : 380 + composure / 4
+  const good = rng.chance(Math.max(80, Math.min(940, Math.floor(odds))), 1000)
+  const size =
+    choice === 'policy' ? rng.nextIntInclusive(6, 18) : rng.nextIntInclusive(14, 42)
+  const swing = good ? size : -size
+
+  const undecided = Math.max(
+    0,
+    1000 - election.runners.reduce((sum, r) => sum + r.polling, 0),
+  )
+  let owed = swing > 0 ? Math.max(0, swing - undecided) : 0
+  const runners = election.runners.map((r) => {
+    if (r.personId === personId) return { ...r, polling: Math.max(20, r.polling + swing) }
+    if (swing < 0) {
+      // A bad night hands the room to somebody, and it is the leader.
+      return r.personId === election.runners[0]?.personId ? { ...r, polling: r.polling - swing } : r
+    }
+    if (owed <= 0) return r
+    const take = Math.min(owed, Math.max(0, r.polling - 40))
+    owed -= take
+    return { ...r, polling: r.polling - take }
+  })
+  world.elections.set(officeId, { ...election, runners })
+  recordEvent(world, tick, {
+    type: 'debated',
+    subjectId: personId,
+    detail: `${choice}:${good ? 'well' : 'badly'}`,
+  })
+  return { good, swing }
+}
+
+/** The player's own place on a ballot, for the screen. */
+export function myCandidacy(
+  world: World,
+  personId: EntityId,
+): { election: Election; polling: number } | undefined {
+  for (const election of world.elections.values()) {
+    const mine = election.runners.find((r) => r.personId === personId)
+    if (mine !== undefined) return { election, polling: mine.polling }
+  }
+  return undefined
+}
+
+/**
  * Why this ballot cannot be marked, or null. The bar pattern: the screen
  * greys the button from the same answer the verb refuses with.
  */
@@ -372,6 +623,7 @@ export function runGovernment(world: World, tick: Tick): void {
   }
   applyPartyLean(world)
 }
+
 
 /** Who holds a seat right now, for the screen. */
 export function holderOf(world: World, officeId: string): Officeholder | undefined {

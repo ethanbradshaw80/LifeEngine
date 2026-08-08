@@ -473,8 +473,15 @@ export {
   OFFICES,
   PARTIES,
   SEATED_OFFICES,
+  DEBATE_LINES,
+  DEBATE_OPTIONS,
+  campaign,
+  candidacyBar,
   castVote,
+  debate,
+  declareCandidacy,
   eligibleFor,
+  myCandidacy,
   freshPolicy,
   heldOffices,
   holderOf,
@@ -484,7 +491,15 @@ export {
   voteBar,
 } from './government.js'
 export type { Election, Office, Officeholder, Party, PolicyState } from './types.js'
-export { dropOutPlayer, buySharesPlayer, sellSharesPlayer, votePlayer } from './player.js'
+export type { CampaignAction, DebateChoice } from './government.js'
+export {
+  buySharesPlayer,
+  campaignPlayer,
+  dropOutPlayer,
+  sellSharesPlayer,
+  standPlayer,
+  votePlayer,
+} from './player.js'
 export type { Major } from './content.js'
 export {
   SCHOOL_CHOICES,

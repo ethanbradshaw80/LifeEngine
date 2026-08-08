@@ -33,6 +33,8 @@ import {
   sellHomePlayer,
   dropOutPlayer,
   votePlayer,
+  standPlayer,
+  campaignPlayer,
   setHabit,
   startBusiness,
   divestPlayer,
@@ -120,6 +122,8 @@ export type VerbRequest =
   | { readonly verb: 'sell-home' }
   | { readonly verb: 'drop-out' }
   | { readonly verb: 'vote'; readonly officeId: string; readonly forPersonId: number }
+  | { readonly verb: 'stand'; readonly officeId: string }
+  | { readonly verb: 'campaign'; readonly officeId: string; readonly action: 'fundraise' | 'rally' | 'advertise' }
   | { readonly verb: 'sell-property'; readonly propertyId: string }
   | { readonly verb: 'start-business'; readonly kindId: string }
 
@@ -461,6 +465,16 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'sell-property': {
             const r = sellHomePlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'stand': {
+            const r = standPlayer(world, a.officeId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'campaign': {
+            const r = campaignPlayer(world, a.officeId, a.action)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

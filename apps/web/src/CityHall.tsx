@@ -29,9 +29,12 @@ import {
 } from '@life-engine/engine'
 import { formatMoney } from '@life-engine/shared'
 import type { Person, World } from '@life-engine/engine'
+import type { Money } from '@life-engine/shared'
 import {
   SEATED_OFFICES,
+  candidacyBar,
   holderOf,
+  myCandidacy,
   officeById,
   openBallots,
   partyById,
@@ -52,6 +55,130 @@ const COMING: readonly { readonly icon: string; readonly name: string; readonly 
   { icon: '🏷️', name: 'Property & Deeds', detail: 'Who owns what, and who owned it before.' },
   { icon: '🏛️', name: 'Business Registry', detail: 'Every business licensed in the county.' },
 ]
+
+/**
+ * YOUR CAMPAIGN, built to the owner's `government.html`.
+ *
+ * The polls with you, your opponents and THE UNDECIDED — that last share
+ * is the most honest thing on the screen and the thing a campaign is
+ * actually fighting over. A war chest, and the three things a candidate
+ * does with a week.
+ *
+ * The bar reuses the analyst-consensus component: same shape, three
+ * spans summing to a hundred, so no new colours and no new CSS.
+ */
+function CampaignView({
+  world,
+  person,
+  busy,
+  onAct,
+}: {
+  readonly world: World
+  readonly person: Person
+  readonly busy: boolean
+  readonly onAct: (action: VerbRequest) => void
+}): JSX.Element | null {
+  const mine = myCandidacy(world, person.id)
+  if (mine === undefined) return null
+  const { election, polling } = mine
+  const office = officeById(election.officeId)
+  const party = partyById(
+    election.runners.find((r) => r.personId === person.id)?.partyId ?? '',
+  )
+  const chest = election.warChest ?? 0
+  const months = Math.max(0, election.decidesAtTick - world.tick)
+  const undecided = Math.max(
+    0,
+    1000 - election.runners.reduce((sum, r) => sum + r.polling, 0),
+  )
+  const others = election.runners.filter((r) => r.personId !== person.id)
+
+  return (
+    <section className="hall-card">
+      <div className="school-k">Your campaign · {party?.name ?? 'independent'}</div>
+      <div className="school-name">Running for {office?.title ?? election.officeId}</div>
+      <p className="muted small">
+        The polls · {months === 0 ? 'decided this month' : `${String(months)} month${months === 1 ? '' : 's'} out`}
+      </p>
+
+      <div className="stock-cons" aria-hidden="true">
+        <i style={{ width: `${String(polling / 10)}%`, background: 'var(--accent)' }} />
+        {others.map((r) => (
+          <i
+            key={r.personId}
+            style={{ width: `${String(r.polling / 10)}%`, background: 'var(--bad)' }}
+          />
+        ))}
+        <i style={{ width: `${String(undecided / 10)}%`, background: 'var(--muted)' }} />
+      </div>
+
+      <div className="school-row">
+        <span className="l">You</span>
+        <span className="v good">{(polling / 10).toFixed(0)}%</span>
+      </div>
+      {others.map((r) => {
+        const who = world.people.get(r.personId)
+        return (
+          <div className="school-row" key={r.personId}>
+            <span className="l">
+              {who === undefined ? 'an opponent' : `${who.givenName} ${who.familyName}`}
+            </span>
+            <span className="v">{(r.polling / 10).toFixed(0)}%</span>
+          </div>
+        )
+      })}
+      <div className="school-row">
+        <span className="l">Undecided</span>
+        <span className="v warn">{(undecided / 10).toFixed(0)}%</span>
+      </div>
+
+      <div className="school-row">
+        <span className="l">War chest</span>
+        <span className="v tabular">{formatMoney(chest as Money)}</span>
+      </div>
+
+      <h3 style={{ marginTop: '0.8rem' }}>This week</h3>
+      <div className="school-acts">
+        <button
+          type="button"
+          className="school-act"
+          disabled={busy}
+          onClick={() =>
+            onAct({ verb: 'campaign', officeId: election.officeId, action: 'fundraise' })
+          }
+        >
+          <span className="ic">💵</span>
+          Fundraise
+        </button>
+        <button
+          type="button"
+          className="school-act"
+          disabled={busy}
+          onClick={() => onAct({ verb: 'campaign', officeId: election.officeId, action: 'rally' })}
+        >
+          <span className="ic">📣</span>
+          Rally
+        </button>
+        <button
+          type="button"
+          className="school-act"
+          disabled={busy || chest < 40_000}
+          title={chest < 40_000 ? 'Not enough in the chest to buy anything worth having.' : undefined}
+          onClick={() =>
+            onAct({ verb: 'campaign', officeId: election.officeId, action: 'advertise' })
+          }
+        >
+          <span className="ic">📺</span>
+          Ad buy
+        </button>
+      </div>
+      <p className="note small">
+        A campaign wins over the people who have not made their minds up. Once those are gone it
+        starts taking votes off somebody else, which is harder.
+      </p>
+    </section>
+  )
+}
 
 /**
  * THE BALLOT, built to the owner's `government.html`.
@@ -139,17 +266,43 @@ function BallotView({
         )
       })}
 
-      <section className="hall-card">
-        {/* HONEST ABOUT WHAT IS NOT BUILT, the same way this file's
-            coming-soon counters are. Standing for office is phase 3 of the
-            plan and ballot measures are not modelled at all; a button that
-            did nothing would be worse than an admission. */}
-        <h3>Standing yourself</h3>
-        <p className="muted small">
-          Running for office is not open yet. When it is, the ladder starts at the School Board
-          and the City Council — the Mayor wants one of those behind you first.
-        </p>
-      </section>
+      <CampaignView world={world} person={person} busy={busy} onAct={onAct} />
+
+      {myCandidacy(world, person.id) === undefined && (
+        <section className="hall-card">
+          <h3>Standing yourself</h3>
+          {races.length === 0 ? (
+            <p className="muted small">
+              Nothing is up for election. Seats come open as terms end, and the ladder starts at
+              the School Board and the City Council.
+            </p>
+          ) : (
+            races.map((race) => {
+              const bar = candidacyBar(world, person.id, race.officeId, world.tick)
+              const office = officeById(race.officeId)
+              return (
+                <div className="school-row" key={`stand-${race.officeId}`}>
+                  <span className="l">{office?.title ?? race.officeId}</span>
+                  {bar === null ? (
+                    <button
+                      type="button"
+                      className="voteb"
+                      disabled={busy}
+                      onClick={() => onAct({ verb: 'stand', officeId: race.officeId })}
+                    >
+                      Stand
+                    </button>
+                  ) : (
+                    <span className="v warn" title={bar}>
+                      {bar}
+                    </span>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </section>
+      )}
     </>
   )
 }

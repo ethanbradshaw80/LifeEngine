@@ -1144,6 +1144,14 @@ export interface Election {
   }[]
   /** Who the player marked, if they have. */
   readonly playerVote?: EntityId
+  /**
+   * WHAT THE PLAYER HAS RAISED, in cents, if they are standing.
+   *
+   * The mockup puts a war chest on the campaign screen and three things
+   * to do with a week, so money is the resource a campaign actually
+   * spends — raised by asking, spent on reach.
+   */
+  readonly warChest?: Money
 }
 
 /** Who holds a seat, and until when. */
@@ -1891,6 +1899,8 @@ export type PendingKind =
   | 'sell-home'
   | 'drop-out'
   | 'vote'
+  | 'stand'
+  | 'campaign'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -1916,6 +1926,7 @@ export type PendingKind =
   | 'promotion-offer'
   | 'work-moment'
   | 'graduate'
+  | 'debate'
   | 'school-choice'
   | 'major'
   | 'school-moment'
@@ -2100,6 +2111,8 @@ export type EventType =
   | 'recycled-in-training'
   | 'work-moment'
   | 'left-course'
+  | 'stood-for-office'
+  | 'debated'
   | 'took-office'
   | 'voted'
   | 'company-news'

@@ -368,6 +368,18 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
             : 'university'
       return `${year} — Left ${words} without finishing. The fees still stand.`
     }
+    case 'stood-for-office': {
+      const office = officeById(event.detail ?? '')
+      return office === undefined
+        ? `${year} — Stood for office.`
+        : `${year} — Stood for ${office.title}.`
+    }
+    case 'debated': {
+      const [, how] = (event.detail ?? ':').split(':')
+      return how === 'badly'
+        ? `${year} — A debate that did not go well.`
+        : `${year} — Won the room at a debate.`
+    }
     case 'took-office': {
       const office = officeById(event.detail ?? '')
       return office === undefined

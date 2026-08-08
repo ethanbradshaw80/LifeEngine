@@ -13,8 +13,13 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
+import type { Person, World } from '../src/types.js'
 import {
   CAMPAIGN_MONTHS,
+  campaign,
+  candidacyBar,
+  declareCandidacy,
+  myCandidacy,
   OFFICES,
   PARTIES,
   SEATED_OFFICES,
@@ -150,6 +155,100 @@ describe('the ballot', () => {
     // And not twice.
     expect(voteBar(own, adult.id, officeId, own.tick)).toContain('already voted')
     expect(castVote(own, adult.id, officeId, runner.personId, own.tick)).toBe(false)
+  })
+})
+
+describe('standing for office', () => {
+  /** An open local race, and somebody who could stand in it. */
+  function aRace(): { world: World; officeId: string; runner: Person } | undefined {
+    const own = createWorld(makeSeed(909), 300)
+    for (let i = 0; i < 20 * 12; i++) {
+      advanceTicks(own, 1)
+      const officeId = [...own.elections.keys()].find(
+        (id) => id === 'council' || id === 'school-board',
+      )
+      if (officeId === undefined) continue
+      const runner = livingPeople(own).find((p) => {
+        const age = ageAt(p.birthTick, own.tick)
+        return age >= 25 && age < 60
+      })
+      if (runner === undefined) continue
+      return { world: own, officeId, runner }
+    }
+    return undefined
+  }
+
+  it('puts a newcomer at the bottom of the poll', () => {
+    // Nobody has heard of them. Climbing out of that IS the campaign,
+    // which is the point of there being one.
+    const found = aRace()
+    expect(found).toBeDefined()
+    if (found === undefined) return
+    const { world: own, officeId, runner } = found
+    expect(candidacyBar(own, runner.id, officeId, own.tick)).toBeNull()
+    expect(declareCandidacy(own, runner.id, officeId, own.tick)).toBe(true)
+    const mine = myCandidacy(own, runner.id)
+    expect(mine).toBeDefined()
+    const best = Math.max(...(mine?.election.runners.map((r) => r.polling) ?? [0]))
+    expect(mine?.polling ?? 0).toBeLessThanOrEqual(best)
+  })
+
+  it('turns money into reach, and refuses when there is none', () => {
+    // Only advertising costs anything, which is what makes the war chest
+    // mean something. MEASURED: two fundraisers built $3,435 and took
+    // polling from 75 to 115 with an ad buy and a rally.
+    const found = aRace()
+    if (found === undefined) return
+    const { world: own, officeId, runner } = found
+    declareCandidacy(own, runner.id, officeId, own.tick)
+
+    // Broke: the refusal is honest rather than a free rally in disguise.
+    expect(campaign(own, runner.id, officeId, 'advertise', own.tick)).toBe(false)
+
+    expect(campaign(own, runner.id, officeId, 'fundraise', own.tick)).toBe(true)
+    expect(campaign(own, runner.id, officeId, 'fundraise', own.tick)).toBe(true)
+    const chest = myCandidacy(own, runner.id)?.election.warChest ?? 0
+    expect(chest).toBeGreaterThan(0)
+
+    const before = myCandidacy(own, runner.id)?.polling ?? 0
+    expect(campaign(own, runner.id, officeId, 'advertise', own.tick)).toBe(true)
+    expect(myCandidacy(own, runner.id)?.polling ?? 0).toBeGreaterThan(before)
+    // And it cost something.
+    expect(myCandidacy(own, runner.id)?.election.warChest ?? 0).toBeLessThan(chest)
+  })
+
+  it('wins over the undecided before it takes anybody else’s votes', () => {
+    // A campaign that took points straight off an opponent would be a tug
+    // of war. A real one wins over the people who have not made up their
+    // minds, and only then starts overtaking somebody.
+    const found = aRace()
+    if (found === undefined) return
+    const { world: own, officeId, runner } = found
+    declareCandidacy(own, runner.id, officeId, own.tick)
+    const opponentsBefore = (myCandidacy(own, runner.id)?.election.runners ?? [])
+      .filter((r) => r.personId !== runner.id)
+      .reduce((sum, r) => sum + r.polling, 0)
+
+    campaign(own, runner.id, officeId, 'rally', own.tick)
+    const opponentsAfter = (myCandidacy(own, runner.id)?.election.runners ?? [])
+      .filter((r) => r.personId !== runner.id)
+      .reduce((sum, r) => sum + r.polling, 0)
+    // A single rally is smaller than the undecided share, so nobody lost a
+    // vote for it.
+    expect(opponentsAfter).toBe(opponentsBefore)
+  })
+
+  it('tells a would-be candidate what is in the way', () => {
+    // The bar pattern: the Mayor's office wants a Councillor or School
+    // Board member behind you, and says so rather than greying out.
+    const found = aRace()
+    if (found === undefined) return
+    const { world: own } = found
+    const child = livingPeople(own).find((p) => ageAt(p.birthTick, own.tick) < 18)
+    if (child === undefined) return
+    const bar = candidacyBar(own, child.id, found.officeId, own.tick)
+    expect(bar).not.toBeNull()
+    expect(bar).toContain('to stand for')
   })
 })
 
