@@ -293,8 +293,9 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
 
 const SCHOOLING_WORDS: Record<EducationLevel, string> = {
   none: 'no schooling needed',
-  primary: 'primary schooling',
-  secondary: 'secondary schooling',
+  primary: 'elementary schooling',
+  middle: 'middle schooling',
+  secondary: 'a high school diploma',
   trade: 'trade school',
   college: 'college',
 }
@@ -303,8 +304,9 @@ const SCHOOLING_WORDS: Record<EducationLevel, string> = {
 // requirement — "secondary school", not "secondary schooling" (P3).
 const LEVEL_WORDS: Record<EducationLevel, string> = {
   none: 'no schooling',
-  primary: 'primary school',
-  secondary: 'secondary school',
+  primary: 'elementary school',
+  middle: 'middle school',
+  secondary: 'high school',
   trade: 'trade school',
   college: 'college',
 }

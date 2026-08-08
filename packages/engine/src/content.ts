@@ -1651,9 +1651,13 @@ export function isFelony(grade: OffenceGrade): boolean {
 const EDUCATION_RANK: Readonly<Record<EducationLevel, number>> = {
   none: 0,
   primary: 1,
-  secondary: 2,
-  trade: 3,
-  college: 4,
+  // Middle school sits between elementary and the diploma. Everything that
+  // gates on `secondary` keeps its meaning because the comparison is by
+  // RANK, not by number — see the note on EducationLevel.
+  middle: 2,
+  secondary: 3,
+  trade: 4,
+  college: 5,
 }
 
 export function educationRank(level: EducationLevel): number {

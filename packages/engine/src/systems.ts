@@ -79,8 +79,12 @@ import { placesOfKind } from './worldgen.js'
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
 
 const SCHOOL_START_AGE = 6
-const PRIMARY_YEARS = 6
-const SECONDARY_YEARS = 6
+// ELEMENTARY, MIDDLE, HIGH — five, three and four years, which lands the
+// diploma at eighteen exactly as before. The age-18 fork is the hinge of a
+// whole life in this game and moving it was never on the table.
+const PRIMARY_YEARS = 5
+const MIDDLE_YEARS = 3
+const SECONDARY_YEARS = 4
 export const TRADE_YEARS = 2
 // Exported for the education stakes text (P1) — prose must not drift.
 export const COLLEGE_YEARS = 4
@@ -159,6 +163,8 @@ function yearsFor(level: EducationLevel): number {
   switch (level) {
     case 'primary':
       return PRIMARY_YEARS
+    case 'middle':
+      return MIDDLE_YEARS
     case 'secondary':
       return SECONDARY_YEARS
     case 'trade':
@@ -175,6 +181,8 @@ function nextLevel(current: EducationLevel): EducationLevel | null {
     case 'none':
       return 'primary'
     case 'primary':
+      return 'middle'
+    case 'middle':
       return 'secondary'
     case 'secondary':
       return null // trade or college is a choice, handled below
@@ -219,8 +227,13 @@ export function runEducation(world: World, tick: Tick): void {
     // school stay at the level they reached.
     const automatic = nextLevel(record.level)
     if (automatic !== null && age >= SCHOOL_START_AGE) {
+      // Somebody who missed school does not start it at thirty. Each rung
+      // has its own ceiling, and middle school needed one of its own or an
+      // adult in a migrated save would enrol in it at twenty-five.
       const tooOld =
-        (automatic === 'primary' && age > 12) || (automatic === 'secondary' && age > 19)
+        (automatic === 'primary' && age > 12) ||
+        (automatic === 'middle' && age > 15) ||
+        (automatic === 'secondary' && age > 19)
       if (!tooOld) {
         enrol(world, tick, person, automatic, rng)
         continue

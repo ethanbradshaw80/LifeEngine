@@ -1004,7 +1004,26 @@ export interface HealthRecord {
 // Education
 // ---------------------------------------------------------------------------
 
-export type EducationLevel = 'none' | 'primary' | 'secondary' | 'trade' | 'college'
+/**
+ * THE FULL SCHOOL LADDER (owner's `education_module_master.md` §0.5).
+ *
+ * Childhood should be "a lived stage, not a blur you skip to age 18", so
+ * middle school exists between elementary and high school rather than the
+ * two of them covering twelve years in one jump.
+ *
+ * `secondary` still means THE DIPLOMA and every occupation that requires it
+ * keeps its exact meaning — `meetsRequirement` compares ranks, so inserting
+ * a rung shifts the numbers without shifting what any of them mean. The one
+ * thing that could have broken was code comparing a rank to a LITERAL, and
+ * there were three of those; they ask `isHigherEducation` by name now.
+ */
+export type EducationLevel =
+  | 'none'
+  | 'primary'
+  | 'middle'
+  | 'secondary'
+  | 'trade'
+  | 'college'
 
 export interface EducationRecord {
   readonly personId: EntityId
