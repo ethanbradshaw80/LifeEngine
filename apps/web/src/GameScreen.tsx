@@ -2230,7 +2230,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             // `enlistmentBar` already answers for both cases — it names
             // the RE code when the papers refuse — so the wall explains
             // itself without this having to know why.
-            if (!record || record.dischargedAtTick !== null) {
+            /**
+             * A DISCHARGE IS NOT AN ERASURE (owner, playing: "when you get
+             * out the army the service tab doesn't show your stats or
+             * anything afterwards, just the enlist screen").
+             *
+             * This returned the recruiting station for anybody not
+             * currently serving — so the day a career ended, the branch,
+             * the rank held, the years, the specialty, every deployment,
+             * every award and the discharge itself all vanished from the
+             * screen, replaced by an invitation to start again. Twenty
+             * years of a life, gone the month it finished.
+             *
+             * Somebody who NEVER served gets the station alone, because
+             * there is nothing else to show them. A veteran gets the
+             * station AND their record, because both are true: the door is
+             * open to them (the RE-code work made coming back real) and
+             * what they already did still happened.
+             */
+            if (!record) {
               // M-ENLIST §7. The wall, not a bare refusal — see
               // RecruitingStation.tsx for why one button was not enough.
               return (
@@ -2243,6 +2261,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 />
               )
             }
+            const discharged = record.dischargedAtTick !== null
             const tours = deploymentsOf(world, person.id)
             // The one that is still open, if any — a tour you are ON is a
             // different screen from a list of tours you have done.
@@ -2250,6 +2269,18 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const unlocks = veteranUnlocks(world, person.id)
             return (
               <>
+                {/* The door first for a veteran — it is the one thing on
+                    this screen they might act on — and their record under
+                    it, which is the thing they came to read. */}
+                {discharged && serviceTab === 'career' && (
+                  <RecruitingStationView
+                    world={world}
+                    personId={person.id}
+                    bar={enlistmentBar(world, person, world.tick)}
+                    busy={busy}
+                    onEnlist={onRequestEnlist}
+                  />
+                )}
                 {serviceTab === 'career' && (
                 <dl className="facts">
                   <dt>Branch</dt>

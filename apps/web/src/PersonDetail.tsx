@@ -13,6 +13,10 @@ import {
   formatYear,
   fullName,
   householdCosts,
+  isServing,
+  rankTitle,
+  specialtyFor,
+  specialtyTitleFor,
   householdIncome,
   annualPay,
   netWorthOf,
@@ -114,9 +118,43 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
         {alive && !job && (
           <>
             <dt>Work</dt>
-            <dd className="muted">
-              {education?.enrolledIn ? `studying (${education.enrolledIn})` : 'not working'}
-            </dd>
+            {(() => {
+              /**
+               * THE UNIFORM IS THE WORK (owner, playing: "when I click on
+               * another person if they're in the military it says 'no work'
+               * or something").
+               *
+               * A serving person holds NO employment record by design — the
+               * service system owns their working life, not the civilian
+               * jobs map. So reading that map and reporting what it does not
+               * contain told the player that every soldier in town was
+               * idle.
+               *
+               * This is the third screen to make the same mistake: the
+               * Working filter listed only civilians until it was fixed,
+               * and the main status line called a soldier on probation "no
+               * work". Same wrong assumption, three places — the map is not
+               * the authority on whether somebody works.
+               */
+              const service = world.service.get(person.id)
+              if (service && isServing(world, person.id)) {
+                return (
+                  <dd>
+                    {rankTitle(world, service.branch, service.rank, service.commissioned === true)} ·{' '}
+                    {specialtyTitleFor(
+                      specialtyFor(world, service.specialtyId),
+                      service.commissioned === true,
+                    )}{' '}
+                    · {formatMoney(annualPay(service.monthlyPay))} a year
+                  </dd>
+                )
+              }
+              return (
+                <dd className="muted">
+                  {education?.enrolledIn ? `studying (${education.enrolledIn})` : 'not working'}
+                </dd>
+              )
+            })()}
           </>
         )}
         {education && education.level !== 'none' && (

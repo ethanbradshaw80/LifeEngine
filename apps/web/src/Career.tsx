@@ -34,7 +34,12 @@ import {
   valuationOf,
   jobBar,
   nextRungOf,
+  branchName,
+  isServing,
   occupationById,
+  rankTitle,
+  specialtyFor,
+  specialtyTitleFor,
   placeOf,
   promotionBar,
   standingWords,
@@ -97,20 +102,44 @@ export function Career({
   const business = [...world.businesses.values()].find(
     (entry) => entry.ownerId === person.id && entry.closedTick === null,
   )
+  // WHETHER THEY ARE SERVING, which is the thing the civilian jobs map
+  // cannot answer.
+  const record = world.service.get(person.id)
+  const serving = record !== undefined && isServing(world, person.id) ? record : undefined
   const businessKind = business === undefined ? undefined : businessKindById(business.kindId)
 
   return (
     <div className="career">
       <div className="career-head">
         <div className="k">Career</div>
+        {/* THE UNIFORM IS THE WORK (owner, playing, about the person
+            panel: "if they're in the military it says 'no work'").
+
+            The same wrong assumption lives here, on the player's OWN
+            career screen: a serving person holds no employment record
+            because the service system owns their working life, so this
+            read the civilian jobs map, found nothing, and told a soldier
+            they were not working and had no employer. */}
         <div className="career-title">
-          {job === undefined ? 'Not working' : occupationById(job.occupationId).title}
+          {job !== undefined
+            ? occupationById(job.occupationId).title
+            : serving !== undefined
+              ? specialtyTitleFor(
+                  specialtyFor(world, serving.specialtyId),
+                  serving.commissioned === true,
+                )
+              : 'Not working'}
         </div>
         <div className="career-emp">
-          {job === undefined
-            ? 'No employer'
-            : `${workplace?.name ?? 'somewhere in town'}${track === undefined ? '' : ` · ${track.title}`}`}
+          {job !== undefined
+            ? `${workplace?.name ?? 'somewhere in town'}${track === undefined ? '' : ` · ${track.title}`}`
+            : serving !== undefined
+              ? `${branchName(world, serving.branch)} · ${rankTitle(world, serving.branch, serving.rank, serving.commissioned === true)}`
+              : 'No employer'}
         </div>
+        {job === undefined && serving !== undefined && (
+          <div className="career-pay">{formatMoney(annualPay(serving.monthlyPay))} / yr</div>
+        )}
         {job !== undefined && (
           <div className="career-pay">
             {formatMoney(annualPay(job.monthlyPay))} / yr{' '}
@@ -125,7 +154,15 @@ export function Career({
       <div className="career-body">
         {tab === 'over' && (
           <>
-            {job === undefined ? (
+            {job === undefined && serving !== undefined ? (
+              <section className="career-card">
+                <h4>In uniform</h4>
+                <p className="career-note">
+                  Your working life is the service. The Service tab carries the record — rank,
+                  time in grade, schools and deployments.
+                </p>
+              </section>
+            ) : job === undefined ? (
               <section className="career-card">
                 <h4>No work</h4>
                 <p className="career-note">
