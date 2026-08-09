@@ -715,8 +715,17 @@ export {
   trainingRisk,
   tryoutBar,
   veteranWageFor,
+  SPORT_RULES,
+  rulesFor,
+  runDraftFor,
+  runSigning,
+  runFight,
+  applyFight,
+  recordWords,
+  standingWordsFor,
+  signedWageFor,
 } from './sports.js'
-export type { AthleteLevel, Offer, Position, SeasonLine, SportId, TrainingFocus } from './sports.js'
+export type { AthleteLevel, Offer, Position, SeasonLine, SportId, SportRules, TrainingFocus, FightResult, SigningResult } from './sports.js'
 export type { AthleteRecord, OfferRecord, SeasonLineRecord } from './types.js'
 export {
   athleteOf,
@@ -726,4 +735,5 @@ export {
   acceptOfferPlayer,
   declareForDraftPlayer,
   retirePlayer,
+  takeFightPlayer,
 } from './player.js'

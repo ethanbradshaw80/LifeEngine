@@ -792,6 +792,21 @@ export interface AthleteRecord {
   readonly lastSeason?: SeasonLineRecord
   /** College offers standing right now, if any. */
   readonly offers?: readonly OfferRecord[]
+  /**
+   * COMBAT ONLY, and the spec is blunt about why it exists: "your record
+   * is your identity". A fighter is not a rating to anybody who matters —
+   * they are 14-3 with nine finishes, and that string is what gets them
+   * signed, ranked and given a title shot.
+   */
+  readonly wins?: number
+  readonly losses?: number
+  readonly finishes?: number
+  /** 1-15 once ranked, 0 unranked. Champion is its own flag. */
+  readonly ranking?: number
+  readonly champion?: boolean
+  readonly titleDefences?: number
+  /** Soccer only: 1 is the top flight, higher is further down. */
+  readonly tier?: number
 }
 
 export interface SeasonLineRecord {
@@ -2104,6 +2119,7 @@ export type PendingKind =
   | 'take-offer'
   | 'declare-draft'
   | 'retire-sport'
+  | 'take-fight'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2322,6 +2338,9 @@ export type EventType =
   | 'debated'
   | 'paid-down-loan'
   | 'delisted'
+  | 'signed-pro'
+  | 'fought'
+  | 'won-title'
   | 'made-team'
   | 'missed-squad'
   | 'signed-letter'

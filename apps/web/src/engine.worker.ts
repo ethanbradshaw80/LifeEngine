@@ -35,6 +35,7 @@ import {
   acceptOfferPlayer,
   declareForDraftPlayer,
   retirePlayer,
+  takeFightPlayer,
   buyChipsPlayer,
   cashOutPlayer,
   playTablePlayer,
@@ -154,6 +155,7 @@ export type VerbRequest =
   | { readonly verb: 'take-offer'; readonly offerId: string }
   | { readonly verb: 'declare-draft' }
   | { readonly verb: 'retire-sport' }
+  | { readonly verb: 'take-fight' }
   | { readonly verb: 'take-public' }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
@@ -566,6 +568,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'declare-draft': {
             const r = declareForDraftPlayer(world)
             outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'take-fight': {
+            const r = takeFightPlayer(world)
+            outcome = { ok: r.done, reason: r.done ? r.words : r.reason }
             break
           }
           case 'retire-sport': {

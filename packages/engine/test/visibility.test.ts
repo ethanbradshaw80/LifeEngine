@@ -87,6 +87,10 @@ const DELIBERATELY_SILENT = new Set([
   'played-poker',
   'bought-chips',
   'cashed-out',
+  // A fight is a real event and it is in the ledger; a life story made of
+  // forty "beat an opponent" lines is not a life story. Winning the title
+  // and signing professional terms DO reach it.
+  'fought',
 ])
 
 /** Every member of the EventType union, read from its own declaration. */

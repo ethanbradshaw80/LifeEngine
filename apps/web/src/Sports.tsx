@@ -18,8 +18,11 @@ import type { ReactElement } from 'react'
 import { formatMoney } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
 import {
-  DRAFT_AGE,
   SKILL_TITLES,
+  SPORT_RULES,
+  recordWords,
+  rulesFor,
+  standingWordsFor,
   athleteOf,
   overallOf,
   positionById,
@@ -50,24 +53,36 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
             It starts at school, and most people who try out are cut. Pick a position — what you
             train and what a scout reads depend on it.
           </p>
-          <div className="sp-positions">
-            {positionsFor('basketball').map((position) => (
-              <button
-                key={position.id}
-                type="button"
-                className="apply"
-                disabled={busy || age < 12 || age > 18}
-                onClick={() =>
-                  onAct({ verb: 'try-out', sport: 'basketball', positionId: position.id })
-                }
-              >
-                {position.short} · {position.title}
-              </button>
-            ))}
-          </div>
+          {SPORT_RULES.map((rules) => (
+            <div key={rules.sport} className="sp-sport">
+              <div className="sp-sport-hd">
+                <span className="nm">{rules.title}</span>
+                <span className="sub">
+                  {rules.draftPicks === 0
+                    ? rules.proRoute
+                    : `${String(rules.draftRounds)} rounds · turns pro at ${String(rules.proAge)}`}
+                </span>
+              </div>
+              <div className="sp-positions">
+                {positionsFor(rules.sport).map((position) => (
+                  <button
+                    key={position.id}
+                    type="button"
+                    className="apply"
+                    disabled={busy || age < 12 || age > 18}
+                    onClick={() =>
+                      onAct({ verb: 'try-out', sport: rules.sport, positionId: position.id })
+                    }
+                  >
+                    {position.short}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
           {(age < 12 || age > 18) && (
             <div className="reason">
-              🔒 {age < 12 ? 'Too young for the school team yet.' : 'That road starts at school, and school is behind you.'}
+              🔒 {age < 12 ? 'Too young for any of this yet.' : 'That road starts young, and it is behind you.'}
             </div>
           )}
         </section>
@@ -100,8 +115,8 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
           </div>
         </div>
         <div className="rate">
-          <div className="n">{overall}</div>
-          <div className="k">Overall</div>
+          <div className="n">{record.sport === 'combat' ? recordWords(record) : overall}</div>
+          <div className="k">{record.sport === 'combat' ? standingWordsFor(record) : 'Overall'}</div>
         </div>
       </section>
 
@@ -246,21 +261,62 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
             </section>
           )}
 
-          {record.level === 'college' && (
+          {/* A FIGHTER'S CAREER IS FIGHTS, not seasons — which is why combat
+              gets its own verb rather than riding the season simulation. */}
+          {record.sport === 'combat' && record.level !== 'pro' && (
             <section className="sp-card">
-              <h4>The draft</h4>
+              <h4>Turning professional</h4>
               <p className="muted small">
-                The league takes nobody under {DRAFT_AGE}, and a year removed from school. Sixty
-                names are called. Most people who declare do not hear theirs, and the developmental
-                road is still there for those who do not.
+                A promotion signs a RECORD, not a rating. You can be the most gifted fighter in the
+                region and go unsigned with four wins.
               </p>
               <button
                 type="button"
                 className="apply"
-                disabled={busy || age < DRAFT_AGE}
+                disabled={busy || age < rulesFor(record.sport).proAge}
                 onClick={() => onAct({ verb: 'declare-draft' })}
               >
-                Declare for the draft
+                See if anybody signs you
+              </button>
+            </section>
+          )}
+
+          {record.sport === 'combat' && (
+            <section className="sp-card">
+              <h4>The next fight</h4>
+              <p className="muted small">
+                {record.champion === true
+                  ? 'You hold the belt. Everybody in the division is training for you.'
+                  : (record.ranking ?? 0) > 0
+                    ? 'Ranked. Wins move you up the list; the number one contender gets the shot.'
+                    : 'Unranked. Build the record — four wins gets you looked at.'}
+              </p>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'take-fight' })}
+              >
+                🥊 Take a fight
+              </button>
+            </section>
+          )}
+
+          {record.level === 'college' && record.sport !== 'combat' && (
+            <section className="sp-card">
+              <h4>{rulesFor(record.sport).draftPicks === 0 ? 'Signing professional' : 'The draft'}</h4>
+              <p className="muted small">
+                {rulesFor(record.sport).draftPicks === 0
+                  ? 'There is no draft in this sport. A club signs you or it does not, and most of every academy intake is released.'
+                  : `Nobody under ${String(rulesFor(record.sport).proAge)}. ${String(rulesFor(record.sport).draftPicks)} names are called across ${String(rulesFor(record.sport).draftRounds)} rounds, and most people who declare do not hear theirs.`}
+              </p>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy || age < rulesFor(record.sport).proAge}
+                onClick={() => onAct({ verb: 'declare-draft' })}
+              >
+                {rulesFor(record.sport).draftPicks === 0 ? 'Ask for a contract' : 'Declare for the draft'}
               </button>
             </section>
           )}

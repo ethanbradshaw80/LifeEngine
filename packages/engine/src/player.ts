@@ -54,7 +54,6 @@ import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, st
 import { nudgeWellbeing } from './wellbeing.js'
 import { disciplineOf, smartsOf } from './stats.js'
 import {
-  DRAFT_AGE,
   ceilingFor,
   freshAthlete,
   makesSquad,
@@ -63,7 +62,12 @@ import {
   potentialFor,
   rested,
   rookieWageFor,
-  runDraft,
+  applyFight,
+  runDraftFor,
+  runFight,
+  runSigning,
+  rulesFor,
+  signedWageFor,
   startingStats,
   train,
   tryoutBar,
@@ -1368,6 +1372,10 @@ export function tryOutPlayer(
   if (position === undefined || position.sport !== sport) {
     return { done: false, reason: 'They do not field that position.' }
   }
+  // COMBAT DOES NOT HAVE A SCHOOL TEAM. You walk into a gym, and there is
+  // no squad to be cut from — which is why the tryout gate does not apply
+  // and a fighter starts on the amateur road instead.
+  const combat = sport === 'combat'
 
   const rng = openStream(world.seed, Stream.Sports, person.id * 3, world.tick)
   const stats = startingStats(
@@ -1384,7 +1392,7 @@ export function tryOutPlayer(
   const trial = freshAthlete(person.id, sport as never, positionId, stats, potential)
 
   logVerb(world, 'try-out', `${sport}:${positionId}`)
-  if (!makesSquad(overallOf(trial), 'school', rng.nextIntInclusive(-10, 10))) {
+  if (!combat && !makesSquad(overallOf(trial), 'school', rng.nextIntInclusive(-10, 10))) {
     recordEvent(world, world.tick, {
       type: 'missed-squad',
       subjectId: person.id,
@@ -1393,7 +1401,10 @@ export function tryOutPlayer(
     return { done: false, reason: 'You were cut. Plenty of people are, and you can try again next year.' }
   }
 
-  world.athletes.set(person.id, trial)
+  world.athletes.set(
+    person.id,
+    combat ? { ...trial, level: 'college', wins: 0, losses: 0, finishes: 0, ranking: 0 } : trial,
+  )
   recordEvent(world, world.tick, {
     type: 'made-team',
     subjectId: person.id,
@@ -1540,16 +1551,46 @@ export function declareForDraftPlayer(world: World): { done: boolean; reason: st
   }
   if (record.level === 'pro') return { done: false, reason: 'You are already a professional.' }
   const age = ageAt(person.birthTick, world.tick)
-  if (age < DRAFT_AGE) {
+  const rules = rulesFor(record.sport)
+  if (age < rules.proAge) {
     return {
       done: false,
-      reason: `The league takes nobody under ${String(DRAFT_AGE)}, and a year removed from school. You are ${String(age)}.`,
+      reason:
+        rules.draftPicks === 0
+          ? `Nobody signs anybody at ${String(age)} in this sport. ${String(rules.proAge)} is the door.`
+          : `The league takes nobody under ${String(rules.proAge)}${rules.proAge >= 21 ? ', three years removed from school' : ', and a year removed from school'}. You are ${String(age)}.`,
     }
   }
 
   const rng = openStream(world.seed, Stream.Sports, person.id * 7, world.tick + 1_700)
   const production = Math.min(99, Math.floor(record.careerPoints / Math.max(1, record.careerGames)) * 3)
-  const result = runDraft(overallOf(record), production, rng.nextIntInclusive(-6, 6))
+
+  // NO DRAFT IN THIS SPORT — soccer and combat. A club or a promotion
+  // signs you, or nobody does, and that is a genuinely different thing
+  // from hearing your name on a night when sixty are called.
+  if (rules.draftPicks === 0) {
+    const evidence =
+      record.sport === 'combat' ? (record.wins ?? 0) * 9 - (record.losses ?? 0) * 6 : production
+    const signing = runSigning(record.sport, overallOf(record), Math.max(0, evidence), rng.nextIntInclusive(-6, 6))
+    logVerb(world, 'declare-draft', record.sport)
+    if (!signing.signed) return { done: false, reason: signing.words }
+    world.athletes.set(person.id, {
+      ...record,
+      level: 'pro',
+      teamName: signing.clubName,
+      tier: signing.tier,
+      wage: signedWageFor(record.sport, signing.tier, overallOf(record)),
+      turnedProAtTick: world.tick,
+    })
+    recordEvent(world, world.tick, {
+      type: 'signed-pro',
+      subjectId: person.id,
+      detail: `${signing.clubName}:${String(signing.tier)}`,
+    })
+    return { done: true, reason: signing.words }
+  }
+
+  const result = runDraftFor(rules, overallOf(record), production, rng.nextIntInclusive(-6, 6))
 
   logVerb(world, 'declare-draft', String(record.seasons))
   if (result.pick === null) {
@@ -1581,6 +1622,63 @@ export function declareForDraftPlayer(world: World): { done: boolean; reason: st
     streamId: Stream.Sports,
   })
   return { done: true, reason: result.words }
+}
+
+/**
+ * TAKE A FIGHT (spec §"Combat sports").
+ *
+ * A fighter's career is a series of these rather than a season, which is
+ * why combat gets its own verb instead of riding the season simulation. A
+ * record is built one night at a time and it is the thing everybody in the
+ * sport reads.
+ *
+ * The purse is real money and finances moves it, as always.
+ */
+export function takeFightPlayer(world: World): { done: boolean; reason: string; words: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) {
+    return { done: false, reason: 'Nobody is being played.', words: '' }
+  }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.sport !== 'combat' || record.level === 'done') {
+    return { done: false, reason: 'You are not a fighter.', words: '' }
+  }
+  if (isCaptive(world, person.id)) {
+    return { done: false, reason: 'Held prisoner. None of this is yours to ask for.', words: '' }
+  }
+  const health = world.health.get(person.id)
+  if (health !== undefined && health.ailment !== null && health.severity >= 400) {
+    return { done: false, reason: 'No commission licences somebody in this condition.', words: '' }
+  }
+
+  const fights = (record.wins ?? 0) + (record.losses ?? 0)
+  const result = runFight(world, world.tick, person.id, record, fights)
+  logVerb(world, 'take-fight', String(fights))
+
+  const after = applyFight(record, result)
+  world.athletes.set(person.id, {
+    ...after,
+    fatigue: Math.min(1_000, record.fatigue + 160),
+  })
+  creditPerson(world, person.id, atTodaysPrices(world, result.purse) as Money)
+  recordEvent(world, world.tick, {
+    type: 'fought',
+    subjectId: person.id,
+    detail: `${result.opponent}:${result.won ? 'W' : 'L'}${result.finish ? 'F' : ''}`,
+  })
+  if (after.champion === true && record.champion !== true) {
+    recordEvent(world, world.tick, { type: 'won-title', subjectId: person.id, detail: record.teamName })
+    recordDecision(world, world.tick, {
+      subjectId: person.id,
+      decision: 'employment-change',
+      significance: 'defining',
+      inputs: [factor('own-choice', 1000), factor('qualified-for-role', overallOf(record) * 10)],
+      chosen: 'won the title',
+      rejected: ['stayed a contender'],
+      streamId: Stream.Sports,
+    })
+  }
+  return { done: true, reason: '', words: result.words }
 }
 
 /** Hang them up. Always available — nobody is trapped in a career here. */
@@ -3992,6 +4090,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'take-offer':
     case 'declare-draft':
     case 'retire-sport':
+    case 'take-fight':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -5352,6 +5451,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Declared for the draft.' // log-only
     case 'retire-sport':
       return 'Hung them up.' // log-only
+    case 'take-fight':
+      return 'Took a fight.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':

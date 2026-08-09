@@ -72,6 +72,201 @@ export interface Position {
   readonly basePerMille: number
 }
 
+// --- Football (American). Appendix A, and the highest injury rate of the
+// four, which is a real fact about the sport rather than flavour. -------
+const FOOTBALL_POSITIONS: readonly Position[] = [
+  {
+    id: 'qb',
+    sport: 'football',
+    title: 'Quarterback',
+    short: 'QB',
+    skills: ['accuracy', 'armStrength', 'reading', 'poise'],
+    weights: [340, 240, 260, 160],
+    basePerMille: 220,
+  },
+  {
+    id: 'rb',
+    sport: 'football',
+    title: 'Running Back',
+    short: 'RB',
+    skills: ['vision', 'ballSecurity', 'receiving', 'accuracy'],
+    weights: [400, 280, 220, 100],
+    basePerMille: 460,
+  },
+  {
+    id: 'wr',
+    sport: 'football',
+    title: 'Wide Receiver',
+    short: 'WR',
+    skills: ['hands', 'routeRunning', 'leaping', 'receiving'],
+    weights: [320, 300, 190, 190],
+    basePerMille: 440,
+  },
+  {
+    id: 'ol',
+    sport: 'football',
+    title: 'Offensive Line',
+    short: 'OL',
+    skills: ['runBlock', 'passBlock', 'awareness', 'ballSecurity'],
+    weights: [340, 360, 220, 80],
+    basePerMille: 400,
+  },
+  {
+    id: 'dl',
+    sport: 'football',
+    title: 'Defensive Line',
+    short: 'DL',
+    skills: ['passRush', 'runStop', 'motor', 'awareness'],
+    weights: [350, 300, 230, 120],
+    basePerMille: 430,
+  },
+  {
+    id: 'lb',
+    sport: 'football',
+    title: 'Linebacker',
+    short: 'LB',
+    skills: ['tackling', 'coverage', 'recognition', 'motor'],
+    weights: [320, 260, 280, 140],
+    basePerMille: 400,
+  },
+  {
+    id: 'cb',
+    sport: 'football',
+    title: 'Cornerback',
+    short: 'CB',
+    skills: ['coverage', 'ballSkills', 'recognition', 'tackling'],
+    weights: [400, 260, 210, 130],
+    basePerMille: 460,
+  },
+  {
+    id: 's',
+    sport: 'football',
+    title: 'Safety',
+    short: 'S',
+    skills: ['range', 'coverage', 'tackling', 'recognition'],
+    weights: [300, 280, 220, 200],
+    basePerMille: 420,
+  },
+]
+
+// --- Soccer. Appendix A. No draft anywhere in it. ----------------------
+const SOCCER_POSITIONS: readonly Position[] = [
+  {
+    id: 'gk',
+    sport: 'soccer',
+    title: 'Goalkeeper',
+    short: 'GK',
+    skills: ['reflexes', 'handling2', 'positioning', 'distribution'],
+    weights: [340, 280, 260, 120],
+    basePerMille: 240,
+  },
+  {
+    id: 'cb-soc',
+    sport: 'soccer',
+    title: 'Centre-back',
+    short: 'CB',
+    skills: ['tackling', 'marking', 'heading', 'positioning'],
+    weights: [300, 280, 230, 190],
+    basePerMille: 380,
+  },
+  {
+    id: 'fb',
+    sport: 'soccer',
+    title: 'Full-back',
+    short: 'FB',
+    skills: ['crossing', 'tackling', 'workRate', 'marking'],
+    weights: [300, 280, 250, 170],
+    basePerMille: 460,
+  },
+  {
+    id: 'cm',
+    sport: 'soccer',
+    title: 'Central Midfielder',
+    short: 'CM',
+    skills: ['passing', 'vision', 'workRate', 'dribbling'],
+    weights: [340, 290, 210, 160],
+    basePerMille: 320,
+  },
+  {
+    id: 'cam',
+    sport: 'soccer',
+    title: 'Attacking Midfielder',
+    short: 'CAM',
+    skills: ['vision', 'passing', 'dribbling', 'shooting'],
+    weights: [300, 250, 240, 210],
+    basePerMille: 300,
+  },
+  {
+    id: 'wing',
+    sport: 'soccer',
+    title: 'Winger',
+    short: 'W',
+    skills: ['dribbling', 'crossing', 'finishing', 'workRate'],
+    weights: [340, 260, 250, 150],
+    basePerMille: 460,
+  },
+  {
+    id: 'st',
+    sport: 'soccer',
+    title: 'Striker',
+    short: 'ST',
+    skills: ['finishing', 'positioning', 'heading', 'dribbling'],
+    weights: [420, 250, 180, 150],
+    basePerMille: 380,
+  },
+]
+
+// --- Combat. WEIGHT CLASSES INSTEAD OF POSITIONS, which is why the shape
+// works at all: a division is a bracket you fit into rather than a job on
+// a team, and everybody in it trains the same six things. ---------------
+const COMBAT_POSITIONS: readonly Position[] = [
+  {
+    id: 'flyweight',
+    sport: 'combat',
+    title: 'Flyweight',
+    short: 'FLY',
+    skills: ['striking', 'grappling', 'cardio', 'chin', 'fightIq'],
+    weights: [260, 240, 240, 120, 140],
+    basePerMille: 340,
+  },
+  {
+    id: 'lightweight',
+    sport: 'combat',
+    title: 'Lightweight',
+    short: 'LW',
+    skills: ['striking', 'grappling', 'cardio', 'chin', 'fightIq'],
+    weights: [280, 250, 210, 130, 130],
+    basePerMille: 340,
+  },
+  {
+    id: 'welterweight',
+    sport: 'combat',
+    title: 'Welterweight',
+    short: 'WW',
+    skills: ['striking', 'grappling', 'power', 'chin', 'fightIq'],
+    weights: [280, 240, 200, 150, 130],
+    basePerMille: 340,
+  },
+  {
+    id: 'middleweight',
+    sport: 'combat',
+    title: 'Middleweight',
+    short: 'MW',
+    skills: ['striking', 'power', 'grappling', 'chin', 'fightIq'],
+    weights: [270, 250, 210, 150, 120],
+    basePerMille: 350,
+  },
+  {
+    id: 'heavyweight',
+    sport: 'combat',
+    title: 'Heavyweight',
+    short: 'HW',
+    skills: ['power', 'striking', 'chin', 'grappling', 'fightIq'],
+    weights: [330, 250, 180, 140, 100],
+    basePerMille: 380,
+  },
+]
+
 export const POSITIONS: readonly Position[] = [
   {
     id: 'pg',
@@ -118,7 +313,11 @@ export const POSITIONS: readonly Position[] = [
     weights: [300, 270, 240, 190],
     basePerMille: 380,
   },
+  ...FOOTBALL_POSITIONS,
+  ...SOCCER_POSITIONS,
+  ...COMBAT_POSITIONS,
 ]
+
 
 export function positionById(id: string): Position | undefined {
   return POSITIONS.find((position) => position.id === id)
@@ -145,6 +344,46 @@ export const SKILL_TITLES: Readonly<Record<string, string>> = {
   stamina: 'Stamina',
   durability: 'Durability',
   sportIq: 'Sport IQ',
+  // Football
+  accuracy: 'Accuracy',
+  armStrength: 'Arm strength',
+  reading: 'Reading defences',
+  poise: 'Pocket poise',
+  vision: 'Vision',
+  ballSecurity: 'Ball security',
+  receiving: 'Receiving',
+  hands: 'Hands',
+  routeRunning: 'Route running',
+  leaping: 'Leaping',
+  runBlock: 'Run blocking',
+  passBlock: 'Pass blocking',
+  awareness: 'Awareness',
+  passRush: 'Pass rush',
+  runStop: 'Run stopping',
+  motor: 'Motor',
+  tackling: 'Tackling',
+  coverage: 'Coverage',
+  recognition: 'Recognition',
+  ballSkills: 'Ball skills',
+  range: 'Range',
+  // Soccer
+  reflexes: 'Reflexes',
+  handling2: 'Handling',
+  positioning: 'Positioning',
+  distribution: 'Distribution',
+  marking: 'Marking',
+  heading: 'Heading',
+  crossing: 'Crossing',
+  workRate: 'Work rate',
+  passing2: 'Passing',
+  dribbling: 'Dribbling',
+  // Combat
+  striking: 'Striking',
+  grappling: 'Grappling',
+  cardio: 'Cardio',
+  chin: 'Chin',
+  power: 'Power',
+  fightIq: 'Fight IQ',
 }
 
 // ---------------------------------------------------------------------------
@@ -798,6 +1037,38 @@ export function runSports(world: World, tick: Tick): readonly SportingYear[] {
     next = ageStats(next, age)
 
     const rng = openStream(world.seed, Stream.Sports, personId * 19 + record.seasons, tick + 3_300)
+
+    // WHAT THE SEASON COST THE BODY, and this is where football differs
+    // from basketball in the way that actually matters. The spec calls out
+    // "highest injury attrition of the four" for a reason: at 210 per
+    // mille against basketball's 70, a football career is three times as
+    // likely to be ended by a hit as by a decline. Same pipeline, same
+    // code, one number — and a completely different life.
+    const rules = rulesFor(record.sport)
+    if (rng.chance(rules.injuryPerMille, 1_000)) {
+      const durability = next.stats['durability'] ?? 50
+      // A CAREER-ENDER, or a year that takes something off you for good.
+      // Durability is what stands between the two.
+      const ending = rng.chance(Math.max(60, 420 - durability * 3), 1_000)
+      if (ending) {
+        world.athletes.set(personId, {
+          ...next,
+          level: 'done',
+          wage: 0 as Money,
+          endedBecause: 'a career-ending injury',
+        })
+        out.push({
+          personId,
+          words: 'The injury ended it. Not a decline and not a decision — one play, and that was the career.',
+          line,
+        })
+        continue
+      }
+      const hurt: Record<string, number> = { ...next.stats }
+      for (const id of BASE_STATS) hurt[id] = Math.max(0, (hurt[id] ?? 0) - 3)
+      next = { ...next, stats: hurt }
+    }
+
     const production = Math.floor(line.points * 3)
     const step = stepPipeline(next, age, rng.nextIntInclusive(-12, 12), production)
 
@@ -828,4 +1099,406 @@ export function sportsWageOf(world: World, personId: EntityId): Money {
 /** Is this person's whole living the game? Used by the jobs screens. */
 export function isProAthlete(world: World, personId: EntityId): boolean {
   return world.athletes.get(personId)?.level === 'pro'
+}
+
+// ---------------------------------------------------------------------------
+// WHAT EACH SPORT ACTUALLY DOES DIFFERENTLY (spec §"The four sports")
+// ---------------------------------------------------------------------------
+
+/**
+ * THE RULES THAT ARE NOT SHARED.
+ *
+ * Everything above this line is one framework. This is the small set of
+ * facts where the sports genuinely diverge — and they are RULES rather
+ * than trademarks, which is why they can be the real ones (charter §3, and
+ * the spec says so in as many words).
+ *
+ * The differences are not decoration:
+ *
+ *   BASKETBALL takes you at nineteen, a year out of school, in two rounds.
+ *   FOOTBALL will not look at you until THREE YEARS removed from high
+ *     school, and then takes seven rounds of you — far more picks, so
+ *     being drafted means much less, and undrafted players get camp
+ *     invitations rather than nothing.
+ *   SOCCER HAS NO DRAFT AT ALL. You join an academy young, and you are
+ *     signed or you are not. Nobody calls your name.
+ *   COMBAT has no team and no draft either: you build an amateur record,
+ *     turn professional, and a promotion signs you off the back of it.
+ */
+export interface SportRules {
+  readonly sport: SportId
+  readonly title: string
+  /** The youngest a professional path opens. */
+  readonly proAge: number
+  /** Zero when the sport has no draft — soccer and combat. */
+  readonly draftPicks: number
+  readonly draftRounds: number
+  /** Per-mille chance a season does real damage. Football leads, by a lot. */
+  readonly injuryPerMille: number
+  /** What the road is called on screen when there is no draft. */
+  readonly proRoute: string
+}
+
+export const SPORT_RULES: readonly SportRules[] = [
+  {
+    sport: 'basketball',
+    title: 'Basketball',
+    proAge: 19,
+    draftPicks: 60,
+    draftRounds: 2,
+    injuryPerMille: 70,
+    proRoute: 'the draft',
+  },
+  {
+    sport: 'football',
+    title: 'Football',
+    // THREE YEARS REMOVED FROM HIGH SCHOOL, which is the real rule and
+    // the reason a football player cannot leave college early the way a
+    // basketball player can.
+    proAge: 21,
+    draftPicks: 257,
+    draftRounds: 7,
+    // THE HIGHEST ATTRITION OF THE FOUR, and the spec calls it out
+    // specifically. It is the single most consequential difference
+    // between these two otherwise near-identical pipelines.
+    injuryPerMille: 210,
+    proRoute: 'the draft',
+  },
+  {
+    sport: 'soccer',
+    title: 'Soccer',
+    // AN ACADEMY TAKES YOU YOUNG. There is no waiting for a draft class,
+    // because there is no draft: a club signs you or it does not.
+    proAge: 17,
+    draftPicks: 0,
+    draftRounds: 0,
+    injuryPerMille: 110,
+    proRoute: 'a first-team contract',
+  },
+  {
+    sport: 'combat',
+    title: 'Combat sports',
+    proAge: 18,
+    draftPicks: 0,
+    draftRounds: 0,
+    injuryPerMille: 160,
+    proRoute: 'a promotion signing you',
+  },
+]
+
+export function rulesFor(sport: string): SportRules {
+  return (
+    SPORT_RULES.find((rules) => rules.sport === sport) ??
+    SPORT_RULES[0] ?? {
+      sport: 'basketball',
+      title: 'Basketball',
+      proAge: 19,
+      draftPicks: 60,
+      draftRounds: 2,
+      injuryPerMille: 70,
+      proRoute: 'the draft',
+    }
+  )
+}
+
+/**
+ * A DRAFT WITH THE RIGHT NUMBER OF PICKS IN IT.
+ *
+ * The generic version of `runDraft`, which was basketball's alone. Seven
+ * rounds of two hundred and fifty-seven changes what being drafted MEANS:
+ * far more names are called, so the bar to hear one is lower and a late
+ * pick guarantees nothing at all. That is exactly how the two sports
+ * differ in life, and it falls out of one number.
+ */
+export function runDraftFor(
+  rules: SportRules,
+  overall: number,
+  production: number,
+  roll: number,
+): DraftResult {
+  if (rules.draftPicks === 0) {
+    return { pick: null, round: null, teamName: '', words: 'This sport has no draft.' }
+  }
+  const stock = Math.floor((overall * 3 + Math.min(99, production)) / 4) + roll
+  // A bigger draft reaches further down. Basketball's sixty names start at
+  // 82; football's two hundred and fifty-seven start well below that.
+  const bar = rules.draftPicks >= 200 ? 70 : 82
+  if (stock < bar) {
+    return {
+      pick: null,
+      round: null,
+      teamName: '',
+      words:
+        rules.draftPicks >= 200
+          ? 'Undrafted. There are camp invitations for players like you, and most of them end in a cut.'
+          : 'Sixty names, and none of them yours. It is what happens to nearly everybody.',
+    }
+  }
+  const span = Math.max(1, 99 - bar)
+  const pick = Math.max(
+    1,
+    Math.min(rules.draftPicks, rules.draftPicks - Math.floor(((stock - bar) * rules.draftPicks) / span)),
+  )
+  const perRound = Math.max(1, Math.floor(rules.draftPicks / rules.draftRounds))
+  const round = Math.max(1, Math.min(rules.draftRounds, Math.ceil(pick / perRound)))
+  return {
+    pick,
+    round,
+    teamName: teamNameFor(pick),
+    words:
+      round === 1
+        ? 'First round. Guaranteed money and a real chance.'
+        : round <= 3
+          ? 'A middle-round pick. A roster spot to win, not a gift.'
+          : 'Late. You have to make the team out of camp, and plenty do not.',
+  }
+}
+
+/**
+ * SIGNED, RATHER THAN DRAFTED — soccer and combat (spec §"The four
+ * sports": "no draft — you're scouted, signed, and developed").
+ *
+ * The difference from a draft is not cosmetic. A draft is one night with a
+ * fixed number of names; a signing is a judgement a club or a promotion
+ * makes about you whenever they like, and there is no round to be taken
+ * in. What replaces the pick number is simply whether anybody wanted you.
+ */
+export interface SigningResult {
+  readonly signed: boolean
+  readonly clubName: string
+  /** 1 is the top flight. Higher numbers are further down the pyramid. */
+  readonly tier: number
+  readonly words: string
+}
+
+const CLUB_NAMES: readonly string[] = [
+  'Haverlock Athletic',
+  'Ashcombe Rovers',
+  'Brackenwell United',
+  'Coastal City',
+  'Fairmount Wanderers',
+  'Northgate Town',
+]
+
+const PROMOTIONS: readonly string[] = ['Apex Fighting', 'Ironclad Combat', 'Vanguard MMA']
+
+export function runSigning(
+  sport: string,
+  overall: number,
+  record: number,
+  roll: number,
+): SigningResult {
+  const standing = Math.floor((overall * 3 + Math.min(99, record)) / 4) + roll
+
+  if (sport === 'combat') {
+    // A PROMOTION SIGNS A RECORD, not a rating. You can be the most gifted
+    // fighter in the region and go unsigned with four wins, which is the
+    // honest shape of that sport.
+    if (standing < 74) {
+      return {
+        signed: false,
+        clubName: '',
+        tier: 0,
+        words: 'Nobody called. You keep fighting regionals and building the record.',
+      }
+    }
+    return {
+      signed: true,
+      clubName: PROMOTIONS[Math.abs(standing) % PROMOTIONS.length] ?? 'Apex Fighting',
+      tier: 1,
+      words: 'A major promotion signed you. Now the rankings start.',
+    }
+  }
+
+  // SOCCER'S PYRAMID. There is a level for almost anybody who is good
+  // enough to be a professional at all — and being a professional in the
+  // fourth tier is a real life, which is why this does not simply refuse.
+  if (standing < 58) {
+    return {
+      signed: false,
+      clubName: '',
+      tier: 0,
+      words: 'Released by the academy. Most of every intake is, and most of them were good.',
+    }
+  }
+  const tier = standing >= 86 ? 1 : standing >= 74 ? 2 : 3
+  return {
+    signed: true,
+    clubName: CLUB_NAMES[Math.abs(standing) % CLUB_NAMES.length] ?? 'Haverlock Athletic',
+    tier,
+    words:
+      tier === 1
+        ? 'A first-team contract in the top flight.'
+        : tier === 2
+          ? 'A contract in the second tier. Promotion is the whole season.'
+          : 'A contract further down the pyramid. It is a living and it is professional football.',
+  }
+}
+
+/** What a signed player is paid, by tier. Base-year cents a month. */
+export function signedWageFor(sport: string, tier: number, overall: number): Money {
+  if (tier <= 0) return 0 as Money
+  if (sport === 'combat') {
+    // A PURSE IS NOT A SALARY. Fighters are paid per fight and this is the
+    // monthly equivalent — deliberately modest until somebody is ranked,
+    // because that is what the sport actually pays outside the top.
+    return Math.floor(35_000 + Math.max(0, overall - 60) * 2_400) as Money
+  }
+  const byTier = tier === 1 ? 900_000 : tier === 2 ? 180_000 : 45_000
+  return Math.floor(byTier + Math.max(0, overall - 60) * (tier === 1 ? 26_000 : 3_200)) as Money
+}
+
+// ---------------------------------------------------------------------------
+// COMBAT: the record, the rankings, and the belt (spec §"Combat sports")
+// ---------------------------------------------------------------------------
+
+export interface FightResult {
+  readonly won: boolean
+  readonly finish: boolean
+  /** Cents, base-year. A purse, not a salary. */
+  readonly purse: Money
+  readonly opponent: string
+  readonly words: string
+}
+
+const FIGHTER_NAMES: readonly string[] = [
+  'Diego Reyes',
+  'Kostya Marek',
+  '"The Anvil" Boone',
+  'Tomas Vega',
+  'Rashad Bell',
+  'Juno Ferrar',
+  'Emeka Osei',
+  'Vince Kowalczyk',
+]
+
+/**
+ * ONE FIGHT.
+ *
+ * The opponent is drawn to be roughly your level, which is what a
+ * matchmaker does — and it is why a rising fighter's record is not a
+ * straight line of wins. Climbing means being matched harder, so the
+ * better you get the harder it stays.
+ *
+ * A LOSS IS NOT THE END and never resets anything. A record carries both
+ * numbers because both are true, and 14-3 is a good fighter.
+ */
+export function runFight(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  record: AthleteRecord,
+  fightNumber: number,
+): FightResult {
+  const rng = openStream(world.seed, Stream.Sports, personId * 23 + fightNumber, tick + 5_100)
+  const mine = overallOf(record)
+  const ranked = (record.ranking ?? 0) > 0 || record.champion === true
+
+  // MATCHED TOWARD YOUR LEVEL, NOT AT IT — and the difference is the
+  // whole reason a rating means anything here.
+  //
+  // MEASURED with the opponent drawn straight off the fighter's own level:
+  // a fighter rated 88 and a fighter rated 55 both won 51.5 per cent of
+  // the time, because the edge was identical by construction. Perfect
+  // matchmaking makes skill invisible.
+  //
+  // A division is a finite pool. The best fighter in it cannot be matched
+  // with somebody better, so they face relatively weaker opposition and
+  // win more; somebody near the bottom is matched up and loses more. Being
+  // ranked pulls the matching harder toward you, because nobody feeds a
+  // ranked fighter easy nights.
+  const divisionMean = 62
+  const pull = ranked ? 800 : 620
+  const drawn = divisionMean + Math.floor(((mine - divisionMean) * pull) / 1_000)
+  const opponent = Math.max(20, Math.min(99, drawn + rng.nextIntInclusive(-8, 8)))
+  const edge = mine - opponent
+  // 500 per-mille at level, and skill moves it hard — a ten-point gap is
+  // a heavy favourite, which is true in this sport more than most.
+  const chance = Math.max(120, Math.min(880, 500 + edge * 34))
+  const won = rng.chance(chance, 1_000)
+
+  // Finishes come from power and striking rather than from winning: a
+  // decision win is a win, and a knockout is a different thing.
+  const finishing = Math.floor((statOf(record, 'power') + statOf(record, 'striking')) / 2)
+  const finish = won && rng.chance(Math.max(80, Math.min(650, finishing * 6)), 1_000)
+
+  const base = record.champion === true ? 900_000 : ranked ? 180_000 : 32_000
+  const purse = Math.floor(base * (won ? 1.6 : 1)) as Money
+
+  return {
+    won,
+    finish,
+    purse,
+    opponent: FIGHTER_NAMES[Math.abs(fightNumber * 7 + personId) % FIGHTER_NAMES.length] ?? 'a late replacement',
+    words: won
+      ? finish
+        ? 'You finished him. People will have seen that one.'
+        : 'A decision, and you did enough.'
+      : 'You lost. It is a record, not a story — you carry both numbers.',
+  }
+}
+
+/**
+ * WHAT A FIGHT DOES TO A CAREER.
+ *
+ * THE CLIMB IS THE WHOLE SPORT: an unranked fighter with wins gets ranked,
+ * a ranked one moves up, the top of the division earns a shot, and taking
+ * it makes you champion. Losing costs you ground rather than everything —
+ * which is why a fighter can lose and come back, and they do.
+ */
+export function applyFight(record: AthleteRecord, result: FightResult): AthleteRecord {
+  const wins = (record.wins ?? 0) + (result.won ? 1 : 0)
+  const losses = (record.losses ?? 0) + (result.won ? 0 : 1)
+  const finishes = (record.finishes ?? 0) + (result.finish ? 1 : 0)
+  let ranking = record.ranking ?? 0
+  let champion = record.champion === true
+  let titleDefences = record.titleDefences ?? 0
+
+  if (result.won) {
+    if (champion) {
+      titleDefences += 1
+    } else if (ranking === 1) {
+      // A TITLE SHOT TAKEN. The number one contender beating whoever is in
+      // front of them is how a belt changes hands.
+      champion = true
+      ranking = 0
+    } else if (ranking > 1) {
+      ranking -= 1
+    } else if (wins >= 4) {
+      // Into the rankings at last, at the bottom of them.
+      ranking = 15
+    }
+  } else if (champion) {
+    // THE BELT GOES. You do not keep it by losing, and you re-enter the
+    // division at the top of the contenders rather than at the bottom.
+    champion = false
+    ranking = 2
+    titleDefences = 0
+  } else if (ranking > 0 && ranking < 15) {
+    ranking += 1
+  }
+
+  return { ...record, wins, losses, finishes, ranking, champion, titleDefences }
+}
+
+/** The record, as everybody in the sport actually says it. */
+export function recordWords(record: AthleteRecord): string {
+  const wins = record.wins ?? 0
+  const losses = record.losses ?? 0
+  const finishes = record.finishes ?? 0
+  const base = `${String(wins)}-${String(losses)}`
+  return finishes > 0 ? `${base} (${String(finishes)} by finish)` : base
+}
+
+export function standingWordsFor(record: AthleteRecord): string {
+  if (record.champion === true) {
+    const defences = record.titleDefences ?? 0
+    return defences === 0
+      ? 'Champion'
+      : `Champion · ${String(defences)} defence${defences === 1 ? '' : 's'}`
+  }
+  const ranking = record.ranking ?? 0
+  if (ranking === 1) return 'Number one contender'
+  if (ranking > 0) return `Ranked #${String(ranking)}`
+  return 'Unranked'
 }

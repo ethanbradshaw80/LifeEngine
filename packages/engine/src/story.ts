@@ -383,6 +383,24 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'paid-down-loan': {
       return `${year} \u2014 Paid a lump off the ${event.detail ?? 'debt'}.`
     }
+    case 'signed-pro': {
+      const [club, tier] = (event.detail ?? '').split(':')
+      return tier === '1'
+        ? `${year} — Signed a first-team contract with ${club ?? 'a club'}.`
+        : `${year} — Signed professional terms with ${club ?? 'a club'}.`
+    }
+    case 'fought': {
+      const [opponent, outcome] = (event.detail ?? '').split(':')
+      if (outcome?.startsWith('W') === true) {
+        return outcome.includes('F')
+          ? `${year} — Finished ${opponent ?? 'an opponent'}.`
+          : `${year} — Beat ${opponent ?? 'an opponent'}.`
+      }
+      return `${year} — Lost to ${opponent ?? 'an opponent'}.`
+    }
+    case 'won-title': {
+      return `${year} — Won the title.`
+    }
     case 'made-team': {
       return `${year} — Made the team as a ${(event.detail ?? 'player').toLowerCase()}.`
     }

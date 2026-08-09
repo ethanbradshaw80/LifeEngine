@@ -35,6 +35,14 @@ import {
   train,
   trainingRisk,
   veteranWageFor,
+  positionsFor,
+  rulesFor,
+  runDraftFor,
+  runSigning,
+  runFight,
+  applyFight,
+  recordWords,
+  SPORT_RULES,
 } from '../src/sports.js'
 import type { AthleteRecord } from '../src/types.js'
 
@@ -329,5 +337,150 @@ describe('the draft age is enforced', () => {
   it('nineteen, and a year removed from school', () => {
     expect(DRAFT_AGE).toBe(19)
     expect(positionById('sg')?.sport).toBe('basketball')
+  })
+})
+
+describe('four sports, and they are genuinely different', () => {
+  it('every position in every sport weights to a thousand', () => {
+    for (const position of POSITIONS) {
+      expect(position.weights.reduce((a, b) => a + b, 0), position.id).toBe(1_000)
+      expect(position.weights.length, position.id).toBe(position.skills.length)
+    }
+  })
+
+  it('each sport fields its own positions and nobody else\'s', () => {
+    for (const sport of ['basketball', 'football', 'soccer', 'combat'] as const) {
+      const own = positionsFor(sport)
+      expect(own.length, sport).toBeGreaterThan(3)
+      expect(own.every((position) => position.sport === sport), sport).toBe(true)
+    }
+  })
+
+  /**
+   * THE RULE DIFFERENCES ARE REAL RULES, not labels. Football will not
+   * look at somebody until three years out of school; basketball takes
+   * them at nineteen. That is the actual reason a football player cannot
+   * leave college early and a basketball player can.
+   */
+  it('football makes you wait two more years than basketball', () => {
+    expect(rulesFor('football').proAge).toBe(21)
+    expect(rulesFor('basketball').proAge).toBe(19)
+    expect(rulesFor('football').proAge).toBeGreaterThan(rulesFor('basketball').proAge)
+  })
+
+  it('soccer and combat have no draft at all', () => {
+    expect(rulesFor('soccer').draftPicks).toBe(0)
+    expect(rulesFor('combat').draftPicks).toBe(0)
+    // And asking for one refuses rather than quietly inventing a draft.
+    expect(runDraftFor(rulesFor('soccer'), 95, 95, 0).pick).toBeNull()
+  })
+
+  it('a seven-round draft calls far more names than a two-round one', () => {
+    const called = (sport: 'basketball' | 'football'): number => {
+      let n = 0
+      for (let i = 0; i < 1_000; i += 1) {
+        if (runDraftFor(rulesFor(sport), 55 + (i % 45), 55 + (i % 40), (i % 11) - 5).pick !== null) {
+          n += 1
+        }
+      }
+      return n
+    }
+    // More picks means a lower bar to hear one, which is exactly what
+    // seven rounds of two hundred and fifty-seven means in life.
+    expect(called('football')).toBeGreaterThan(called('basketball'))
+  })
+
+  it('football is by far the most dangerous of them', () => {
+    expect(rulesFor('football').injuryPerMille).toBeGreaterThan(
+      rulesFor('basketball').injuryPerMille * 2,
+    )
+    for (const rules of SPORT_RULES) {
+      expect(rules.injuryPerMille, rules.sport).toBeGreaterThan(0)
+    }
+  })
+
+  it('soccer signs you into a pyramid, and there is a level for most pros', () => {
+    // The top flight wants the best; further down is still a professional
+    // living, which is the point of a pyramid.
+    expect(runSigning('soccer', 92, 90, 0).tier).toBe(1)
+    const mid = runSigning('soccer', 76, 70, 0)
+    expect(mid.signed).toBe(true)
+    expect(mid.tier).toBeGreaterThan(1)
+    // And most of an academy intake is released.
+    expect(runSigning('soccer', 45, 30, 0).signed).toBe(false)
+  })
+
+  it('a promotion signs a record, not a rating', () => {
+    // A gifted fighter with nothing on paper goes unsigned; the record is
+    // what gets read (spec: "your record is your identity").
+    expect(runSigning('combat', 88, 5, 0).signed).toBe(false)
+    expect(runSigning('combat', 88, 90, 0).signed).toBe(true)
+  })
+})
+
+describe('a fighter climbs, and can fall', () => {
+  function fighter(over: number, extra: Partial<AthleteRecord> = {}): AthleteRecord {
+    const stats: Record<string, number> = {
+      striking: over, grappling: over, cardio: over, chin: over, power: over, fightIq: over,
+      speed: over, strength: over, agility: over, stamina: over, durability: over, sportIq: over,
+    }
+    return { ...freshAthlete(2 as never, 'combat', 'lightweight', stats, 95), wins: 0, losses: 0, finishes: 0, ranking: 0, ...extra }
+  }
+
+  it('wins build a record and eventually a ranking', () => {
+    let record = fighter(70)
+    for (let i = 0; i < 5; i += 1) {
+      record = applyFight(record, { won: true, finish: false, purse: 0 as never, opponent: 'x', words: '' })
+    }
+    expect(record.wins).toBe(5)
+    expect(record.ranking).toBeGreaterThan(0)
+  })
+
+  it('the number one contender who wins becomes champion', () => {
+    const contender = fighter(85, { wins: 12, ranking: 1 })
+    const after = applyFight(contender, { won: true, finish: true, purse: 0 as never, opponent: 'x', words: '' })
+    expect(after.champion).toBe(true)
+    expect(after.ranking).toBe(0)
+  })
+
+  it('a champion who loses gives up the belt but stays near the top', () => {
+    const champ = fighter(88, { wins: 15, champion: true, titleDefences: 3 })
+    const after = applyFight(champ, { won: false, finish: false, purse: 0 as never, opponent: 'x', words: '' })
+    expect(after.champion).toBe(false)
+    expect(after.titleDefences).toBe(0)
+    // Not back to the bottom — losing a title does not unmake a fighter.
+    expect(after.ranking).toBe(2)
+    expect(after.losses).toBe(1)
+  })
+
+  it('a loss never wipes the wins — a record carries both numbers', () => {
+    const veteran = fighter(80, { wins: 14, losses: 2, finishes: 9 })
+    const after = applyFight(veteran, { won: false, finish: false, purse: 0 as never, opponent: 'x', words: '' })
+    expect(after.wins).toBe(14)
+    expect(after.losses).toBe(3)
+    expect(recordWords(after)).toContain('14-3')
+  })
+
+  it('a better fighter wins more, and never all of them', () => {
+    const world = createWorld(makeSeed(77))
+    const rate = (over: number): number => {
+      let won = 0
+      const record = fighter(over)
+      for (let i = 0; i < 1_000; i += 1) {
+        if (runFight(world, i as never, 3_000 + i, record, i).won) won += 1
+      }
+      return won / 1_000
+    }
+    // Matchmaking follows you up, so even a great fighter is not safe —
+    // which is why records like 14-3 exist and 40-0 mostly does not.
+    expect(rate(88)).toBeGreaterThan(rate(55))
+    expect(rate(88)).toBeLessThan(0.95)
+  })
+
+  it('a champion earns far more per fight than a prospect', () => {
+    const world = createWorld(makeSeed(77))
+    const prospect = runFight(world, 5 as never, 4_000, fighter(70), 3)
+    const champ = runFight(world, 5 as never, 4_000, fighter(70, { champion: true }), 3)
+    expect(champ.purse).toBeGreaterThan(prospect.purse * 5)
   })
 })
