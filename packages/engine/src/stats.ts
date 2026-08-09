@@ -60,6 +60,36 @@ const FITNESS_FLOOR = 40
  */
 const TRAINING_LIFT = 60
 
+/**
+ * HOW LONG IT TAKES TO BE WORTH THE WHOLE LIFT.
+ *
+ * THE REWORK BOTH SPECS ASKED FOR (casino §3: "put in the work, don't
+ * just toggle it"; sports §"Training is real work": "an ongoing regimen,
+ * not a switch... athleticism is EARNED over time, never toggled on").
+ *
+ * The old model already did the harder half correctly — training moves
+ * the TARGET rather than the number, so nobody is handed fitness and the
+ * body has to walk there. What it did not do was make the target itself
+ * earned: flipping training on granted the full sixty points of ceiling
+ * immediately, and a person who had trained for fifteen years had exactly
+ * the same ceiling as one who started last month. That is a toggle
+ * wearing a trajectory's clothes.
+ *
+ * Three years to the whole of it. A month of running is worth almost
+ * nothing and should be; a decade of it is worth all of it.
+ */
+const TRAINING_RAMP_MONTHS = 36
+
+/**
+ * What a habit is worth right now, per-mille of its full value, given how
+ * long it has been kept. Shared by every habit so none of them can
+ * quietly become a switch again.
+ */
+export function habitMaturity(months: number): number {
+  if (months <= 0) return 0
+  return Math.min(1_000, Math.floor((months * 1_000) / TRAINING_RAMP_MONTHS))
+}
+
 /** What a month of study adds, before curiosity has its say. */
 const STUDY_STEP = 3
 
@@ -71,7 +101,20 @@ const STUDY_STEP = 3
  * silently re-tune it. What is new is that it applies to everybody from
  * twelve, and that a training habit can lift the target above it.
  */
-export function fitnessTargetFor(person: Person, age: number, training = false): number {
+export function fitnessTargetFor(
+  person: Person,
+  age: number,
+  training = false,
+  /**
+   * HOW LONG THEY HAVE KEPT IT UP, in months. Zero is somebody who took
+   * it up this month and gets almost nothing for it yet.
+   *
+   * Defaulted so every existing caller keeps its meaning — a caller that
+   * does not know the months is asking about a habit in the abstract, and
+   * the honest answer there is the mature one.
+   */
+  trainingMonths = TRAINING_RAMP_MONTHS,
+): number {
   if (age < STATS_FROM_AGE) return 0
   const base = Math.floor(person.traits.vitality / 5) + Math.floor(person.traits.resilience / 10)
   // Young bodies are still arriving; the teens ramp in rather than starting
@@ -84,7 +127,12 @@ export function fitnessTargetFor(person: Person, age: number, training = false):
   // where your body is heading, and the drift still has to walk you there
   // over months. Stop, and the target drops back and the body follows it
   // down — which is what a habit decaying actually looks like.
-  if (training) target += TRAINING_LIFT
+  // AND THE LIFT IS EARNED. This is the toggle the rework exists to kill:
+  // the ceiling now arrives over three years rather than the month
+  // somebody decides to want it.
+  if (training) {
+    target += Math.floor((TRAINING_LIFT * habitMaturity(trainingMonths)) / 1_000)
+  }
   return Math.max(FITNESS_FLOOR, Math.min(MAX_FITNESS_POINTS, target))
 }
 
@@ -110,7 +158,18 @@ export function runStats(world: World, tick: Tick): void {
     if (age < STATS_FROM_AGE) continue
 
     runHabits(world, person)
-    const target = fitnessTargetFor(person, age, keepsHabit(world, person.id, 'training'))
+    // THE MONTHS ARE PASSED HERE, and this is the one call site where it
+    // matters — the monthly drift is what actually walks a body toward
+    // its ceiling. Leaving the default in place here would have made the
+    // ramp decorative: every screen would say "earned over three years"
+    // while the simulation handed out the whole lift on day one.
+    const trains = keepsHabit(world, person.id, 'training')
+    const target = fitnessTargetFor(
+      person,
+      age,
+      trains,
+      trains ? habitMonths(world, person.id, 'training', tick) : 0,
+    )
     const current = person.fitness ?? 0
     if (current === 0) {
       // First month at twelve: a body arrives at its own level rather than
@@ -368,7 +427,18 @@ function runHabits(world: World, person: Person): void {
   for (const entry of record.active) {
     if (entry.kind === 'study') {
       // A curious mind gets more from the same hour. Never decays.
-      const gain = STUDY_STEP + Math.floor(person.traits.curiosity / 250)
+      //
+      // AND IT PLATEAUS, which is the other half of the rework. The old
+      // accrual was FLAT: three points a month plus curiosity, for ever,
+      // straight to the cap — so the twentieth year of study taught
+      // exactly as much as the first, which is not true of anything.
+      // Gains now shrink against the room left, so the curve bends and a
+      // long student is genuinely better than a short one without ever
+      // becoming unboundedly so.
+      const held = world.habits.get(person.id)?.studied ?? 0
+      const room = Math.max(0, 1_000 - held)
+      const flat = STUDY_STEP + Math.floor(person.traits.curiosity / 250)
+      const gain = Math.max(1, Math.floor((flat * room) / 1_000))
       world.habits.set(person.id, {
         ...(world.habits.get(person.id) ?? record),
         studied: Math.min(1000, (world.habits.get(person.id)?.studied ?? 0) + gain),

@@ -4812,3 +4812,9 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .contract-sheet.is-letter { border-left: 3px solid var(--accent); }
 .contract-sheet.is-playing { border-left: 3px solid var(--gold); }
 .contract-sheet.is-endorsement { border-left: 3px solid var(--purple); }
+.act-bar {
+  display: block; height: 0.25rem; background: var(--panel-raised);
+  border-radius: 2px; overflow: hidden; margin-top: 0.35rem;
+}
+.act-bar i { display: block; height: 100%; background: var(--ok); }
+.act-note { display: block; font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.4; }

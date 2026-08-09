@@ -21,10 +21,12 @@ import {
   STATS_FROM_AGE,
   takeUpHabit,
   dropHabit,
+  habitMaturity,
 } from '../src/stats.js'
 import { recordEvent } from '../src/records.js'
 import { promotionBar, reviewScoreFor, trackById } from '../src/careers.js'
 import { setHabit, setPlayer } from '../src/player.js'
+import type { Person } from '../src/types.js'
 
 
 /**
@@ -300,5 +302,108 @@ describe('the civilian ladder reads the person, not only the job', () => {
     expect(promotionBar(track, 0, 900, 120, 150)).toContain('conduct')
     // And with no discipline passed at all, the bar behaves as it always did.
     expect(promotionBar(track, 0, 900, 120)).toBeNull()
+  })
+})
+
+/**
+ * THE REWORK BOTH SPECS ASKED FOR (casino §3: "put in the work, don't just
+ * toggle it"; sports §"Training is real work": athleticism "EARNED over
+ * time, never toggled on").
+ *
+ * The module already did the harder half — training moves the TARGET
+ * rather than the number, so nobody is handed fitness and the body has to
+ * walk there over months. What it did not do was make the target itself
+ * earned.
+ */
+describe('a habit is earned, not switched on', () => {
+  function body(): Person {
+    const world = createWorld(makeSeed(9))
+    const person = [...world.people.values()].find((p) => p.deathTick === null)
+    if (person === undefined) throw new Error('no person')
+    return person
+  }
+
+  it('a month of training is worth almost nothing, and should be', () => {
+    const person = body()
+    const untrained = fitnessTargetFor(person, 25, false, 0)
+    const oneMonth = fitnessTargetFor(person, 25, true, 1)
+    // Some credit, but nothing like the whole of it.
+    expect(oneMonth - untrained).toBeLessThan(5)
+  })
+
+  it('years of it are worth all of it', () => {
+    const person = body()
+    const untrained = fitnessTargetFor(person, 25, false, 0)
+    const oneYear = fitnessTargetFor(person, 25, true, 12)
+    const threeYears = fitnessTargetFor(person, 25, true, 36)
+    const tenYears = fitnessTargetFor(person, 25, true, 120)
+    expect(oneYear).toBeGreaterThan(untrained)
+    expect(threeYears).toBeGreaterThan(oneYear)
+    // And it tops out rather than climbing for ever — a ceiling is a
+    // ceiling, and ten years does not beat three by another whole lift.
+    expect(tenYears).toBe(threeYears)
+  })
+
+  it('the ramp is monotonic — no month of keeping it up makes you worse', () => {
+    const person = body()
+    let previous = fitnessTargetFor(person, 25, true, 0)
+    for (let months = 1; months <= 60; months += 1) {
+      const now = fitnessTargetFor(person, 25, true, months)
+      expect(now, `month ${String(months)}`).toBeGreaterThanOrEqual(previous)
+      previous = now
+    }
+  })
+
+  it('maturity is a fraction that reaches one and stops', () => {
+    expect(habitMaturity(0)).toBe(0)
+    expect(habitMaturity(18)).toBeGreaterThan(0)
+    expect(habitMaturity(18)).toBeLessThan(1_000)
+    expect(habitMaturity(36)).toBe(1_000)
+    expect(habitMaturity(3_600)).toBe(1_000)
+  })
+
+  /**
+   * STOPPING STILL UNDOES IT, which was already true and must stay true:
+   * the target drops and the body drifts down to meet it. The ramp
+   * governs how the ceiling is EARNED, not whether it can be lost.
+   */
+  it('giving it up drops the ceiling back', () => {
+    const person = body()
+    const veteran = fitnessTargetFor(person, 25, true, 120)
+    const quit = fitnessTargetFor(person, 25, false, 0)
+    expect(quit).toBeLessThan(veteran)
+  })
+})
+
+describe('study plateaus', () => {
+  /**
+   * The old accrual was FLAT — three points a month plus curiosity, for
+   * ever, straight to the cap. The twentieth year of study taught exactly
+   * as much as the first, which is not true of anything.
+   */
+  it('a long student is better than a short one, and not unboundedly so', () => {
+    const world = createWorld(makeSeed(9), 200)
+    const person = [...world.people.values()].find(
+      (p) => p.deathTick === null && ageAt(p.birthTick, world.tick) >= 20,
+    )
+    expect(person).toBeDefined()
+    if (person === undefined) return
+
+    takeUpHabit(world, world.tick, person.id, 'study')
+    const readings: number[] = []
+    for (let year = 0; year < 30; year += 1) {
+      advanceTicks(world, 12)
+      readings.push(world.habits.get(person.id)?.studied ?? 0)
+      if (person.deathTick !== null) break
+    }
+    expect(readings.length).toBeGreaterThan(4)
+
+    const first = (readings[1] ?? 0) - (readings[0] ?? 0)
+    const later = (readings[readings.length - 1] ?? 0) - (readings[readings.length - 2] ?? 0)
+    // It still goes up — study never decays, which is the difference
+    // between a mind and a body...
+    expect(readings[readings.length - 1] ?? 0).toBeGreaterThan(readings[0] ?? 0)
+    // ...but the curve bends, which is the whole point of the rework.
+    expect(later).toBeLessThan(first)
   })
 })

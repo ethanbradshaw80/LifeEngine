@@ -22,6 +22,7 @@ import type { ReactElement } from 'react'
 import {
   disciplineOf,
   fitnessOf,
+  habitMaturity,
   habitMonths,
   healthStatOf,
   keepsHabit,
@@ -1099,6 +1100,28 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                 ? `Keeping it up — ${String(months)} month${months === 1 ? '' : 's'}. Tap to stop.`
                                 : blurb}
                             </span>
+                            {/* HOW FAR IN THEY ARE, because the ceiling is
+                                EARNED over three years and a screen that
+                                did not say so would make the whole rework
+                                invisible — the player would flip it on,
+                                see nothing move, and conclude it was
+                                broken rather than slow. */}
+                            {kept && kind === 'training' && (
+                              <>
+                                <span className="act-bar">
+                                  <i
+                                    style={{
+                                      width: `${String(Math.floor(habitMaturity(months) / 10))}%`,
+                                    }}
+                                  />
+                                </span>
+                                <span className="act-note">
+                                  {habitMaturity(months) >= 1_000
+                                    ? 'Fully conditioned. This is what the years bought.'
+                                    : 'Still building. A body takes about three years to become what training makes it.'}
+                                </span>
+                              </>
+                            )}
                           </button>
                         )
                       })}

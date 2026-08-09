@@ -604,6 +604,7 @@ export {
 export {
   disciplineOf,
   dropHabit,
+  habitMaturity,
   habitMonths,
   habitsOf,
   keepsHabit,
