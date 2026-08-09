@@ -1930,6 +1930,21 @@ export interface Deployment {
    * that difference survives.
    */
   readonly capturedAtTick: Tick | null
+  /**
+   * THE TOUR'S OWN IDENTITY (combat revamp §1). Optional, because every
+   * deployment written before this existed has none — an old save's tours
+   * keep working and simply have no name.
+   *
+   * "Operation Iron Meridian" — fictional, per the spec's own §1, because
+   * the conflicts are invented and a made-up war fought under a real
+   * operation's name would put words in the mouths of people who were
+   * actually there.
+   */
+  readonly operation?: string
+  /** 0-1000. How hot this tour runs — set by the war, not drawn freely. */
+  readonly tempo?: number
+  /** 0-3. How much war this JOB sees inside that theatre (spec §4b). */
+  readonly tier?: number
 }
 
 // ---------------------------------------------------------------------------

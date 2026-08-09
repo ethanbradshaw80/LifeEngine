@@ -10,6 +10,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
+import { operationNameFor } from '../src/tours.js'
 import { advanceTicks, createWorld, worldHashHex } from '../src/index.js'
 import { GOLDEN_SEED } from './determinism.test.js'
 import { formatYear } from '../src/clock.js'
@@ -317,18 +318,51 @@ describe('the rulings, enforced rather than remembered', () => {
         if (name.endsWith('.ts') || name.endsWith('.tsx')) files.push(path.join(dir, name))
       }
     }
+    // ONE SANCTIONED SOURCE OF THE WORD "OPERATION", and nowhere else.
+    //
+    // The blunt ban on the word was right while the engine had no
+    // operations at all: anything real would start with it. The combat
+    // revamp's §1 asks for tours to carry "a fictional operation name",
+    // so exactly one file may say it — and that file is checked BY
+    // CONSTRUCTION in the test below rather than trusted, because an
+    // exemption nobody verifies is just a hole.
+    const OPERATION_SOURCE = 'tours.ts'
     for (const file of files) {
       const text = await fs.readFile(file, 'utf8')
+      const base = path.basename(file)
       for (const [i, line] of text.split('\n').entries()) {
         const code = line.replace(/^\s*(\*|\/\/).*/, '')
         for (const conflict of realConflicts) {
+          if (conflict === 'Operation ' && base === OPERATION_SOURCE) continue
           if (code.includes(conflict)) {
-            offenders.push(`${path.basename(file)}:${String(i + 1)} — ${conflict}`)
+            offenders.push(`${base}:${String(i + 1)} — ${conflict}`)
           }
         }
       }
     }
     expect(offenders).toEqual([])
+  })
+
+  it('and the one place that names operations cannot name a real one', () => {
+    // THE EXEMPTION ABOVE, EARNED. Every name the generator can produce is
+    // an invented adjective and an invented noun from its own two lists,
+    // so there is no input that yields a real operation. Checked over the
+    // whole reachable space rather than a sample — the space is small
+    // enough to enumerate, which is the point of building it that way.
+    const produced = new Set<string>()
+    for (let i = 0; i < 4_000; i += 1) produced.add(operationNameFor(i))
+    expect(produced.size).toBeGreaterThan(20)
+    const banned = [
+      'Desert Storm', 'Enduring Freedom', 'Iraqi Freedom', 'Overlord', 'Barbarossa',
+      'Rolling Thunder', 'Market Garden', 'Neptune Spear', 'Torch', 'Anaconda',
+      'Just Cause', 'Urgent Fury', 'Restore Hope', 'Provide Comfort', 'Inherent Resolve',
+    ]
+    for (const name of produced) {
+      expect(name.startsWith('Operation ')).toBe(true)
+      for (const real of banned) {
+        expect(name.includes(real), `${name} contains ${real}`).toBe(false)
+      }
+    }
   })
 
   it('keeps every named unit and decoration fictional', () => {
@@ -421,7 +455,7 @@ describe('the rulings, enforced rather than remembered', () => {
  * DETERMINISM.md §8 makes a SIMULATION_VERSION-class decision. Never edit it
  * to make a test pass.
  */
-const HEARTLAND_GOLDEN = 'dd7da490'
+const HEARTLAND_GOLDEN = '93d04661'
 
 describe('the preset is pinned', () => {
   it('reproduces its committed fingerprint', () => {

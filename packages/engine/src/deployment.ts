@@ -63,6 +63,14 @@ import { inflictFieldIllness, inflictWound } from './health.js'
 import { describeAilment, pickFatalInjury } from './wounds.js'
 import { raisePending } from './player.js'
 import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
+import {
+  beatFor,
+  contactShapePerMille,
+  operationNameFor,
+  tempoFor,
+  tierFor,
+} from './tours.js'
+import type { IntensityTier } from './tours.js'
 import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
@@ -506,6 +514,11 @@ export function startRotation(
   rejected: readonly string[],
 ): void {
   const history = world.deployments.get(personId) ?? []
+  const rotationRecord = world.service.get(personId)
+  const rotationSpecialty = world.spec.specialties.find(
+    (sp) => sp.id === rotationRecord?.specialtyId,
+  )
+  const rotationNumber = history.length + 1
   const rotation: Deployment = {
     personId,
     kind: 'rotation',
@@ -516,8 +529,14 @@ export function startRotation(
     startedAtTick: tick,
     endsAtTick: (tick + ROTATION_MONTHS) as Tick,
     returnedAtTick: null,
-    tourNumber: history.length + 1,
+    tourNumber: rotationNumber,
     capturedAtTick: null,
+    operation: operationNameFor(personId * 17 + rotationNumber),
+    // A PEACETIME ROTATION IS QUIET AND IS NOT SAFE. There is no enemy, so
+    // the tempo floor is low — but it is a floor rather than a zero,
+    // because accidents and the occasional incident do not need a war.
+    tempo: 90,
+    tier: tierFor(rotationSpecialty?.combatWeight ?? 300, rotationRecord?.unitId != null),
   }
   world.deployments.set(personId, [...history, rotation])
 
@@ -808,6 +827,23 @@ function startCombatTour(
   rejected: readonly string[],
 ): void {
   const history = world.deployments.get(personId) ?? []
+  // THE TOUR'S OWN SHAPE (combat revamp §1). A tour is a place with a name
+  // and a temperature rather than a duration — the tempo comes from the
+  // WAR's own intensity, so a tour into a war going badly is a different
+  // tour, which is Law 1 rather than flavour.
+  const record = world.service.get(personId)
+  const specialty = world.spec.specialties.find((sp) => sp.id === record?.specialtyId)
+  const tourNumber = history.length + 1
+  // HOW BAD THE WAR ITSELF IS, read off its phase — the same three-step
+  // the casualty model already uses, so the tempo and the losses agree
+  // about what kind of war this is rather than each having an opinion.
+  const warIntensity =
+    war.warPhase === 'opening' || war.warPhase === 'offensive'
+      ? 900
+      : war.warPhase === 'attrition'
+        ? 620
+        : 320
+  const tempo = tempoFor(world, tick, personId, tourNumber, warIntensity)
   const deployment: Deployment = {
     personId,
     kind: 'combat',
@@ -818,8 +854,11 @@ function startCombatTour(
     startedAtTick: tick,
     endsAtTick: (tick + TOUR_MONTHS) as Tick,
     returnedAtTick: null,
-    tourNumber: history.length + 1,
+    tourNumber,
     capturedAtTick: null,
+    operation: operationNameFor(personId * 31 + tourNumber + Number(war.a) * 7),
+    tempo,
+    tier: tierFor(specialty?.combatWeight ?? 300, record?.unitId != null),
   }
   world.deployments.set(personId, [...history, deployment])
 
@@ -1342,8 +1381,35 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // low-exposure, it is unknown, and inventing danger for it invents
     // history (second W1 review).
     if (totalWeight <= 0) continue
-    const contactPerMille = Math.min(600, Math.floor(totalWeight / 2))
-    if (!rng.chance(Math.max(1, contactPerMille), 1_000)) continue
+    // THE MONTH'S ODDS ARE THE TOUR'S NOW (combat revamp §1, §4b): the
+    // job's tier, the theatre's tempo, and WHERE IN THE ARC this month
+    // falls, all together. The old flat halving of the exposure weight
+    // made month four identical to month one and a supply clerk's war the
+    // same shape as an operator's at lower volume.
+    //
+    // The channel weights still decide WHAT finds them; this decides
+    // whether anything does.
+    const beat = beatFor(
+      tick - deployment.startedAtTick,
+      deployment.endsAtTick - deployment.startedAtTick,
+    )
+    //
+    // THE TUNED RATE IS KEPT AND SHAPED, not replaced. The first version
+    // replaced it and broke the foundation §6 bound above: month one went
+    // from about a third to about two thirds, and support volunteers
+    // started dying before their second month.
+    const tuned = Math.min(600, Math.floor(totalWeight / 2))
+    const shaped =
+      deployment.tempo === undefined || deployment.tier === undefined
+        ? tuned
+        : Math.min(
+            900,
+            Math.floor(
+              (tuned * contactShapePerMille(deployment.tier as IntensityTier, deployment.tempo, beat)) /
+                1_000,
+            ),
+          )
+    if (!rng.chance(Math.max(1, shaped), 1_000)) continue
 
     const channel = rng.pickWeighted(
       channels.map((c) => c.id),
