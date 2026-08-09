@@ -67,7 +67,7 @@ export function rollTraits(rng: Rng): Traits {
  * Education the founding generation already has, based on age and curiosity.
  * Nobody arrives mid-course: the founding population's schooling is finished.
  */
-function startingEducation(age: number, curiosity: number, rng: Rng): EducationLevel {
+export function startingEducation(age: number, curiosity: number, rng: Rng): EducationLevel {
   if (age < 6) return 'none'
   if (age < 12) return 'primary'
   if (age < 18) return 'secondary'

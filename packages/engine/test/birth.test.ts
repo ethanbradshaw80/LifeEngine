@@ -125,11 +125,34 @@ describe('a seed is a shareable life', () => {
 })
 
 describe('the defaults do not make the player think', () => {
-  it('the birth era leaves a whole life to play forward', () => {
+  it('YOU ARE BORN AT AGE ZERO, which is the whole point of a birth', () => {
     const world = createWorld(makeSeed(4471), 400)
-    const born = defaultBirthTick(world.tick)
-    expect(born).toBeGreaterThanOrEqual(0)
-    expect(born).toBeLessThanOrEqual(world.tick)
+    // THE BUG THIS PINS, found by playing rather than by testing: this
+    // used to return the world's tick minus twenty-four years, so "Begin
+    // life" dropped the player in as a twenty-four-year-old and the entire
+    // education module was unreachable from the front door.
+    expect(defaultBirthTick(world.tick)).toBe(world.tick)
+  })
+
+  it('and the registered child really is a newborn', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    expect(childId).not.toBeNull()
+    if (childId === null) return
+    const child = world.people.get(childId)
+    expect(child).toBeDefined()
+    if (child === undefined) return
+    // Zero months old. The previous test asserted only that the birth tick
+    // was somewhere between zero and now — true of a newborn AND of a
+    // twenty-four-year-old, which is exactly why it passed while the
+    // feature was broken. An assertion that cannot fail on the bug is not
+    // a test of the bug.
+    const ageMonths = world.tick - child.birthTick
+    expect(ageMonths).toBe(0)
+  })
+
+  it('there is still a whole life ahead to play', () => {
     expect(FULL_LIFE_YEARS).toBeGreaterThan(70)
   })
 
@@ -288,5 +311,66 @@ describe('the family is real, not set dressing', () => {
     expect(child).toBeDefined()
     expect(child?.birthTick).toBe(before)
     expect(world.tick).toBeGreaterThan(before)
+  })
+})
+
+
+describe('a life born at the front door actually gets lived', () => {
+  /**
+   * THE BUG A PLAYER FOUND IN ONE SITTING: "I just started a life and
+   * never went through any school."
+   *
+   * It was TWO bugs stacked, and the first hid the second. The birth tick
+   * was backdated twenty-four years, so you began as an adult; and even
+   * once that was fixed the child had NO EDUCATION RECORD, and
+   * `runEducation` opens with `if (!record) continue` — so the schools
+   * could not see them and never would, for life.
+   */
+  it('goes to school, all the way up the ladder', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    expect(childId).not.toBeNull()
+    if (childId === null) return
+
+    const seen = new Set<string>()
+    for (let year = 0; year < 20; year += 1) {
+      advanceTicks(world, 12)
+      const record = world.education.get(childId)
+      if (record?.enrolledIn != null) seen.add(record.enrolledIn)
+      if (record != null && record.level !== 'none') seen.add(record.level)
+    }
+    // A childhood is primary, then middle, then secondary. If any of these
+    // is missing the front door has quietly skipped part of a life.
+    expect(seen.has('primary'), 'never went to primary').toBe(true)
+    expect(seen.has('middle'), 'never went to middle school').toBe(true)
+    expect(seen.has('secondary'), 'never went to secondary').toBe(true)
+  })
+
+  it('and everybody in the family is visible to the schools', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    if (childId === null) return
+    const child = world.people.get(childId)
+    const home = world.households.get(child?.householdId ?? (0 as never))
+    // A parent with no schooling on file reads as unqualified for every
+    // job in the game, so the record matters for them too.
+    for (const id of home?.memberIds ?? []) {
+      expect(world.education.get(id), `member ${String(id)} has no education record`).toBeDefined()
+    }
+  })
+
+  it('the parents left school and the newborn has not started', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    if (childId === null) return
+    expect(world.education.get(childId)?.level).toBe('none')
+    const child = world.people.get(childId)
+    for (const parentId of child?.parentIds ?? []) {
+      // Adults are not blank slates — worldgen decides what they finished.
+      expect(world.education.get(parentId)).toBeDefined()
+    }
   })
 })

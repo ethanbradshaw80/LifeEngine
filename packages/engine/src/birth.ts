@@ -25,7 +25,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Household, Person, World } from './types.js'
-import { rollTraits } from './worldgen.js'
+import { rollTraits, startingEducation } from './worldgen.js'
 import { freshHealth } from './health.js'
 
 /** What the player actually chooses. Everything else is settled at birth. */
@@ -74,20 +74,31 @@ export interface BirthPlan {
 }
 
 /**
- * WHEN TO BE BORN, when the player has not said (spec §12.1: "the engine
- * auto-picks a birth era that guarantees a FULL LIFE plays forward to
- * death within the simulated timeline — no player has to think about it").
+ * WHEN TO BE BORN: NOW. Age zero, this month.
  *
- * So: far enough back that a whole life fits, and not so far that the
- * childhood happens before the world has any history to be part of.
+ * THIS WAS WRONG AND A PLAYER FOUND IT IN ONE SITTING — "I just started a
+ * life and never went through any school." It returned the world's tick
+ * MINUS TWENTY-FOUR YEARS, so pressing "Begin life" dropped you in as a
+ * twenty-four-year-old with childhood, school and every choice in them
+ * already behind you. The entire education module was unreachable from
+ * the front door.
+ *
+ * The mistake was reading §12.1 — "the engine auto-picks a birth era that
+ * guarantees a full life plays forward to death" — as "born in the past".
+ * You cannot play forward FROM the past: the world's clock is the present,
+ * and a birth tick behind it is time you have already missed. The spec's
+ * own instruction two sections earlier says it plainly: "drops into the
+ * existing life feed AT AGE 0".
+ *
+ * A full life plays forward because the WORLD keeps running, not because
+ * the birth is backdated. Choosing an era is a question about when the
+ * world starts, which is worldgen's, and it is why the Advanced era field
+ * is still unbuilt rather than half-built here.
  */
 export const FULL_LIFE_YEARS = 85
 
 export function defaultBirthTick(worldTick: Tick): Tick {
-  // Born far enough back that eighty-five years of living still lands
-  // inside the world's own run, with a little room either side.
-  const back = Math.min(worldTick, 24 * 12)
-  return Math.max(0, worldTick - back) as Tick
+  return worldTick
 }
 
 /**
@@ -323,6 +334,23 @@ export function registerBirth(
     }
     world.people.set(id, person)
     world.health.set(id, freshHealth(id))
+    // AN EDUCATION RECORD, WITHOUT WHICH THEY ARE INVISIBLE TO SCHOOL.
+    // `runEducation` starts with `if (!record) continue` — no record means
+    // the person is never enrolled, never attends and never graduates, for
+    // life. A parent with no schooling on file also reads as unqualified
+    // for every job in the game.
+    world.education.set(id, {
+      personId: id,
+      level: startingEducation(
+        member.ageYears,
+        person.traits.curiosity,
+        openStream(world.seed, Stream.Education, id, 0),
+      ),
+      enrolledIn: null,
+      enrolledAtTick: null,
+      completesAtTick: null,
+      attainment: Math.min(1000, Math.floor((person.traits.diligence + person.traits.curiosity) / 2)),
+    })
     memberIds.push(id)
     if (member.relation !== 'sibling') parentIds.push(id)
   }
@@ -347,6 +375,19 @@ export function registerBirth(
   }
   world.people.set(childId, child)
   world.health.set(childId, freshHealth(childId))
+  // THE CHILD'S OWN, and this is the bug a player found in one sitting:
+  // "I just started a life and never went through any school." Exactly the
+  // shape the in-simulation birth path already writes — level 'none',
+  // because a newborn has none yet, and that record is what the schools
+  // read to know somebody exists.
+  world.education.set(childId, {
+    personId: childId,
+    level: 'none',
+    enrolledIn: null,
+    enrolledAtTick: null,
+    completesAtTick: null,
+    attainment: 500,
+  })
   memberIds.push(childId)
 
   // SIBLINGS ARE THE PARENTS' CHILDREN TOO. Without this a brother is a
