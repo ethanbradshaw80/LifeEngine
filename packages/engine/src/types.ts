@@ -840,6 +840,53 @@ export interface OfferRecord {
   readonly strength: number
 }
 
+/**
+ * HOW BAD A COMBAT MOMENT IS, and the three answers to it.
+ *
+ * These live here rather than in `scenes.ts` for a structural reason: the
+ * per-role scene pools in `mosscenes.ts` are built from `CombatScene`, and
+ * `scenes.ts` assembles the catalogue from those pools. With the type in
+ * `scenes.ts` the two files imported each other and the import-graph test
+ * refused it — correctly. A shared TYPE in the shared type module is the
+ * seam; both files depend on this one and neither on the other.
+ */
+export type Threat = 'light' | 'heavy' | 'overrun'
+
+export type SceneChoice = 'push' | 'hold' | 'cover'
+
+/**
+ * One scene: the situation, and what the three answers are CALLED in it.
+ *
+ * Only the flavour changes between scenes — the spectrum underneath is
+ * always the same, which is what keeps a catalogue this size from becoming
+ * that many sets of rules nobody can hold in their head.
+ */
+export interface CombatScene {
+  readonly id: string
+  /** Which trade or situation it belongs to; empty means anyone, anywhere. */
+  readonly channels: readonly string[]
+  /** What the player is told, by threat level — the read. */
+  readonly tell: Readonly<Record<Threat, string>>
+  /** What each answer is called here. */
+  readonly labels: Readonly<Record<SceneChoice, string>>
+  /** What the record says they did. */
+  readonly did: Readonly<Record<SceneChoice, string>>
+  /** Serving in this unit only, or null for anyone. */
+  readonly unitId: string | null
+  /** Units take the sharper jobs: bias the threat roll upward. */
+  readonly biasToward: Threat | null
+  /**
+   * WHICH TRADES THIS MOMENT BELONGS TO, in the same vocabulary the
+   * specialties and officer roles carry (`sceneTags`).
+   *
+   * The channel says what FOUND them — a road, a wire, a doorway. This
+   * says whose day it is.
+   */
+  readonly tags: readonly string[]
+  /** Officers only, where the moment is a command decision. */
+  readonly officersOnly?: true
+}
+
 export interface Business {
   readonly id: EntityId
   readonly ownerId: EntityId

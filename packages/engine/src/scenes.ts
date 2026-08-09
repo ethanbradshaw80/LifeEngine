@@ -21,22 +21,15 @@
 
 import type { EntityId } from '@life-engine/shared'
 import type { Rng } from './rng.js'
+import { MOS_SCENES } from './mosscenes.js'
+import type { CombatScene, SceneChoice, Threat } from './types.js'
 
 /** How bad the moment is. Rolled hidden, then told to the player. */
-export type Threat = 'light' | 'heavy' | 'overrun'
+export type { Threat, SceneChoice, CombatScene } from './types.js'
 
-/** The spectrum, in the order it is offered. */
-export type SceneChoice = 'push' | 'hold' | 'cover'
-
+/** The three answers, in the order they are offered. */
 export const SCENE_OPTIONS: readonly SceneChoice[] = ['push', 'hold', 'cover']
 
-/**
- * What a cell of the matrix does: the odds the month goes wrong, how bad it
- * is when it does, and the chance the act is written up for a decoration.
- *
- * `valorInN` of 0 means no valor is possible from that cell — holding a
- * light contact is doing your job, not gallantry.
- */
 export interface SceneOutcome {
   readonly gate: number
   readonly severityFloor: number
@@ -74,49 +67,11 @@ export function outcomeFor(choice: SceneChoice, threat: Threat): SceneOutcome {
 }
 
 /**
- * One scene: the situation, and what the three answers are CALLED in it.
- *
- * Only the flavour changes between scenes — the spectrum underneath is
- * always the same, which is what keeps a fourteen-scene catalogue from
- * becoming fourteen sets of rules nobody can hold in their head.
- */
-export interface CombatScene {
-  readonly id: string
-  /** Which trade or situation it belongs to; empty means anyone, anywhere. */
-  readonly channels: readonly string[]
-  /** What the player is told, by threat level — the read. */
-  readonly tell: Readonly<Record<Threat, string>>
-  /** What each answer is called here. */
-  readonly labels: Readonly<Record<SceneChoice, string>>
-  /** What the record says they did. */
-  readonly did: Readonly<Record<SceneChoice, string>>
-  /** Serving in this unit only, or null for anyone. */
-  readonly unitId: string | null
-  /** Units take the sharper jobs: bias the threat roll upward. */
-  readonly biasToward: Threat | null
-  /**
-   * M-ENLIST §5b. WHICH TRADES THIS MOMENT BELONGS TO, in the same
-   * vocabulary the specialties carry (`Specialty.sceneTags`).
-   *
-   * The channel says what FOUND them — a road, a wire, a doorway. This says
-   * whose day it is. A signaller and a rifleman can both be in the same
-   * ambush, and until now they got the same scene text; a crew chief has
-   * never been in a doorway in his life and was being handed one.
-   */
-  readonly tags: readonly string[]
-  /**
-   * M-ENLIST §5c. Officers only, where the moment is a command decision.
-   * A private does not choose whether the platoon flanks.
-   */
-  readonly officersOnly?: true
-}
-
-/**
  * TIER 1 — pure combat. No new systems, no other people required: these can
  * fire for anybody in contact, which is why they are the ones that ship
  * first (the owner's build order).
  */
-export const COMBAT_SCENES: readonly CombatScene[] = [
+const CORE_SCENES: readonly CombatScene[] = [
   {
     id: 'pinned',
     tags: ['combat_firefight'],
@@ -593,6 +548,16 @@ export const COMBAT_SCENES: readonly CombatScene[] = [
 
 /** The scene anything unrecognized falls back to. */
 const FALLBACK_SCENE_ID = 'pinned'
+
+/**
+ * THE WHOLE CATALOGUE — the original nineteen plus the per-role pools.
+ *
+ * MEASURED BEFORE THIS EXISTED: a medic's entire war was two scenes,
+ * alternating, one of which was the infantry scene they share. The gating
+ * was working; there was simply nothing on the other side of it. Nineteen
+ * scenes were carrying forty-eight specialties.
+ */
+export const COMBAT_SCENES: readonly CombatScene[] = [...CORE_SCENES, ...MOS_SCENES]
 
 export function sceneById(id: string): CombatScene | undefined {
   return COMBAT_SCENES.find((scene) => scene.id === id)

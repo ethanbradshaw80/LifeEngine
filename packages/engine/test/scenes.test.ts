@@ -12,7 +12,7 @@ import { COMBAT_SCENES, decodeScene, encodeScene, outcomeFor, pickScene, rollThr
 import type { Threat } from '../src/scenes.js'
 import { openStream, Stream } from '../src/rng.js'
 import { seed as makeSeed } from '@life-engine/shared'
-import { SPECIALTIES } from '../src/content.js'
+import { OFFICER_ROLES, SPECIALTIES } from '../src/content.js'
 
 const THREATS: readonly Threat[] = ['light', 'heavy', 'overrun']
 
@@ -189,7 +189,15 @@ describe('the trade picks the scene', () => {
     // The two vocabularies have to be ONE vocabulary, or the filter
     // silently never matches and every trade quietly falls back to the
     // same pool — which is the bug this whole phase exists to fix.
-    const fromSpecialties = new Set(SPECIALTIES.flatMap((sp) => sp.sceneTags ?? []))
+    // BOTH LISTS, because `sceneTagsFor` reads both. Checking only the
+    // enlisted specialties made a tag claimed by an OFFICER ROLE look
+    // unclaimed — which is how a correctly-tagged flight-deck scene came
+    // out as a failure. The vocabulary is the union or the check is a
+    // half-check.
+    const fromSpecialties = new Set([
+      ...SPECIALTIES.flatMap((sp) => sp.sceneTags ?? []),
+      ...OFFICER_ROLES.flatMap((role) => role.sceneTags ?? []),
+    ])
     for (const scene of COMBAT_SCENES) {
       expect(scene.tags.length, `${scene.id} is untagged`).toBeGreaterThan(0)
       for (const tag of scene.tags) {
