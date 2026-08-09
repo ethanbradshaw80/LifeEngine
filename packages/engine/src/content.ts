@@ -1251,7 +1251,7 @@ export const MAX_FITNESS_POINTS = 300
 export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
   {
     id: 'jump-school', title: 'Airborne School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
-    minRank: 1, minPerformance: 450, badge: 'parachutist', performanceBoost: 40,
+    minRank: 1, minPerformance: 400, badge: 'parachutist', performanceBoost: 40,
     courseMonths: 1, classCadenceMonths: 2, seatsPerClass: 4,
     category: 'skill', difficulty: 40, seatScarcity: 120, maxAttempts: 3,
     minFitness: 130,
@@ -1265,7 +1265,7 @@ export const SERVICE_SCHOOLS: readonly ServiceSchool[] = [
   },
   {
     id: 'air-assault', title: 'Air Assault School', branches: ['land-forces', 'air-guard'], specialtyIds: [],
-    minRank: 1, minPerformance: 450, badge: 'air assault', performanceBoost: 40,
+    minRank: 1, minPerformance: 400, badge: 'air assault', performanceBoost: 40,
     courseMonths: 1, classCadenceMonths: 3, seatsPerClass: 4,
     category: 'skill', difficulty: 170, seatScarcity: 160, maxAttempts: 3,
     minFitness: 150,

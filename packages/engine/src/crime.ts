@@ -39,6 +39,7 @@ import {
 } from './finances.js'
 import type { NewsItem } from './geopolitics.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { eventsFor } from './eventindex.js'
 import { openStream, Stream } from './rng.js'
 import { disciplineOf } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
@@ -480,8 +481,17 @@ export function courtOutcomeOf(world: World, personId: EntityId, tick: Tick): Co
   let arrested = false
   let convicted: boolean | null = null
   let detail: string | null = null
-  for (const event of world.events) {
-    if (event.tick !== tick || event.subjectId !== personId) continue
+  // INDEXED, AND ONLY THIS TICK'S. This walked the entire ledger to find
+  // events from ONE month — every person, every tick, over a history that
+  // only ever grows. The index narrows it to this person; walking backwards
+  // and stopping at the tick boundary narrows it to the month.
+  const own = eventsFor(world, personId)
+  for (let i = own.length - 1; i >= 0; i -= 1) {
+    const event = own[i]
+    if (event === undefined) break
+    // Appended in tick order, so the first older one ends the search.
+    if (event.tick < tick) break
+    if (event.tick !== tick) continue
     if (event.type === 'was-arrested') {
       arrested = true
       detail = event.detail

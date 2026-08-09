@@ -1209,6 +1209,27 @@ export interface WellbeingRecord {
   readonly causes: readonly WellbeingCause[]
 }
 
+/**
+ * A CONDITION THAT DOES NOT HEAL — an amputation, a severed cord, a
+ * destroyed eye. Recorded when the wound resolves, and never removed.
+ */
+export interface PermanentCondition {
+  /** The mechanism, from the wound vocabulary — 'amputation' and friends. */
+  readonly kind: string
+  /** The body-diagram region it happened to — 'leg', 'hand', 'eye'. */
+  readonly site: string | null
+  /** When it became permanent — what the death certificate dates. */
+  readonly sinceTick: Tick
+  /**
+   * WHEN A PROSTHETIC, CHAIR OR AID WAS FITTED, or null/absent if never.
+   *
+   * M-HEALTH §7: adaptation "partially restores function, never fully".
+   * Optional so v68 saves — written before adaptation existed — read as
+   * unadapted without needing a second migration.
+   */
+  readonly adaptedAtTick?: Tick | null
+}
+
 export interface HealthRecord {
   readonly personId: EntityId
   /** Current ailment, or null when well. One at a time — modest by design. */
@@ -1234,6 +1255,19 @@ export interface HealthRecord {
    * badly; NEVER decreases.
    */
   readonly disability: number
+  /**
+   * THE IRREVERSIBLE CONDITIONS THIS BODY CARRIES, structurally.
+   *
+   * `marks` already records these — as PROSE, for `story.ts` to narrate.
+   * Prose cannot be reasoned about: nothing could ask "is this person
+   * missing a leg?" without parsing English, so nothing ever asked, and a
+   * lost leg changed no part of the simulation (M-HEALTH, north star).
+   *
+   * This is the same fact in a shape the engine can read. `conditions.ts`
+   * derives every ongoing effect from it and stores none of them, so the
+   * effects cannot drift from the conditions that cause them.
+   */
+  readonly permanent: readonly PermanentCondition[]
   /**
    * Whether the CURRENT ailment came from service (a wound inflicted on
    * deployment, any channel — line of duty). Stamped at onset, because
@@ -2130,6 +2164,8 @@ export type PendingKind =
   | 'separation'
   /** A serious ailment: rest, or push on. */
   | 'convalesce'
+  /** A hand of blackjack in progress — hit, stand or double. */
+  | 'blackjack-hand'
   /** A recruiter's offer, or the fork at eighteen. */
   | 'enlist'
   | 'commission'
@@ -2572,6 +2608,8 @@ export type EventType =
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
   | 'wounded-in-action'
+  /** An aid fitted to a permanent condition — M-HEALTH §7 adaptation. */
+  | 'fitted-with-aid'
   /** Came under fire and walked away — contact is not casualty. The texture
    *  of a real tour, and what combat-action recognition reads. */
   | 'saw-combat'

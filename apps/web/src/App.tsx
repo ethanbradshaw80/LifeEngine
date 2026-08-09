@@ -22,7 +22,7 @@ import { Welcome } from './Welcome.js'
 import { BirthCertificate, IntakeScreen, TitleScreen } from './NewLife.js'
 import { DeathCertificate, PastLives } from './DeathCertificate.js'
 import type { PastLife } from './DeathCertificate.js'
-import { planBirth, registryNoFor, seedFromRegistryNo } from '@life-engine/engine'
+import { planBirth, registryNoFor, seedFromName, seedFromRegistryNo } from '@life-engine/engine'
 import type { FamilySpec } from '@life-engine/engine'
 import type { LifeChoices } from './NewLife.js'
 import { GameScreen } from './GameScreen.js'
@@ -292,7 +292,7 @@ export function App() {
                 birthTick: null,
               },
               seedFromRegistryNo(lifeChoices.seedCode) ??
-                lifeChoices.givenName.length * 977 + lifeChoices.familyName.length * 131,
+                seedFromName(lifeChoices.givenName, lifeChoices.familyName),
             )
       if (plan !== null) {
         return (

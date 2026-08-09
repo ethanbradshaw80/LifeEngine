@@ -286,7 +286,7 @@ export function createWorld(
   // M-ECON §1: it goes to the ADULTS, because that is where money lives now.
   // The household itself starts square with the world and only goes negative
   // if it fails to meet a month.
-  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+  for (const household of [...world.households.values()]) {
     seedFoundingAccounts(world, household, foundingSavings(world, household))
   }
 

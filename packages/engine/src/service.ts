@@ -1034,11 +1034,14 @@ export function disciplinaryFileOf(
 ): { readonly marks: number; readonly endsCareerAt: number; readonly windowYears: number } | null {
   const record = world.service.get(personId)
   if (!record || record.dischargedAtTick !== null) return null
-  const marks = world.events.filter(
-    (e) =>
-      e.type === 'disciplined' &&
-      e.subjectId === personId &&
-      world.tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
+  // INDEXED, NOT SCANNED (owner, playing: "when you age up it takes pretty
+  // long to load now"). This ran for every serving person every tick and
+  // walked the WHOLE ledger each time — a structure that grows all game.
+  // MEASURED: a tick at world-year 60 cost 2.3x one at year 10 while the
+  // living population had only grown 1.2x, because the cost was tracking
+  // `world.events` (11k -> 74k), not people.
+  const marks = eventsFor(world, personId).filter(
+    (e) => e.type === 'disciplined' && world.tick - e.tick < MISCONDUCT_WINDOW_MONTHS,
   ).length
   return {
     marks,
@@ -1136,6 +1139,9 @@ export function boardStandingFor(
   if (!gates) return null
   const targetTitle = rankTitle(world, record.branch, gates.targetRank, commissioned)
   const owed = schoolOwedFor(world, personId, record.branch, gates.targetRank, commissioned)
+  const passOvers = eventsFor(world, personId).filter(
+    (e) => e.type === 'passed-over' && e.detail === String(gates.targetRank),
+  ).length
   return {
     targetTitle,
     schoolOwed: owed === undefined ? null : { id: owed.id, title: owed.title },
@@ -1144,14 +1150,10 @@ export function boardStandingFor(
     tigNeeded: gates.tigNeeded,
     cutoff: gates.cutoff,
     points: promotionPointsFor(world, personId),
-    filePenalty: filePenaltyFor(
-      world.events.filter(
-        (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === String(gates.targetRank),
-      ).length,
-    ),
-    priorPassOvers: world.events.filter(
-      (e) => e.type === 'passed-over' && e.subjectId === personId && e.detail === String(gates.targetRank),
-    ).length,
+    // COUNTED ONCE, INDEXED. This was two identical full-ledger scans for
+    // the same number, back to back, per person per tick.
+    filePenalty: filePenaltyFor(passOvers),
+    priorPassOvers: passOvers,
   }
 }
 
@@ -1893,9 +1895,30 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   const seasoning = seasoningFor(monthsServed, person.traits.diligence)
   const morale = Math.floor((wellbeingOf(world, person.id) - 550) / 9)
   const pull = person.traits.diligence + morale + seasoning - record.performance
+  /**
+   * THE SPRING PULLS BOTH WAYS (owner, playing, twice: "still getting the
+   * 'work is not there yet' error on the schols on the second walkthrough").
+   *
+   * `Math.floor(pull / 40)` is not symmetric, and the asymmetry all runs one
+   * direction. A soldier sitting 1-39 points BELOW his target got
+   * `floor(0.9) === 0` — no push up at all. A soldier 1-40 points ABOVE it
+   * got `floor(-0.9) === -1` — pushed down. So the restoring force existed
+   * only for men who were doing well, and the ±8 monthly noise did the rest.
+   *
+   * MEASURED at forty-five years, before this: standing starts at 500 for a
+   * median recruit and the 0-1y cohort's median had already sagged to 479 —
+   * below the number they enlisted with, in a system whose whole purpose is
+   * to reward service. Sixty percent of new soldiers had no course on their
+   * list they could reach.
+   *
+   * Truncating toward zero instead makes the two directions the same size.
+   * The step is still a fortieth of the gap and the noise is untouched — the
+   * career-long shape does not change, it simply stops leaking downhill.
+   */
+  const step = pull >= 0 ? Math.floor(pull / 40) : -Math.floor(-pull / 40)
   let performance = held
     ? record.performance
-    : Math.max(0, Math.min(1000, record.performance + Math.floor(pull / 40) + rng.nextInt(-8, 9)))
+    : Math.max(0, Math.min(1000, record.performance + step + rng.nextInt(-8, 9)))
 
   const specialty = specialtyFor(world, record.specialtyId)
   // The branch is the RECORD's, never re-derived from the trade. They are

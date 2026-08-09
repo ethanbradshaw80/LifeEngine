@@ -231,23 +231,37 @@ export function encodeSequence(
   threat: Threat,
   step: number,
   beats: readonly BeatKind[],
+  /**
+   * WHAT THEY ACTUALLY CHOSE at the decision beat, once they have.
+   *
+   * Carried because the beats AFTER the decision have to describe it, and
+   * a screen that does not know the choice invents one. It did: the
+   * consequence beat hard-coded 'hold' and 'it went well', so it told a
+   * player their careful answer had worked while they were bleeding.
+   */
+  choice: SceneChoice | null = null,
 ): string {
-  return `${sceneId}:${threat}:${String(step)}:${beats.join('+')}`
+  return `${sceneId}:${threat}:${String(step)}:${beats.join('+')}:${choice ?? '-'}`
 }
 
 export function decodeSequence(detail: string | null): {
   step: number
   beats: readonly BeatKind[]
+  choice: SceneChoice | null
 } {
   const parts = (detail ?? '').split(':')
   const step = Number(parts[2] ?? 0)
   const beats = (parts[3] ?? '').split('+').filter((b) => b.length > 0) as BeatKind[]
+  const raw = parts[4]
+  const choice: SceneChoice | null =
+    raw === 'push' || raw === 'hold' || raw === 'cover' ? raw : null
   // A pending from before this existed is one beat: the decision it always
   // was. Never zero beats — a sequence with nothing in it would render an
   // empty screen and swallow the moment.
   return {
     step: Number.isFinite(step) && step >= 0 ? step : 0,
     beats: beats.length > 0 ? beats : ['decision'],
+    choice,
   }
 }
 
@@ -327,4 +341,30 @@ export function followOnWords(choice: SceneChoice, nickname: string, lived: bool
   return choice === 'cover'
     ? `${nickname} did not make it. You were not wrong and it does not help.`
     : `You went, and it was not enough. ${nickname} did not make it.`
+}
+
+/**
+ * WAS THE PERSON HURT IN THIS CONTACT?
+ *
+ * Read off the ledger rather than guessed, and this exists because the
+ * after-action screen hard-coded a zero: it said "nobody hurt" to a player
+ * who had been hit by shrapnel in the same engagement and died shortly
+ * after. A closing line that cannot be wrong is one that reads the world.
+ *
+ * WALKED BACKWARDS AND BOUNDED, like every other ledger read in this
+ * engine — the events list is the whole history of the world.
+ */
+export function hurtInContact(
+  events: readonly { readonly type: string; readonly subjectId: number; readonly tick: number }[],
+  personId: number,
+  tick: number,
+): boolean {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i]
+    if (event === undefined) break
+    if (tick - event.tick > 0) break
+    if (event.subjectId !== personId) continue
+    if (event.type === 'wounded-in-action' || event.type === 'wounded') return true
+  }
+  return false
 }

@@ -39,7 +39,9 @@ import {
   orientWords,
   consequenceWords,
   afterActionWords,
+  hurtInContact,
   deploymentsOf,
+  decodeHand,
   decodeHeldSession,
   gamblerOf,
   keyHandFor,
@@ -68,6 +70,7 @@ import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
 import { KeyHandView } from './KeyHand.js'
+import { BlackjackTable } from './BlackjackTable.js'
 import { EngagementView } from './Engagement.js'
 import { SchoolMomentView } from './SchoolMoment.js'
 import { InterviewView } from './Interview.js'
@@ -400,6 +403,7 @@ export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
   'crime-scene',
   'work-moment',
   'key-hand',
+  'blackjack-hand',
   'school-moment',
   'interview',
   'separation-record',
@@ -679,14 +683,23 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       const tour = deploymentsOf(world, pending.personId).find((t) => t.returnedAtTick === null)
       const squad = tour?.squad ?? []
       const lost = squad.filter((m) => world.people.get(m.personId)?.deathTick !== null).length
+      // DID THIS CONTACT HURT THEM? The after-action used to answer zero
+      // no matter what, which is how a player was told nobody was hurt in
+      // the engagement that killed him.
+      const wasHurt = hurtInContact(world.events, pending.personId, pending.tick)
       const situation =
         beat === 'contact'
           ? (scene?.tell[threat] ?? 'Contact.')
           : beat === 'orient'
             ? orientWords(threat, record?.performance ?? 500, squad.some((m) => m.role === 'radio'))
             : beat === 'consequence'
-              ? consequenceWords('hold', true, threat)
-              : afterActionWords(threat, lost, 0)
+              ? // THE CHOICE THEY MADE AND WHETHER IT WENT WELL, both read
+                // rather than assumed. This hard-coded 'hold' and 'true',
+                // so it congratulated a player on a careful answer they
+                // had not given while they were bleeding from one they
+                // had.
+                consequenceWords(seq.choice ?? 'hold', !wasHurt, threat)
+              : afterActionWords(threat, lost, wasHurt ? 1 : 0)
       return (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="Contact">
           <div className="sheet">
@@ -720,6 +733,24 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
             hand={hand}
             buyIn={stake.buyIn}
             chips={record.chips}
+            onChoose={onChoose}
+          />
+        </div>
+      )
+    }
+  }
+
+  // A HAND OF BLACKJACK, with cards on the table. The engine dealt them;
+  // this reads them back and sends a choice.
+  if (pending.kind === 'blackjack-hand') {
+    const hand = decodeHand(pending.occupationId)
+    if (hand !== null) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Blackjack">
+          <BlackjackTable
+            hand={hand}
+            chips={gamblerOf(world, pending.personId).chips}
+            options={pending.options}
             onChoose={onChoose}
           />
         </div>

@@ -40,6 +40,7 @@ import {
   secondActPlayer,
   buyChipsPlayer,
   cashOutPlayer,
+  dealBlackjack,
   playTablePlayer,
   playPokerPlayer,
   enterTournamentPlayer,
@@ -147,6 +148,7 @@ export type VerbRequest =
   | { readonly verb: 'scale-up' }
   | { readonly verb: 'buy-chips'; readonly cents: number }
   | { readonly verb: 'cash-out' }
+  | { readonly verb: 'deal-blackjack'; readonly wager: number }
   | { readonly verb: 'gamble'; readonly game: 'blackjack' | 'slots'; readonly wager: number; readonly choice: 'hit' | 'stand' | 'double' }
   | { readonly verb: 'poker'; readonly stakeId: string; readonly hours: number }
   | { readonly verb: 'tournament'; readonly tournamentId: string }
@@ -557,6 +559,13 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'cash-out': {
             const r = cashOutPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'deal-blackjack': {
+            // THE WAGER BUYS A DEAL, and the hand is played at the table
+            // as a pending decision — it is not resolved here.
+            const r = dealBlackjack(world, a.wager as never)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

@@ -101,6 +101,13 @@ import {
   pokerCeilingFor,
   skillGainFrom,
   stakeById,
+  dealerFinish,
+  decodeHand,
+  encodeHand,
+  handTotal,
+  hitHand,
+  openingHand,
+  settleHand,
   tournamentById,
   tournamentRunning,
   turnProBar,
@@ -133,7 +140,15 @@ import {
 } from './crime.js'
 import { GRADE_TITLES, isTrustSensitive, offenceById } from './content.js'
 import type { Offence } from './content.js'
-import { adjustAilmentSeverity, applyConvalescence, inflictWound, isSeverelyAiling } from './health.js'
+import {
+  ADAPTATION_COST,
+  adjustAilmentSeverity,
+  applyConvalescence,
+  fitAdaptation,
+  inflictWound,
+  isSeverelyAiling,
+  SEVERE_AILMENT,
+} from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
 import {
   termsOfferedTo,
@@ -239,6 +254,7 @@ import {
   valuationOf,
 } from './business.js'
 import { openBusiness } from './finances.js'
+import { inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
@@ -882,6 +898,9 @@ export function casinoBar(world: World, wager: Money): string | null {
     return 'Not from in here.'
   }
   if (wager <= 0) return 'You have to put something up.'
+  if (verbsThisMonth(world, 'gamble') >= TABLE_PLAYS_PER_MONTH) {
+    return 'You have been here all month. Go home.'
+  }
   // CHIPS, NOT CASH. What you can lose at a table is what is in the tray,
   // and nothing at a table can reach the rent. Getting to the rent takes a
   // second, deliberate act: walking back to the cashier.
@@ -1155,6 +1174,13 @@ export function playPokerPlayer(
   const bar = casinoBar(world, buyIn)
   if (bar !== null) return { done: false, reason: bar, result: null }
 
+  if (verbsThisMonth(world, 'poker') >= SESSIONS_PER_MONTH) {
+    return {
+      done: false,
+      reason: 'You have put the hours in this month. Even a grinder sleeps.',
+      result: null,
+    }
+  }
   const record = gamblerOf(world, person.id)
   const played = Math.max(1, Math.min(12, hours))
   const result = playSession(
@@ -1207,6 +1233,15 @@ export function enterTournamentPlayer(
   if (!person) return { done: false, reason: 'Nobody is being played.', result: null }
   if (!tournamentRunning(event, world.tick)) {
     return { done: false, reason: 'That one is not running this month.', result: null }
+  }
+  // ONE RUNNING, ONE ENTRY. There is only one of it — a player who could
+  // enter the same tournament twice in a month is not playing poker.
+  for (let i = world.player.log.length - 1; i >= 0; i -= 1) {
+    const entry = world.player.log[i]
+    if (entry === undefined || world.tick - entry.tick > 0) break
+    if (entry.kind === 'tournament' && entry.choice === tournamentId) {
+      return { done: false, reason: 'You have already played that one. It runs again next time.', result: null }
+    }
   }
   const buyIn = atTodaysPrices(world, event.buyIn) as Money
   const bar = casinoBar(world, buyIn)
@@ -1455,6 +1490,13 @@ export function trainPlayer(
   if (health !== undefined && health.ailment !== null && health.severity >= 500) {
     return { done: false, reason: 'Not while you are laid up like this.', words: '' }
   }
+  if (verbsThisMonth(world, 'train') >= TRAINING_BLOCKS_PER_MONTH) {
+    return {
+      done: false,
+      reason: 'That is a month of work already. The next block is next month.',
+      words: '',
+    }
+  }
   const chosen: TrainingFocus =
     focus === 'strength' ? 'strength' : focus === 'conditioning' ? 'conditioning' : 'skill'
 
@@ -1661,6 +1703,15 @@ export function takeFightPlayer(world: World): { done: boolean; reason: string; 
   const health = world.health.get(person.id)
   if (health !== undefined && health.ailment !== null && health.severity >= 400) {
     return { done: false, reason: 'No commission licences somebody in this condition.', words: '' }
+  }
+  const sinceFight = monthsSinceVerb(world, 'take-fight')
+  if (sinceFight !== null && sinceFight < MONTHS_BETWEEN_FIGHTS) {
+    const wait = MONTHS_BETWEEN_FIGHTS - sinceFight
+    return {
+      done: false,
+      reason: `You fought too recently. A camp is eight to twelve weeks and the body needs the rest — ${String(wait)} month${wait === 1 ? '' : 's'} yet.`,
+      words: '',
+    }
   }
 
   const fights = (record.wins ?? 0) + (record.losses ?? 0)
@@ -1874,6 +1925,72 @@ function resolveFollowOn(
     streamId: Stream.CombatResolution,
   })
 }
+
+/**
+ * HOW OFTEN A THING MAY BE DONE (owner, playing: "we should have limits on
+ * how many games, how many fights etc — I just played a fighter and I can
+ * fight how ever many times I want... im playing poker rn and I can play
+ * multiple nightly tournaments too").
+ *
+ * He is right and it was every verb, not two: fights, tournaments, cash
+ * sessions, table hands and athletic training all had NO cadence at all. A
+ * month would take as many as you cared to click, which is not a career,
+ * it is a button.
+ *
+ * The player log already records every verb with its tick, and three
+ * verbs — study, fitness training, extra duty — already read it this way.
+ * These two helpers make that the shared pattern rather than three
+ * separate copies of it.
+ *
+ * WALKED BACKWARDS, NOT FILTERED. The log grows with every decision a
+ * player makes across a whole life; `filter` over it inside a verb is the
+ * whole-ledger scan this project has been bitten by four times. Entries
+ * are appended in tick order, so walking from the end and stopping at the
+ * window reads only the months that matter.
+ */
+function monthsSinceVerb(world: World, kind: PendingKind): number | null {
+  for (let i = world.player.log.length - 1; i >= 0; i -= 1) {
+    const entry = world.player.log[i]
+    if (entry === undefined) break
+    if (entry.kind === kind) return world.tick - entry.tick
+  }
+  return null
+}
+
+/** How many times this verb has already been used this month. */
+function verbsThisMonth(world: World, kind: PendingKind): number {
+  let count = 0
+  for (let i = world.player.log.length - 1; i >= 0; i -= 1) {
+    const entry = world.player.log[i]
+    if (entry === undefined) break
+    // The log is in tick order, so the first older entry ends the count.
+    if (world.tick - entry.tick > 0) break
+    if (entry.kind === kind) count += 1
+  }
+  return count
+}
+
+/**
+ * WHAT EACH THING COSTS IN TIME, and every number here is the honest one
+ * rather than a throttle:
+ *
+ *   A PROFESSIONAL FIGHTER FIGHTS TWO TO FOUR TIMES A YEAR. Camps are
+ *     eight to twelve weeks and a body needs the rest between them; a man
+ *     who fought monthly would be finished inside two years.
+ *   A TOURNAMENT RUNS WHEN IT RUNS. The nightly is monthly here, the main
+ *     event yearly — you cannot enter the same running twice, because
+ *     there is only one of it.
+ *   A CASH SESSION is a few hours. A serious grinder puts in fifteen to
+ *     twenty a month; twelve is generous and finite.
+ *   A HAND OR A SPIN is a hand or a spin, and thirty of them is a heavy
+ *     night out rather than a lifestyle.
+ *   A TRAINING BLOCK is about a week's work, so four fill a month — and
+ *     fatigue already makes the fourth worth less than the first.
+ */
+export const MONTHS_BETWEEN_FIGHTS = 3
+export const SESSIONS_PER_MONTH = 12
+export const TABLE_PLAYS_PER_MONTH = 30
+export const TRAINING_BLOCKS_PER_MONTH = 4
 
 /**
  * M-ECON §9. THE BANK'S VERBS.
@@ -2661,6 +2778,82 @@ export function takeExtraDuty(world: World): { done: boolean; standing: number; 
  * Why the extra duty is not available, or null. The bar pattern: the greyed
  * button and the refusal come from one place, so they cannot disagree.
  */
+/**
+ * BEING FITTED WITH A PROSTHETIC OR AID — M-HEALTH §7, adaptation.
+ *
+ * THE BAR AND THE VERB ARE ONE FUNCTION, as everywhere in this project, so
+ * the greyed button and the refusal can never disagree.
+ *
+ * This is the answer to the half of the owner's report that was NOT about
+ * permanence: a life-altering wound has to be something a life can be built
+ * around, not only a wall (Law 7 — "failure creates new chapters", and most
+ * failures retain realistic recovery paths). A prosthetic gives a man his
+ * day back. It does not give him the leg, and `conditions.ts` is careful
+ * that the trades stay closed.
+ */
+export function adaptationBar(world: World): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  if (world.player.pending !== null) return 'A decision is already waiting.'
+  const record = world.health.get(person.id)
+  if (record === undefined || record.permanent.length === 0) {
+    return 'Nothing to fit.'
+  }
+  if (record.permanent.every((c) => (c.adaptedAtTick ?? null) !== null)) {
+    return 'You are already fitted.'
+  }
+  // A body still in the acute phase is not measured for a socket.
+  if (record.ailment !== null && record.severity >= SEVERE_AILMENT) {
+    return 'Not until the wound has settled.'
+  }
+  const cost = adaptationPriceFor(world, person.id)
+  const accounts = accountsOf(world, person.id)
+  if (accounts.checking + accounts.savings < cost) {
+    return `You cannot cover the ${formatMoney(cost)} fitting.`
+  }
+  return null
+}
+
+/**
+ * WHAT THE FITTING COSTS **THIS** PERSON, after coverage (M-BENEFITS §3).
+ *
+ * ONE FUNCTION so the price the screen previews and the price the account is
+ * debited cannot disagree — the mockup shows a care item "with coverage
+ * applied" ($0 via the BA against $X uninsured), and two separate
+ * calculations behind those two numbers is how they drift.
+ *
+ * Service-connected for a BA veteran, which is the whole point of the
+ * veteran track: the man who lost the leg in the war does not pay for the
+ * leg that replaces it.
+ */
+export function adaptationPriceFor(world: World, personId: EntityId): Money {
+  const sticker = atTodaysPrices(world, ADAPTATION_COST) as Money
+  return outOfPocketFor(world, personId, sticker, inTheBA(world, personId), world.tick)
+}
+
+export function fitAdaptationPlayer(world: World): { done: boolean; reason: string; words: string } {
+  const bar = adaptationBar(world)
+  if (bar !== null) return { done: false, reason: bar, words: '' }
+  const person = playerPerson(world)
+  if (!person) return { done: false, reason: 'Nobody is being played.', words: '' }
+
+  const cost = adaptationPriceFor(world, person.id)
+  // THE HEALTH WRITE IS ATTEMPTED FIRST — if there is nothing to fit, no
+  // money changes hands. Taking payment for a fitting that did not happen
+  // would be the worst possible ordering.
+  if (!fitAdaptation(world, person.id, world.tick)) {
+    return { done: false, reason: 'Nothing to fit.', words: '' }
+  }
+  debitPerson(world, person.id, cost)
+  return {
+    done: true,
+    reason: '',
+    words:
+      'It is measured, cast and fitted, and the first weeks are worse than you expected. ' +
+      'Then one morning you cross the room without thinking about it.',
+  }
+}
+
 export function extraDutyBar(world: World): string | null {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return 'Nobody is being played.'
@@ -4540,6 +4733,42 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    /**
+     * A HAND OF BLACKJACK, played out (owner: "you should enter the room
+     * choose what you bet then a hand comes out and you play blackjack").
+     *
+     * Only the ENDING is settled here. A hit that does not bust re-raises
+     * the next beat below, after `commit` has freed the slot — the same
+     * shape a combat engagement uses to run its beats, and for the same
+     * reason: the pending decision is the only place multi-step player
+     * state can live without a schema change.
+     */
+    case 'blackjack-hand': {
+      const hand = decodeHand(pending.occupationId)
+      if (hand === null) break
+      const doubling = choice === 'double'
+      const drawing = choice === 'hit' || doubling
+      const afterDraw = drawing
+        ? { ...hitHand(world.seed, person.id, pending.tick, hand), doubled: doubling || hand.doubled }
+        : hand
+
+      // A hit that lives goes back to the player; everything else is over.
+      if (choice === 'hit' && handTotal(afterDraw.player) < 21) break
+
+      const finished =
+        handTotal(afterDraw.player) > 21
+          ? afterDraw
+          : dealerFinish(world.seed, person.id, pending.tick, afterDraw)
+      const net = settleHand(finished)
+      recordPlay(world, person.id, Math.abs(finished.wager) as Money, net, 1, 0)
+      recordEvent(world, pending.tick, {
+        type: 'gambled',
+        subjectId: person.id,
+        detail: `blackjack:${String(net)}`,
+      })
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -4554,6 +4783,31 @@ export function resolvePending(world: World, choice: string): void {
     answerDesperation(world, pending.tick, person, choice === 'take-it')
   }
 
+  // THE NEXT CARD, now the slot is free. A hand that is still live goes
+  // straight back to the player rather than waiting for a month to pass.
+  if (pending.kind === 'blackjack-hand' && choice === 'hit' && person.deathTick === null) {
+    const hand = decodeHand(pending.occupationId)
+    if (hand !== null) {
+      const drawn = hitHand(world.seed, person.id, pending.tick, hand)
+      if (handTotal(drawn.player) < 21) {
+        raisePending(world, {
+          tick: pending.tick,
+          kind: 'blackjack-hand',
+          personId: person.id,
+          otherId: null,
+          occupationId: encodeHand(drawn),
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          // NO DOUBLING AFTER A HIT, which is the real rule and also the
+          // one that stops a player drawing free cards and then doubling
+          // once the hand is already safe.
+          options: ['hit', 'stand'],
+        })
+      }
+    }
+  }
+
   // THE NEXT BEAT, now the slot is free. An engagement runs until its
   // beats are done; only then does anything else get to ask.
   if (pending.kind === 'combat-moment' && person.deathTick === null) {
@@ -4566,7 +4820,16 @@ export function resolvePending(world: World, choice: string): void {
         kind: 'combat-moment',
         personId: person.id,
         otherId: pending.otherId,
-        occupationId: encodeSequence(sceneId, threat, next, seq.beats),
+        // THE CHOICE TRAVELS WITH THE SEQUENCE. Without it every beat
+        // after the decision has to invent one, and the screen did.
+        occupationId: encodeSequence(
+          sceneId,
+          threat,
+          next,
+          seq.beats,
+          seq.choice ??
+            (choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : null),
+        ),
         workplaceId: null,
         monthlyPay: null,
         placeId: null,
@@ -5767,6 +6030,12 @@ export function describePending(world: World, pending: PendingDecision): string 
         : `${hand.villain} moves all in. ${hand.read}`
     }
 
+    case 'blackjack-hand': {
+      const hand = decodeHand(pending.occupationId)
+      if (hand === null) return 'A hand of blackjack.'
+      return `You have ${String(handTotal(hand.player))}. The dealer shows ${String(handTotal(hand.dealer))}.`
+    }
+
     default: {
       const never: never = pending.kind
       return String(never)
@@ -6472,4 +6741,48 @@ function refuseOrders(
     rejected: ['to go where they were sent'],
     streamId: Stream.CombatResolution,
   })
+}
+
+
+/**
+ * SIT DOWN AND BE DEALT A HAND (owner, playing: "there is no popup for when
+ * you do blackjack, you should enter the room choose what you bet then a
+ * hand comes out and you play blackjack").
+ *
+ * What was there offered Stand / Hit / Double as three buttons, each of
+ * which resolved an ENTIRE hand from its own label. There were no cards
+ * anywhere in the model — you picked a strategy and were told how it went.
+ *
+ * The wager now buys a DEAL. The hand becomes a pending decision the player
+ * plays out card by card, carried in the pending's detail string exactly as
+ * a combat engagement carries its beats — so it needs no stored field and
+ * no migration.
+ *
+ * THE BAR IS THE SAME ONE the old table used, so the door rules, the age
+ * check, the chip balance and the monthly cadence all still hold. Nothing
+ * about who may play has changed; only what playing means.
+ */
+export function dealBlackjack(world: World, wager: Money): { done: boolean; reason: string } {
+  const bar = casinoBar(world, wager)
+  if (bar !== null) return { done: false, reason: bar }
+  const person = playerPerson(world)
+  if (!person) return { done: false, reason: 'Nobody is being played.' }
+
+  const hand = openingHand(world.seed, person.id, world.tick, wager)
+  const opened = raisePending(world, {
+    tick: world.tick,
+    kind: 'blackjack-hand',
+    personId: person.id,
+    otherId: null,
+    occupationId: encodeHand(hand),
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    // A NATURAL IS NOT A DECISION. Twenty-one off the deal has nothing to
+    // ask — offering "hit" there would be offering a way to ruin it.
+    options: handTotal(hand.player) === 21 ? ['stand'] : ['hit', 'stand', 'double'],
+  })
+  return opened
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'There is already a decision waiting.' }
 }

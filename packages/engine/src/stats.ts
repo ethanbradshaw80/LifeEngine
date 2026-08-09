@@ -34,6 +34,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
+import { effectsOf } from './conditions.js'
 import { MAX_FITNESS_POINTS } from './content.js'
 import { openStream, Stream } from './rng.js'
 import type { HabitKind, HabitRecord, Person, World } from './types.js'
@@ -152,7 +153,7 @@ export function fitnessOf(world: World, personId: EntityId): number {
  * anybody made.
  */
 export function runStats(world: World, tick: Tick): void {
-  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+  for (const person of [...world.people.values()]) {
     if (person.deathTick !== null) continue
     const age = ageAt(person.birthTick, tick)
     if (age < STATS_FROM_AGE) continue
@@ -164,12 +165,28 @@ export function runStats(world: World, tick: Tick): void {
     // ramp decorative: every screen would say "earned over three years"
     // while the simulation handed out the whole lift on day one.
     const trains = keepsHabit(world, person.id, 'training')
-    const target = fitnessTargetFor(
+    const uncapped = fitnessTargetFor(
       person,
       age,
       trains,
       trains ? habitMonths(world, person.id, 'training', tick) : 0,
     )
+    /**
+     * AND THE BODY YOU ACTUALLY HAVE SETS THE CEILING (M-HEALTH §4).
+     *
+     * A man with one leg can train hard and get fitter — he cannot train his
+     * way back to the body he had. Before this, he could: fitness read
+     * vitality, resilience and age, and an amputation was invisible to it,
+     * so the player who lost a leg was "back on his feet" in the most
+     * literal sense the stat could manage.
+     *
+     * The ceiling multiplies the target rather than replacing it, so
+     * everything the training ramp earns is still earned — it is just earned
+     * against a lower roof. (The same shape as the tour contact rate, and
+     * for the same reason: replacing a tuned number throws its tuning away.)
+     */
+    const ceiling = effectsOf(world, person.id).fitnessCeilingPerMille
+    const target = ceiling >= 1000 ? uncapped : Math.floor((uncapped * ceiling) / 1000)
     const current = person.fitness ?? 0
     if (current === 0) {
       // First month at twelve: a body arrives at its own level rather than

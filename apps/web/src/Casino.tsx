@@ -248,18 +248,24 @@ export function Casino({ world, person, busy, wallet, onAct }: Props): ReactElem
                 Beat the dealer. The house edge is small but real, and playing well narrows it
                 without ever turning it round.
               </div>
+              {/* ONE BUTTON, BECAUSE THERE IS ONE DECISION HERE (owner:
+                  "enter the room choose what you bet then a hand comes
+                  out and you play blackjack").
+
+                  This used to be three buttons — Stand, Hit, Double — and
+                  each of them resolved a WHOLE HAND from its own label.
+                  You were not playing cards, you were picking a strategy
+                  and being told how it went. The wager buys a DEAL now,
+                  and the hand itself is played at the table. */}
               <div className="cas-btns">
-                {(['stand', 'hit', 'double'] as const).map((choice) => (
-                  <button
-                    key={choice}
-                    type="button"
-                    className="apply"
-                    disabled={busy || chips < bet}
-                    onClick={() => onAct({ verb: 'gamble', game: 'blackjack', wager: bet, choice })}
-                  >
-                    {choice === 'double' ? 'Double' : choice === 'hit' ? 'Hit' : 'Stand'}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  className="apply"
+                  disabled={busy || chips < bet}
+                  onClick={() => onAct({ verb: 'deal-blackjack', wager: bet })}
+                >
+                  Deal ({bet.toLocaleString()})
+                </button>
               </div>
             </div>
           </div>

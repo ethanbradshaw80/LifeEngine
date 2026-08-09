@@ -130,6 +130,8 @@ import { Bank } from './Bank.js'
 import { Market } from './Market.js'
 import { Casino } from './Casino.js'
 import { TourPanel } from './TourPanel.js'
+import { BodyDiagram } from './BodyDiagram.js'
+import { CoverageCard } from './CoverageCard.js'
 import { Sports } from './Sports.js'
 import { School } from './School.js'
 import { Career } from './Career.js'
@@ -619,7 +621,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
   const [moneyView, setMoneyView] = useState<'month' | 'bank'>('month')
-  const [serviceTab, setServiceTab] = useState<ServiceTab>('career')
+  /**
+   * AND THE SERVICE TAB OPENS ON THE TOUR WHEN THERE IS ONE.
+   *
+   * It defaulted to `career` always, so a player mid-deployment who DID
+   * think to open Service still landed on their promotion points rather
+   * than on the thing currently happening to them. A lazy initializer
+   * rather than an effect: this is the opening state of a screen, not a
+   * reaction to one, and it stays wherever the player moves it afterwards.
+   */
+  const [serviceTab, setServiceTab] = useState<ServiceTab>(() => {
+    const id = world.player.personId
+    if (id === null) return 'career'
+    return deploymentsOf(world, id).some((t) => t.returnedAtTick === null)
+      ? 'deployments'
+      : 'career'
+  })
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -947,6 +964,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       {tab === 'home' && (
         <div className="panel" aria-label="You">
+          {/* THE TOUR YOU ARE ON, FIRST (owner, playing: "did we finish
+              Combat tours revamp? I just played and I feel like I didn't get
+              the experience I described").
+
+              He was right, and none of it was missing — it was BURIED. The
+              whole tour dashboard, the squad roster, who is still standing,
+              how long is left: all of it existed and all of it lived two
+              clicks down, inside the Service tab's `deployments` sub-tab,
+              which defaults to `career`. A player on a deployment had no
+              reason to go looking there and so never saw any of it.
+
+              A deployment is the most important thing happening in a life
+              while it is happening. It goes at the top of the dashboard,
+              and it disappears the moment the tour ends. */}
+          {(() => {
+            if (person === undefined) return null
+            const running = deploymentsOf(world, person.id).find((t) => t.returnedAtTick === null)
+            return running === undefined ? null : <TourPanel world={world} tour={running} />
+          })()}
           {/* THE STATS PANEL (owner's player_stats_spec.md §5). At the top
               of Home rather than in a twelfth tab, because it is the
               player's dashboard and it should be the first thing on it.
@@ -2851,6 +2887,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       {tab === 'health' && (
         <div className="panel" aria-label="Health">
+          {/* THE HUB (owner's `health_tab_1.html` and
+              `benefits_insurance_master.md` §8: the reworked Health tab is
+              "the single hub — conditions + body diagram AND a Coverage &
+              Benefits section").
+
+              All three pieces already existed and none of them were here.
+              The body diagram lived only inside the wound overlay, so a
+              player could not go and LOOK at their own body; the coverage
+              resolver and the BA rating had nowhere to render at all. A
+              modelled system nobody can see is one the player is entitled
+              to think is missing — which is exactly what happened with the
+              tours dashboard. */}
+          <BodyDiagram world={world} personId={person.id} />
+          <CoverageCard world={world} personId={person.id} />
           {(() => {
             const record = healthOf(world, person.id)
             const ailing = record !== undefined && record.ailment !== null

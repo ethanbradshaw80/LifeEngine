@@ -30,7 +30,7 @@
  * own — every draw comes from a seeded stream.
  */
 
-import type { Money, Tick } from '@life-engine/shared'
+import type { Money, Seed, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { GamblingRecord, World } from './types.js'
 import type { EntityId } from '@life-engine/shared'
@@ -1106,4 +1106,169 @@ export function handOutcomeWords(choice: HandChoice, gained: number): string {
   return choice === 'shove'
     ? 'He had it. The whole stack, in one hand.'
     : 'He had it. An expensive way to find out.'
+}
+
+// ---------------------------------------------------------------------------
+// A HAND OF BLACKJACK, actually dealt
+// ---------------------------------------------------------------------------
+
+/**
+ * THE OWNER, PLAYING: "there is no popup for when you do blackjack, you
+ * should enter the room choose what you bet then a hand comes out and you
+ * play blackjack".
+ *
+ * He is right, and what was there was not blackjack. The table offered three
+ * buttons — Stand, Hit, Double — and each one resolved an ENTIRE hand from
+ * the label alone. You were not playing cards; you were picking a strategy
+ * and being told how it went. No cards existed anywhere in the model.
+ *
+ * WHY THE HAND LIVES IN THE PENDING DECISION rather than in a new stored
+ * field: `world.player.pending` already carries multi-step state through its
+ * detail string — the engagement beats do exactly this — so a hand can be
+ * dealt, hit, and settled across several player actions with NO schema
+ * change and no migration. The same trick, for the same reason.
+ *
+ * DETERMINISM (Law 11). Every card is a pure function of (seed, person,
+ * tick, position in the shoe). Nothing is stored, nothing is drawn twice,
+ * and replaying the same seed deals the same cards.
+ */
+
+/** A card's rank, 1-13. Only the rank matters for scoring. */
+export function cardAt(seed: Seed, personId: EntityId, tick: Tick, position: number): number {
+  // A fresh stream per card position, salted well clear of the other casino
+  // draws so a hand cannot correlate with a slots spin on the same tick.
+  return openStream(seed, Stream.Casino, personId, tick + 40_000 + position).nextIntInclusive(1, 13)
+}
+
+/** What a rank is worth. Face cards ten, ace counted high here. */
+export function cardValue(rank: number): number {
+  if (rank === 1) return 11
+  return rank >= 10 ? 10 : rank
+}
+
+/**
+ * The best total this hand can hold without busting — aces drop from
+ * eleven to one, one at a time, exactly as they do at a real table.
+ */
+export function handTotal(cards: readonly number[]): number {
+  let total = 0
+  let aces = 0
+  for (const rank of cards) {
+    total += cardValue(rank)
+    if (rank === 1) aces += 1
+  }
+  while (total > 21 && aces > 0) {
+    total -= 10
+    aces -= 1
+  }
+  return total
+}
+
+/** A hand in progress, as carried in the pending decision's detail. */
+export interface BlackjackHand {
+  readonly wager: number
+  readonly player: readonly number[]
+  readonly dealer: readonly number[]
+  /** How deep into the shoe the next card comes from. */
+  readonly position: number
+  readonly doubled: boolean
+}
+
+export function encodeHand(hand: BlackjackHand): string {
+  return [
+    String(hand.wager),
+    hand.player.join(','),
+    hand.dealer.join(','),
+    String(hand.position),
+    hand.doubled ? 'd' : '-',
+  ].join(':')
+}
+
+export function decodeHand(detail: string | null): BlackjackHand | null {
+  const parts = (detail ?? '').split(':')
+  if (parts.length < 5) return null
+  const nums = (text: string): number[] =>
+    text
+      .split(',')
+      .filter((one) => one.length > 0)
+      .map((one) => Number(one))
+      .filter((one) => Number.isFinite(one))
+  const wager = Number(parts[0])
+  if (!Number.isFinite(wager)) return null
+  return {
+    wager,
+    player: nums(parts[1] ?? ''),
+    dealer: nums(parts[2] ?? ''),
+    position: Number(parts[3] ?? 0),
+    doubled: parts[4] === 'd',
+  }
+}
+
+/** The opening deal: two to the player, one showing for the house. */
+export function openingHand(
+  seed: Seed,
+  personId: EntityId,
+  tick: Tick,
+  wager: number,
+): BlackjackHand {
+  return {
+    wager,
+    player: [cardAt(seed, personId, tick, 0), cardAt(seed, personId, tick, 1)],
+    dealer: [cardAt(seed, personId, tick, 2)],
+    position: 3,
+    doubled: false,
+  }
+}
+
+/** Take one more. */
+export function hitHand(
+  seed: Seed,
+  personId: EntityId,
+  tick: Tick,
+  hand: BlackjackHand,
+): BlackjackHand {
+  return {
+    ...hand,
+    player: [...hand.player, cardAt(seed, personId, tick, hand.position)],
+    position: hand.position + 1,
+  }
+}
+
+/**
+ * THE HOUSE PLAYS ITS HAND, and it has no choices to make — a dealer draws
+ * to sixteen and stands on seventeen. That fixed rule is the entire source
+ * of the house edge, and it is why blackjack is beatable-looking and not
+ * beatable.
+ */
+export function dealerFinish(
+  seed: Seed,
+  personId: EntityId,
+  tick: Tick,
+  hand: BlackjackHand,
+): BlackjackHand {
+  let dealer = [...hand.dealer]
+  let position = hand.position
+  while (handTotal(dealer) < 17) {
+    dealer = [...dealer, cardAt(seed, personId, tick, position)]
+    position += 1
+  }
+  return { ...hand, dealer, position }
+}
+
+/** What the hand paid, in chips — negative is a loss. */
+export function settleHand(hand: BlackjackHand): number {
+  const stake = hand.doubled ? hand.wager * 2 : hand.wager
+  const mine = handTotal(hand.player)
+  const theirs = handTotal(hand.dealer)
+  if (mine > 21) return -stake
+  // A natural pays three to two, which is the one place the player gets the
+  // better of it and the reason the game feels fair.
+  const natural = hand.player.length === 2 && mine === 21
+  if (natural && !(hand.dealer.length === 2 && theirs === 21)) {
+    return Math.floor((stake * 3) / 2)
+  }
+  if (theirs > 21) return stake
+  if (mine > theirs) return stake
+  if (mine < theirs) return -stake
+  return 0
 }

@@ -83,6 +83,51 @@ describe('standing is something a career can earn', () => {
     // longer be the thing that shuts the schoolhouse for everybody.
     expect(standingRefusals).toBeLessThan(open * 4)
   })
+
+  /**
+   * THE QUESTION THE TEST ABOVE DOES NOT ASK, and the reason the owner
+   * reported this same refusal a SECOND time after it was called fixed.
+   *
+   * That test pools every serving soldier in a forty-five-year-old world,
+   * twenty-year veterans included, and claims only that somebody somewhere
+   * can get a seat. It passes comfortably on a world where the newest
+   * cohort is refused everything, because the twelve-year sergeants carry
+   * the total. It is an assertion adjacent to the bug rather than on it.
+   *
+   * The owner is not somebody somewhere. He is a man who just enlisted. So
+   * this asks about HIS cohort, on a pooled sample big enough to mean
+   * something — the single-seed world has about five such soldiers, which is
+   * too few to measure anything.
+   *
+   * MEASURED while fixing this: new soldiers had 0.29 open courses each
+   * against eighteen standing refusals, and the entry-tier bar (450) sat
+   * within a rounding error of their median standing (492) — so the most
+   * basic course in the army refused about half the recruits who would take
+   * it. The bar is 400 now, which is a value the table already used.
+   */
+  it('a soldier who just enlisted can get into something', () => {
+    let people = 0
+    let open = 0
+    for (const seed of [11, 4242, 777, 90210, 31337]) {
+      const world = servingWorld(seed, 45)
+      for (const person of livingPeople(world)) {
+        if (!isServing(world, person.id)) continue
+        const record = world.service.get(person.id)
+        if (!record) continue
+        if ((world.tick - record.enlistedAtTick) / 12 >= 3) continue
+        people += 1
+        for (const option of schoolOptionsFor(world, person.id)) {
+          if (option.onYourList && option.open) open += 1
+        }
+      }
+    }
+    expect(people).toBeGreaterThan(20)
+    // Not "every recruit gets a seat" — a new private SHOULD be shut out of
+    // sniper school. The claim is that the door is not shut on the whole
+    // cohort at once: across the first three years there is, on average,
+    // better than half a course apiece actually reachable.
+    expect(open / people).toBeGreaterThan(0.5)
+  })
 })
 
 describe('extra duty — the path behind the bar', () => {

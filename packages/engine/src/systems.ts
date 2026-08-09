@@ -11,6 +11,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, isBirthdayMonth } from './clock.js'
+import { barredFromWork } from './conditions.js'
 import {
   educationRank,
   isHigherEducation,
@@ -1373,6 +1374,88 @@ export function applyWorkMoment(
   })
 }
 
+/**
+ * WHAT WORK THIS PERSON COULD START IN, and the ONE place that decides it.
+ *
+ * Extracted so the birth family can be given jobs by the same rule the town
+ * hires by (owner, playing: "everytime you start a new life the NPC family
+ * doesn't start with a job"). A second copy of these filters is exactly how
+ * the three cost functions drifted apart four times in this project.
+ *
+ * The rule is the BOTTOM of the ladder, deliberately — see the job-change
+ * pass for moving up. A ladder is entered at its first rung, and work that
+ * sits on no ladder is entry by definition.
+ */
+export function eligibleStartingWork(
+  world: World,
+  personId: EntityId,
+  level: EducationLevel,
+): readonly Occupation[] {
+  const unlocked = veteranUnlocks(world, personId)
+  const gate = recordGateOf(world, personId, world.tick)
+  return OCCUPATIONS.filter(
+    (o) => meetsRequirement(level, o.requires) || unlocked.includes(o.id),
+  )
+    .filter((o) => isEntryWork(o.id))
+    .filter((o) => o.id !== 'constable' || constableSeatOpen(world))
+    .filter((o) => gate !== 'hard' || !isTrustSensitive(o.id))
+    // M-HEALTH §4. THE BODY CLOSES DOORS TOO. A permanent wound takes the
+    // manual trades off the table for good — the spec's own example is that
+    // an amputee is not a roofer. This is the whole point of the revamp: a
+    // condition that cannot be felt anywhere else in the game is not
+    // modelled, and before this a lost leg changed nothing about a life.
+    .filter((o) => !barredFromWork(world, personId, o.id))
+}
+
+/**
+ * PUT A GROWN PERSON INTO WORK RIGHT NOW, rather than waiting for the
+ * monthly pass to notice them.
+ *
+ * THE BUG (owner, playing): "everytime you start a new life the NPC family
+ * doesn't start with a job". A birth family is written straight into the
+ * world — mother, father, siblings, all of them adults with histories — and
+ * nothing gave them any. `runEmployment` would eventually hire them, but it
+ * is a monthly pass with a chance gate on it, so the player opened their own
+ * birth certificate and found two unemployed parents.
+ *
+ * Uses `eligibleStartingWork`, the same rule the town hires by, so a parent
+ * cannot land somewhere the town would never have put them.
+ *
+ * Returns false when there is no work this person could hold — which is a
+ * real answer, not a failure: some people are not employed.
+ */
+export function hireIntoStartingWork(
+  world: World,
+  tick: Tick,
+  person: Person,
+  rng: Rng,
+): boolean {
+  if (world.employment.has(person.id)) return false
+  const education = world.education.get(person.id)
+  if (education === undefined) return false
+  const eligible = eligibleStartingWork(world, person.id, education.level)
+  if (eligible.length === 0) return false
+
+  const workplaces = [...world.places.values()]
+  if (workplaces.length === 0) return false
+
+  // Better-paid roles weighted rather than always-the-best, exactly as the
+  // monthly pass does it — two parents with the same schooling should not
+  // lead identical lives.
+  const weights = eligible.map((o) => 1 + Math.floor(typicalPay(o) / 10_000))
+  const chosen = rng.pickWeighted(eligible, weights)
+  const workplace = rng.pick(workplaces)
+  const pay = atTodaysPrices(
+    world,
+    rng.nextIntInclusive(chosen.minMonthlyPay, chosen.maxMonthlyPay) as Money,
+  ) as Money
+  hirePerson(world, tick, person, chosen, workplace.id, pay, [
+    factor('qualified-for-role', 500 + educationRank(education.level) * 100),
+    factor('ambition', person.traits.ambition),
+  ])
+  return true
+}
+
 export function runEmployment(world: World, tick: Tick): void {
   runReviews(world, tick)
   runWorkMoments(world, tick)
@@ -1437,8 +1520,8 @@ export function runEmployment(world: World, tick: Tick): void {
     if (isSeverelyAiling(world, person.id)) continue
 
     // Unemployed: look for work. A veteran's specialty opens doors their
-    // schooling alone would not — the mechanic comes home a machinist.
-    const unlocked = veteranUnlocks(world, person.id)
+    // schooling alone would not — the mechanic comes home a machinist;
+    // `eligibleStartingWork` reads that, along with the record gate.
     // ADR-0033. A HARD RECORD CLOSES THE TRUSTED WORK for everybody, not
     // just the player — Law 1, and otherwise the town would quietly staff
     // its school and its police station with people the player is refused
@@ -1456,12 +1539,7 @@ export function runEmployment(world: World, tick: Tick): void {
     // sits on no ladder is entry by definition. Moving UP by changing
     // employer is a different path, and it reads a person's own record —
     // see the job-change pass below.
-    const eligible = OCCUPATIONS.filter(
-      (o) => meetsRequirement(education.level, o.requires) || unlocked.includes(o.id),
-    )
-      .filter((o) => isEntryWork(o.id))
-      .filter((o) => o.id !== 'constable' || constableSeatOpen(world))
-      .filter((o) => gate !== 'hard' || !isTrustSensitive(o.id))
+    const eligible = eligibleStartingWork(world, person.id, education.level)
     if (eligible.length === 0) continue
 
     // Hiring is not guaranteed — ambition and diligence improve the odds,

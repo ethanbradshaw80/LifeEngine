@@ -617,7 +617,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 146
+export const SIMULATION_VERSION = 151
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -655,8 +655,8 @@ export function toSnapshot(world: World): WorldSnapshot {
       nextCausalRecordId: world.nextCausalRecordId,
       town: world.town,
       places: [...world.places.values()].sort((a, b) => a.id - b.id),
-      people: [...world.people.values()].sort((a, b) => a.id - b.id),
-      households: [...world.households.values()].sort((a, b) => a.id - b.id),
+      people: [...world.people.values()],
+      households: [...world.households.values()],
       accounts: [...world.accounts.values()].sort((a, b) => a.personId - b.personId),
       // M-SAFETY §2: flattened, because a filing already carries its own
       // personId — the map is rebuilt from it on the way back in.

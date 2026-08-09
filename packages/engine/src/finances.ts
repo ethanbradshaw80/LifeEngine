@@ -1350,8 +1350,23 @@ export function financialUnitOf(world: World, personId: EntityId): readonly Enti
   // The moment they earn — a job, service pay, a pension of their own —
   // they become their own unit, which is the thing the owner actually
   // asked for: at eighteen with a wage, your money is yours.
-  for (const other of world.people.values()) {
-    if (other.deathTick !== null) continue
+  // THE HOUSEHOLD ALREADY KNOWS WHO IS IN IT (owner, playing: "when you age
+  // up it takes pretty long to load now").
+  //
+  // This walked EVERY PERSON IN THE WORLD to find the two-to-six who share a
+  // roof, and `financialUnitOf` is called per household member — so the cost
+  // was people x members, quadratic in the population, every month.
+  //
+  // MEASURED by instrumenting the tick: `runFinances` was 64% of the whole
+  // month (544ms of 851ms) at world-year 55, far ahead of anything else.
+  // `memberIds` is the same answer without the search.
+  const householdMembers =
+    person.householdId === null
+      ? []
+      : (world.households.get(person.householdId)?.memberIds ?? [])
+  for (const otherId of householdMembers) {
+    const other = world.people.get(otherId)
+    if (other === undefined || other.deathTick !== null) continue
     if (other.householdId !== person.householdId) continue
     if (!other.parentIds.some((parentId) => unit.includes(parentId))) continue
     const grown = ageAt(other.birthTick, world.tick) >= 18
@@ -1399,7 +1414,35 @@ export function unitIncome(world: World, unit: readonly EntityId[]): Money {
  * works — the one earning most carries most of it — and it means a grown
  * child at home contributes without being absorbed.
  */
-export function unitCosts(world: World, household: Household, unit: readonly EntityId[]): Money {
+/**
+ * THE HOUSEHOLD-LEVEL FACTS a unit's rent share is worked out from: how many
+ * units are under the roof, what they earn between them, and what this one
+ * earns. Computed once per household by the monthly loop and handed down.
+ */
+export interface UnitShape {
+  readonly unitCount: number
+  readonly totalIncome: number
+  readonly mine: number
+}
+
+/** The original derivation, kept verbatim for callers that have no bundle. */
+export function unitShapeFor(
+  world: World,
+  household: Household,
+  unit: readonly EntityId[],
+): UnitShape {
+  const units = unitsUnder(world, household)
+  let totalIncome = 0
+  for (const other of units) totalIncome += unitIncome(world, other)
+  return { unitCount: units.length, totalIncome, mine: unitIncome(world, unit) }
+}
+
+export function unitCosts(
+  world: World,
+  household: Household,
+  unit: readonly EntityId[],
+  precomputed?: UnitShape,
+): Money {
   if (household.homelessSinceTick !== null) {
     let shelter = 0
     for (const id of unit) {
@@ -1433,11 +1476,36 @@ export function unitCosts(world: World, household: Household, unit: readonly Ent
 
   const place = world.places.get(household.placeId)
   const rent = place ? rentAt(world, place.desirability) : 0
-  const units = unitsUnder(world, household)
-  if (units.length === 0) return mouths as Money
-  let totalIncome = 0
-  for (const other of units) totalIncome += unitIncome(world, other)
-  const mine = unitIncome(world, unit)
+  /**
+   * THE HOUSEHOLD'S SHAPE, COMPUTED ONCE WHEN THE CALLER ALREADY KNOWS IT
+   * (owner, playing: "when you age up it takes pretty long to load now...
+   * need the delay to be less, that's the main thing, for the game to
+   * actually run").
+   *
+   * These three lines were the single most expensive thing in the month.
+   * `unitCosts` is called ONCE PER UNIT, and each call re-derived every unit
+   * under the roof and every unit's income — so a household with three units
+   * did that work nine times, and `unitsUnder` itself walks the members.
+   *
+   * MEASURED by instrumenting the tick: `runFinances` was 64% of the whole
+   * month, `discretionaryForUnit` was 499ms of it, and `unitCosts` was 373ms
+   * of THAT — the deepest and hottest thing in the loop.
+   *
+   * The precomputed bundle is optional and the fallback below is the
+   * original code verbatim, so the OTHER two cost functions — `householdCosts`
+   * and `householdLedger` — are untouched. That trio has drifted apart four
+   * times in this project; an optimization is not worth a fifth.
+   *
+   * SAFE TO HOIST because a unit's income cannot change during the loop that
+   * spends it: `personalIncome` reads wages, service pay, sports pay and the
+   * state pension, and the pension reads `accounts.monthsWorked`, which is
+   * written in the EARNER loop that has already finished. The discretionary
+   * loop only moves `checking`, which none of them read.
+   */
+  const shape = precomputed ?? unitShapeFor(world, household, unit)
+  if (shape.unitCount === 0) return mouths as Money
+  const { totalIncome, mine } = shape
+  const units = { length: shape.unitCount }
   // Nobody earning: the rent splits evenly rather than falling on one head.
   const share =
     totalIncome > 0
@@ -1468,9 +1536,20 @@ export function discretionaryFor(world: World, household: Household): Money {
   // The roof's total, which is the sum of what the units under it spend.
   // Kept because the ledger and the arrears rule both want a household
   // figure; the DECISION lives one level down now.
+  // THE SHAPE ONCE, NOT PER UNIT. See `unitCosts` for the measurement.
+  const units = unitsUnder(world, household)
+  const incomes = units.map((one) => unitIncome(world, one))
+  let totalIncome = 0
+  for (const each of incomes) totalIncome += each
   let total = 0
-  for (const unit of unitsUnder(world, household)) {
-    total += discretionaryForUnit(world, household, unit)
+  for (let i = 0; i < units.length; i += 1) {
+    const unit = units[i]
+    if (unit === undefined) continue
+    total += discretionaryForUnit(world, household, unit, {
+      unitCount: units.length,
+      totalIncome,
+      mine: incomes[i] ?? 0,
+    })
   }
   return total as Money
 }
@@ -1486,6 +1565,7 @@ export function discretionaryForUnit(
   world: World,
   household: Household,
   unit: readonly EntityId[],
+  precomputed?: UnitShape,
 ): Money {
   if (household.savings < 0) return 0 as Money
   // M-SAFETY §2. A HOUSEHOLD UNDER A PLAN IS ON A COURT-SUPERVISED BUDGET.
@@ -1500,7 +1580,7 @@ export function discretionaryForUnit(
   }
 
   const income = unitIncome(world, unit)
-  const basics = unitCosts(world, household, unit)
+  const basics = unitCosts(world, household, unit, precomputed)
   const surplus = income - basics
   if (surplus <= 0) return 0 as Money
 
@@ -1911,7 +1991,7 @@ export function runFinances(world: World, tick: Tick): void {
   runTaxSeason(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
-  const households = [...world.households.values()].sort((a, b) => a.id - b.id)
+  const households = [...world.households.values()]
 
   for (const household of households) {
     if (household.dissolvedTick !== null) continue
@@ -1982,10 +2062,21 @@ export function runFinances(world: World, tick: Tick): void {
     // adult's money with his parents'.
     let spending = 0
     let owed = 0
-    for (const unit of unitsUnder(world, household)) {
-      const theirs = discretionaryForUnit(world, household, unit)
+    // THE SHAPE ONCE PER HOUSEHOLD. This loop was the hottest code in the
+    // month: it derived the household twice per unit — once inside
+    // `discretionaryForUnit` and again for the `unitCosts` line below — and
+    // each derivation re-walked every unit under the roof.
+    const units = unitsUnder(world, household)
+    const incomes = units.map((one) => unitIncome(world, one))
+    let totalIncome = 0
+    for (const each of incomes) totalIncome += each
+    for (let i = 0; i < units.length; i += 1) {
+      const unit = units[i]
+      if (unit === undefined) continue
+      const shape = { unitCount: units.length, totalIncome, mine: incomes[i] ?? 0 }
+      const theirs = discretionaryForUnit(world, household, unit, shape)
       spending += theirs
-      owed += unitCosts(world, household, unit) + theirs + salesTaxOn(theirs as Money)
+      owed += unitCosts(world, household, unit, shape) + theirs + salesTaxOn(theirs as Money)
     }
 
     // Taken pro rata, in integer cents, with the rounding remainder on the
@@ -2085,7 +2176,7 @@ function runInsolvency(world: World, tick: Tick): void {
   }
   const townMedian = medianMonthlyIncome(spare)
 
-  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+  for (const household of [...world.households.values()]) {
     if (household.dissolvedTick !== null) continue
 
     // WHO IS ACTUALLY INSOLVENT UNDER THIS ROOF.
@@ -2552,7 +2643,7 @@ function rehouseIfAble(world: World, tick: Tick): void {
   const cheapest = [...neighbourhoods].sort((a, b) => a.desirability - b.desirability)[0]
   if (!cheapest) return
 
-  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+  for (const household of [...world.households.values()]) {
     if (household.dissolvedTick !== null || household.homelessSinceTick === null) continue
     const income = householdIncome(world, household)
     // Enough to carry the WHOLE month at that address - the rent and every
@@ -2717,7 +2808,7 @@ export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId)
  */
 function runNpcVentures(world: World, tick: Tick): void {
   if (tick % 6 !== 3) return // twice a year, on a fixed month
-  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+  for (const person of [...world.people.values()]) {
     if (person.deathTick !== null || person.id === world.player.personId) continue
     const age = ageAt(person.birthTick, tick)
     if (age < 24 || age > 62) continue
@@ -3210,7 +3301,7 @@ function payDividends(world: World): void {
  */
 function runNpcInvesting(world: World, tick: Tick): void {
   if (tick % 12 !== 6) return // once a year, in the same month
-  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+  for (const person of [...world.people.values()]) {
     if (person.deathTick !== null) continue
     if (person.id === world.player.personId) continue
     if (ageAt(person.birthTick, tick) < 22) continue
@@ -3244,7 +3335,7 @@ function runNpcInvesting(world: World, tick: Tick): void {
 const SHOCK_KINDS = ['medical', 'scam', 'repairs'] as const
 
 function runMoneyShocks(world: World, tick: Tick): void {
-  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+  for (const person of [...world.people.values()]) {
     if (person.deathTick !== null) continue
     if (ageAt(person.birthTick, tick) < 20) continue
     const accounts = accountsOf(world, person.id)
@@ -3400,7 +3491,7 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
   const neighbourhoods = placesOfKind(world, 'neighbourhood')
   if (neighbourhoods.length === 0) return
 
-  const households = [...world.households.values()].sort((a, b) => a.id - b.id)
+  const households = [...world.households.values()]
   for (const household of households) {
     if (household.dissolvedTick !== null || household.savings >= 0) continue
 

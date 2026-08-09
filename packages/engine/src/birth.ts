@@ -27,6 +27,7 @@ import { openStream, Stream } from './rng.js'
 import type { Household, Person, World } from './types.js'
 import { rollTraits, startingEducation } from './worldgen.js'
 import { freshHealth } from './health.js'
+import { hireIntoStartingWork } from './systems.js'
 
 /** What the player actually chooses. Everything else is settled at birth. */
 export interface BirthRequest {
@@ -115,6 +116,39 @@ export function registryNoFor(seedNumber: number, given: string, family: string)
   return `${digits}·${clean(given) || 'CHILD'}·${clean(family) || 'FAMILY'}`
 }
 
+/**
+ * A SEED FROM THE NAME ITSELF, for a player who did not type a registry code.
+ *
+ * THE BUG (owner, playing): "everytime you start a new life the NPC family
+ * doesn't start with a job and they are also named the same everytime".
+ *
+ * The fallback used to be `givenName.length * 977 + familyName.length * 131`
+ * — the LENGTHS and nothing else. "John Smith" and "Mark Jones" are both
+ * four-and-five, so they seeded identically and produced the same mother,
+ * the same father, the same siblings, the same everything. Real names
+ * cluster hard around the same few lengths, so most new lives collided and
+ * the family looked hard-coded.
+ *
+ * FNV-1a over the actual characters. Deterministic — the same name still
+ * gives the same family, which is the point of the registry code — but two
+ * different names now differ, which is the point of a seed.
+ *
+ * Kept in the engine beside `seedFromRegistryNo` so both doors into a birth
+ * derive their seed the same way, in one place, under test.
+ */
+export function seedFromName(givenName: string, familyName: string): number {
+  let hash = 2_166_136_261
+  const text = `${givenName.trim().toLowerCase()} ${familyName.trim().toLowerCase()}`
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i)
+    // The FNV prime, by shifts — `Math.imul` would do, but this keeps the
+    // arithmetic plainly 32-bit and the engine free of surprises.
+    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0
+  }
+  // Kept well inside the safe-integer range; the streams salt it anyway.
+  return hash % 1_000_000_007
+}
+
 /** Read a registry number back to the seed it came from, or null. */
 export function seedFromRegistryNo(code: string): number | null {
   const first = code.split('·')[0] ?? code.split('-')[0] ?? ''
@@ -161,6 +195,9 @@ const MOTHER_MAIDEN_FALLBACK = 'Hartley'
  * parents — but v1's creation screen does not offer a picker, so the
  * default is what it builds.
  */
+/** Old enough to hold a job — the age the town itself hires from. */
+const WORKING_AGE = 18
+
 export function planBirth(
   world: World,
   request: BirthRequest,
@@ -351,6 +388,33 @@ export function registerBirth(
       completesAtTick: null,
       attainment: Math.min(1000, Math.floor((person.traits.diligence + person.traits.curiosity) / 2)),
     })
+    /**
+     * AND A JOB, IF THEY ARE OLD ENOUGH TO HOLD ONE (owner, playing:
+     * "everytime you start a new life the NPC family doesn't start with a
+     * job").
+     *
+     * A birth family is written straight into a running world — two parents
+     * in their twenties or thirties, with lives behind them — and nothing
+     * gave them any work at all. `runEmployment` would have got to them
+     * eventually, but it is a monthly pass with a chance gate, so the player
+     * met their own mother and father unemployed on the certificate.
+     *
+     * Hired through the town's own rule rather than a second one written
+     * here, so a parent cannot hold work the town would never have given
+     * them. Not everybody gets a job — `hireIntoStartingWork` says no when
+     * nothing fits, and some people are not employed, which is true.
+     *
+     * The stream is salted per person and distinct from the traits draw
+     * above, so adding this cannot shift anybody's temperament (Law 11).
+     */
+    if (member.ageYears >= WORKING_AGE) {
+      hireIntoStartingWork(
+        world,
+        world.tick,
+        person,
+        openStream(world.seed, Stream.Employment, id, 3_131),
+      )
+    }
     memberIds.push(id)
     if (member.relation !== 'sibling') parentIds.push(id)
   }

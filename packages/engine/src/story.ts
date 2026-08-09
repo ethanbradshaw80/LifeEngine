@@ -267,6 +267,19 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — ${event.detail ?? 'Contact'}.`
     case 'act-of-valor':
       return `${year} — ${event.detail !== null ? event.detail.charAt(0).toUpperCase() + event.detail.slice(1) : 'An act under fire'}.`
+    /**
+     * M-HEALTH §7. THE DAY THE AID WAS FITTED.
+     *
+     * It belongs in the life story because it is a chapter, not a purchase:
+     * Law 7 is explicit that a disabling failure keeps a recovery path, and
+     * this is the moment that path opens. `visibility.test.ts` would refuse
+     * the event otherwise, and it is right to — an event nobody can ever
+     * read is an event that did not happen.
+     */
+    case 'fitted-with-aid':
+      return event.detail === null || event.detail.length === 0
+        ? `${year} — Fitted with an aid, and slowly learned to use it.`
+        : `${year} — Fitted for the ${event.detail}, and slowly learned to use it.`
     case 'wounded-in-action': {
       const [grade, what] = (event.detail ?? '').split(':')
       const description = what && what.length > 0 ? what : 'wounds'

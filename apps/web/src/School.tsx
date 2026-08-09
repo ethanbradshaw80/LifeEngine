@@ -11,8 +11,12 @@
  * Reads engine state and the engine's own bars. It decides nothing.
  */
 
+import { useState } from 'react'
 import type { JSX } from 'react'
 import {
+  SPORT_RULES,
+  positionsFor,
+  athleteOf,
   GRADUATE_ADMISSION,
   MERIT_ATTAINMENT,
   accountsOf,
@@ -84,6 +88,8 @@ export function School({
   readonly busy: boolean
   readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
+  const [picking, setPicking] = useState(false)
+  const athlete = athleteOf(world, person.id)
   const record = world.education.get(person.id)
   if (record === undefined) return <p className="muted">No school record.</p>
 
@@ -138,6 +144,53 @@ export function School({
 
   return (
     <div className="school">
+      {/* THE SPORTS PICKER, where the player already is rather than on a
+          tab they have not opened. Same verb the Sports tab fires — one
+          way to try out, reachable from two places. */}
+      {picking && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Join a team">
+          <div className="sheet">
+            <h3>Try out for a team</h3>
+            <p className="muted small">
+              Most people who try out are cut. Pick a sport and a position — what you train and what
+              a scout reads both depend on it.
+            </p>
+            {SPORT_RULES.map((rules) => (
+              <section key={rules.sport} className="sp-sport">
+                <div className="sp-sport-hd">
+                  <span className="nm">{rules.title}</span>
+                  <span className="sub">
+                    {rules.draftPicks === 0
+                      ? rules.proRoute
+                      : `turns pro at ${String(rules.proAge)}`}
+                  </span>
+                </div>
+                <div className="sp-positions">
+                  {positionsFor(rules.sport).map((position) => (
+                    <button
+                      key={position.id}
+                      type="button"
+                      className="apply"
+                      disabled={busy}
+                      onClick={() => {
+                        onAct({ verb: 'try-out', sport: rules.sport, positionId: position.id })
+                        setPicking(false)
+                      }}
+                    >
+                      {position.short}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+            <div className="sheet-actions">
+              <button type="button" onClick={() => setPicking(false)}>
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="school-hd">
         <div className="school-k">Education · Age {age}</div>
         <div className="school-name">
@@ -296,14 +349,32 @@ export function School({
             <span className="ic">📖</span>
             {studying ? 'Studying' : 'Study'}
           </button>
+          {/* JOIN A CLUB MEANS JOIN A TEAM (owner, playing: "when you click
+              join a club it should prompt you with the sports popup to pick
+              which sports you want to do").
+
+              He is right and this button was lying. It was the SOCIAL
+              HABIT toggle wearing a football icon — clicking it made you
+              see more of your friends and had nothing whatever to do with
+              sport, while the actual tryout sat on a different tab a
+              player had no reason to look at. */}
+          <button
+            type="button"
+            className={athlete === undefined ? 'school-act' : 'school-act on'}
+            disabled={busy}
+            onClick={() => setPicking(athlete === undefined)}
+          >
+            <span className="ic">🏈</span>
+            {athlete === undefined ? 'Join a team' : 'On a team'}
+          </button>
           <button
             type="button"
             className={social ? 'school-act on' : 'school-act'}
             disabled={busy}
             onClick={() => onAct({ verb: 'habit', kind: 'social', keep: !social })}
           >
-            <span className="ic">🏈</span>
-            {social ? 'In a club' : 'Join a club'}
+            <span className="ic">🎭</span>
+            {social ? 'Seeing people' : 'See people'}
           </button>
         </div>
         <p className="note small">

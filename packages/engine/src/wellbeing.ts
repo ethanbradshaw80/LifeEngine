@@ -224,7 +224,7 @@ export function runWellbeing(world: World, tick: Tick): void {
     else list.push({ ...move })
   }
 
-  for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+  for (const person of [...world.people.values()]) {
     if (person.deathTick !== null) continue
 
     // What happened to them this month. Oldest first, so a month with two

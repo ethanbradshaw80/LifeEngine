@@ -111,8 +111,29 @@ export function TourPanel({
           {squad.map((member) => {
             const person = world.people.get(member.personId)
             const dead = person === undefined || person.deathTick !== null
+            /**
+             * WHERE EACH OF THEM STANDS, at a glance (the mockup's own
+             * d-ok / d-evac / d-kia dots).
+             *
+             * READ FROM THE HEALTH RECORD, never guessed. A roster that
+             * decided for itself who was hurt would eventually contradict
+             * the simulation, and this panel exists to report a squad, not
+             * to narrate one.
+             */
+            const health = world.health.get(member.personId)
+            const hurt =
+              !dead && health !== undefined && health.ailment !== null && health.severity >= 400
+            const state = dead ? 'kia' : hurt ? 'evac' : 'ok'
+            const stateWords = dead
+              ? `KIA${person?.causeOfDeath ? ` · ${String(person.causeOfDeath).replace(/-/g, ' ')}` : ''}`
+              : hurt
+                ? health !== undefined && health.severity >= 700
+                  ? 'WIA · medevac'
+                  : 'WIA · still on the line'
+                : 'in the fight'
             return (
               <div key={member.personId} className={`sq-row${dead ? ' gone' : ''}`}>
+                <span className={`sq-dot d-${state}`} aria-hidden="true" />
                 <div>
                   <div className="nm">{squadLineFor(member, person, world.tick)}</div>
                   {!dead && (
@@ -122,6 +143,7 @@ export function TourPanel({
                     </div>
                   )}
                 </div>
+                <span className={`sq-state s-${state}`}>{stateWords}</span>
               </div>
             )
           })}

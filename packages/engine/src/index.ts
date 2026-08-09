@@ -799,6 +799,7 @@ export {
   whoIsDown,
   followOnOdds,
   followOnWords,
+  hurtInContact,
 } from './engagement.js'
 export type { BeatKind } from './engagement.js'
 export {
@@ -825,7 +826,29 @@ export {
   parentWorkFor,
   planBirth,
   registryNoFor,
+  seedFromName,
   seedFromRegistryNo,
   registerBirth,
 } from './birth.js'
+export {
+  barredFromWork,
+  canRun,
+  CANNOT_RUN_BELOW,
+  effectsFor,
+  effectsOf,
+} from './conditions.js'
+export type { ConditionEffects } from './conditions.js'
+export { cardValue, decodeHand, handTotal } from './casino.js'
+export type { BlackjackHand } from './casino.js'
+export { dealBlackjack } from './player.js'
+export {
+  baCompensationFor,
+  coverageOf,
+  coverageWords,
+  disabilityRatingFor,
+  inTheBA,
+  outOfPocketFor,
+  SENIORCARE_AGE,
+} from './benefits.js'
+export type { Coverage, CoverageSource } from './benefits.js'
 export type { BirthPlan, BirthRequest, FamilySpec } from './birth.js'

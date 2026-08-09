@@ -1382,6 +1382,39 @@ ul.welcome-points li + li {
   padding-left: 1rem;
 }
 
+/*
+ * HOW THE CONDITION IS AFFECTING THE LIFE (M-HEALTH §4, and the mockup's
+ * own heading). Uses the shared tokens so it themes light and dark with
+ * everything else — the mockup's palette is dark-only and its names do not
+ * exist here.
+ */
+.wound-effects {
+  margin: 0.5rem 0 0;
+  padding-left: 1rem;
+  border-left: 2px solid var(--line);
+  list-style: none;
+}
+
+.wound-effects li {
+  position: relative;
+  margin: 0.3rem 0;
+  padding-left: 0.6rem;
+  color: var(--fg);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.wound-effects li::before {
+  content: '';
+  position: absolute;
+  left: -0.3rem;
+  top: 0.55em;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--bad);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wound-diagram .wound-halo {
     animation: none;
@@ -4866,6 +4899,38 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .sq-row .sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
 .sq-row.gone .nm { color: var(--muted); text-decoration: line-through; }
 
+/*
+ * THE ROSTER AT A GLANCE (owner's combat_tours_revamp.html).
+ *
+ * The mockup's d-ok / d-evac / d-kia dots, mapped onto this app's shared
+ * tokens — the mockup names its colours directly and is dark-only, so the
+ * palette does not survive the move. These theme with everything else.
+ */
+.sq-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.5rem; }
+
+.sq-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.sq-dot.d-ok { background: var(--ok); }
+.sq-dot.d-evac { background: var(--amber); }
+.sq-dot.d-kia { background: var(--bad); }
+
+.sq-state {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sq-state.s-evac { color: var(--amber); }
+.sq-state.s-kia { color: var(--bad); }
+
 /* ==========================================================================
    THE REGISTRY (owner's newgame_and_birth.html) - the front door and the
    bookend. Deliberately NOT the app's phone aesthetic: these screens are
@@ -5050,3 +5115,150 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 }
 .reg .par.past .row { grid-template-columns: 5.5rem 1fr; }
 .reg .par.past .role { letter-spacing: 0.08em; }
+
+/* ==========================================================================
+   THE BLACKJACK TABLE (owner: "enter the room choose what you bet then a
+   hand comes out and you play blackjack").
+
+   Cards you can actually read. Shared tokens throughout so it themes light
+   and dark with the rest of the app — the casino mockup is dark-only and
+   its colour names do not exist here.
+   ========================================================================== */
+
+.bj-table {
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 1rem;
+  max-width: 26rem;
+  width: 100%;
+}
+
+.bj-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.bj-ttl { font-weight: 700; letter-spacing: 0.02em; }
+.bj-chips { font-size: 0.78rem; color: var(--muted); }
+
+.bj-side { margin-bottom: 0.85rem; }
+
+.bj-lbl {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+}
+
+.bj-total { font-weight: 700; color: var(--fg); }
+.bj-total.bust { color: var(--bad); }
+.bj-total.natural { color: var(--gold); }
+
+.bj-cards { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.bj-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.1rem;
+  height: 2.9rem;
+  padding: 0 0.3rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--fg);
+}
+
+/* The hole card — present, unreadable, which is the whole tension. */
+.bj-card.face-down {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--line),
+    var(--line) 3px,
+    var(--panel) 3px,
+    var(--panel) 6px
+  );
+  color: transparent;
+}
+
+.bj-stake { margin: 0 0 0.75rem; }
+
+.bj-acts { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.bj-acts .apply { flex: 1 1 auto; min-width: 5.5rem; }
+
+.bj-note { margin: 0.75rem 0 0; line-height: 1.35; }
+
+/* ==========================================================================
+   COVERAGE & BENEFITS (owner's health_tab_1.html + benefits spec §8).
+
+   A section of the Health tab rather than a screen of its own, sitting with
+   the conditions and the body diagram. Shared tokens throughout — the
+   mockup's palette is dark-only and its names do not exist here.
+   ========================================================================== */
+
+.cov-card { margin: 0.9rem 0 1.1rem; }
+.cov-card h3 { margin: 0 0 0.5rem; }
+
+.cov {
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+}
+
+/* The veteran card carries a little weight of its own. */
+.cov.ba { border-left: 3px solid var(--gold); }
+
+.cov-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.cov-hd .nm { font-weight: 700; font-size: 0.88rem; }
+
+.cov-hd .badge {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.cov-hd .badge.bad { color: var(--bad); border-color: var(--bad); }
+
+.cov-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.22rem 0;
+  font-size: 0.8rem;
+}
+
+.cov-row .k { color: var(--muted); }
+.cov-row .v { font-weight: 600; text-align: right; }
+
+.cov-warn {
+  margin: 0.3rem 0;
+  color: var(--bad);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.cov-note { margin: 0.5rem 0 0; line-height: 1.35; }

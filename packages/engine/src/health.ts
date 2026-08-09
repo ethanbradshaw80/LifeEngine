@@ -27,7 +27,7 @@
  * mortality draws on the same stream (the births +7777/+8888 pattern).
  */
 
-import type { EntityId, Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { MACHINES_BY_OCCUPATION, occupationById, PENSION_CENTS_PER_POINT, PENSION_THRESHOLD } from './content.js'
 import { raisePending } from './player.js'
@@ -70,6 +70,50 @@ export function mortalityFromHealth(record: HealthRecord | undefined): number {
   return ailing + broken
 }
 
+/**
+ * WHAT A PROSTHETIC OR AID COSTS, base-year cents (M-HEALTH §7).
+ *
+ * Deliberately a real sum. The whole reason the healthcare layer exists is
+ * that care costs money and not everybody has it — a prosthetic somebody
+ * could buy out of pocket money would make the BA benefit meaningless and
+ * the uninsured case toothless.
+ */
+export const ADAPTATION_COST = 1_200_000 as Money
+
+/**
+ * FIT AN AID TO A PERMANENT CONDITION (M-HEALTH §7, adaptation).
+ *
+ * WRITES HEALTH AND NOTHING ELSE. The money is the caller's problem — this
+ * module owns health records and `finances.ts` owns cents, and health sits
+ * UPSTREAM of finances in the import graph (the ratchet refuses the edge,
+ * correctly). So the verb in `player.ts` debits and then calls this.
+ *
+ * Returns false when there is nothing to fit — already adapted, or no such
+ * condition — so the caller can refuse before taking anybody's money.
+ */
+export function fitAdaptation(
+  world: World,
+  personId: EntityId,
+  tick: Tick,
+): boolean {
+  const record = world.health.get(personId)
+  if (record === undefined) return false
+  const target = record.permanent.findIndex((c) => (c.adaptedAtTick ?? null) === null)
+  if (target < 0) return false
+
+  const permanent = record.permanent.map((condition, i) =>
+    i === target ? { ...condition, adaptedAtTick: tick } : condition,
+  )
+  world.health.set(personId, { ...record, permanent })
+  const fitted = record.permanent[target]
+  recordEvent(world, tick, {
+    type: 'fitted-with-aid',
+    subjectId: personId,
+    detail: fitted?.site ?? fitted?.kind ?? 'injury',
+  })
+  return true
+}
+
 /** A blank record: well, unmarked. Every person gets one at creation. */
 export function freshHealth(personId: EntityId): HealthRecord {
   return {
@@ -82,6 +126,7 @@ export function freshHealth(personId: EntityId): HealthRecord {
     sinceTick: null,
     askedConvalesce: false,
     disability: 0,
+    permanent: [],
     ailmentServiceConnected: false,
     serviceDisability: 0,
     marks: [],
@@ -296,7 +341,57 @@ function recoverOrWorsen(
   let disability = record.disability
   let serviceDisability = record.serviceDisability
   let marks = record.marks
-  if (record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
+  let permanent = record.permanent
+
+  /**
+   * SOME WOUNDS ARE NOT A DICE ROLL (owner, playing: "I just lost my leg in
+   * war and I rested and healed right back up and now im 'back on my feet'
+   * no past wounds no nothing — he lost his leg, how can he still serve and
+   * fight for the country with 1 leg").
+   *
+   * He is right, and the model was plainly wrong. Lasting damage was
+   * decided by `rng.chance(peakSeverity, 2600)` for EVERY ailment alike —
+   * so an amputation was rolled against the same odds as a bad flu, and
+   * about two times in three a man who lost a leg walked away with nothing
+   * on his record at all.
+   *
+   * A limb does not grow back. Neither does a severed spinal cord or a
+   * destroyed eye. These do not get a roll: they always leave what they
+   * always leave, and the floor is high because the injury is.
+   */
+  const PERMANENT: readonly string[] = ['amputation', 'spinal-injury', 'eye-injury']
+  const irreversible = PERMANENT.includes(record.ailmentKind ?? '')
+  if (irreversible) {
+    /**
+     * THE FLOOR CLEARS THE MEDICAL BAR ON PURPOSE, and this is the second
+     * half of what he asked ("how can he still serve and fight for the
+     * country with 1 leg"). Service already refuses at MEDICAL_LIMIT (400)
+     * — it medically discharges a serving member and turns away a
+     * re-enlistment. A floor below that would have written the leg onto the
+     * record and then let him deploy on it anyway, which is the same bug
+     * wearing a receipt.
+     *
+     * So the floor is 450: past the bar with room to spare, no matter how
+     * mild the roll that took the limb.
+     */
+    const added = Math.max(450, Math.floor(record.peakSeverity / 2))
+    disability = Math.min(1000, disability + added)
+    if (record.ailmentServiceConnected) {
+      serviceDisability = Math.min(1000, serviceDisability + added)
+    }
+    const permanentMark = markFor(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)
+    if (!marks.includes(permanentMark)) marks = [...marks, permanentMark]
+    // AND THE SAME FACT IN A SHAPE THE ENGINE CAN READ. The mark above is
+    // prose for the narrator; this is what `conditions.ts` derives mobility,
+    // fitness ceiling, pain and job restrictions from. Without it a lost leg
+    // is a sentence in an obituary and nothing else.
+    permanent = [
+      ...permanent,
+      { kind: record.ailmentKind ?? 'injury', site: record.ailmentSite, sinceTick: world.tick },
+    ]
+  }
+
+  if (!irreversible && record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
     const added = Math.floor(record.peakSeverity / 9)
     disability = Math.min(1000, disability + added)
     // Provenance was stamped at onset; the pension's ledger accrues here,
@@ -319,6 +414,7 @@ function recoverOrWorsen(
     sinceTick: null,
     askedConvalesce: false,
     disability,
+    permanent,
     ailmentServiceConnected: false,
     serviceDisability,
     marks,
