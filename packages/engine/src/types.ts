@@ -1945,6 +1945,30 @@ export interface Deployment {
   readonly tempo?: number
   /** 0-3. How much war this JOB sees inside that theatre (spec §4b). */
   readonly tier?: number
+  /**
+   * THE PEOPLE STANDING NEXT TO YOU (combat revamp §2).
+   *
+   * On the TOUR rather than on the person, because a squad is a fact about
+   * a deployment: the same soldier on their third tour is standing next to
+   * different people, and some of the ones from the first tour are dead.
+   */
+  readonly squad?: readonly SquadMember[]
+}
+
+/**
+ * One member of a fireteam. `personId` is a REAL registered person — they
+ * have traits, a family somewhere, and their death is a death (spec §2:
+ * "squadmates are real registered NPCs... their death notifies their own
+ * kin"). A name on a card has no kin.
+ */
+export interface SquadMember {
+  readonly personId: EntityId
+  readonly role: string
+  readonly nickname: string
+  /** 0-1000. Not everybody in a squad is good at this. */
+  readonly competence: number
+  /** When they joined this player's team — what a bond is measured from. */
+  readonly sinceTick: Tick
 }
 
 // ---------------------------------------------------------------------------
@@ -2417,6 +2441,8 @@ export type EventType =
   | 'delisted'
   | 'signed-endorsement'
   | 'second-act'
+  | 'squadmate-killed'
+  | 'squadmate-wounded'
   | 'signed-pro'
   | 'fought'
   | 'won-title'

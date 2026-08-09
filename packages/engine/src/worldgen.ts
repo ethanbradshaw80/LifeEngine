@@ -52,7 +52,7 @@ function allocateId(world: { nextEntityId: number }): EntityId {
   return id
 }
 
-function rollTraits(rng: Rng): Traits {
+export function rollTraits(rng: Rng): Traits {
   return {
     sociability: rng.nextBellInt(0, 1000),
     diligence: rng.nextBellInt(0, 1000),

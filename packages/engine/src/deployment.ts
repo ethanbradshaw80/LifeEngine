@@ -66,14 +66,21 @@ import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
 import {
   beatFor,
   contactShapePerMille,
+  severityBiasFor,
   operationNameFor,
   tempoFor,
   tierFor,
 } from './tours.js'
 import type { IntensityTier } from './tours.js'
+import { bondWith, pickCasualty, squadSpecsFor } from './squad.js'
+import type { SquadMember } from './types.js'
+import { rollTraits } from './worldgen.js'
+import { freshHealth } from './health.js'
 import { toDate } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { openStream, Stream } from './rng.js'
+import type { Rng } from './rng.js'
+import { nudgeWellbeing } from './wellbeing.js'
 import { officerRoleById, specialtyTitleCased } from './content.js'
 import { sceneTagsFor } from './enlistment.js'
 import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
@@ -811,6 +818,142 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
   }
 }
 
+
+/**
+ * SPIN UP A SQUAD (combat revamp §2).
+ *
+ * REAL REGISTERED PEOPLE, not names on a card — that is the whole point,
+ * and it is what makes "their death notifies their own kin" possible at
+ * all. They get traits, a health record and an id like anybody else.
+ *
+ * THEY ARE NOT FROM THE TOWN. The spec is explicit: "it will not usually
+ * be people from the player's town or existing social graph, because
+ * that's not how deployments work." They are born into the unit, they have
+ * no household here, and the town's marriage and jobs passes must never
+ * pick them up — which is what `householdId: null` and no employment
+ * record already mean everywhere else in this engine.
+ *
+ * ONLY FOR THE PLAYER. Spinning five people up for every NPC who deploys
+ * would add hundreds to a world that already carries several hundred, for
+ * a squad nobody will ever be shown. NPCs deploy exactly as they did.
+ */
+function spinUpSquad(
+  world: World,
+  tick: Tick,
+  ownerId: EntityId,
+  tourNumber: number,
+): readonly SquadMember[] {
+  const specs = squadSpecsFor(world, tick, ownerId, tourNumber)
+  const rng = openStream(world.seed, Stream.CombatResolution, ownerId * 59 + tourNumber, tick + 7_300)
+  const members: SquadMember[] = []
+
+  for (const spec of specs) {
+    const id = world.nextEntityId as EntityId
+    world.nextEntityId += 1
+    const traitRng = openStream(world.seed, Stream.PersonTraits, id, 0)
+    // Soldiers in a fireteam are young, and that is not decoration: it is
+    // why losing one lands the way it does.
+    const age = rng.nextIntInclusive(19, 31)
+    const person: Person = {
+      id,
+      givenName: rng.pickWeighted(world.spec.maleGiven.names, world.spec.maleGiven.weights),
+      familyName: rng.pickWeighted(world.spec.family.names, world.spec.family.weights),
+      sex: 'male',
+      birthTick: (tick - age * 12) as Tick,
+      deathTick: null,
+      causeOfDeath: null,
+      // The engine has ONE tier today, and adding a second for these would
+      // be a new concept every demographic pass has to learn. What keeps
+      // them out of the town is what already keeps anybody out: no
+      // household, no job, no place. They are soldiers in a unit.
+      tier: 'deep',
+      traits: rollTraits(traitRng),
+      householdId: null,
+      parentIds: [],
+      spendStance: null,
+    }
+    world.people.set(id, person)
+    world.health.set(id, freshHealth(id))
+    members.push({
+      personId: id,
+      role: spec.role,
+      nickname: spec.nickname,
+      competence: spec.competence,
+      sinceTick: tick,
+    })
+  }
+  return members
+}
+
+
+/**
+ * SOMEBODY IN THE TEAM IS HIT (combat revamp §2: they "can be wounded,
+ * medevac'd, or KIA from seeded outcomes and YOUR decisions. Losing one is
+ * a permanent story beat and reshapes the squad").
+ *
+ * WEIGHTED AGAINST COMPETENCE, which is not cruelty for its own sake: the
+ * man who is good at this survives what kills the man who is not, so a
+ * squad's losses are not random. You lose the nineteen-year-old first, and
+ * everybody knows it while it is happening.
+ *
+ * The death is a REAL DEATH — the same `performDeath` every other death in
+ * this world runs through — so it reaches the ledger, the story, and
+ * whatever kin they have. That is the whole reason they are registered
+ * people rather than names.
+ */
+function hitSquadmate(
+  world: World,
+  tick: Tick,
+  person: Person,
+  deployment: Deployment,
+  rng: Rng,
+  threatSeverity: number,
+): void {
+  const squad = deployment.squad ?? []
+  if (squad.length === 0) return
+  const casualty = pickCasualty(squad, world, rng.nextIntInclusive(0, 100_000))
+  if (casualty === null) return
+  const mate = world.people.get(casualty.personId)
+  if (mate === undefined || mate.deathTick !== null) return
+
+  // KILLED, OR HIT AND EVACUATED. The severity of the moment decides which,
+  // and most of the time it is the second — men are wounded far more often
+  // than they are killed, and a model where every casualty dies is a model
+  // that has never looked at a casualty list.
+  const fatal = rng.chance(Math.max(120, Math.min(620, threatSeverity)), 1_000)
+  const bond = bondWith(casualty, tick)
+
+  if (fatal) {
+    performDeath(
+      world, tick, mate, 'killed in action',
+      [factor('battlefield-chaos', 800), factor('witnessed', Math.min(1000, bond))],
+      Stream.CombatResolution,
+    )
+    recordEvent(world, tick, {
+      type: 'squadmate-killed',
+      subjectId: person.id,
+      otherId: mate.id,
+      detail: casualty.nickname,
+    })
+    // THE ONE WATCHING PAYS FOR IT TOO, and in proportion to how well they
+    // knew him. This is the mechanism the trauma work will read.
+    nudgeWellbeing(
+      world, tick, person.id,
+      -30 - Math.floor(bond / 25),
+      `losing ${casualty.nickname}`,
+    )
+    return
+  }
+
+  recordEvent(world, tick, {
+    type: 'squadmate-wounded',
+    subjectId: person.id,
+    otherId: mate.id,
+    detail: casualty.nickname,
+  })
+  nudgeWellbeing(world, tick, person.id, -8 - Math.floor(bond / 90), `${casualty.nickname} being hit`)
+}
+
 /**
  * One door into a war, for orders, for volunteers, and for going to an
  * ally's war — so a tour is a tour whatever put someone on the boat, and
@@ -859,6 +1002,11 @@ function startCombatTour(
     operation: operationNameFor(personId * 31 + tourNumber + Number(war.a) * 7),
     tempo,
     tier: tierFor(specialty?.combatWeight ?? 300, record?.unitId != null),
+    // THE PLAYER'S ONLY. Five real people per NPC tour would add hundreds
+    // to the world for a squad nobody is ever shown.
+    ...(personId === world.player.personId
+      ? { squad: spinUpSquad(world, tick, personId, tourNumber) }
+      : {}),
   }
   world.deployments.set(personId, [...history, deployment])
 
@@ -1416,6 +1564,23 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       channels.map((c) => Math.max(1, c.weight)),
     )
     const isAccident = channel === 'battlefield-accident'
+
+    // THE SQUAD IS IN THIS TOO (combat revamp §2). A contact that reaches
+    // the player reaches the people standing next to them, and losing one
+    // is the thing the whole squad model exists to make possible. Rarer
+    // than the player's own exposure — five men are not five times as
+    // likely to be hit as one, they are in cover together — and weighted
+    // against competence, so a squad loses the nineteen-year-old first.
+    if ((deployment.squad ?? []).length > 0 && rng.chance(230, 1_000)) {
+      hitSquadmate(
+        world,
+        tick,
+        person,
+        deployment,
+        rng,
+        200 + severityBiasFor((deployment.tier ?? 1) as IntensityTier),
+      )
+    }
 
     // The contact itself, on the record — flavored by the channel that
     // found them, and what combat-action recognition reads. Accidents are

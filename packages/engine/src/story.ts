@@ -389,6 +389,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'second-act': {
       return `${year} — Went into ${(event.detail ?? 'something else').toLowerCase()} after playing.`
     }
+    case 'squadmate-killed': {
+      return `${year} — ${event.detail ?? 'A man in the team'} was killed.`
+    }
+    case 'squadmate-wounded': {
+      return `${year} — ${event.detail ?? 'A man in the team'} was hit and taken out.`
+    }
     case 'signed-pro': {
       const [club, tier] = (event.detail ?? '').split(':')
       return tier === '1'
