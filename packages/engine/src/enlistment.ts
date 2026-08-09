@@ -83,7 +83,14 @@ export function jobsOfBranch(
   return specialties
     .filter((specialty) => specialty.branch === branchId)
     .slice()
-    .sort((a, b) => (a.minAptitude ?? 0) - (b.minAptitude ?? 0) || a.id.localeCompare(b.id))
+    // NOT `localeCompare` (M-DEBUG step 2). It is locale- and ICU-aware, so
+    // two environments with different Unicode data can order the same two
+    // ids differently — and this list decides which specialty a recruit is
+    // offered. A tiebreak that varies by browser is a divergence waiting for
+    // the first pair of ids that happen to share a minimum aptitude.
+    //
+    // Plain code-unit comparison instead: same answer everywhere, forever.
+    .sort((a, b) => (a.minAptitude ?? 0) - (b.minAptitude ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
 
 /**
