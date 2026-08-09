@@ -807,6 +807,19 @@ export interface AthleteRecord {
   readonly titleDefences?: number
   /** Soccer only: 1 is the top flight, higher is further down. */
   readonly tier?: number
+  /**
+   * 0-1000. HOW MANY PEOPLE KNOW WHO YOU ARE (sports spec §"Money, fame").
+   *
+   * Earned by playing well at a level anybody watches, and it decays: fame
+   * is a thing you keep paying for. It is NOT a reward — it buys
+   * endorsement money and it costs wellbeing and privacy, and the spec
+   * wants both halves.
+   */
+  readonly fame?: number
+  /** Cents a month from endorsements, base-year. Stars only. */
+  readonly endorsements?: Money
+  /** What they did after. Empty while still playing. */
+  readonly secondAct?: string
 }
 
 export interface SeasonLineRecord {
@@ -2120,6 +2133,8 @@ export type PendingKind =
   | 'declare-draft'
   | 'retire-sport'
   | 'take-fight'
+  | 'endorse'
+  | 'second-act'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2338,6 +2353,8 @@ export type EventType =
   | 'debated'
   | 'paid-down-loan'
   | 'delisted'
+  | 'signed-endorsement'
+  | 'second-act'
   | 'signed-pro'
   | 'fought'
   | 'won-title'

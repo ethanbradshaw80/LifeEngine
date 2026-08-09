@@ -1015,6 +1015,19 @@ export interface SportingYear {
   readonly line: SeasonLine | null
 }
 
+/**
+ * WHAT BEING KNOWN COSTS EVERYBODY THIS MONTH, for the tick loop to hand
+ * to wellbeing. A read — this module never writes a mood.
+ */
+export function famePressures(world: World): readonly { personId: EntityId; drag: number }[] {
+  const out: { personId: EntityId; drag: number }[] = []
+  for (const [personId, record] of world.athletes) {
+    const drag = famePressure(record.fame ?? 0)
+    if (drag !== 0) out.push({ personId, drag })
+  }
+  return out
+}
+
 export function runSports(world: World, tick: Tick): readonly SportingYear[] {
   // ONE MONTH A YEAR. A season is a year long, and running this every tick
   // would play twelve of them.
@@ -1069,6 +1082,27 @@ export function runSports(world: World, tick: Tick): readonly SportingYear[] {
       next = { ...next, stats: hurt }
     }
 
+    // FAME, AND WHAT IT COSTS. Earned by playing well where people are
+    // watching, and it decays every year that is not spent earning it.
+    const famed =
+      record.sport === 'combat'
+        ? fameFromFighting(next, overallOf(next))
+        : fameFrom(next, line, overallOf(next))
+    next = { ...next, fame: famed, endorsements: next.endorsements ?? (0 as Money) }
+
+    // A SCANDAL REACHES THE WELL-KNOWN AND NOBODY ELSE, which is itself
+    // the point: obscurity is a kind of protection.
+    const scandal = rollScandal(world, tick, personId, famed)
+    if (scandal !== null) {
+      next = {
+        ...next,
+        fame: Math.max(0, famed - scandal.fameCost),
+        // THE MORALS CLAUSE, doing exactly what the paper said it would.
+        endorsements: 0 as Money,
+      }
+      out.push({ personId, words: scandal.words, line })
+    }
+
     const production = Math.floor(line.points * 3)
     const step = stepPipeline(next, age, rng.nextIntInclusive(-12, 12), production)
 
@@ -1092,8 +1126,12 @@ export function runSports(world: World, tick: Tick): readonly SportingYear[] {
  */
 export function sportsWageOf(world: World, personId: EntityId): Money {
   const record = world.athletes.get(personId)
-  if (record === undefined || record.level !== 'pro') return 0 as Money
-  return record.wage
+  if (record === undefined) return 0 as Money
+  // ENDORSEMENT MONEY OUTLIVES THE CAREER BY A LITTLE, which is why this
+  // is not gated on being a professional the way the wage is: a brand's
+  // term runs to its end date and a retirement does not cancel it.
+  const playing = record.level === 'pro' ? record.wage : (0 as Money)
+  return (playing + (record.endorsements ?? 0)) as Money
 }
 
 /** Is this person's whole living the game? Used by the jobs screens. */
@@ -1501,4 +1539,168 @@ export function standingWordsFor(record: AthleteRecord): string {
   if (ranking === 1) return 'Number one contender'
   if (ranking > 0) return `Ranked #${String(ranking)}`
   return 'Unranked'
+}
+
+// ---------------------------------------------------------------------------
+// FAME, MONEY, AND WHAT COMES AFTER (spec §"Money, fame, and the second act")
+// ---------------------------------------------------------------------------
+
+/**
+ * HOW WELL KNOWN SOMEBODY BECOMES.
+ *
+ * Fame follows PERFORMANCE AT A LEVEL PEOPLE WATCH, which is why a
+ * dominant college player is less famous than a mediocre professional and
+ * a third-tier professional is barely known at all. It decays every year
+ * that is not spent earning it — fame is rented, never owned.
+ */
+export function fameFrom(record: AthleteRecord, line: SeasonLine, overall: number): number {
+  const now = record.fame ?? 0
+  const watched =
+    record.level !== 'pro'
+      ? 0
+      : record.sport === 'soccer' && (record.tier ?? 3) > 1
+        ? (record.tier ?? 3) === 2 ? 30 : 8
+        : 100
+  if (watched === 0) return Math.max(0, now - 40)
+
+  // Being good is most of it; winning is the rest. Nobody outside a city
+  // knows the best player on a losing team as well as they know a
+  // champion, which is unfair and true.
+  const earned = Math.floor(
+    ((Math.max(0, overall - 55) * 14 + Math.max(0, line.teamWins - line.teamLosses) * 3) * watched) / 100,
+  )
+  // Decay first, then this year's earning. A year off the top costs you.
+  return Math.max(0, Math.min(1_000, Math.floor(now * 0.86) + earned))
+}
+
+/** Champions in combat are famous for the belt rather than for a season. */
+export function fameFromFighting(record: AthleteRecord, overall: number): number {
+  const now = record.fame ?? 0
+  const earned =
+    record.champion === true ? 120 : (record.ranking ?? 0) > 0 ? 40 : Math.max(0, overall - 70)
+  return Math.max(0, Math.min(1_000, Math.floor(now * 0.9) + earned))
+}
+
+/**
+ * WHAT THE BRANDS PAY, in cents a month.
+ *
+ * Steeply non-linear, because that is how it works: nobody endorses the
+ * ninth-best player in a league. Below a real level of fame it is zero,
+ * and most professionals never see a penny of it.
+ */
+export const ENDORSEMENT_FLOOR = 320
+
+export function endorsementsFor(fame: number): Money {
+  if (fame < ENDORSEMENT_FLOOR) return 0 as Money
+  const above = fame - ENDORSEMENT_FLOOR
+  return Math.floor((above * above) / 90) as Money
+}
+
+/**
+ * WHAT BEING KNOWN COSTS (spec: "pressure on Wellbeing and relationships").
+ *
+ * Returned rather than applied — wellbeing is its own module's to write.
+ * It is a real cost and it rises with fame, because the thing people
+ * actually describe is not enjoying it: no privacy, an opinion from
+ * everybody, and every bad night discussed by strangers.
+ */
+export function famePressure(fame: number): number {
+  if (fame < 300) return 0
+  return -Math.floor((fame - 300) / 90)
+}
+
+/**
+ * A SCANDAL. Rare, seeded, and only reaches people anybody is watching —
+ * which is itself the point: obscurity is a kind of protection.
+ */
+export interface Scandal {
+  readonly id: string
+  readonly words: string
+  /** What it takes off fame and off the endorsement money. */
+  readonly fameCost: number
+}
+
+const SCANDALS: readonly Scandal[] = [
+  {
+    id: 'night-out',
+    words: 'A night out ended up in the papers, and the pictures were not flattering.',
+    fameCost: 90,
+  },
+  {
+    id: 'row',
+    words: 'A row with a coach was recorded by somebody in the stand and went everywhere.',
+    fameCost: 140,
+  },
+  {
+    id: 'money',
+    words: 'A business you lent your name to collapsed, and everybody who lost money knows whose name was on it.',
+    fameCost: 200,
+  },
+]
+
+export function rollScandal(world: World, tick: Tick, personId: EntityId, fame: number): Scandal | null {
+  if (fame < 380) return null
+  const rng = openStream(world.seed, Stream.Sports, personId * 37, tick + 6_600)
+  // Being more famous is being more exposed, and there is no upper bound
+  // on how closely somebody can be watched.
+  if (!rng.chance(Math.min(90, Math.floor(fame / 14)), 1_000)) return null
+  return SCANDALS[rng.nextIntInclusive(0, SCANDALS.length - 1)] ?? null
+}
+
+/**
+ * THE SECOND ACT (spec §"Money, fame, and the second act", and Law 7).
+ *
+ * A career ends around thirty-five and a life does not. What somebody can
+ * do next is read off what they actually were: the well-known go on
+ * television, the ones who understood the game coach it, and everybody
+ * else does what everybody else does — which is not a punishment, it is
+ * simply the ordinary outcome for the ordinary professional.
+ */
+export interface SecondAct {
+  readonly id: string
+  readonly title: string
+  readonly blurb: string
+  /** The civilian occupation this becomes, or null to leave it open. */
+  readonly occupationId: string | null
+}
+
+export const SECOND_ACTS: readonly SecondAct[] = [
+  {
+    id: 'broadcast',
+    title: 'Broadcasting',
+    blurb: 'They want you in a studio on match days. It pays well and it keeps you near it.',
+    occupationId: null,
+  },
+  {
+    id: 'coach',
+    title: 'Coaching',
+    blurb: 'Start where everybody starts — an assistant, on a fraction of what you used to make.',
+    occupationId: null,
+  },
+  {
+    id: 'ordinary',
+    title: 'Something else entirely',
+    blurb: 'Most people who ever played professionally do something else afterwards, and it is a life.',
+    occupationId: null,
+  },
+]
+
+/**
+ * WHAT IS ACTUALLY OPEN TO THEM. Broadcasting wants a name; coaching
+ * wants somebody who understood it. Neither is owed to anybody for having
+ * played.
+ */
+export function secondActsFor(record: AthleteRecord): readonly SecondAct[] {
+  const open: SecondAct[] = []
+  if ((record.fame ?? 0) >= 420) {
+    const broadcast = SECOND_ACTS.find((act) => act.id === 'broadcast')
+    if (broadcast !== undefined) open.push(broadcast)
+  }
+  if (statOf(record, 'sportIq') >= 60 || record.seasons >= 8) {
+    const coach = SECOND_ACTS.find((act) => act.id === 'coach')
+    if (coach !== undefined) open.push(coach)
+  }
+  const ordinary = SECOND_ACTS.find((act) => act.id === 'ordinary')
+  if (ordinary !== undefined) open.push(ordinary)
+  return open
 }

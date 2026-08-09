@@ -43,8 +43,15 @@ import {
   applyFight,
   recordWords,
   SPORT_RULES,
+  fameFrom,
+  endorsementsFor,
+  ENDORSEMENT_FLOOR,
+  famePressure,
+  rollScandal,
+  secondActsFor,
 } from '../src/sports.js'
 import type { AthleteRecord } from '../src/types.js'
+import { letterOfIntentFor, playingContractFor, endorsementFor } from '../src/sportspaper.js'
 
 function athlete(positionId: string, stats: Record<string, number>): AthleteRecord {
   return freshAthlete(1 as never, 'basketball', positionId, stats, 90)
@@ -482,5 +489,143 @@ describe('a fighter climbs, and can fall', () => {
     const prospect = runFight(world, 5 as never, 4_000, fighter(70), 3)
     const champ = runFight(world, 5 as never, 4_000, fighter(70, { champion: true }), 3)
     expect(champ.purse).toBeGreaterThan(prospect.purse * 5)
+  })
+})
+
+describe('fame, money, and what comes after', () => {
+  function pro(over: number, extra: Partial<AthleteRecord> = {}): AthleteRecord {
+    const stats: Record<string, number> = {
+      shooting: over, finishing: over, handling: over, perimeterD: over,
+      rebounding: over, postPlay: over, interiorD: over, blocking: over, passing: over,
+      speed: over, strength: over, agility: over, stamina: over, durability: over, sportIq: over,
+    }
+    return { ...freshAthlete(4 as never, 'basketball', 'sg', stats, 95), level: 'pro', ...extra }
+  }
+  const goodYear = {
+    games: 60, points: 24, rebounds: 5, assists: 5,
+    shootingPerMille: 470, teamWins: 44, teamLosses: 16,
+  }
+
+  it('fame follows playing well where people are watching', () => {
+    const star = fameFrom(pro(88), goodYear, 88)
+    const scrub = fameFrom(pro(58), goodYear, 58)
+    expect(star).toBeGreaterThan(scrub)
+  })
+
+  it('nobody watches the lower tiers, and it shows', () => {
+    const topFlight = fameFrom({ ...pro(85), sport: 'soccer', tier: 1 }, goodYear, 85)
+    const thirdTier = fameFrom({ ...pro(85), sport: 'soccer', tier: 3 }, goodYear, 85)
+    expect(topFlight).toBeGreaterThan(thirdTier)
+  })
+
+  it('fame is rented — a year off the top costs you', () => {
+    const famous = pro(88, { fame: 800, level: 'done' })
+    // 'done' is not a level anybody watches, so it decays.
+    expect(fameFrom(famous, { ...goodYear, games: 0 }, 88)).toBeLessThan(800)
+  })
+
+  it('endorsements are for stars and nobody else', () => {
+    expect(endorsementsFor(200)).toBe(0)
+    expect(endorsementsFor(ENDORSEMENT_FLOOR - 1)).toBe(0)
+    expect(endorsementsFor(600)).toBeGreaterThan(0)
+    // Steeply non-linear: nobody endorses the ninth-best player.
+    expect(endorsementsFor(900)).toBeGreaterThan(endorsementsFor(600) * 3)
+  })
+
+  it('being known costs wellbeing, and costs more the better known you are', () => {
+    expect(famePressure(100)).toBe(0)
+    expect(famePressure(600)).toBeLessThan(0)
+    expect(famePressure(900)).toBeLessThan(famePressure(600))
+  })
+
+  it('a scandal only reaches somebody anybody is watching', () => {
+    const world = createWorld(makeSeed(51))
+    // Obscurity is a kind of protection, and the model says so.
+    for (let i = 0; i < 200; i += 1) {
+      expect(rollScandal(world, i as never, 6_000 + i, 100)).toBeNull()
+    }
+    let hit = 0
+    for (let i = 0; i < 400; i += 1) {
+      if (rollScandal(world, i as never, 6_000 + i, 800) !== null) hit += 1
+    }
+    // Real, and still rare — a famous life is not a scandal every year.
+    expect(hit).toBeGreaterThan(0)
+    expect(hit / 400).toBeLessThan(0.2)
+  })
+
+  it('there is always a second act, and always an ordinary one', () => {
+    // A quiet journeyman: no broadcasting, but a life.
+    const journeyman = pro(64, { level: 'done', fame: 40, seasons: 3 })
+    const acts = secondActsFor(journeyman)
+    expect(acts.length).toBeGreaterThan(0)
+    expect(acts.some((act) => act.id === 'ordinary')).toBe(true)
+    expect(acts.some((act) => act.id === 'broadcast')).toBe(false)
+
+    // A famous one gets the studio.
+    const famous = pro(88, { level: 'done', fame: 700, seasons: 12 })
+    expect(secondActsFor(famous).some((act) => act.id === 'broadcast')).toBe(true)
+  })
+})
+
+describe('the paper says what the world says', () => {
+  function proRecord(extra: Partial<AthleteRecord> = {}): AthleteRecord {
+    const stats: Record<string, number> = { shooting: 80, finishing: 78, handling: 75, perimeterD: 70 }
+    return { ...freshAthlete(9 as never, 'basketball', 'sg', stats, 92), level: 'pro', ...extra }
+  }
+
+  it('a letter of intent says what the award actually is', () => {
+    const world = createWorld(makeSeed(51))
+    const full = letterOfIntentFor(world, proRecord(), 'A Player', 'State University', 'a powerhouse programme', 'full', 200_000 as never)
+    expect(full.monthly).toBeGreaterThan(0)
+    expect(full.stamp).toBe('FULL RIDE')
+    // THE CLAUSE THAT IS TRUE AND ALMOST NOBODY KNOWS: it is one year,
+    // renewable, not a four-year guarantee.
+    expect(full.clauses.some((clause) => clause.includes('ONE ACADEMIC YEAR'))).toBe(true)
+
+    // A walk-on's letter shows no money rather than a proud zero.
+    const walkOn = letterOfIntentFor(world, proRecord(), 'A Player', 'Fairmount State', 'small', 'walk-on', 200_000 as never)
+    expect(walkOn.monthly).toBe(0)
+  })
+
+  it('a rookie contract says the scale decided it, not a negotiation', () => {
+    const world = createWorld(makeSeed(51))
+    const paper = playingContractFor(world, proRecord({ draftPick: 4 }), 'A Player', 900_000 as never)
+    expect(paper.headline).toContain('ROOKIE SCALE')
+    expect(paper.clauses.some((clause) => clause.includes('not subject to negotiation'))).toBe(true)
+    // A first-rounder is paid to sign; nobody else is.
+    expect(paper.bonus).toBeGreaterThan(0)
+  })
+
+  it('an undrafted invitation promises nothing, and says so', () => {
+    const world = createWorld(makeSeed(51))
+    const paper = playingContractFor(world, proRecord({ draftPick: null }), 'A Player', 40_000 as never)
+    expect(paper.stamp).toBe('NO GUARANTEE')
+    expect(paper.bonus).toBe(0)
+    expect(paper.clauses.some((clause) => clause.includes('release'))).toBe(true)
+  })
+
+  it('an endorsement carries the morals clause the scandal arc runs on', () => {
+    const world = createWorld(makeSeed(51))
+    const paper = endorsementFor(world, proRecord({ fame: 720 }), 'A Player', 400_000 as never)
+    expect(paper.variant).toBe('endorsement')
+    expect(paper.clauses.some((clause) => clause.startsWith('MORALS'))).toBe(true)
+    // It is not employment and the paper says that too.
+    expect(paper.clauses.some((clause) => clause.includes('no employment'))).toBe(true)
+  })
+
+  it('every paper is complete — no blank fields reach a screen', () => {
+    const world = createWorld(makeSeed(51))
+    const papers = [
+      letterOfIntentFor(world, proRecord(), 'A Player', 'State University', 'a powerhouse', 'full', 200_000 as never),
+      playingContractFor(world, proRecord({ draftPick: 12 }), 'A Player', 500_000 as never),
+      endorsementFor(world, proRecord({ fame: 700 }), 'A Player', 300_000 as never),
+    ]
+    for (const paper of papers) {
+      for (const [key, value] of Object.entries(paper)) {
+        if (typeof value === 'string') expect(value.length, `${paper.variant}.${key}`).toBeGreaterThan(0)
+      }
+      expect(paper.clauses.length, paper.variant).toBeGreaterThan(2)
+      expect(paper.termYears, paper.variant).toBeGreaterThan(0)
+    }
   })
 })

@@ -4802,3 +4802,13 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .sp-sport-hd .nm { font-size: 0.88rem; font-weight: 800; }
 .sp-sport-hd .sub { font-size: 0.7rem; color: var(--muted); text-align: right; }
 .sp-sport .sp-positions .apply { flex: 0 0 auto; min-width: 3.2rem; }
+.sp-paper-btns { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
+.sp-paper-btns .apply { flex: 1; }
+.sp-paper-btns .apply.ghost {
+  background: var(--panel-raised); color: var(--fg); border-color: var(--line);
+}
+.sp-row .v.ok { color: var(--ok); }
+/* The three papers, each with its own edge so they are not confusable. */
+.contract-sheet.is-letter { border-left: 3px solid var(--accent); }
+.contract-sheet.is-playing { border-left: 3px solid var(--gold); }
+.contract-sheet.is-endorsement { border-left: 3px solid var(--purple); }

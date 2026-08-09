@@ -28,7 +28,7 @@ import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances, voidHoldingsIn } from './finances.js'
 import { runCasino } from './casino.js'
-import { runSports } from './sports.js'
+import { famePressures, runSports } from './sports.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { stepEconomy } from './economy.js'
 import {
@@ -121,6 +121,10 @@ export function advanceTick(world: World): World {
   // The sporting year: seasons play, the pipeline steps, careers end.
   // Nothing here trains or declares for anybody — those are verbs.
   runSports(world, next)
+  // Being known has a price, and it is paid every month rather than once.
+  for (const { personId, drag } of famePressures(world)) {
+    nudgeWellbeing(world, next, personId, drag, 'the attention')
+  }
   runGovernment(world, next)
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

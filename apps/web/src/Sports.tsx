@@ -14,6 +14,7 @@
  * the first day.
  */
 
+import { useState } from 'react'
 import type { ReactElement } from 'react'
 import { formatMoney } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
@@ -28,9 +29,15 @@ import {
   positionById,
   positionsFor,
   trainingRisk,
+  secondActsFor,
+  letterOfIntentFor,
+  playingContractFor,
+  endorsementFor,
+  endorsementOfferFor,
 } from '@life-engine/engine'
 import type { Person, World } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
+import { SportsPaperView } from './SportsPaper.js'
 
 interface Props {
   readonly world: World
@@ -40,7 +47,16 @@ interface Props {
   readonly onAct: (action: VerbRequest) => void
 }
 
+interface OpenPaper {
+  readonly kind: 'letter' | 'playing' | 'endorsement'
+  readonly offerId?: string
+}
+
+/** A year of tuition, for the letter to quote. Base-year cents a month. */
+const tuitionGuess = 180_000 as Money
+
 export function Sports({ world, person, busy, age, onAct }: Props): ReactElement {
+  const [paper, setPaper] = useState<OpenPaper | null>(null)
   const record = athleteOf(world, person.id)
 
   // NEVER PLAYED, which is where almost everybody stays.
@@ -95,8 +111,66 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
   const done = record.level === 'done'
   const offers = record.offers ?? []
 
+  // WHICH PAPER IS OPEN, if any. Built on demand from the engine so the
+  // document can never drift from the world it describes.
+  const openPaper =
+    paper === null
+      ? null
+      : paper.kind === 'letter'
+        ? (() => {
+            const offer = offers.find((entry) => entry.id === paper.offerId)
+            return offer === undefined
+              ? null
+              : letterOfIntentFor(
+                  world,
+                  record,
+                  `${person.givenName} ${person.familyName}`,
+                  offer.programme,
+                  offer.blurb,
+                  offer.ride,
+                  tuitionGuess,
+                )
+          })()
+        : paper.kind === 'playing'
+          ? playingContractFor(world, record, `${person.givenName} ${person.familyName}`, record.wage)
+          : endorsementFor(
+              world,
+              record,
+              `${person.givenName} ${person.familyName}`,
+              endorsementOfferFor(record),
+            )
+
   return (
     <div className="sp">
+      {openPaper !== null && (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label={openPaper.title}>
+          <SportsPaperView paper={openPaper}>
+            <div className="sp-paper-btns">
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => {
+                  if (paper?.kind === 'letter' && paper.offerId !== undefined) {
+                    onAct({ verb: 'take-offer', offerId: paper.offerId })
+                  } else if (paper?.kind === 'endorsement') {
+                    onAct({ verb: 'endorse' })
+                  }
+                  setPaper(null)
+                }}
+              >
+                {paper?.kind === 'playing' ? 'Close' : 'Sign it'}
+              </button>
+              {paper?.kind !== 'playing' && (
+                <button type="button" className="apply ghost" onClick={() => setPaper(null)}>
+                  Not this one
+                </button>
+              )}
+            </div>
+          </SportsPaperView>
+        </div>
+      )}
+
       {/* THE HEADLINE CARD — the mockup's overall-and-position block. */}
       <section className="sp-ovr">
         <div className="ball">🏀</div>
@@ -192,6 +266,11 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
             </div>
           </section>
 
+          {/* THE OFFERS ARE PAPER, not a list with a Sign button (owner:
+              "make a contract UI how we did for deployments"). Picking one
+              opens the actual letter, because signing one at eighteen is
+              the largest decision most athletes ever make and a row in a
+              table does not read like one. */}
           {offers.length > 0 && (
             <section className="sp-card">
               <h4>College offers · earned by your record</h4>
@@ -208,9 +287,9 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
                     type="button"
                     className="apply"
                     disabled={busy}
-                    onClick={() => onAct({ verb: 'take-offer', offerId: offer.id })}
+                    onClick={() => setPaper({ kind: 'letter', offerId: offer.id })}
                   >
-                    Sign
+                    Read the letter
                   </button>
                 </div>
               ))}
@@ -254,9 +333,49 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
                 <span>Salary</span>
                 <span className="v">{formatMoney((record.wage * 12) as Money)} / yr</span>
               </div>
+              {(record.endorsements ?? 0) > 0 && (
+                <div className="sp-row">
+                  <span>Endorsements</span>
+                  <span className="v ok">
+                    {formatMoney(((record.endorsements ?? 0) * 12) as Money)} / yr
+                  </span>
+                </div>
+              )}
               <div className="sp-row">
                 <span>Seasons played</span>
                 <span className="v">{record.seasons}</span>
+              </div>
+              <div className="sp-row">
+                <span>How well known</span>
+                <span className="v">
+                  {(record.fame ?? 0) >= 700
+                    ? 'a household name'
+                    : (record.fame ?? 0) >= 420
+                      ? 'well known'
+                      : (record.fame ?? 0) >= 200
+                        ? 'known to people who follow it'
+                        : 'anonymous'}
+                </span>
+              </div>
+              <div className="sp-btns">
+                <button
+                  type="button"
+                  className="apply ghost"
+                  disabled={busy}
+                  onClick={() => setPaper({ kind: 'playing' })}
+                >
+                  Read the contract
+                </button>
+                {endorsementOfferFor(record) > 0 && (
+                  <button
+                    type="button"
+                    className="apply"
+                    disabled={busy}
+                    onClick={() => setPaper({ kind: 'endorsement' })}
+                  >
+                    An endorsement offer
+                  </button>
+                )}
               </div>
             </section>
           )}
@@ -333,10 +452,38 @@ export function Sports({ world, person, busy, age, onAct }: Props): ReactElement
       )}
 
       {done && (
-        <p className="muted small">
-          It is a life, not a game over. Most people who ever played are here, and there is plenty
-          of it left.
-        </p>
+        <>
+          <p className="muted small">
+            It is a life, not a game over. Most people who ever played are here, and there is plenty
+            of it left.
+          </p>
+          {(record.secondAct ?? '') === '' ? (
+            <section className="sp-card">
+              <h4>What comes next</h4>
+              {secondActsFor(record).map((act) => (
+                <div key={act.id} className="sp-offer">
+                  <div>
+                    <div className="nm">{act.title}</div>
+                    <div className="sub">{act.blurb}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="apply"
+                    disabled={busy}
+                    onClick={() => onAct({ verb: 'second-act', actId: act.id })}
+                  >
+                    Take it
+                  </button>
+                </div>
+              ))}
+            </section>
+          ) : (
+            <section className="sp-card">
+              <h4>After the game</h4>
+              <p className="muted small">{record.secondAct}</p>
+            </section>
+          )}
+        </>
       )}
     </div>
   )

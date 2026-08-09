@@ -724,6 +724,10 @@ export {
   recordWords,
   standingWordsFor,
   signedWageFor,
+  endorsementsFor,
+  famePressure,
+  secondActsFor,
+  SECOND_ACTS,
 } from './sports.js'
 export type { AthleteLevel, Offer, Position, SeasonLine, SportId, SportRules, TrainingFocus, FightResult, SigningResult } from './sports.js'
 export type { AthleteRecord, OfferRecord, SeasonLineRecord } from './types.js'
@@ -736,4 +740,17 @@ export {
   declareForDraftPlayer,
   retirePlayer,
   takeFightPlayer,
+  signEndorsementPlayer,
+  secondActPlayer,
 } from './player.js'
+
+// The paper an athlete signs (owner: "make a contract UI how we did for
+// deployments and stuff").
+export {
+  letterOfIntentFor,
+  playingContractFor,
+  endorsementFor,
+  endorsementOfferFor,
+} from './sportspaper.js'
+export type { SportsPaper, PaperVariant } from './sportspaper.js'
+export type { SecondAct } from './sports.js'

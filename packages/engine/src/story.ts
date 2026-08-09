@@ -383,6 +383,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'paid-down-loan': {
       return `${year} \u2014 Paid a lump off the ${event.detail ?? 'debt'}.`
     }
+    case 'signed-endorsement': {
+      return `${year} — Signed an endorsement deal. People know the name now.`
+    }
+    case 'second-act': {
+      return `${year} — Went into ${(event.detail ?? 'something else').toLowerCase()} after playing.`
+    }
     case 'signed-pro': {
       const [club, tier] = (event.detail ?? '').split(':')
       return tier === '1'

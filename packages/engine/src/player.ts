@@ -67,12 +67,14 @@ import {
   runFight,
   runSigning,
   rulesFor,
+  secondActsFor,
   signedWageFor,
   startingStats,
   train,
   tryoutBar,
 } from './sports.js'
 import type { TrainingFocus } from './sports.js'
+import { endorsementOfferFor } from './sportspaper.js'
 import {
   CASINO_MIN_AGE,
   HAND_CHOICES,
@@ -1679,6 +1681,72 @@ export function takeFightPlayer(world: World): { done: boolean; reason: string; 
     })
   }
   return { done: true, reason: '', words: result.words }
+}
+
+/**
+ * SIGN AN ENDORSEMENT (spec §"Money, fame").
+ *
+ * Only ever offered to somebody a brand actually wants, which is very few
+ * people — and the paper's morals clause is not decoration: a scandal
+ * ends it, and the yearly pass enforces exactly that.
+ */
+export function signEndorsementPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.level !== 'pro') {
+    return { done: false, reason: 'Nobody endorses somebody who is not playing.' }
+  }
+  if ((record.endorsements ?? 0) > 0) return { done: false, reason: 'You already have a deal.' }
+  const offered = endorsementOfferFor(record)
+  if (offered <= 0) {
+    return { done: false, reason: 'Nobody knows who you are yet. That is what an endorsement buys.' }
+  }
+  logVerb(world, 'endorse', String(offered))
+  world.athletes.set(person.id, { ...record, endorsements: offered })
+  recordEvent(world, world.tick, {
+    type: 'signed-endorsement',
+    subjectId: person.id,
+    detail: String(offered),
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * WHAT COMES AFTER (spec §"the second act", Law 7).
+ *
+ * A career ends around thirty-five and a life does not. This is chosen
+ * rather than assigned, and "something else entirely" is always on the
+ * list because it is what most people who ever played professionally
+ * actually do.
+ */
+export function secondActPlayer(world: World, actId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined) return { done: false, reason: 'You never played.' }
+  if (record.level !== 'done') return { done: false, reason: 'You are still playing.' }
+  if ((record.secondAct ?? '') !== '') return { done: false, reason: 'You have already decided.' }
+  const act = secondActsFor(record).find((entry) => entry.id === actId)
+  if (act === undefined) return { done: false, reason: 'That is not open to you.' }
+
+  logVerb(world, 'second-act', actId)
+  world.athletes.set(person.id, { ...record, secondAct: act.title })
+  recordEvent(world, world.tick, {
+    type: 'second-act',
+    subjectId: person.id,
+    detail: act.title,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('has-income', 400)],
+    chosen: `went into ${act.title.toLowerCase()} after playing`,
+    rejected: secondActsFor(record).filter((entry) => entry.id !== actId).map((entry) => entry.title),
+    streamId: Stream.Sports,
+  })
+  return { done: true, reason: '' }
 }
 
 /** Hang them up. Always available — nobody is trapped in a career here. */
@@ -4091,6 +4159,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'declare-draft':
     case 'retire-sport':
     case 'take-fight':
+    case 'endorse':
+    case 'second-act':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -5453,6 +5523,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Hung them up.' // log-only
     case 'take-fight':
       return 'Took a fight.' // log-only
+    case 'endorse':
+      return 'Signed an endorsement.' // log-only
+    case 'second-act':
+      return 'Chose what came next.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':
