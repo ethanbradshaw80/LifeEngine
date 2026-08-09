@@ -977,3 +977,133 @@ export function runCasino(world: World, tick: Tick): readonly { personId: Entity
   }
   return drags
 }
+
+// ---------------------------------------------------------------------------
+// THE KEY HAND (spec §2 — "the interactive spice")
+// ---------------------------------------------------------------------------
+
+export type HandChoice = 'fold' | 'call' | 'shove'
+
+export const HAND_CHOICES: readonly HandChoice[] = ['fold', 'call', 'shove']
+
+/**
+ * A BIG POT, AND A READ THAT IS ONLY MOSTLY RIGHT.
+ *
+ * Every field here is drawn from the session's own seed, so the hand is
+ * part of the night rather than a second roll of dice on top of it.
+ */
+export interface KeyHand {
+  readonly potPerMille: number
+  /** What calling costs, per-mille of a buy-in. */
+  readonly toCallPerMille: number
+  /** 0-1000. How often you are actually ahead. THE PLAYER IS TOLD A
+   *  BLURRED VERSION of this, never the number. */
+  readonly aheadPerMille: number
+  readonly board: string
+  readonly hole: string
+  readonly villain: string
+  readonly read: string
+}
+
+const VILLAINS: readonly string[] = [
+  '"Iceman" Vos',
+  'Dana R.',
+  'The Kid',
+  'Marchetti',
+  'the quiet one in seat four',
+  'Pooley',
+]
+
+/**
+ * DOES A BIG POT COME UP, and what is in it?
+ *
+ * Drawn from the session's stream so the same night always contains the
+ * same hand. Returns null most sessions — a key hand every time would make
+ * it wallpaper rather than an event.
+ */
+export function keyHandFor(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  visit: number,
+  skill: number,
+): KeyHand | null {
+  const rng = openStream(world.seed, Stream.Casino, personId * 29 + visit, tick + 7_700)
+  if (!rng.chance(260, 1_000)) return null
+
+  const potPerMille = rng.nextIntInclusive(900, 2_600)
+  const toCallPerMille = Math.floor((potPerMille * rng.nextIntInclusive(380, 720)) / 1_000)
+  // A better player finds themselves ahead in big pots more often, because
+  // getting there is most of what skill is.
+  const aheadPerMille = Math.max(
+    150,
+    Math.min(850, rng.nextIntInclusive(280, 620) + Math.floor((skill - 450) / 6)),
+  )
+  const villain = VILLAINS[rng.nextIntInclusive(0, VILLAINS.length - 1)] ?? 'the big stack'
+
+  // THE READ IS BLURRED ON PURPOSE. Being told "you are ahead 61 per cent"
+  // would make this arithmetic; being told what you think is a decision.
+  const read =
+    aheadPerMille >= 620
+      ? `You are almost certainly good here. ${villain} has been running over the table and this is the spot.`
+      : aheadPerMille >= 460
+        ? `It is close. ${villain} could have it, and has been capable of this with nothing all night.`
+        : `Something is wrong. ${villain} has not put a chip in without it, and this is a lot of chips.`
+
+  return {
+    potPerMille,
+    toCallPerMille,
+    aheadPerMille,
+    board: BOARDS[rng.nextIntInclusive(0, BOARDS.length - 1)] ?? 'A♥ K♠ 7♦',
+    hole: HOLES[rng.nextIntInclusive(0, HOLES.length - 1)] ?? 'A♠ K♣',
+    villain,
+    read,
+  }
+}
+
+const BOARDS: readonly string[] = [
+  'A♥ K♠ 7♦ 2♣',
+  'Q♦ J♦ 9♠ 4♥',
+  '8♣ 8♦ 3♠ K♥',
+  'T♠ 6♥ 2♦ T♣',
+  'A♣ 5♦ 4♠ 3♥',
+]
+
+const HOLES: readonly string[] = ['A♠ K♣', 'Q♠ Q♥', 'J♣ T♣', 'A♦ 2♠', 'K♦ Q♣']
+
+/**
+ * WHAT THE ANSWER IS WORTH, in per-mille of a buy-in, added to the night.
+ *
+ * FOLDING IS NOT FREE AND NOT A LOSS. You keep what you have not put in
+ * and you give up what is already out there, which is exactly what folding
+ * is — the pot was partly yours.
+ *
+ * THE CHOICE SHIFTS A SEEDED OUTCOME; IT DOES NOT ADD RANDOMNESS (spec
+ * §5). The hand's `aheadPerMille` was drawn when the hand was, and the
+ * same draw decides it whatever you pick — so calling a hand you were
+ * behind in loses, every time, on that seed.
+ */
+export function keyHandOutcome(hand: KeyHand, choice: HandChoice, roll: number): number {
+  const ahead = roll < hand.aheadPerMille
+  switch (choice) {
+    case 'fold':
+      // A quarter of the pot is a fair reading of what was already yours.
+      return -Math.floor(hand.potPerMille / 4)
+    case 'call':
+      return ahead ? hand.potPerMille : -hand.toCallPerMille
+    case 'shove':
+      // More on the line both ways: you get paid more when good and lose
+      // the whole stack when not.
+      return ahead
+        ? Math.floor((hand.potPerMille * 3) / 2)
+        : -Math.floor((hand.toCallPerMille * 9) / 5)
+  }
+}
+
+export function handOutcomeWords(choice: HandChoice, gained: number): string {
+  if (choice === 'fold') return 'You let it go. It cost you what was already in there, and no more.'
+  if (gained > 0) return 'You were good. The pot is yours and it was a big one.'
+  return choice === 'shove'
+    ? 'He had it. The whole stack, in one hand.'
+    : 'He had it. An expensive way to find out.'
+}

@@ -131,6 +131,94 @@ export function Casino({ world, person, busy, wallet, onAct }: Props): ReactElem
         </p>
       </section>
 
+      {/* THE RESULTS SCREENS (spec §2b: "shown after EVERY tournament and
+          cash session"). They are pure presentation of an already-seeded
+          result — the numbers were decided when the player sat down, and
+          nothing here computes or moves anything. */}
+      {record.lastTournament !== undefined && record.lastTournament.tick === world.tick && (
+        <section className="cas-result">
+          <div className="cas-trophy">
+            <div className="cup">{record.lastTournament.finish === 1 ? '🏆' : '🎴'}</div>
+            <div className="tn">{record.lastTournament.title}</div>
+            <div className="gtd">
+              played {record.lastTournament.hours}h · buy-in{' '}
+              {formatMoney(record.lastTournament.buyIn)}
+            </div>
+          </div>
+          <div className="cas-finish">
+            <div className="k">Finishing position</div>
+            <div className="pos">
+              #{record.lastTournament.finish.toLocaleString()}{' '}
+              <span className="of">/ {record.lastTournament.field.toLocaleString()}</span>
+            </div>
+          </div>
+          <div className="cas-won">
+            <div className="k">
+              {record.lastTournament.payout > 0 ? 'You won' : 'Out of the money'}
+            </div>
+            <div className={`big ${record.lastTournament.payout > 0 ? 'up' : 'dn'}`}>
+              {formatMoney(record.lastTournament.payout)}
+            </div>
+          </div>
+          <div className="cas-rows">
+            <div className="row">
+              <span>Net</span>
+              <span className={`v ${record.lastTournament.net >= 0 ? 'up' : 'dn'}`}>
+                {record.lastTournament.net >= 0 ? '+' : '−'}
+                {formatMoney(Math.abs(record.lastTournament.net) as Money)}
+              </span>
+            </div>
+            <div className="row">
+              <span>Chips now</span>
+              <span className="v gold">{formatMoney(record.lastTournament.chipsAfter)}</span>
+            </div>
+          </div>
+          <p className="muted small">{record.lastTournament.words}</p>
+        </section>
+      )}
+
+      {record.lastSession !== undefined && record.lastSession.tick === world.tick && (
+        <section className="cas-result">
+          <div className="cas-netbig">
+            <div className="k">Net this session · {record.lastSession.stakeTitle}</div>
+            <div className={`v ${record.lastSession.net >= 0 ? 'up' : 'dn'}`}>
+              {record.lastSession.net >= 0 ? '+' : '−'}
+              {formatMoney(Math.abs(record.lastSession.net) as Money)}
+            </div>
+          </div>
+          <div className="cas-rows">
+            <div className="row">
+              <span>Time played</span>
+              <span className="v">{record.lastSession.hours}h</span>
+            </div>
+            <div className="row">
+              <span>Hands</span>
+              <span className="v">{record.lastSession.hands.toLocaleString()}</span>
+            </div>
+            <div className="row">
+              <span>Win rate</span>
+              <span className="v">{formatMoney(record.lastSession.perHour as Money)} / hr</span>
+            </div>
+            <div className="row">
+              <span>Biggest pot</span>
+              <span className="v">{formatMoney(record.lastSession.biggestPot)}</span>
+            </div>
+            <div className="row">
+              <span>Chips now</span>
+              <span className="v gold">{formatMoney(record.lastSession.chipsAfter)}</span>
+            </div>
+          </div>
+          {/* THE LINE THAT FRAMES THE VARIANCE, and the spec asks for it by
+              name. A winning night is not evidence and neither is a losing
+              one — saying so on the screen is the difference between a
+              simulation and a slot machine with cards on it. */}
+          <p className="muted small">
+            The grind is measured over months, not sessions. A night like this proves nothing on
+            its own, in either direction.
+          </p>
+        </section>
+      )}
+
       <div className="cas-tabs">
         {(
           [

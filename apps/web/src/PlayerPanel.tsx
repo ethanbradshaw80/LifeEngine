@@ -30,6 +30,10 @@ import {
   crimeSceneFor,
   decodeInterview,
   decodeWorkMoment,
+  decodeHeldSession,
+  gamblerOf,
+  keyHandFor,
+  stakeById,
   isStretchFor,
   occupationById,
   officerRoleById,
@@ -53,6 +57,7 @@ import { OrdersSheetView } from './OrdersSheet.js'
 import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
+import { KeyHandView } from './KeyHand.js'
 import { SchoolMomentView } from './SchoolMoment.js'
 import { InterviewView } from './Interview.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
@@ -383,6 +388,7 @@ function schoolStandingWords(attainment: number): string {
 export const KINDS_WITH_THEIR_OWN_BUTTONS: readonly string[] = [
   'crime-scene',
   'work-moment',
+  'key-hand',
   'school-moment',
   'interview',
   'separation-record',
@@ -606,6 +612,27 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
             variant={state.variant}
             performance={job.performance}
             standing={`${occupationById(job.occupationId).title} · ${standingWords(job.performance)}`}
+            onChoose={onChoose}
+          />
+        </div>
+      )
+    }
+  }
+
+  // A BIG POT MID-SESSION. The night is already dealt; this is the player
+  // reading it and choosing (casino spec §2).
+  if (pending.kind === 'key-hand') {
+    const record = gamblerOf(world, pending.personId)
+    const hand = keyHandFor(world, pending.tick, pending.personId, record.hoursPlayed, record.pokerSkill)
+    const held = decodeHeldSession(pending.occupationId)
+    const stake = held === null ? undefined : stakeById(held.stakeId)
+    if (hand && stake) {
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="A key hand">
+          <KeyHandView
+            hand={hand}
+            buyIn={stake.buyIn}
+            chips={record.chips}
             onChoose={onChoose}
           />
         </div>

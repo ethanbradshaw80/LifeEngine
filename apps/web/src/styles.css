@@ -4653,3 +4653,82 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 }
 .cas-three .kf .v { font-size: 0.95rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 .cas-three .kf .k { font-size: 0.65rem; color: var(--muted); margin-top: 0.1rem; }
+
+/* The key hand and the results screens (owner's casino_1.html, 2/4/5).
+   The felt carries its own colour — a poker table is green, and the
+   mockup makes the same call. Everything else is the app's tokens. */
+.kh { display: flex; flex-direction: column; gap: 0.7rem; max-width: 26rem; }
+.kh-head .k {
+  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.kh-head .t { font-size: 1.05rem; font-weight: 800; margin-top: 0.1rem; }
+.kh-felt {
+  background: radial-gradient(circle at 50% 40%, #2b7a5a, #123c2c);
+  border: 1px solid #0c2a1e; border-radius: 12px; padding: 1rem 0.7rem; text-align: center;
+}
+.kh-pot { font-size: 0.78rem; color: #d7f0e4; margin-bottom: 0.5rem; }
+.kh-pot b { color: #fff; font-size: 1rem; }
+.kh-cards, .kh-hole { display: flex; gap: 0.35rem; justify-content: center; }
+.kh-cards { margin-bottom: 0.65rem; }
+.kh-card {
+  width: 2rem; height: 2.8rem; background: #f6f3ea; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.85rem; color: #1a1a1a;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+}
+.kh-card.r { color: #c0392b; }
+.kh-card.back { background: linear-gradient(135deg, #3a4657, #232c3a); color: #6f7c8c; }
+.kh-you {
+  font-size: 0.65rem; color: #9ff0c9; margin-top: 0.55rem;
+  letter-spacing: 0.05em; text-transform: uppercase;
+}
+.kh-read {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  padding: 0.75rem; font-size: 0.85rem; line-height: 1.5; margin: 0;
+}
+.kh-decide { display: flex; gap: 0.5rem; }
+.kh-decide button {
+  flex: 1; border-radius: 7px; padding: 0.8rem 0.3rem;
+  font-weight: 800; font-size: 0.82rem; cursor: pointer; border: 1px solid;
+}
+.kh-decide .fold { background: transparent; border-color: var(--line); color: var(--fg); }
+.kh-decide .call { background: var(--accent); border-color: var(--accent); color: #fff; }
+.kh-decide .shove { background: var(--bad); border-color: var(--bad); color: #fff; }
+.kh-note { margin: 0; }
+
+.cas-result {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.85rem;
+}
+.cas-trophy { text-align: center; padding-bottom: 0.6rem; border-bottom: 1px solid var(--line); }
+.cas-trophy .cup { font-size: 2.2rem; }
+.cas-trophy .tn { font-size: 1rem; font-weight: 800; margin-top: 0.2rem; }
+.cas-trophy .gtd { font-size: 0.72rem; color: var(--muted); margin-top: 0.2rem; }
+.cas-finish { text-align: center; padding: 0.7rem 0 0.2rem; }
+.cas-finish .k {
+  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.cas-finish .pos { font-size: 1.5rem; font-weight: 800; margin-top: 0.15rem; }
+.cas-finish .pos .of { color: var(--muted); font-size: 1rem; font-weight: 600; }
+.cas-won { text-align: center; padding: 0.4rem 0; }
+.cas-won .k {
+  font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.cas-won .big { font-size: 1.8rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cas-won .big.up { color: var(--ok); }
+.cas-won .big.dn { color: var(--muted); }
+.cas-netbig { text-align: center; padding: 0.4rem 0 0.7rem; }
+.cas-netbig .k {
+  font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+}
+.cas-netbig .v { font-size: 2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cas-netbig .v.up { color: var(--ok); }
+.cas-netbig .v.dn { color: var(--bad); }
+.cas-rows { padding: 0.3rem 0; }
+.cas-rows .row {
+  display: flex; justify-content: space-between; font-size: 0.8rem; padding: 0.2rem 0;
+}
+.cas-rows .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cas-rows .row .v.up { color: var(--ok); }
+.cas-rows .row .v.dn { color: var(--bad); }
+.cas-rows .row .v.gold { color: var(--gold); }

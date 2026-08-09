@@ -514,6 +514,7 @@ export {
   dropOutPlayer,
   sellSharesPlayer,
   ipoBar,
+  decodeHeldSession,
   bankrollOf,
   walletOf,
   buyChipsPlayer,
@@ -657,7 +658,11 @@ export {
   PRO_MIN_SKILL,
   STAKES,
   TOURNAMENTS,
+  HAND_CHOICES,
   buyChipsBar,
+  keyHandFor,
+  keyHandOutcome,
+  handOutcomeWords,
   expectedReturnPerMille,
   freshGambler,
   gamblerOf,
@@ -676,6 +681,8 @@ export {
 } from './casino.js'
 export type {
   BlackjackChoice,
+  HandChoice,
+  KeyHand,
   HoldLevel,
   SessionResult,
   Stake,
@@ -684,4 +691,4 @@ export type {
   Tournament,
   TournamentResult,
 } from './casino.js'
-export type { GamblingRecord } from './types.js'
+export type { GamblingRecord, SessionSummary, TournamentSummary } from './types.js'

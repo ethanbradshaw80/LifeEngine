@@ -710,6 +710,46 @@ export interface GamblingRecord {
   readonly bestFinish: number | null
   /** Whether poker is what they do for a living (spec §2, "going pro"). */
   readonly turnedProAtTick: Tick | null
+  /**
+   * THE LAST THING THAT HAPPENED, for the results screens (spec §2b:
+   * "shown after EVERY tournament and cash session").
+   *
+   * Kept on the record rather than returned and forgotten, because the
+   * screen that shows it renders on a later frame than the verb that
+   * produced it — the worker settles, the world is posted back, and only
+   * then does anything draw. A result that lived only in a return value
+   * would be gone by the time there was anywhere to put it.
+   */
+  readonly lastSession?: SessionSummary
+  readonly lastTournament?: TournamentSummary
+}
+
+/** The cash-game recap (spec §2b). Presentation of an already-seeded night. */
+export interface SessionSummary {
+  readonly tick: Tick
+  readonly stakeTitle: string
+  readonly hours: number
+  readonly hands: number
+  readonly net: number
+  readonly perHour: number
+  readonly biggestPot: Money
+  readonly chipsAfter: Money
+  readonly words: string
+}
+
+/** The tournament payout screen (spec §2b). */
+export interface TournamentSummary {
+  readonly tick: Tick
+  readonly title: string
+  readonly field: number
+  readonly finish: number
+  readonly payout: Money
+  readonly bounties: Money
+  readonly buyIn: Money
+  readonly net: number
+  readonly hours: number
+  readonly chipsAfter: Money
+  readonly words: string
 }
 
 export interface Business {
@@ -2024,6 +2064,8 @@ export type PendingKind =
   | 'bankruptcy'
   | 'promotion-offer'
   | 'work-moment'
+  /** A big pot mid-session, and the choice is genuinely yours (casino §2). */
+  | 'key-hand'
   | 'graduate'
   | 'debate'
   | 'school-choice'

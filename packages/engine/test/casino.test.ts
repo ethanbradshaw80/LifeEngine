@@ -32,6 +32,8 @@ import {
   playTournament,
   prizeFor,
   stakeById,
+  keyHandFor,
+  keyHandOutcome,
 } from '../src/casino.js'
 import {
   buyChipsPlayer,
@@ -41,6 +43,7 @@ import {
   seekHelpPlayer,
   setPlayer,
   walletOf,
+  resolvePending,
 } from '../src/player.js'
 import { accountsOf } from '../src/finances.js'
 import { livingPeople } from '../src/systems.js'
@@ -387,5 +390,110 @@ describe('poker skill is earned', () => {
     }
     expect(gamblerOf(world, personId).pokerSkill).toBeGreaterThan(0)
     expect(gamblerOf(world, personId).hoursPlayed).toBeGreaterThan(0)
+  })
+})
+
+describe('the key hand', () => {
+  /**
+   * FIND A NIGHT WITH A BIG POT IN IT rather than assuming one. A hand
+   * comes up about a quarter of sessions, so hard-coding a seed and hoping
+   * is a test that fails for a reason that is not a bug — which is exactly
+   * what the first version of this did.
+   */
+  function someHand(): NonNullable<ReturnType<typeof keyHandFor>> {
+    const world = createWorld(makeSeed(3))
+    for (let i = 0; i < 500; i += 1) {
+      const hand = keyHandFor(world, i as never, 700 + i, i, 600)
+      if (hand !== null) return hand
+    }
+    throw new Error('no key hand in five hundred sessions')
+  }
+
+  /**
+   * THE ONE THAT MATTERS MOST: the choice shifts an ALREADY-SEEDED outcome
+   * and does not add randomness (spec §5). Concretely — if you were behind,
+   * calling loses, every time, on that seed. Somebody reloading to answer
+   * differently gets a different result from THEIR CHOICE and never from a
+   * fresh roll of the dice.
+   */
+  it('the same draw decides it whichever way you answer', () => {
+    const hand = someHand()
+
+    // One roll, three answers. Behind or ahead is settled before the
+    // player speaks.
+    const behind = hand.aheadPerMille + 50
+    expect(keyHandOutcome(hand, 'call', behind)).toBeLessThan(0)
+    expect(keyHandOutcome(hand, 'shove', behind)).toBeLessThan(0)
+    const ahead = Math.max(0, hand.aheadPerMille - 50)
+    expect(keyHandOutcome(hand, 'call', ahead)).toBeGreaterThan(0)
+    expect(keyHandOutcome(hand, 'shove', ahead)).toBeGreaterThan(0)
+  })
+
+  it('folding costs something, and less than being wrong', () => {
+    const hand = someHand()
+    const fold = keyHandOutcome(hand, 'fold', 0)
+    const wrongCall = keyHandOutcome(hand, 'call', hand.aheadPerMille + 50)
+    // Passing is never free — the pot was partly yours already.
+    expect(fold).toBeLessThan(0)
+    // But it is cheaper than putting the rest in behind.
+    expect(fold).toBeGreaterThan(wrongCall)
+  })
+
+  it('shoving risks more in both directions than calling', () => {
+    const hand = someHand()
+    const ahead = Math.max(0, hand.aheadPerMille - 50)
+    const behind = hand.aheadPerMille + 50
+    expect(keyHandOutcome(hand, 'shove', ahead)).toBeGreaterThan(
+      keyHandOutcome(hand, 'call', ahead),
+    )
+    expect(keyHandOutcome(hand, 'shove', behind)).toBeLessThan(
+      keyHandOutcome(hand, 'call', behind),
+    )
+  })
+
+  it('does not come up every session — it would be wallpaper', () => {
+    const world = createWorld(makeSeed(3))
+    let fired = 0
+    for (let i = 0; i < 600; i += 1) {
+      if (keyHandFor(world, i as never, 400 + i, i, 500) !== null) fired += 1
+    }
+    expect(fired / 600).toBeGreaterThan(0.1)
+    expect(fired / 600).toBeLessThan(0.45)
+  })
+
+  it('a better player finds themselves ahead in big pots more often', () => {
+    const world = createWorld(makeSeed(3))
+    const meanAhead = (skill: number): number => {
+      let total = 0
+      let n = 0
+      for (let i = 0; i < 2_000; i += 1) {
+        const hand = keyHandFor(world, i as never, 400 + i, i, skill)
+        if (hand !== null) {
+          total += hand.aheadPerMille
+          n += 1
+        }
+      }
+      return n === 0 ? 0 : total / n
+    }
+    expect(meanAhead(850)).toBeGreaterThan(meanAhead(250))
+  })
+})
+
+describe('the results screens have something to show', () => {
+  it('a session leaves a recap on the record', () => {
+    const world = playerAged(4242, 34)
+    const personId = world.player.personId ?? 0
+    expect(buyChipsPlayer(world, 30_000_000 as Money).done).toBe(true)
+    // Play until one lands without a key hand holding it open.
+    for (let i = 0; i < 12; i += 1) {
+      advanceTicks(world, 1)
+      playPokerPlayer(world, 'micro', 5)
+      if (world.player.pending !== null) resolvePending(world, 'fold')
+    }
+    const summary = gamblerOf(world, personId).lastSession
+    expect(summary).toBeDefined()
+    if (summary === undefined) return
+    expect(summary.hours).toBeGreaterThan(0)
+    expect(summary.stakeTitle.length).toBeGreaterThan(0)
   })
 })

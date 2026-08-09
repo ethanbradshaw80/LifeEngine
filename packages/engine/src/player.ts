@@ -55,10 +55,14 @@ import { nudgeWellbeing } from './wellbeing.js'
 import { disciplineOf, smartsOf } from './stats.js'
 import {
   CASINO_MIN_AGE,
+  HAND_CHOICES,
   POKER_SKILL_MAX,
   gamblerOf,
   buyChipsBar,
+  handOutcomeWords,
   holdFromCashier,
+  keyHandFor,
+  keyHandOutcome,
   playSession,
   playTable,
   playTournament,
@@ -71,6 +75,8 @@ import {
   wagerCreepPerMille,
 } from './casino.js'
 import type {
+  HandChoice,
+  Stake,
   BlackjackChoice,
   SessionResult,
   TableGame,
@@ -192,7 +198,7 @@ import {
 import { OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec } from './types.js'
 import type { HomePurchaseMethod } from './finances.js'
-import type { Business } from './types.js'
+import type { Business, SessionSummary } from './types.js'
 import {
   annualRevenueOf,
   businessBar,
@@ -1003,6 +1009,99 @@ export function playTablePlayer(
 }
 
 /**
+ * SETTLE A CASH SESSION: the chips move, the record grows, and the recap
+ * is stored for the screen (spec §2b).
+ *
+ * Shared by the ordinary path and by the key hand's resolution, so a night
+ * with a big pot in it and a night without settle through exactly the same
+ * code — the hand adds to the night rather than being a separate event
+ * that has to be kept in step.
+ */
+function settleSession(
+  world: World,
+  person: Person,
+  stake: Stake,
+  buyIn: Money,
+  result: SessionResult,
+  extraPerMille: number,
+): SessionSummary {
+  const shift = Math.floor((buyIn * extraPerMille) / 1_000)
+  const net = Math.max(-(buyIn * 3), result.net + shift)
+
+  const before = gamblerOf(world, person.id)
+  const ceiling = pokerCeilingFor(
+    smartsOf(world, person.id),
+    disciplineOf(world, person.id, world.tick),
+    person.traits.resilience,
+  )
+  const gain = skillGainFrom(before.pokerSkill, ceiling, result.hours * 2)
+  recordPlay(world, person.id, buyIn, net, result.hours, gain)
+
+  const summary: SessionSummary = {
+    tick: world.tick,
+    stakeTitle: stake.title,
+    hours: result.hours,
+    hands: result.hands,
+    net,
+    perHour: Math.floor(net / Math.max(1, result.hours)),
+    biggestPot: result.biggestPot,
+    chipsAfter: gamblerOf(world, person.id).chips,
+    words: result.words,
+  }
+  world.gamblers.set(person.id, { ...gamblerOf(world, person.id), lastSession: summary })
+  recordEvent(world, world.tick, {
+    type: 'played-poker',
+    subjectId: person.id,
+    detail: `${stake.title}:${String(net)}`,
+  })
+  return summary
+}
+
+/** "stakeId|hours|net|hands|biggestPot|visit" — the night, held while the
+ *  player answers the hand. A pending carries strings, so this is how the
+ *  already-seeded session survives the round trip without being re-rolled
+ *  (which would let somebody reload for a better night). */
+export function encodeHeldSession(
+  stakeId: string,
+  result: SessionResult,
+  visit: number,
+): string {
+  return [
+    stakeId,
+    String(result.hours),
+    String(result.net),
+    String(result.hands),
+    String(result.biggestPot),
+    String(visit),
+  ].join('|')
+}
+
+export function decodeHeldSession(encoded: string | null): {
+  stakeId: string
+  result: SessionResult
+  visit: number
+} | null {
+  if (encoded === null) return null
+  const [stakeId, hours, net, hands, pot, visit] = encoded.split('|')
+  if (stakeId === undefined || hours === undefined || net === undefined) return null
+  const stake = stakeById(stakeId)
+  if (stake === undefined) return null
+  return {
+    stakeId,
+    visit: Number(visit ?? 0),
+    result: {
+      stakeId,
+      hours: Number(hours),
+      hands: Number(hands ?? 0),
+      net: Number(net),
+      perHour: Math.floor(Number(net) / Math.max(1, Number(hours))),
+      biggestPot: Number(pot ?? 0) as Money,
+      words: '',
+    },
+  }
+}
+
+/**
  * A CASH SESSION at a chosen stake.
  *
  * The bar refuses a stake you cannot buy into at all; it does NOT refuse a
@@ -1039,20 +1138,29 @@ export function playPokerPlayer(
 
   logVerb(world, 'poker', `${stakeId}:${String(played)}`)
 
-  // VOLUME IS THE TEACHER, and it plateaus against a ceiling made of the
-  // person (spec §3: earned, not selected).
-  const ceiling = pokerCeilingFor(
-    smartsOf(world, person.id),
-    disciplineOf(world, person.id, world.tick),
-    person.traits.resilience,
-  )
-  const gain = skillGainFrom(record.pokerSkill, ceiling, played * 2)
-  recordPlay(world, person.id, buyIn, result.net, played, gain)
-  recordEvent(world, world.tick, {
-    type: 'played-poker',
-    subjectId: person.id,
-    detail: `${stake.title}:${String(result.net)}`,
-  })
+  // A BIG POT, SOMETIMES. When one comes up the night is HELD rather than
+  // settled: the already-seeded session travels on the pending, the player
+  // answers, and the answer shifts what the night was worth. Re-rolling
+  // the session after the answer would let somebody reload for a better
+  // one, which is the whole reason the result is carried across rather
+  // than recomputed.
+  const hand = keyHandFor(world, world.tick, person.id, record.hoursPlayed, record.pokerSkill)
+  if (hand !== null && person.id === world.player.personId) {
+    const raised = raisePending(world, {
+      tick: world.tick,
+      kind: 'key-hand',
+      personId: person.id,
+      otherId: null,
+      occupationId: encodeHeldSession(stakeId, result, record.hoursPlayed),
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: [...HAND_CHOICES],
+    })
+    if (raised) return { done: true, reason: '', result: null }
+  }
+
+  settleSession(world, person, stake, buyIn, result, 0)
   return { done: true, reason: '', result }
 }
 
@@ -1096,6 +1204,19 @@ export function enterTournamentPlayer(
   world.gamblers.set(person.id, {
     ...gamblerOf(world, person.id),
     bestFinish: best === null || result.finish < best ? result.finish : best,
+    lastTournament: {
+      tick: world.tick,
+      title: event.title,
+      field: result.field,
+      finish: result.finish,
+      payout: result.payout,
+      bounties: result.bounties,
+      buyIn: result.buyIn,
+      net: result.net,
+      hours: result.hours,
+      chipsAfter: gamblerOf(world, person.id).chips,
+      words: result.words,
+    },
   })
   recordEvent(world, world.tick, {
     type: 'played-tournament',
@@ -3794,6 +3915,44 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    case 'key-hand': {
+      // THE NIGHT WAS ALREADY DECIDED when they sat down; this settles what
+      // the big pot did to it. The session travelled on the pending rather
+      // than being re-rolled here, so answering cannot shop for a better
+      // evening (spec §5: the choice shifts a seeded outcome, it does not
+      // add randomness).
+      const held = decodeHeldSession(pending.occupationId)
+      if (held === null) break
+      const stake = stakeById(held.stakeId)
+      if (stake === undefined) break
+      const buyIn = atTodaysPrices(world, stake.buyIn) as Money
+      const record = gamblerOf(world, person.id)
+      const hand = keyHandFor(world, pending.tick, person.id, record.hoursPlayed, record.pokerSkill)
+      if (hand === null) {
+        settleSession(world, person, stake, buyIn, held.result, 0)
+        break
+      }
+      // The SAME draw decides it whichever way they answer — which is what
+      // makes folding a real read rather than a way of dodging a coin flip.
+      const rng = openStream(world.seed, Stream.Casino, person.id * 31 + held.visit, pending.tick + 8_800)
+      const roll = rng.nextIntInclusive(0, 999)
+      const answer: HandChoice =
+        choice === 'fold' || choice === 'call' || choice === 'shove' ? choice : 'fold'
+      const gained = keyHandOutcome(hand, answer, roll)
+      const summary = settleSession(world, person, stake, buyIn, held.result, gained)
+      recordDecision(world, pending.tick, {
+        subjectId: person.id,
+        decision: 'spending',
+        significance: 'notable',
+        inputs: [factor('own-choice', 1000), factor('unit-standard', hand.aheadPerMille)],
+        chosen: `${answer} — ${handOutcomeWords(answer, gained)}`,
+        rejected: HAND_CHOICES.filter((c) => c !== answer).map((c) => `to ${c}`),
+        streamId: Stream.Casino,
+      })
+      void summary
+      break
+    }
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -4973,6 +5132,14 @@ export function describePending(world: World, pending: PendingDecision): string 
       const where = pending.occupationId === 'trade' ? 'the trade school' : 'the university'
       return `You are enrolled at ${where}. What are you going to study?`
     }
+    case 'key-hand': {
+      const record = gamblerOf(world, pending.personId)
+      const hand = keyHandFor(world, pending.tick, pending.personId, record.hoursPlayed, record.pokerSkill)
+      return hand === null
+        ? 'A big pot, and it is on you.'
+        : `${hand.villain} moves all in. ${hand.read}`
+    }
+
     default: {
       const never: never = pending.kind
       return String(never)
