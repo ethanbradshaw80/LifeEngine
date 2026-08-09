@@ -595,6 +595,30 @@ function drawRunners(world: World, officeId: string, tick: Tick): Election['runn
       .map((h) => h.personId),
   )
   for (const person of world.people.values()) {
+    /**
+     * THE TOWN DOES NOT PUT THE PLAYER ON A BALLOT (playtest, Jack Baldwin:
+     * elected to six offices across a life — City Councillor, State
+     * Legislator, Mayor, U.S. Representative, Senator — "with zero
+     * player-facing decisions, ever. No popup, no 'run for office' prompt,
+     * nothing. They just appear as log lines.").
+     *
+     * This pass recruits candidates by walking every person in the world and
+     * rolling against ambition. It never asked whether the person was the
+     * one being played, so it drafted them — silently, repeatedly, for
+     * sixty years, alongside a career it never touched.
+     *
+     * It was worse than a missing popup: it broke the timeline. The 1994
+     * council election landed in the year Jack was deployed to Belarus, shot
+     * in the chest, evacuated, redeployed, wounded again and evacuated
+     * again. A man medevaced twice cannot be winning a council race at home.
+     *
+     * There is ALREADY a real way in — `fileToRun` puts the player on a
+     * ballot when they choose it, with a war chest and campaigning behind
+     * it. The background pass was quietly competing with the player's own
+     * decision system. Now candidacy is theirs alone, which is the same rule
+     * hiring follows: the town staffs itself and stops staffing the player.
+     */
+    if (person.id === world.player.personId) continue
     if (!eligibleFor(world, person, office, tick)) continue
     // An incumbent may stand again for THEIR OWN seat, and only that one.
     if (sitting.has(person.id) && world.officials.get(officeId)?.personId !== person.id) continue
