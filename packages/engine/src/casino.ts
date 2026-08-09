@@ -1210,12 +1210,30 @@ export function openingHand(
   personId: EntityId,
   tick: Tick,
   wager: number,
+  /**
+   * WHICH DEAL OF THE MONTH THIS IS — and it exists because of an exploit
+   * found by playing one hand and then dealing again: the shoe was salted
+   * by tick alone, so every deal inside the same month produced the SAME
+   * cards. A player who won a hand could redeal the identical winning hand
+   * thirty times (the whole monthly cadence) for free money.
+   *
+   * The deal number offsets the whole hand 64 cards deeper into the shoe —
+   * no real hand uses ten, let alone sixty-four — so consecutive deals draw
+   * from disjoint stretches while replays stay exact: same seed, same
+   * choices, same Nth deal, same cards (Law 11).
+   *
+   * The offset lives inside `position`, which the hand already carries
+   * through the pending decision — so hits and the dealer's finish need no
+   * knowledge of it at all.
+   */
+  dealNumber = 0,
 ): BlackjackHand {
+  const base = dealNumber * 64
   return {
     wager,
-    player: [cardAt(seed, personId, tick, 0), cardAt(seed, personId, tick, 1)],
-    dealer: [cardAt(seed, personId, tick, 2)],
-    position: 3,
+    player: [cardAt(seed, personId, tick, base), cardAt(seed, personId, tick, base + 1)],
+    dealer: [cardAt(seed, personId, tick, base + 2)],
+    position: base + 3,
     doubled: false,
   }
 }

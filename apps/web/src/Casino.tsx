@@ -30,8 +30,10 @@ import {
   tournamentRunning,
   turnProBar,
   stakeById,
+  decodeHand,
+  handTotal,
 } from '@life-engine/engine'
-import type { Person, World } from '@life-engine/engine'
+import type { BlackjackHand, Person, World } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
 
 interface Props {
@@ -50,12 +52,54 @@ function atToday(world: World, cents: Money): Money {
   return Math.floor((cents * level) / 1_000) as Money
 }
 
+/**
+ * THE LAST SETTLED HAND, read off the ledger (owner, playing: "it doesn't
+ * tell you if you win or lose after you do the decision").
+ *
+ * The engine settles the hand and records the whole finished state on the
+ * `gambled` event — dealer's cards and all. This reads the most recent one
+ * back so the table can say what happened, rather than the overlay closing
+ * on a silent chip movement.
+ *
+ * WALKED BACKWARDS AND BOUNDED — the events array is the history of the
+ * world, and a hand that matters is at this tick or the one before.
+ */
+function lastSettledHand(
+  world: World,
+  personId: number,
+): { net: number; hand: BlackjackHand } | null {
+  for (let i = world.events.length - 1; i >= 0; i -= 1) {
+    const event = world.events[i]
+    if (event === undefined || world.tick - event.tick > 1) break
+    if (event.subjectId !== personId || event.type !== 'gambled') continue
+    const detail = event.detail ?? ''
+    if (!detail.startsWith('blackjack:')) continue
+    const parts = detail.split(':')
+    const net = Number(parts[1])
+    // `encodeHand` uses the same separator, so the hand is the remainder.
+    const hand = decodeHand(parts.slice(2).join(':'))
+    if (!Number.isFinite(net) || hand === null) return null
+    return { net, hand }
+  }
+  return null
+}
+
+/** A, 2–10, J, Q, K — the same faces the table itself shows. */
+function faceOf(rank: number): string {
+  if (rank === 1) return 'A'
+  if (rank === 11) return 'J'
+  if (rank === 12) return 'Q'
+  if (rank === 13) return 'K'
+  return String(rank)
+}
+
 export function Casino({ world, person, busy, wallet, onAct }: Props): ReactElement {
   const [room, setRoom] = useState<Room>('floor')
   const [bet, setBet] = useState(2_000)
   const record = gamblerOf(world, person.id)
   const level = holdLevelOf(record)
   const chips = record.chips
+  const settled = lastSettledHand(world, person.id)
 
   return (
     <div className="cas">
@@ -264,9 +308,20 @@ export function Casino({ world, person, busy, wallet, onAct }: Props): ReactElem
                   disabled={busy || chips < bet}
                   onClick={() => onAct({ verb: 'deal-blackjack', wager: bet })}
                 >
-                  Deal ({bet.toLocaleString()})
+                  Deal ({formatMoney(bet as Money)})
                 </button>
               </div>
+              {settled !== null && (
+                <p className={settled.net > 0 ? 'cas-result won' : settled.net < 0 ? 'cas-result lost' : 'cas-result'}>
+                  You {handTotal(settled.hand.player)} ({settled.hand.player.map(faceOf).join(' ')}) ·
+                  the house {handTotal(settled.hand.dealer)} ({settled.hand.dealer.map(faceOf).join(' ')}) —{' '}
+                  {settled.net > 0
+                    ? `won ${formatMoney(settled.net as Money)}`
+                    : settled.net < 0
+                      ? `lost ${formatMoney(-settled.net as Money)}`
+                      : 'a push. The stake comes back.'}
+                </p>
+              )}
             </div>
           </div>
 

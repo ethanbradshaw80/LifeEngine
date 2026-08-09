@@ -225,3 +225,22 @@ describe('playing a hand at the table', () => {
     }
   })
 })
+
+describe('the shoe between deals', () => {
+  it('does not serve the same hand twice in a month', () => {
+    /**
+     * THE EXPLOIT THIS GUARDS (found by playing, in the browser): the shoe
+     * was salted by tick alone, so every deal inside one month produced
+     * identical cards. Win a hand, redeal, win the same hand — thirty times,
+     * the whole monthly cadence, for free money.
+     */
+    const hands = [0, 1, 2, 3, 4].map((deal) =>
+      openingHand(SEED, WHO, WHEN, 2_000, deal).player.join(','),
+    )
+    expect(new Set(hands).size).toBeGreaterThan(1)
+  })
+
+  it('still replays exactly — the Nth deal is always the Nth deal', () => {
+    expect(openingHand(SEED, WHO, WHEN, 2_000, 3)).toEqual(openingHand(SEED, WHO, WHEN, 2_000, 3))
+  })
+})

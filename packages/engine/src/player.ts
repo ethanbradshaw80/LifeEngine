@@ -4761,10 +4761,17 @@ export function resolvePending(world: World, choice: string): void {
           : dealerFinish(world.seed, person.id, pending.tick, afterDraw)
       const net = settleHand(finished)
       recordPlay(world, person.id, Math.abs(finished.wager) as Money, net, 1, 0)
+      // THE FINISHED HAND RIDES THE EVENT (owner, playing: "it doesn't
+      // tell you if you win or lose after you do the decision"). The
+      // settlement happened here, in the engine, and then the overlay
+      // simply closed — the player learned the outcome by watching their
+      // chip balance move. The event already existed; now it carries the
+      // whole settled hand, so the screen can show the dealer's cards and
+      // the result by READING them rather than re-deriving anything.
       recordEvent(world, pending.tick, {
         type: 'gambled',
         subjectId: person.id,
-        detail: `blackjack:${String(net)}`,
+        detail: `blackjack:${String(net)}:${encodeHand(finished)}`,
       })
       break
     }
@@ -6768,7 +6775,16 @@ export function dealBlackjack(world: World, wager: Money): { done: boolean; reas
   const person = playerPerson(world)
   if (!person) return { done: false, reason: 'Nobody is being played.' }
 
-  const hand = openingHand(world.seed, person.id, world.tick, wager)
+  // The Nth deal of this life draws from the Nth stretch of the shoe —
+  // `hoursPlayed` climbs by one per settled hand, so redealing after a win
+  // cannot serve the same cards again.
+  const hand = openingHand(
+    world.seed,
+    person.id,
+    world.tick,
+    wager,
+    gamblerOf(world, person.id).hoursPlayed,
+  )
   const opened = raisePending(world, {
     tick: world.tick,
     kind: 'blackjack-hand',

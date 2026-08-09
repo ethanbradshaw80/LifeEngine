@@ -19,8 +19,10 @@
  * cannot say anything the record does not.
  */
 
+import { formatMoney } from '@life-engine/shared'
 import { cardValue, handTotal } from '@life-engine/engine'
 import type { BlackjackHand } from '@life-engine/engine'
+import type { Money } from '@life-engine/shared'
 
 /** A, J, Q, K or the number — what a player reads off a card face. */
 function rankFace(rank: number): string {
@@ -59,7 +61,7 @@ export function BlackjackTable({
     <div className="bj-table">
       <div className="bj-hd">
         <span className="bj-ttl">Blackjack</span>
-        <span className="bj-chips">{chips.toLocaleString()} chips</span>
+        <span className="bj-chips">{formatMoney(chips as Money)} in chips</span>
       </div>
 
       <div className="bj-side">
@@ -96,7 +98,7 @@ export function BlackjackTable({
 
       <p className="bj-stake muted small">
         {hand.doubled ? 'Doubled — ' : ''}
-        {(hand.doubled ? hand.wager * 2 : hand.wager).toLocaleString()} chips on this hand.
+        {formatMoney((hand.doubled ? hand.wager * 2 : hand.wager) as Money)} on this hand.
       </p>
 
       <div className="bj-acts">
@@ -107,7 +109,7 @@ export function BlackjackTable({
               : choice === 'stand'
                 ? 'Stand'
                 : choice === 'double'
-                  ? `Double (${(hand.wager * 2).toLocaleString()})`
+                  ? `Double (${formatMoney((hand.wager * 2) as Money)})`
                   : choice}
           </button>
         ))}
