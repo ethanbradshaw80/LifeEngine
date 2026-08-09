@@ -129,6 +129,7 @@ import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Market } from './Market.js'
 import { Casino } from './Casino.js'
+import { TourPanel } from './TourPanel.js'
 import { Sports } from './Sports.js'
 import { School } from './School.js'
 import { Career } from './Career.js'
@@ -2207,6 +2208,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               )
             }
             const tours = deploymentsOf(world, person.id)
+            // The one that is still open, if any — a tour you are ON is a
+            // different screen from a list of tours you have done.
+            const currentTour = tours.find((tour) => tour.returnedAtTick === null)
             const unlocks = veteranUnlocks(world, person.id)
             return (
               <>
@@ -2679,6 +2683,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )
                 })()}
+                {/* THE TOUR YOU ARE ON, before the history of the ones
+                    you are not. A dashboard for a deployment that is
+                    happening now is a different thing from a list of
+                    deployments that happened. */}
+                {serviceTab === 'deployments' && currentTour !== undefined && (
+                  <TourPanel world={world} tour={currentTour} />
+                )}
                 {serviceTab === 'deployments' && <h3>Deployments</h3>}
                 {serviceTab === 'deployments' && (tours.length === 0 ? (
                   <p className="muted">None. Service so far has been at home station.</p>

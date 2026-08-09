@@ -4818,3 +4818,50 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 }
 .act-bar i { display: block; height: 100%; background: var(--ok); }
 .act-note { display: block; font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; line-height: 1.4; }
+
+/* The tour dashboard (owner's combat_tours_revamp.html §11). */
+.tour {
+  display: flex; flex-direction: column; gap: 0.7rem;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.85rem; margin-bottom: 0.8rem;
+}
+.tour-hd .k {
+  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+}
+.tour-hd .t { font-size: 1.05rem; font-weight: 800; margin-top: 0.1rem; }
+.tour-hd .sub { font-size: 0.78rem; color: var(--muted); margin-top: 0.1rem; }
+.tour-tempo .top {
+  display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 0.2rem;
+}
+.tour-tempo .top .v { font-weight: 700; }
+.tour-tempo .bar {
+  height: 0.35rem; background: var(--panel-raised); border-radius: 3px; overflow: hidden;
+}
+.tour-tempo .bar i { display: block; height: 100%; background: var(--accent); }
+.tour-tempo .bar i.warm { background: var(--amber); }
+.tour-tempo .bar i.hot { background: var(--bad); }
+.tour-arc .beats {
+  display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+}
+.tour-arc .beats span {
+  font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0.1rem 0.35rem;
+}
+.tour-arc .beats span.on {
+  color: var(--fg); border-color: var(--accent); background: var(--panel-raised); font-weight: 700;
+}
+.tour-arc h4 { margin: 0 0 0.3rem; font-size: 0.85rem; font-weight: 800; }
+.tour-arc p { margin: 0 0 0.5rem; font-size: 0.8rem; line-height: 1.5; color: var(--muted); }
+.tour-rows .row, .tour .row {
+  display: flex; justify-content: space-between; font-size: 0.78rem; padding: 0.15rem 0;
+}
+.tour-rows .row .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tour-squad h4 {
+  margin: 0 0 0.4rem; font-size: 0.7rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.sq-row { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
+.sq-row:last-of-type { border-bottom: none; }
+.sq-row .nm { font-size: 0.82rem; font-weight: 700; }
+.sq-row .sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
+.sq-row.gone .nm { color: var(--muted); text-decoration: line-through; }
