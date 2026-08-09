@@ -20,7 +20,8 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { isServing, schoolOptionsFor } from '../src/service.js'
-import { extraDutyBar, takeExtraDuty } from '../src/player.js'
+import { extraDutyBar, resolvePending, takeExtraDuty } from '../src/player.js'
+import { keepsHabit } from '../src/stats.js'
 import { setPlayer } from '../src/player.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -144,37 +145,59 @@ describe('extra duty — the path behind the bar', () => {
     return null
   }
 
-  it('raises standing, and the same answer greys the button', () => {
+  it('carried for a year, the load raises standing above the counterfactual', () => {
+    /**
+     * THE THIRD REPORT'S FIX, tested the way the owner actually plays: in
+     * year steps, not in perfectly-timed clicks. Extra duty used to be +30
+     * per press on a six-month cooldown, so its whole value depended on
+     * click frequency — a year-step player got a fraction and the drift
+     * spring ate it. It is a kept habit now, so one decision works monthly.
+     *
+     * Twin worlds, same seed: one takes up the load, one does not. The
+     * difference after two years must be real.
+     */
+    const kept = playerServing(4242)
+    const control = playerServing(4242)
+    expect(kept).not.toBeNull()
+    expect(control).not.toBeNull()
+    if (kept === null || control === null) return
+    const personId = kept.player.personId
+    expect(personId).not.toBeNull()
+    if (personId === null) return
+
+    expect(extraDutyBar(kept)).toBeNull()
+    expect(takeExtraDuty(kept).done).toBe(true)
+    for (const world of [kept, control]) {
+      for (let month = 0; month < 24; month += 1) {
+        // Answer anything the game asks, so the clock actually turns.
+        for (let guard = 0; guard < 6 && world.player.pending !== null; guard += 1) {
+          resolvePending(world, world.player.pending.options[0] ?? 'yes')
+        }
+        advanceTicks(world, 1)
+      }
+    }
+
+    const withLoad = kept.service.get(personId)?.performance ?? 0
+    const without = control.service.get(personId)?.performance ?? 0
+    expect(withLoad).toBeGreaterThan(without)
+  })
+
+  it('is a toggle — the second press puts the load down', () => {
     const world = playerServing(4242)
     expect(world).not.toBeNull()
     if (world === null) return
     const personId = world.player.personId
-    expect(personId).not.toBeNull()
     if (personId === null) return
 
-    const before = world.service.get(personId)?.performance ?? 0
-    // The bar and the verb are one function, so if the button is live the
-    // verb must succeed. That is the whole point of the pattern.
-    expect(extraDutyBar(world)).toBeNull()
-    const result = takeExtraDuty(world)
-    expect(result.done).toBe(true)
-    expect(world.service.get(personId)?.performance ?? 0).toBeGreaterThan(before)
-  })
-
-  it('cannot be held down — the months have to pass', () => {
-    const world = playerServing(4242)
-    expect(world).not.toBeNull()
-    if (world === null) return
     expect(takeExtraDuty(world).done).toBe(true)
-    // Immediately again: refused, and the refusal is the bar's own words.
-    const bar = extraDutyBar(world)
-    expect(bar).not.toBeNull()
-    const second = takeExtraDuty(world)
-    expect(second.done).toBe(false)
-    expect(second.reason).toBe(bar)
+    expect(keepsHabit(world, personId, 'duty')).toBe(true)
+    // The button stays live — that is how the load is put down.
+    expect(extraDutyBar(world)).toBeNull()
+    expect(takeExtraDuty(world).done).toBe(true)
+    expect(keepsHabit(world, personId, 'duty')).toBe(false)
   })
 
-  it('costs something — the hours come out of a life', () => {
+  it('costs something — the hours come out of a life, monthly', () => {
     const world = playerServing(4242)
     expect(world).not.toBeNull()
     if (world === null) return
@@ -182,6 +205,8 @@ describe('extra duty — the path behind the bar', () => {
     if (personId === null) return
     const before = world.wellbeing.get(personId)?.value ?? 550
     takeExtraDuty(world)
+    // The immediate cost on taking it up, and the monthly drag is covered
+    // by the counterfactual test above — a kept load is not free.
     expect(world.wellbeing.get(personId)?.value ?? 550).toBeLessThan(before)
   })
 

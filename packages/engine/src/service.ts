@@ -82,7 +82,7 @@ import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
-import { disciplineOf, fitnessOf, fitnessStandardFor } from './stats.js'
+import { disciplineOf, fitnessOf, fitnessStandardFor, habitMaturity, habitMonths, keepsHabit } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
 import type { ReCode, PriorTerm, CausalFactor, Person, Place, World } from './types.js'
 import {
@@ -104,6 +104,14 @@ const ENLIST_MIN_AGE = 18
 const ENLIST_MAX_AGE = 38
 /** Disability at or above this ends (or bars) service on medical grounds. */
 const MEDICAL_LIMIT = 400
+
+/**
+ * What carried extra duty is worth at full maturity, on the drift target.
+ * Sized so a median soldier who keeps it up clears the 600-620 schoolhouse
+ * bars with seasoning's help, and a low-diligence one clears the 400-560
+ * tier — better, not equal (Law 10).
+ */
+const EXTRA_DUTY_LIFT = 120
 
 // --- M-ARMY2 career shape (owner direction, 2026-08-01) --------------------
 /** Up-or-out applies BELOW this pay grade only. Make E-5 (SGT, PO2, SSgt)
@@ -1894,7 +1902,30 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   const monthsServed = Math.max(0, tick - record.enlistedAtTick)
   const seasoning = seasoningFor(monthsServed, person.traits.diligence)
   const morale = Math.floor((wellbeingOf(world, person.id) - 550) / 9)
-  const pull = person.traits.diligence + morale + seasoning - record.performance
+  /**
+   * THE LOAD, CARRIED — not clicked (owner, three reports, the last in
+   * capitals: "STILL GETTING THE X NEXT TO STANDING MEETS BAR AFTER SCORING
+   * HIGH ON FITNESS TEST AND DOING EXTRA DUTY FOR YEARS").
+   *
+   * Extra duty was an instant verb: +30 on the click, six months of
+   * cooldown, and the spring pulling the boost straight back out. MEASURED:
+   * a player clicking it every single time the cooldown opened holds about
+   * +200 and clears every bar by year six — but that is a CLICK-RATE, not a
+   * commitment. The owner plays in year steps, which is one click a year,
+   * and at that rate the boost is noise: a lower-diligence soldier could
+   * volunteer for years and never see the 600 bars. The lever measured how
+   * often the player pressed a button, not what the soldier carried.
+   *
+   * So it is a HABIT now, the exact machinery training uses: take up the
+   * load and it feeds the drift target every month it is kept, maturing
+   * over three years to its full lift. Age-step size stops mattering. The
+   * wellbeing cost moved with it — the hours come out of the life monthly,
+   * not once per click (see wellbeingBaselineFor).
+   */
+  const dutyLift = keepsHabit(world, person.id, 'duty')
+    ? Math.floor((EXTRA_DUTY_LIFT * habitMaturity(habitMonths(world, person.id, 'duty', tick))) / 1_000)
+    : 0
+  const pull = person.traits.diligence + morale + seasoning + dutyLift - record.performance
   /**
    * THE SPRING PULLS BOTH WAYS (owner, playing, twice: "still getting the
    * 'work is not there yet' error on the schols on the second walkthrough").

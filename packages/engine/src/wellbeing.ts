@@ -250,6 +250,18 @@ export function runWellbeing(world: World, tick: Tick): void {
         nudgeWellbeing(world, tick, person.id, 12, 'Keeping up with people')
       }
     }
+    // THE EXTRA LOAD COSTS WHAT IT COSTS, monthly — extra duty became a
+    // kept habit rather than a click, and its cost moved with it: the
+    // hours come out of the life for every month the load is carried, not
+    // once per press of a button. Same cadence shape as the social habit
+    // above, opposite sign.
+    const duty = (world.habits.get(person.id)?.active ?? []).find((h) => h.kind === 'duty')
+    if (duty !== undefined) {
+      const months = tick - duty.sinceTick
+      if (months > 0 && months % 3 === 0) {
+        nudgeWellbeing(world, tick, person.id, -10, 'Carrying the extra load')
+      }
+    }
 
     // And the pull back toward where this life sits.
     const record = world.wellbeing.get(person.id)

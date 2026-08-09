@@ -2475,12 +2475,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         return (
                           <button
                             type="button"
-                            className="apply"
+                            className={keepsHabit(world, person.id, 'duty') ? 'apply on' : 'apply'}
                             disabled={busy || bar !== null}
-                            title={bar ?? 'Volunteer for the detail nobody wants. Your standing rises; the hours come out of your life.'}
+                            title={
+                              bar ??
+                              (keepsHabit(world, person.id, 'duty')
+                                ? 'Put the load down. The standing it built decays back over time.'
+                                : 'Take up the details nobody wants. Works on your standing every month you keep it up; the hours come out of your life.')
+                            }
                             onClick={onExtraDuty}
                           >
-                            🎖 Pick up extra duty
+                            {keepsHabit(world, person.id, 'duty')
+                              ? '🎖 Carrying the extra load'
+                              : '🎖 Pick up extra duty'}
                           </button>
                         )
                       })()}

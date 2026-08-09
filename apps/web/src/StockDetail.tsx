@@ -197,7 +197,22 @@ export function StockDetail({
           <div className="stock-grid">
             <div className="kv">
               <div className="k">Shares</div>
-              <div className="v tabular">{holding.units.toLocaleString()}</div>
+              {/* UNITS ARE HUNDREDTHS OF A SHARE (playtest, Jack Baldwin:
+                  "Shares: 112,942,825" against a Value and price implying
+                  ~1.1 million — "inflated by approximately two orders of
+                  magnitude. Only the Shares display is wrong.")
+
+                  He worked it out exactly. The engine trades in integer
+                  units where par (10,000 basis points) is $1.00 a share, so
+                  spending a dollar at par buys 100 units — one share. Value,
+                  Cost and Return all divide correctly on the way to money;
+                  this one field printed the raw integer, the same
+                  cents-as-units disease the blackjack table had four times
+                  over. Two decimals, because fractional shares are real and
+                  flooring a small position to zero would lie about it. */}
+              <div className="v tabular">
+                {(holding.units / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </div>
             </div>
             <div className="kv">
               <div className="k">Value</div>

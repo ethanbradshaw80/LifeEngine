@@ -22,6 +22,7 @@ import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, formatYear } from './clock.js'
 import { occupationById, offenceById } from './content.js'
 import { branchName, rankTitle, serviceAtTick } from './service.js'
+import { deploymentsOf } from './deployment.js'
 import { homeland } from './geopolitics.js'
 import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { eventById } from './eventindex.js'
@@ -1195,6 +1196,61 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
       outcome: event.subjectId === personId ? describeOutcome(world, event) : null,
     })
   }
+
+  /**
+   * WHAT HAPPENED TO THE PEOPLE BESIDE THEM (owner, playing: a squadmate's
+   * roster line read "WIA · still on the line" — "and it never even showed
+   * up in the feed so I never knew one of our guys got hit").
+   *
+   * The feed reads `eventsFor(personId)` — events whose SUBJECT is this
+   * person — and a squadmate's wound has the squadmate as its subject, so
+   * it landed on their page and nobody else's. A KIA at least reached the
+   * player through the engagement scene; a wound arrived silently on a
+   * roster the player had no reason to be watching.
+   *
+   * A wound to somebody on YOUR team during YOUR tour is a fact about your
+   * deployment. READ rather than double-written: recording a second
+   * "your-squadmate-was-hit" event would be two copies of one truth, so the
+   * timeline walks the squad's own events inside each tour window instead.
+   * Bounded by tours × squad size × their events in the window.
+   */
+  for (const tour of deploymentsOf(world, personId)) {
+    const squad = tour.squad ?? []
+    const over = tour.returnedAtTick ?? world.tick
+    for (const member of squad) {
+      if (member.personId === personId) continue
+      const them = world.people.get(member.personId)
+      if (them === undefined) continue
+      const name = `${member.nickname.length > 0 ? `${them.familyName} "${member.nickname}"` : them.familyName}`
+      for (const event of eventsFor(world, member.personId)) {
+        if (event.tick < tour.startedAtTick || event.tick > over) continue
+        if (event.type === 'wounded-in-action') {
+          const what = (event.detail ?? '').split(':')[1]
+          entries.push({
+            eventId: event.id,
+            tick: event.tick,
+            year: formatYear(world, event.tick),
+            text: `${name} was hit${what !== undefined && what.length > 0 ? `: ${what}` : ''}. Your squad carried it.`,
+            decision: null,
+            outcome: null,
+          })
+        } else if (event.type === 'died') {
+          entries.push({
+            eventId: event.id,
+            tick: event.tick,
+            year: formatYear(world, event.tick),
+            text: `${name} was killed. The seat stays on the roster.`,
+            decision: null,
+            outcome: null,
+          })
+        }
+      }
+    }
+  }
+
+  // Squad entries land out of order with the person's own; the timeline is
+  // read as one life. Numeric comparators only (M-DEBUG step 2).
+  entries.sort((a, b) => a.tick - b.tick || a.eventId - b.eventId)
   return entries
 }
 

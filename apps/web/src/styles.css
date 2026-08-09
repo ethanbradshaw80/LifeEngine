@@ -4908,11 +4908,15 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
  */
 .sq-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.5rem; }
 
+.sq-ic { font-size: 1rem; line-height: 1; }
+
 .sq-dot {
-  width: 8px;
-  height: 8px;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  flex: none;
+  margin-right: 0.3rem;
+  vertical-align: middle;
 }
 
 .sq-dot.d-ok { background: var(--ok); }
@@ -4920,6 +4924,8 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .sq-dot.d-kia { background: var(--bad); }
 
 .sq-state {
+  display: inline-flex;
+  align-items: center;
   font-size: 0.66rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;

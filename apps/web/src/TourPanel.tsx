@@ -27,6 +27,20 @@ import {
 import type { Deployment, World } from '@life-engine/engine'
 import type { SquadRole } from '@life-engine/engine'
 
+/**
+ * A FACE FOR EACH JOB (owner, playing: the roster rows were bare — "it
+ * doesn't have an emoji or logo or nothing, just a dot"). The rest of the
+ * app leads every list row with an icon; the squad, the most personal list
+ * in the game, led with nothing.
+ */
+const ROLE_ICONS: Readonly<Record<SquadRole, string>> = {
+  leader: '🎖️',
+  rifleman: '🪖',
+  'automatic-rifleman': '🔫',
+  medic: '💊',
+  radio: '📻',
+}
+
 export function TourPanel({
   world,
   tour,
@@ -133,7 +147,9 @@ export function TourPanel({
                 : 'in the fight'
             return (
               <div key={member.personId} className={`sq-row${dead ? ' gone' : ''}`}>
-                <span className={`sq-dot d-${state}`} aria-hidden="true" />
+                <span className="sq-ic" aria-hidden="true">
+                  {ROLE_ICONS[member.role as SquadRole] ?? '🪖'}
+                </span>
                 <div>
                   <div className="nm">{squadLineFor(member, person, world.tick)}</div>
                   {!dead && (
@@ -143,7 +159,10 @@ export function TourPanel({
                     </div>
                   )}
                 </div>
-                <span className={`sq-state s-${state}`}>{stateWords}</span>
+                <span className={`sq-state s-${state}`}>
+                  <i className={`sq-dot d-${state}`} aria-hidden="true" />
+                  {stateWords}
+                </span>
               </div>
             )
           })}

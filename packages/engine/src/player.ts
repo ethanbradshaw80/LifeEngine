@@ -2740,8 +2740,13 @@ export function trainFitness(world: World): { trained: boolean; score: number; r
  * well thought of and tired, which is true of every soldier who volunteers
  * for everything.
  */
-const EXTRA_DUTY_GAIN = 30
-const EXTRA_DUTY_COOLDOWN = 6
+/**
+ * The first month's bump — small, immediate, so taking up the load is FELT
+ * the day it happens rather than only through a slow drift. The real value
+ * is the habit: it feeds the drift target monthly for as long as it is
+ * kept (see the dutyLift term in service.ts).
+ */
+const EXTRA_DUTY_GAIN = 15
 
 export function takeExtraDuty(world: World): { done: boolean; standing: number; reason: string } {
   const person = playerPerson(world)
@@ -2750,6 +2755,24 @@ export function takeExtraDuty(world: World): { done: boolean; standing: number; 
   }
   const bar = extraDutyBar(world)
   if (bar !== null) return { done: false, standing: 0, reason: bar }
+
+  /**
+   * A TOGGLE NOW, NOT A CLICK (owner, third report, in capitals). The old
+   * shape was +30 per press with a six-month cooldown, which made standing
+   * a measure of how often the player remembered a button — somebody
+   * playing in year-steps got a tenth of the value of somebody clicking
+   * every time the cooldown opened, and the drift spring ate the
+   * difference. Now it is the training pattern: take up the load and it
+   * works monthly until it is put down.
+   */
+  if (keepsHabit(world, person.id, 'duty')) {
+    dropHabit(world, person.id, 'duty')
+    return {
+      done: true,
+      standing: world.service.get(person.id)?.performance ?? 0,
+      reason: '',
+    }
+  }
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
@@ -2760,6 +2783,7 @@ export function takeExtraDuty(world: World): { done: boolean; standing: number; 
   })
   world.player.nextDecisionId += 1
 
+  takeUpHabit(world, world.tick, person.id, 'duty')
   boostServicePerformance(world, person.id, EXTRA_DUTY_GAIN)
   nudgeWellbeing(world, world.tick, person.id, -25, 'the extra duty')
   recordEvent(world, world.tick, {
@@ -2870,13 +2894,8 @@ export function extraDutyBar(world: World): string | null {
   if (health !== undefined && health.ailment !== null && health.severity >= 500) {
     return 'Not while you are laid up like this.'
   }
-  if (
-    world.player.log.some(
-      (entry) => entry.kind === 'extra-duty' && world.tick - entry.tick < EXTRA_DUTY_COOLDOWN,
-    )
-  ) {
-    return 'You have been carrying the extra load already. It has to be earned over months.'
-  }
+  // No cooldown clause: the verb is a commitment toggle now, and the button
+  // has to stay live either way — to take the load up, or to put it down.
   return null
 }
 

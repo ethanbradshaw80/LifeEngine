@@ -1119,7 +1119,7 @@ export type BodySite = 'leg' | 'arm' | 'hand' | 'chest' | 'head' | 'back' | 'sho
  * up running, and then the months do the work — or you stop, and the months
  * undo it.
  */
-export type HabitKind = 'training' | 'study' | 'social'
+export type HabitKind = 'training' | 'study' | 'social' | 'duty'
 
 export interface HabitRecord {
   readonly personId: EntityId
