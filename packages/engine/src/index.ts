@@ -755,3 +755,56 @@ export {
 } from './sportspaper.js'
 export type { SportsPaper, PaperVariant } from './sportspaper.js'
 export type { SecondAct } from './sports.js'
+
+// The combat & tours revamp (owner's `combat_tours_revamp.md`).
+export {
+  beatFor,
+  contactChanceFor,
+  contactShapePerMille,
+  monthContactChance,
+  operationNameFor,
+  phaseFor,
+  severityBiasFor,
+  tempoFor,
+  tempoWords,
+  tierFor,
+  tourHeadline,
+} from './tours.js'
+export type { IntensityTier, TourBeat, TourPhase } from './tours.js'
+export {
+  ROLE_TITLES,
+  SQUAD_SIZE,
+  bondWith,
+  bondWords,
+  livingSquad,
+  pickCasualty,
+  squadLineFor,
+  squadMemberOf,
+} from './squad.js'
+export type { SquadRole } from './squad.js'
+export type { SquadMember } from './types.js'
+export {
+  afterActionWords,
+  beatsFor,
+  consequenceWords,
+  decodeEngagement,
+  encodeEngagement,
+  engagementRoll,
+  followOnFor,
+  orientWords,
+} from './engagement.js'
+export type { BeatKind } from './engagement.js'
+export {
+  EVACUATES_AT,
+  TIER_WORDS,
+  careShiftFor,
+  endsTheTour,
+  evacMinutesFor,
+  meritsWoundRecognition,
+  permanentDisabilityFrom,
+  resolveCasualty,
+  returnsToDuty,
+  woundAgeWords,
+} from './casualty.js'
+export type { Casualty, WoundTier } from './casualty.js'
+export { MOS_SCENES } from './mosscenes.js'
