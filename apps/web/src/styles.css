@@ -4865,3 +4865,145 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .sq-row .nm { font-size: 0.82rem; font-weight: 700; }
 .sq-row .sub { font-size: 0.7rem; color: var(--muted); margin-top: 0.1rem; }
 .sq-row.gone .nm { color: var(--muted); text-decoration: line-through; }
+
+/* ==========================================================================
+   THE REGISTRY (owner's newgame_and_birth.html) - the front door and the
+   bookend. Deliberately NOT the app's phone aesthetic: these screens are
+   documents about a life, and the rest of the game is the life happening.
+   They carry their own tokens for that reason.
+   ========================================================================== */
+.reg {
+  --r-bg: #100e0b; --r-ink: #ece6da; --r-dim: #a79e8d; --r-faint: #6f685a;
+  --r-rule: #2b271f; --r-rule2: #3b352a; --r-brass: #c9a662; --r-brassdim: #8f7538;
+  --r-serif: Georgia, "Palatino Linotype", "Book Antiqua", Palatino, serif;
+  --r-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  background: radial-gradient(120% 60% at 50% -10%, #171309 0%, rgba(23,19,9,0) 55%), var(--r-bg);
+  color: var(--r-ink); font-family: var(--r-serif); line-height: 1.5;
+  min-height: 100%; padding: 1.8rem 1.1rem 3rem;
+}
+.reg .sc {
+  font-family: var(--r-mono); font-size: 0.62rem; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--r-dim);
+}
+.reg .kicker {
+  font-family: var(--r-mono); font-size: 0.6rem; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--r-faint); text-align: center;
+}
+.reg-title {
+  text-align: center; font-size: 2.4rem; font-weight: 400; margin: 0.8rem 0 0;
+  line-height: 1.05;
+}
+.reg-title em { color: var(--r-brass); font-style: italic; }
+.reg .rule-c { width: 4rem; height: 1px; background: var(--r-brassdim); margin: 1rem auto; }
+.reg .tag {
+  text-align: center; color: var(--r-dim); font-size: 0.9rem; margin: 0 0 1.8rem;
+  font-style: italic;
+}
+.reg .index { display: flex; flex-direction: column; gap: 0.1rem; }
+.reg .idx {
+  display: flex; align-items: baseline; gap: 0.5rem; width: 100%;
+  background: none; border: none; border-top: 1px solid var(--r-rule);
+  color: var(--r-ink); font-family: var(--r-serif); font-size: 1.05rem;
+  padding: 0.85rem 0.2rem; cursor: pointer; text-align: left;
+}
+.reg .idx:last-child { border-bottom: 1px solid var(--r-rule); }
+.reg .idx.first .ti { color: var(--r-brass); }
+.reg .idx .sub { color: var(--r-dim); font-size: 0.85rem; }
+.reg .idx .lead { flex: 1; border-bottom: 1px dotted var(--r-rule2); transform: translateY(-0.2rem); }
+.reg .idx .no { font-family: var(--r-mono); font-size: 0.7rem; color: var(--r-faint); }
+.reg-foot {
+  margin-top: 2.2rem; text-align: center; font-family: var(--r-mono);
+  font-size: 0.62rem; letter-spacing: 0.14em; color: var(--r-faint);
+}
+.reg .linky {
+  background: none; border: none; color: var(--r-dim); text-decoration: underline;
+  cursor: pointer; font-family: inherit; font-size: inherit; padding: 0;
+}
+.reg .orn { display: flex; align-items: center; gap: 0.6rem; color: var(--r-brassdim); }
+.reg .orn .ln { flex: 1; height: 1px; background: var(--r-rule2); }
+.reg .formhdr {
+  display: flex; justify-content: space-between; align-items: flex-end; margin: 1.1rem 0 0.4rem;
+}
+.reg .h-serif { font-size: 1.5rem; margin-top: 0.15rem; }
+.reg .formhdr .no { font-family: var(--r-mono); font-size: 0.65rem; color: var(--r-faint); }
+.reg .lede { color: var(--r-dim); font-style: italic; font-size: 0.88rem; margin: 0 0 1.2rem; }
+.reg .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin-bottom: 0.9rem; }
+.reg .fld { display: block; }
+.reg .blank {
+  width: 100%; background: none; border: none; border-bottom: 1px solid var(--r-rule2);
+  color: var(--r-ink); font-family: var(--r-serif); font-size: 1rem;
+  padding: 0.35rem 0.1rem; margin-top: 0.25rem;
+}
+.reg .blank:focus { outline: none; border-bottom-color: var(--r-brass); }
+.reg .mono-in { font-family: var(--r-mono); font-size: 0.8rem; }
+.reg .pick { display: flex; gap: 0.4rem; margin-top: 0.35rem; }
+.reg .pick button {
+  flex: 1; background: none; border: 1px solid var(--r-rule2); color: var(--r-dim);
+  font-family: var(--r-serif); font-size: 0.9rem; padding: 0.4rem; cursor: pointer;
+}
+.reg .pick button.on { color: var(--r-brass); border-color: var(--r-brassdim); }
+.reg .chance {
+  display: block; width: 100%; background: none; border: 1px dashed var(--r-rule2);
+  color: var(--r-dim); font-family: var(--r-serif); font-size: 0.9rem;
+  padding: 0.6rem; margin: 0.6rem 0 1.2rem; cursor: pointer;
+}
+.reg .sched { border: 1px solid var(--r-rule); }
+.reg .sched .bar {
+  display: flex; justify-content: space-between; width: 100%; background: none;
+  border: none; color: var(--r-dim); font-family: var(--r-mono); font-size: 0.62rem;
+  letter-spacing: 0.16em; text-transform: uppercase; padding: 0.6rem 0.7rem; cursor: pointer;
+}
+.reg .sched .in { padding: 0.2rem 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.reg .sched input[type='range'] { width: 100%; margin-top: 0.4rem; }
+.reg .scLabs {
+  display: flex; justify-content: space-between; font-family: var(--r-mono);
+  font-size: 0.55rem; letter-spacing: 0.1em; color: var(--r-faint); margin-top: 0.2rem;
+}
+.reg .hint { display: block; font-size: 0.72rem; color: var(--r-faint); font-style: italic; margin-top: 0.3rem; }
+.reg-btns { display: flex; align-items: center; justify-content: space-between; margin-top: 1.4rem; gap: 1rem; }
+.reg .stamp {
+  background: none; border: 1px solid var(--r-brassdim); color: var(--r-brass);
+  font-family: var(--r-mono); font-size: 0.7rem; letter-spacing: 0.18em;
+  text-transform: uppercase; padding: 0.75rem 1.1rem; cursor: pointer;
+}
+.reg .stamp.begin { width: 100%; margin-top: 1.4rem; }
+.reg.cert { padding: 1.2rem 0.8rem 3rem; }
+.reg .cert-in {
+  border: 1px solid var(--r-rule2); padding: 1.2rem 1rem 1.4rem; position: relative;
+  background: linear-gradient(180deg, rgba(201,166,98,0.03), transparent 40%);
+}
+.reg .cert-head { text-align: center; }
+.reg .cert-head .k {
+  font-family: var(--r-mono); font-size: 0.55rem; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--r-faint);
+}
+.reg .cert-head .t { font-size: 1.35rem; margin: 0.3rem 0 0.2rem; }
+.reg .cert-head .rn { font-family: var(--r-mono); font-size: 0.68rem; color: var(--r-brass); }
+.reg .cert-rule { height: 1px; background: var(--r-rule2); margin: 0.9rem 0; }
+.reg .vital { display: grid; grid-template-columns: 1.4fr 1fr; gap: 0.8rem; }
+.reg .vital.second { margin-top: 0.9rem; }
+.reg .vital .d { font-size: 1rem; margin-top: 0.2rem; }
+.reg .vital .d em { color: var(--r-brass); font-style: italic; }
+.reg .parentage { letter-spacing: 0.24em; margin-bottom: 0.4rem; display: block; }
+.reg .par .row {
+  display: grid; grid-template-columns: 4.2rem 1fr; gap: 0.4rem;
+  padding: 0.3rem 0; border-bottom: 1px solid var(--r-rule);
+}
+.reg .par .row:last-child { border-bottom: none; }
+.reg .par .role {
+  font-family: var(--r-mono); font-size: 0.58rem; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--r-faint); padding-top: 0.2rem;
+}
+.reg .par .nm { font-size: 0.95rem; }
+.reg .par .nm small { color: var(--r-dim); font-style: italic; }
+.reg .par .mt { grid-column: 2; font-size: 0.75rem; color: var(--r-dim); font-style: italic; }
+.reg .hh { font-size: 0.85rem; color: var(--r-dim); line-height: 1.55; margin: 0.9rem 0 0; }
+.reg .seal { position: absolute; right: 0.9rem; bottom: 5.4rem; opacity: 0.85; }
+.reg .signrow { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 2rem; }
+.reg .sig .ln { width: 9rem; height: 1px; background: var(--r-rule2); margin-bottom: 0.3rem; }
+.reg .recorded { text-align: right; }
+.reg .recorded .when { font-family: var(--r-mono); font-size: 0.72rem; color: var(--r-dim); margin-top: 0.3rem; }
+@media (max-width: 30rem) {
+  .reg .grid2 { grid-template-columns: 1fr; }
+  .reg .seal { display: none; }
+}

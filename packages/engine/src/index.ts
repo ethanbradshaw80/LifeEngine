@@ -808,3 +808,16 @@ export {
 } from './casualty.js'
 export type { Casualty, WoundTier } from './casualty.js'
 export { MOS_SCENES } from './mosscenes.js'
+
+// The front door (owner's `newgame_and_birth_master.md`).
+export {
+  FULL_LIFE_YEARS,
+  announcementFor,
+  defaultBirthTick,
+  householdWordsFor,
+  parentWorkFor,
+  planBirth,
+  registryNoFor,
+  seedFromRegistryNo,
+} from './birth.js'
+export type { BirthPlan, BirthRequest, FamilySpec } from './birth.js'

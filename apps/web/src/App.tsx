@@ -19,6 +19,10 @@ import { PersonDetail } from './PersonDetail.js'
 import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js'
 import { VerdictSheet } from './VerdictSheet.js'
 import { Welcome } from './Welcome.js'
+import { BirthCertificate, IntakeScreen, TitleScreen } from './NewLife.js'
+import { planBirth, seedFromRegistryNo } from '@life-engine/engine'
+import type { FamilySpec } from '@life-engine/engine'
+import type { LifeChoices } from './NewLife.js'
 import { GameScreen } from './GameScreen.js'
 import { useWorld } from './useWorld.js'
 
@@ -87,6 +91,18 @@ export function App() {
     }
   })
   const [confirmingNewWorld, setConfirmingNewWorld] = useState(false)
+  /**
+   * THE FRONT DOOR (owner's `newgame_and_birth_master.md`).
+   *
+   * The app used to boot straight into the engine / world-generation view.
+   * That is a dev tool, not a game start — the spec's own words — so the
+   * boot surface is now the Title screen and the engine view is DEMOTED
+   * rather than deleted, because it is invaluable for testing.
+   *
+   * Interface state only. The engine never knows which screen is up.
+   */
+  const [front, setFront] = useState<'title' | 'intake' | 'certificate' | 'engine'>('title')
+  const [lifeChoices, setLifeChoices] = useState<LifeChoices | null>(null)
   // A person being read in an overlay while the game screen is up. Interface
   // state only — closing it changes nothing in the world.
   const [inspecting, setInspecting] = useState<EntityId | null>(null)
@@ -191,6 +207,97 @@ export function App() {
           <p className="pad muted">Starting the simulation…</p>
         )}
       </div>
+    )
+  }
+
+  // THE FRONT DOOR, ahead of everything. A player who is mid-life goes
+  // straight to their life; everybody else sees a game rather than a
+  // simulation console.
+  if (front !== 'engine' && !(playerPerson && !playerDead)) {
+    if (front === 'title') {
+      return (
+        <TitleScreen
+          hasSave={playerPerson !== undefined}
+          activeLine={
+            playerPerson === undefined || world === null
+              ? null
+              : `${playerPerson.givenName} ${playerPerson.familyName}`
+          }
+          onNewLife={() => setFront('intake')}
+          onContinue={() => setFront('engine')}
+          onPastLives={() => setFront('engine')}
+          onEngine={() => setFront('engine')}
+        />
+      )
+    }
+    if (front === 'intake') {
+      return (
+        <IntakeScreen
+          onBack={() => setFront('title')}
+          onBorn={(choices) => {
+            setLifeChoices(choices)
+            setFront('certificate')
+          }}
+        />
+      )
+    }
+    if (front === 'certificate' && lifeChoices !== null) {
+      const plan =
+        world === null
+          ? null
+          : planBirth(
+              world,
+              {
+                givenName: lifeChoices.givenName,
+                familyName: lifeChoices.familyName,
+                sex: lifeChoices.sex,
+                placeId: null,
+                station: lifeChoices.station,
+                birthTick: null,
+              },
+              seedFromRegistryNo(lifeChoices.seedCode) ??
+                lifeChoices.givenName.length * 977 + lifeChoices.familyName.length * 131,
+            )
+      if (plan !== null) {
+        return (
+          <BirthCertificate
+            registryNo={plan.registryNo}
+            childName={`${plan.givenName} ${plan.familyName}`}
+            sex={plan.sex === 'male' ? 'Male' : 'Female'}
+            dateWords={String(1970 + Math.floor(plan.birthTick / 12))}
+            placeWords={lifeChoices.town}
+            rows={plan.family.map((member: FamilySpec) => ({
+              role:
+                member.relation === 'sibling'
+                  ? member.older
+                    ? 'Elder'
+                    : 'Younger'
+                  : member.relation === 'father'
+                    ? 'Father'
+                    : 'Mother',
+              name:
+                member.maidenName === null
+                  ? `${member.givenName} ${member.familyName}`
+                  : `${member.givenName} ${member.familyName} (née ${member.maidenName})`,
+              meta: `${String(member.ageYears)}${member.relation === 'father' ? ' · carries the name' : ''}`,
+            }))}
+            householdWords={plan.householdWords}
+            onBegin={() => setFront('engine')}
+          />
+        )
+      }
+    }
+    // A state with nothing to show falls back to the title rather than a
+    // blank screen — the front door must never be a dead end.
+    return (
+      <TitleScreen
+        hasSave={false}
+        activeLine={null}
+        onNewLife={() => setFront('intake')}
+        onContinue={() => setFront('engine')}
+        onPastLives={() => setFront('engine')}
+        onEngine={() => setFront('engine')}
+      />
     )
   }
 
