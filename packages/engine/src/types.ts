@@ -662,6 +662,56 @@ export interface Accounts {
  * M-CAREER §5. A BUSINESS. Persisted, so it lives here beside every other
  * entity the save carries; business.ts holds what one DOES.
  */
+/**
+ * WHAT THE CASINO KNOWS ABOUT SOMEBODY (casino spec §2, §5).
+ *
+ * Every field here is EARNED rather than issued. A person who has never
+ * been through the doors has no record at all, which is the honest default
+ * and also what makes the migration trivial.
+ */
+export interface GamblingRecord {
+  readonly personId: EntityId
+  /**
+   * CHIPS ON HAND, in cents of face value (owner: "chips you buy from a
+   * cashier that is separate funds from everything").
+   *
+   * The single most important consequence: this is ALL you can lose
+   * tonight. A bad session cannot reach your savings, your rent or your
+   * children's tuition — it can only empty the tray. Reaching those takes
+   * a deliberate second act, which is walking back to the cashier, and
+   * that act is the one the addiction model watches.
+   *
+   * Owned by casino.ts. Cents are finances'; chips are these. The cashier
+   * is the only place the two ever meet.
+   */
+  readonly chips: Money
+  /** 0-1000, and it only moves by playing and studying (spec §3). */
+  readonly pokerSkill: number
+  /** Hours at the tables, ever. The thing skill is actually made of. */
+  readonly hoursPlayed: number
+  /** Lifetime, in cents. Negative for almost everybody, which is the point. */
+  readonly lifetimeNet: number
+  /** Cents wagered across everything, ever — the denominator for trouble. */
+  readonly lifetimeWagered: number
+  /**
+   * 0-1000. How much of a hold this has (spec §2, "modeled responsibly").
+   *
+   * Rises with chasing — playing more after losing — and falls with time
+   * away. It is NOT a moral score and nothing in the model calls it one:
+   * what it does is make somebody play when they should not and bet more
+   * than they meant to, which is what the thing actually does to people.
+   */
+  readonly hold: number
+  /** The tick they last played. Time away is what recovery is made of. */
+  readonly lastPlayedTick: Tick | null
+  /** When they admitted it was a problem and started doing something. */
+  readonly inRecoverySinceTick: Tick | null
+  /** Best tournament finish ever, for the record. Null if never cashed. */
+  readonly bestFinish: number | null
+  /** Whether poker is what they do for a living (spec §2, "going pro"). */
+  readonly turnedProAtTick: Tick | null
+}
+
 export interface Business {
   readonly id: EntityId
   readonly ownerId: EntityId
@@ -1940,6 +1990,14 @@ export type PendingKind =
   | 'pay-down'
   | 'scale-up'
   | 'take-public'
+  | 'gamble'
+  | 'buy-chips'
+  | 'cash-out'
+  | 'poker'
+  | 'tournament'
+  | 'study-poker'
+  | 'turn-pro'
+  | 'seek-help'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2156,6 +2214,13 @@ export type EventType =
   | 'debated'
   | 'paid-down-loan'
   | 'delisted'
+  | 'bought-chips'
+  | 'cashed-out'
+  | 'gambled'
+  | 'played-poker'
+  | 'played-tournament'
+  | 'turned-pro'
+  | 'sought-help'
   | 'company-scaled'
   | 'went-public'
   | 'took-graft'
@@ -2518,6 +2583,18 @@ export interface World {
    * every save, and no chart in this game can show more than a few years.
    */
   readonly stockHistory: Readonly<Record<string, readonly number[]>>
+  /**
+   * WHO GAMBLES, AND WHAT IT HAS COST THEM (casino spec §5). Keyed by
+   * personId; the single writer is `casino.ts`.
+   *
+   * NOT A BANKROLL. The spec's screens say "bankroll" and they mean it, but
+   * a poker player's bankroll IS their money — putting a second pot of
+   * cents in here would be a second source of truth for how much somebody
+   * has, and finances owns that (Law 12). What lives here is the things
+   * finances has no opinion about: the skill, the hours, the record, and
+   * how much trouble this is causing.
+   */
+  readonly gamblers: Map<EntityId, GamblingRecord>
   /** The analyst panel's standing view, refreshed quarterly. */
   readonly analystViews: Map<string, AnalystView>
   /**

@@ -4562,3 +4562,94 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   color: var(--muted);
   cursor: not-allowed;
 }
+
+/* THE CASINO (owner's `casino_1.html`).
+   The mockup is dark-only and names --green/--red/--panel2/--felt; these
+   are the app's equivalents, every one defined for light AND dark. */
+.cas { display: flex; flex-direction: column; gap: 0.7rem; }
+.cas-roll {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--panel-raised); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.7rem 0.85rem;
+}
+.cas-roll .k {
+  font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.cas-roll .v {
+  font-size: 1.2rem; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.cas-wallet {
+  display: flex; justify-content: space-between; font-size: 0.78rem;
+  color: var(--muted); padding: 0 0.2rem;
+}
+.cas-warn {
+  border-radius: 7px; padding: 0.75rem; border: 1px solid var(--amber);
+  background: var(--panel-raised);
+}
+.cas-warn.problem { border-color: var(--bad); }
+.cas-warn p { margin: 0 0 0.5rem; font-size: 0.82rem; line-height: 1.5; }
+.cas-cashier, .cas-card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.8rem;
+}
+.cas-cashier h4, .cas-card h4 {
+  margin: 0 0 0.6rem; font-size: 0.7rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); font-weight: 700;
+}
+.cas-betrow { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; }
+.cas-betrow input { flex: 1; }
+.cas-amt { font-weight: 800; font-variant-numeric: tabular-nums; min-width: 5.5rem; text-align: right; }
+.cas-btns { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+.cas-btns .apply { flex: 1; min-width: 5rem; }
+.cas-btns .apply.ghost { background: var(--panel-raised); color: var(--fg); border-color: var(--line); }
+.cas-tabs { display: flex; gap: 0.4rem; }
+.cas-tabs button {
+  flex: 1; background: var(--panel); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 7px; padding: 0.5rem; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+}
+.cas-tabs button.on { color: var(--fg); border-color: var(--accent); background: var(--panel-raised); }
+.cas-room {
+  display: flex; gap: 0.75rem; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.8rem;
+}
+.cas-room .ic {
+  width: 2.6rem; height: 2.6rem; border-radius: 7px; display: flex;
+  align-items: center; justify-content: center; font-size: 1.4rem; flex: none;
+  background: var(--panel-raised); border: 1px solid var(--line);
+}
+.cas-room .nm { font-size: 0.95rem; font-weight: 800; }
+.cas-room .d { font-size: 0.78rem; color: var(--muted); margin-top: 0.15rem; line-height: 1.45; }
+.cas-stake {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem 0;
+  border-bottom: 1px solid var(--line); flex-wrap: wrap;
+}
+.cas-stake:last-of-type { border-bottom: none; }
+.cas-stake .nm { font-size: 0.85rem; font-weight: 700; }
+.cas-stake .sub { font-size: 0.72rem; color: var(--muted); }
+.cas-stake .apply { margin-left: auto; }
+.cas-buy { font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; }
+.cas-pill {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  border-radius: 5px; padding: 0.15rem 0.45rem; border: 1px solid;
+}
+.cas-pill.yes { color: var(--ok); border-color: var(--ok); }
+.cas-pill.close { color: var(--amber); border-color: var(--amber); }
+.cas-pill.no { color: var(--bad); border-color: var(--bad); }
+.cas-bank {
+  text-align: center; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.9rem;
+}
+.cas-bank .k {
+  font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+.cas-bank .v { font-size: 1.6rem; font-weight: 800; margin-top: 0.2rem; font-variant-numeric: tabular-nums; }
+.cas-bank .v.up { color: var(--ok); }
+.cas-bank .v.dn { color: var(--bad); }
+.cas-bank .g { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+.cas-three { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem; }
+.cas-three .kf {
+  text-align: center; background: var(--panel-raised); border: 1px solid var(--line);
+  border-radius: 7px; padding: 0.55rem 0.2rem;
+}
+.cas-three .kf .v { font-size: 0.95rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.cas-three .kf .k { font-size: 0.65rem; color: var(--muted); margin-top: 0.1rem; }

@@ -68,6 +68,17 @@ export const Stream = {
    * meant adding a seat on the council re-rolled the market.
    */
   Politics: 15,
+  /**
+   * Appended for the casino module, by the sanctioned path. Every card,
+   * spin, session and tournament.
+   *
+   * Its own stream because a night at the tables is drawn per person per
+   * visit and can be drawn many times in one month — sharing a stream with
+   * anything else would mean a player sitting down at a blackjack table
+   * re-rolled somebody else's life. The spec's one non-negotiable is that
+   * this module is deterministic, and that starts here.
+   */
+  Casino: 16,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

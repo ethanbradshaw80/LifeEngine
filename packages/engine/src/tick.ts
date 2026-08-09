@@ -27,6 +27,8 @@ import { runProperties, seatHouseholds } from './realestate.js'
 import { runStats } from './stats.js'
 import { runWellbeing } from './wellbeing.js'
 import { runFinances, voidHoldingsIn } from './finances.js'
+import { runCasino } from './casino.js'
+import { nudgeWellbeing } from './wellbeing.js'
 import { stepEconomy } from './economy.js'
 import {
   pushHistory,
@@ -110,6 +112,11 @@ export function advanceTick(world: World): World {
   // The seats are filled before anybody acts in the month, the same way
   // the economy is settled first: a town's government is a condition of
   // the month rather than an event inside it.
+  // The casino's month is the hold easing and what it costs — never a
+  // table. Playing is a verb; nothing here gambles on anybody's behalf.
+  for (const { personId, drag } of runCasino(world, next)) {
+    nudgeWellbeing(world, next, personId, drag, 'the gambling')
+  }
   runGovernment(world, next)
   runEducation(world, next)
   // Health before employment: a body broken this month affects this month's

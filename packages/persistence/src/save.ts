@@ -8,7 +8,14 @@
  */
 
 import { freshPolicy, freshStockPrices, generateNations, relationshipKey, specById, toSnapshot } from '@life-engine/engine'
-import type { AnalystView, Election, Officeholder, PolicyState, Stock } from '@life-engine/engine'
+import type {
+  AnalystView,
+  Election,
+  GamblingRecord,
+  Officeholder,
+  PolicyState,
+  Stock,
+} from '@life-engine/engine'
 import type {
   Accounts,
   AwardRecord,
@@ -304,6 +311,11 @@ function hydrate(
     policy: (body['policy'] as PolicyState | undefined) ?? freshPolicy(),
     stockPrices: (body['stockPrices'] as World['stockPrices'] | undefined) ?? freshStockPrices(),
     stockHistory: (body['stockHistory'] as World['stockHistory'] | undefined) ?? {},
+    // Nobody in a save written before the casino existed has ever been
+    // through its doors, which is what the `?? []` says.
+    gamblers: new Map(
+      ((body['gamblers'] as GamblingRecord[] | undefined) ?? []).map((row) => [row.personId, row]),
+    ),
     analystViews: new Map(
       ((body['analystViews'] as AnalystView[] | undefined) ?? []).map((view) => [view.stockId, view]),
     ),

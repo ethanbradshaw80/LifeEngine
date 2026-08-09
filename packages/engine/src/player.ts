@@ -52,6 +52,31 @@ import {
 import { activeWars, combatPowerOf, homeland, sueForPeace } from './geopolitics.js'
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { nudgeWellbeing } from './wellbeing.js'
+import { disciplineOf, smartsOf } from './stats.js'
+import {
+  CASINO_MIN_AGE,
+  POKER_SKILL_MAX,
+  gamblerOf,
+  buyChipsBar,
+  holdFromCashier,
+  playSession,
+  playTable,
+  playTournament,
+  pokerCeilingFor,
+  skillGainFrom,
+  stakeById,
+  tournamentById,
+  tournamentRunning,
+  turnProBar,
+  wagerCreepPerMille,
+} from './casino.js'
+import type {
+  BlackjackChoice,
+  SessionResult,
+  TableGame,
+  TableResult,
+  TournamentResult,
+} from './casino.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import type { SceneChoice } from './scenes.js'
 import {
@@ -783,6 +808,397 @@ export function takePublicPlayer(world: World): { done: boolean; reason: string 
     chosen: `took ${business.name} public as ${stock.ticker}`,
     rejected: ['kept it private'],
     streamId: Stream.Career,
+  })
+  return { done: true, reason: '' }
+}
+
+// ---------------------------------------------------------------------------
+// THE CASINO (owner's `casino_poker_master_1.md`)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT A PLAYER CAN ACTUALLY PUT ON A TABLE — savings plus checking.
+ *
+ * This is the "bankroll" every screen in the spec refers to. It is
+ * deliberately NOT stored anywhere: a poker player's bankroll IS their
+ * money, and keeping a second number for it would be two sources of truth
+ * for how much somebody has (Law 12). Finances owns cents; this reads them.
+ */
+export function bankrollOf(world: World, personId: EntityId): Money {
+  return gamblerOf(world, personId).chips
+}
+
+/**
+ * Why the doors are shut, or null. Age, money, and a body in a cell.
+ */
+export function casinoBar(world: World, wager: Money): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  if (world.player.pending !== null) return 'A decision is already waiting.'
+  if (ageAt(person.birthTick, world.tick) < CASINO_MIN_AGE) {
+    return `They card everybody on the door. You have to be ${String(CASINO_MIN_AGE)}.`
+  }
+  if (isCaptive(world, person.id)) return 'Held prisoner. None of this is yours to ask for.'
+  const criminal = world.criminal.get(person.id)
+  if (criminal?.jailedUntilTick != null && world.tick < criminal.jailedUntilTick) {
+    return 'Not from in here.'
+  }
+  if (wager <= 0) return 'You have to put something up.'
+  // CHIPS, NOT CASH. What you can lose at a table is what is in the tray,
+  // and nothing at a table can reach the rent. Getting to the rent takes a
+  // second, deliberate act: walking back to the cashier.
+  if (gamblerOf(world, person.id).chips < wager) {
+    return 'You are out of chips. The cashier is by the door.'
+  }
+  return null
+}
+
+/**
+ * BUY CHIPS. The cashier — the one place cents and chips ever meet.
+ *
+ * finances debits the money and this module credits the tray, which is the
+ * single-writer rule doing exactly what it is for: two owners, one seam,
+ * and no way for either to write the other's number.
+ */
+export function buyChipsPlayer(world: World, cents: Money): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  if (ageAt(person.birthTick, world.tick) < CASINO_MIN_AGE) {
+    return { done: false, reason: `They card everybody on the door. You have to be ${String(CASINO_MIN_AGE)}.` }
+  }
+  if (isCaptive(world, person.id)) {
+    return { done: false, reason: 'Held prisoner. None of this is yours to ask for.' }
+  }
+  const liquid = walletOf(world, person.id)
+  const bar = buyChipsBar(cents, liquid)
+  if (bar !== null) return { done: false, reason: bar }
+
+  const record = gamblerOf(world, person.id)
+  // How many times already tonight. The month is the visit — this world's
+  // clock has no evenings in it, and re-buying inside one month is the
+  // closest honest reading of going back to the window.
+  const rebuys = record.lastPlayedTick === world.tick ? 1 + Math.floor(record.hold / 200) : 0
+  const creep = holdFromCashier(cents, liquid, rebuys, disciplineOf(world, person.id, world.tick))
+
+  logVerb(world, 'buy-chips', String(cents))
+  debitPerson(world, person.id, cents)
+  world.gamblers.set(person.id, {
+    ...record,
+    chips: (record.chips + cents) as Money,
+    hold: Math.min(1_000, record.hold + creep),
+    lastPlayedTick: world.tick,
+    inRecoverySinceTick: null,
+  })
+  recordEvent(world, world.tick, {
+    type: 'bought-chips',
+    subjectId: person.id,
+    detail: String(cents),
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * CASH OUT. The tray goes back across the window and becomes money again.
+ *
+ * Free, unlimited, and never refused — walking away with what you have
+ * left is the one thing a game about this must never make difficult.
+ */
+export function cashOutPlayer(world: World): { done: boolean; reason: string; cents: Money } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) {
+    return { done: false, reason: 'Nobody is being played.', cents: 0 as Money }
+  }
+  const record = gamblerOf(world, person.id)
+  if (record.chips <= 0) return { done: false, reason: 'You have nothing to cash.', cents: 0 as Money }
+  const cents = record.chips
+  logVerb(world, 'cash-out', String(cents))
+  world.gamblers.set(person.id, { ...record, chips: 0 as Money })
+  creditPerson(world, person.id, cents)
+  recordEvent(world, world.tick, {
+    type: 'cashed-out',
+    subjectId: person.id,
+    detail: String(cents),
+  })
+  return { done: true, reason: '', cents }
+}
+
+/** Money that is actually theirs to spend — the cashier's side of the window. */
+export function walletOf(world: World, personId: EntityId): Money {
+  const accounts = accountsOf(world, personId)
+  return Math.max(0, accounts.savings + accounts.checking) as Money
+}
+
+/** Record the night: the hours, the money, and what it is costing. */
+/**
+ * Settle a night against the tray, and write the record.
+ *
+ * THE MONEY NEVER TOUCHES AN ACCOUNT HERE. Chips go up or down and that is
+ * all — the accounts only move at the cashier. `net` may be negative, and
+ * it cannot take the tray below nothing: when the chips are gone you are
+ * done, which is what being out of chips means.
+ *
+ * The HOLD is not touched here either. It is bought at the window, not at
+ * the table, and putting it in both places would count the same act twice.
+ */
+function recordPlay(
+  world: World,
+  personId: EntityId,
+  wagered: Money,
+  net: number,
+  hours: number,
+  skillGain: number,
+): void {
+  const before = gamblerOf(world, personId)
+  world.gamblers.set(personId, {
+    ...before,
+    chips: Math.max(0, before.chips + net) as Money,
+    pokerSkill: Math.min(POKER_SKILL_MAX, before.pokerSkill + skillGain),
+    hoursPlayed: before.hoursPlayed + hours,
+    lifetimeNet: before.lifetimeNet + net,
+    lifetimeWagered: before.lifetimeWagered + wagered,
+    lastPlayedTick: world.tick,
+  })
+}
+
+/**
+ * BLACKJACK OR SLOTS. The casino resolves; finances moves the money.
+ */
+export function playTablePlayer(
+  world: World,
+  game: TableGame,
+  wager: Money,
+  choice: BlackjackChoice,
+): { done: boolean; reason: string; result: TableResult | null } {
+  const bar = casinoBar(world, wager)
+  if (bar !== null) return { done: false, reason: bar, result: null }
+  const person = playerPerson(world)
+  if (!person) return { done: false, reason: 'Nobody is being played.', result: null }
+
+  // THE HOLD MAKES PEOPLE BET MORE THAN THEY MEANT TO. This is where that
+  // becomes real money rather than a number on a screen.
+  const record = gamblerOf(world, person.id)
+  const intended = Math.floor((wager * wagerCreepPerMille(record)) / 1_000)
+  const staked = Math.min(intended, bankrollOf(world, person.id)) as Money
+
+  const result = playTable(
+    world,
+    world.tick,
+    person.id,
+    game,
+    staked,
+    choice,
+    smartsOf(world, person.id),
+    record.hoursPlayed,
+  )
+  logVerb(world, 'gamble', `${game}:${String(result.wagered)}`)
+  // NO CASH MOVES. It is chips across a felt table, and the tray is the
+  // whole of what is at risk.
+  recordPlay(world, person.id, result.wagered, result.net, 1, 0)
+  recordEvent(world, world.tick, {
+    type: 'gambled',
+    subjectId: person.id,
+    detail: `${game}:${String(result.net)}`,
+  })
+  return { done: true, reason: '', result }
+}
+
+/**
+ * A CASH SESSION at a chosen stake.
+ *
+ * The bar refuses a stake you cannot buy into at all; it does NOT refuse a
+ * stake you are under-rolled for, and that is deliberate. Playing above
+ * your roll is the single most common way people go broke at this game,
+ * and a casino that stopped you would be removing the decision the whole
+ * bankroll model exists to pose. You are told, and then it is yours.
+ */
+export function playPokerPlayer(
+  world: World,
+  stakeId: string,
+  hours: number,
+): { done: boolean; reason: string; result: SessionResult | null } {
+  const stake = stakeById(stakeId)
+  if (stake === undefined) return { done: false, reason: 'No such game running.', result: null }
+  const person = playerPerson(world)
+  if (!person) return { done: false, reason: 'Nobody is being played.', result: null }
+  const buyIn = atTodaysPrices(world, stake.buyIn) as Money
+  const bar = casinoBar(world, buyIn)
+  if (bar !== null) return { done: false, reason: bar, result: null }
+
+  const record = gamblerOf(world, person.id)
+  const played = Math.max(1, Math.min(12, hours))
+  const result = playSession(
+    world,
+    world.tick,
+    person.id,
+    stake,
+    buyIn,
+    record.pokerSkill,
+    played,
+    record.hoursPlayed,
+  )
+
+  logVerb(world, 'poker', `${stakeId}:${String(played)}`)
+
+  // VOLUME IS THE TEACHER, and it plateaus against a ceiling made of the
+  // person (spec §3: earned, not selected).
+  const ceiling = pokerCeilingFor(
+    smartsOf(world, person.id),
+    disciplineOf(world, person.id, world.tick),
+    person.traits.resilience,
+  )
+  const gain = skillGainFrom(record.pokerSkill, ceiling, played * 2)
+  recordPlay(world, person.id, buyIn, result.net, played, gain)
+  recordEvent(world, world.tick, {
+    type: 'played-poker',
+    subjectId: person.id,
+    detail: `${stake.title}:${String(result.net)}`,
+  })
+  return { done: true, reason: '', result }
+}
+
+/** Enter a tournament. */
+export function enterTournamentPlayer(
+  world: World,
+  tournamentId: string,
+): { done: boolean; reason: string; result: TournamentResult | null } {
+  const event = tournamentById(tournamentId)
+  if (event === undefined) return { done: false, reason: 'No such tournament.', result: null }
+  const person = playerPerson(world)
+  if (!person) return { done: false, reason: 'Nobody is being played.', result: null }
+  if (!tournamentRunning(event, world.tick)) {
+    return { done: false, reason: 'That one is not running this month.', result: null }
+  }
+  const buyIn = atTodaysPrices(world, event.buyIn) as Money
+  const bar = casinoBar(world, buyIn)
+  if (bar !== null) return { done: false, reason: bar, result: null }
+
+  const record = gamblerOf(world, person.id)
+  const result = playTournament(
+    world,
+    world.tick,
+    person.id,
+    event,
+    buyIn,
+    record.pokerSkill,
+    record.hoursPlayed,
+  )
+
+  logVerb(world, 'tournament', tournamentId)
+
+  const ceiling = pokerCeilingFor(
+    smartsOf(world, person.id),
+    disciplineOf(world, person.id, world.tick),
+    person.traits.resilience,
+  )
+  const gain = skillGainFrom(record.pokerSkill, ceiling, result.hours * 2)
+  recordPlay(world, person.id, result.buyIn, result.net, result.hours, gain)
+  const best = record.bestFinish
+  world.gamblers.set(person.id, {
+    ...gamblerOf(world, person.id),
+    bestFinish: best === null || result.finish < best ? result.finish : best,
+  })
+  recordEvent(world, world.tick, {
+    type: 'played-tournament',
+    subjectId: person.id,
+    detail: `${event.title}:${String(result.finish)}/${String(event.field)}:${String(result.net)}`,
+  })
+  return { done: true, reason: '', result }
+}
+
+/**
+ * STUDY (spec §3: "poker skill only grows by actually playing and
+ * studying... put in the work, don't just toggle it").
+ *
+ * Away from the table, and it costs a month's evenings rather than money.
+ * It is worth LESS than playing per unit of effort and it is worth
+ * something when a downswing means you should not be at a table at all —
+ * which is the honest relationship between the two.
+ */
+export function studyPokerPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  if (world.player.pending !== null) return { done: false, reason: 'A decision is already waiting.' }
+  if (ageAt(person.birthTick, world.tick) < CASINO_MIN_AGE) {
+    return { done: false, reason: 'There is time for that later.' }
+  }
+  const record = gamblerOf(world, person.id)
+  if (world.player.log.some((e) => e.kind === 'study-poker' && world.tick - e.tick < 3)) {
+    return { done: false, reason: 'You have been at the books. It has to be spread out to stick.' }
+  }
+  const ceiling = pokerCeilingFor(
+    smartsOf(world, person.id),
+    disciplineOf(world, person.id, world.tick),
+    person.traits.resilience,
+  )
+  const gain = skillGainFrom(record.pokerSkill, ceiling, 55)
+  if (gain <= 0) {
+    return { done: false, reason: 'There is nothing left in a book for you. Only volume now.' }
+  }
+  logVerb(world, 'study-poker', String(gain))
+  world.gamblers.set(person.id, {
+    ...record,
+    pokerSkill: Math.min(POKER_SKILL_MAX, record.pokerSkill + gain),
+  })
+  return { done: true, reason: '' }
+}
+
+/** Make it the job (spec §2, "going pro"). */
+export function turnProPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = gamblerOf(world, person.id)
+  const lowStake = stakeById('low')
+  const buyIn = lowStake === undefined ? (0 as Money) : (atTodaysPrices(world, lowStake.buyIn) as Money)
+  const bar = turnProBar(record, walletOf(world, person.id), buyIn)
+  if (bar !== null) return { done: false, reason: bar }
+
+  logVerb(world, 'turn-pro', 'poker')
+  world.gamblers.set(person.id, { ...record, turnedProAtTick: world.tick })
+  // Leaving a job to do this is the player's own decision and the job
+  // system's to carry out — this module does not fire anybody.
+  recordEvent(world, world.tick, {
+    type: 'turned-pro',
+    subjectId: person.id,
+    detail: 'poker',
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('has-income', Math.min(1000, record.pokerSkill))],
+    chosen: 'started playing poker for a living',
+    rejected: ['kept it to evenings'],
+    streamId: Stream.Casino,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * ADMIT IT AND STOP (spec: "with a recovery arc, modeled seriously").
+ *
+ * Deliberately available at ANY time and to anybody, including somebody
+ * whose hold is nowhere near a problem — deciding to stop is not something
+ * a person should have to qualify for. What it does is real: recovery
+ * eases the hold three times faster than merely not playing, because
+ * choosing to stop is different from happening not to.
+ */
+export function seekHelpPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = gamblerOf(world, person.id)
+  if (record.inRecoverySinceTick !== null) return { done: false, reason: 'You are already doing this.' }
+  if (record.hold <= 0 && record.hoursPlayed === 0) {
+    return { done: false, reason: 'There is nothing to walk away from.' }
+  }
+  logVerb(world, 'seek-help', 'gambling')
+  world.gamblers.set(world.player.personId ?? person.id, {
+    ...record,
+    inRecoverySinceTick: world.tick,
+  })
+  recordEvent(world, world.tick, {
+    type: 'sought-help',
+    subjectId: person.id,
+    detail: 'gambling',
   })
   return { done: true, reason: '' }
 }
@@ -3158,6 +3574,14 @@ export function resolvePending(world: World, choice: string): void {
     case 'extra-duty':
     case 'scale-up':
     case 'take-public':
+    case 'gamble':
+    case 'buy-chips':
+    case 'cash-out':
+    case 'poker':
+    case 'tournament':
+    case 'study-poker':
+    case 'turn-pro':
+    case 'seek-help':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -4452,6 +4876,22 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Grew it into a company.' // log-only
     case 'take-public':
       return 'Took the company public.' // log-only
+    case 'gamble':
+      return 'Played the tables.' // log-only
+    case 'buy-chips':
+      return 'Bought chips.' // log-only
+    case 'cash-out':
+      return 'Cashed out.' // log-only
+    case 'poker':
+      return 'Sat down for a session.' // log-only
+    case 'tournament':
+      return 'Entered a tournament.' // log-only
+    case 'study-poker':
+      return 'Studied the game.' // log-only
+    case 'turn-pro':
+      return 'Went pro.' // log-only
+    case 'seek-help':
+      return 'Asked for help.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':

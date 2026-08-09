@@ -383,6 +383,22 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'paid-down-loan': {
       return `${year} \u2014 Paid a lump off the ${event.detail ?? 'debt'}.`
     }
+    case 'played-tournament': {
+      const [name, place, net] = (event.detail ?? '').split(':')
+      const won = Number(net ?? 0)
+      if (place === undefined) return `${year} \u2014 Played a tournament.`
+      const [finish, field] = place.split('/')
+      if (finish === '1') return `${year} \u2014 Won ${name ?? 'a tournament'}, out of a field of ${field ?? 'them all'}.`
+      return won > 0
+        ? `${year} \u2014 Finished ${finish ?? '?'} of ${field ?? '?'} in ${name ?? 'a tournament'}, and cashed.`
+        : `${year} \u2014 Busted out of ${name ?? 'a tournament'}.`
+    }
+    case 'turned-pro': {
+      return `${year} \u2014 Started playing poker for a living.`
+    }
+    case 'sought-help': {
+      return `${year} \u2014 Admitted the gambling had got out of hand, and asked for help.`
+    }
     case 'company-scaled': {
       return `${year} — Grew ${event.detail ?? 'the business'} into a company.`
     }

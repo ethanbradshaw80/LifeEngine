@@ -78,6 +78,7 @@ import {
 import {
   boardStandingFor,
   extraDutyBar,
+  walletOf,
   upOrOutStandingFor,
   currentDeployment,
   disciplinaryFileOf,
@@ -126,6 +127,7 @@ import { RecruitingStationView } from './RecruitingStation.js'
 import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Market } from './Market.js'
+import { Casino } from './Casino.js'
 import { School } from './School.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
@@ -264,6 +266,7 @@ type Tab =
   | 'health'
   | 'record'
   | 'cityhall'
+  | 'casino'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -287,6 +290,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'home', icon: '📊', label: 'You' },
   { id: 'money', icon: '💰', label: 'Money' },
   { id: 'market', icon: '📉', label: 'Market' },
+  { id: 'casino', icon: '🎰', label: 'Casino' },
   { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'school', icon: '🎓', label: 'School' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
@@ -1191,6 +1195,18 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             world={world}
             holdings={accountsOf(world, person.id).holdings}
             cash={accountsOf(world, person.id).savings}
+            onAct={onAct}
+          />
+        </div>
+      )}
+
+      {tab === 'casino' && (
+        <div className="panel" aria-label="Casino">
+          <Casino
+            world={world}
+            person={person}
+            busy={busy}
+            wallet={walletOf(world, person.id)}
             onAct={onAct}
           />
         </div>

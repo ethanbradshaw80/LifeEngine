@@ -29,6 +29,14 @@ import {
   payOffBankruptcyPlayer,
   buyPropertyPlayer,
   payDownPlayer,
+  buyChipsPlayer,
+  cashOutPlayer,
+  playTablePlayer,
+  playPokerPlayer,
+  enterTournamentPlayer,
+  studyPokerPlayer,
+  turnProPlayer,
+  seekHelpPlayer,
   scaleUpPlayer,
   takePublicPlayer,
   rentPropertyPlayer,
@@ -126,6 +134,14 @@ export type VerbRequest =
   | { readonly verb: 'buy-property'; readonly propertyId: string; readonly method?: 'cash' | 'mortgage' }
   | { readonly verb: 'pay-down'; readonly kind: 'personal' | 'auto' | 'mortgage' | 'student'; readonly cents: number }
   | { readonly verb: 'scale-up' }
+  | { readonly verb: 'buy-chips'; readonly cents: number }
+  | { readonly verb: 'cash-out' }
+  | { readonly verb: 'gamble'; readonly game: 'blackjack' | 'slots'; readonly wager: number; readonly choice: 'hit' | 'stand' | 'double' }
+  | { readonly verb: 'poker'; readonly stakeId: string; readonly hours: number }
+  | { readonly verb: 'tournament'; readonly tournamentId: string }
+  | { readonly verb: 'study-poker' }
+  | { readonly verb: 'turn-pro' }
+  | { readonly verb: 'seek-help' }
   | { readonly verb: 'take-public' }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
@@ -473,6 +489,46 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'habit': {
             const r = setHabit(world, a.kind, a.keep)
             outcome = { ok: r.changed, reason: r.reason }
+            break
+          }
+          case 'buy-chips': {
+            const r = buyChipsPlayer(world, a.cents as never)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'cash-out': {
+            const r = cashOutPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'gamble': {
+            const r = playTablePlayer(world, a.game, a.wager as never, a.choice)
+            outcome = { ok: r.done, reason: r.done && r.result !== null ? r.result.words : r.reason }
+            break
+          }
+          case 'poker': {
+            const r = playPokerPlayer(world, a.stakeId, a.hours)
+            outcome = { ok: r.done, reason: r.done && r.result !== null ? r.result.words : r.reason }
+            break
+          }
+          case 'tournament': {
+            const r = enterTournamentPlayer(world, a.tournamentId)
+            outcome = { ok: r.done, reason: r.done && r.result !== null ? r.result.words : r.reason }
+            break
+          }
+          case 'study-poker': {
+            const r = studyPokerPlayer(world)
+            outcome = { ok: r.done, reason: r.done ? 'Put the hours in away from the table.' : r.reason }
+            break
+          }
+          case 'turn-pro': {
+            const r = turnProPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'seek-help': {
+            const r = seekHelpPlayer(world)
+            outcome = { ok: r.done, reason: r.done ? 'You said it out loud. That is the hard part.' : r.reason }
             break
           }
           case 'scale-up': {

@@ -77,6 +77,16 @@ const DELIBERATELY_SILENT = new Set([
   // education suite pins that a REAL one renders, so this entry cannot
   // quietly hide a school moment that shows up nowhere.
   'school-moment',
+  // A hand of blackjack and a cash session happen many times a month. They
+  // are real and they are in the ledger — the casino's own screens read
+  // them — but a life story made of four hundred "played the tables" lines
+  // is not a life story (Law 6: summarise; Law 9: show what matters). What
+  // DOES reach the story is the things that changed something: a
+  // tournament finish, going pro, and asking for help.
+  'gambled',
+  'played-poker',
+  'bought-chips',
+  'cashed-out',
 ])
 
 /** Every member of the EventType union, read from its own declaration. */
