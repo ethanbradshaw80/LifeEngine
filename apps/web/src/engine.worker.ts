@@ -29,6 +29,12 @@ import {
   payOffBankruptcyPlayer,
   buyPropertyPlayer,
   payDownPlayer,
+  tryOutPlayer,
+  trainPlayer,
+  restPlayer,
+  acceptOfferPlayer,
+  declareForDraftPlayer,
+  retirePlayer,
   buyChipsPlayer,
   cashOutPlayer,
   playTablePlayer,
@@ -142,6 +148,12 @@ export type VerbRequest =
   | { readonly verb: 'study-poker' }
   | { readonly verb: 'turn-pro' }
   | { readonly verb: 'seek-help' }
+  | { readonly verb: 'try-out'; readonly sport: string; readonly positionId: string }
+  | { readonly verb: 'train'; readonly focus: string }
+  | { readonly verb: 'rest-up' }
+  | { readonly verb: 'take-offer'; readonly offerId: string }
+  | { readonly verb: 'declare-draft' }
+  | { readonly verb: 'retire-sport' }
   | { readonly verb: 'take-public' }
   | { readonly verb: 'rent-property'; readonly propertyId: string }
   | { readonly verb: 'sell-home' }
@@ -529,6 +541,36 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'seek-help': {
             const r = seekHelpPlayer(world)
             outcome = { ok: r.done, reason: r.done ? 'You said it out loud. That is the hard part.' : r.reason }
+            break
+          }
+          case 'try-out': {
+            const r = tryOutPlayer(world, a.sport, a.positionId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'train': {
+            const r = trainPlayer(world, a.focus)
+            outcome = { ok: r.done, reason: r.done ? r.words : r.reason }
+            break
+          }
+          case 'rest-up': {
+            const r = restPlayer(world)
+            outcome = { ok: r.done, reason: r.done ? 'Rested up.' : r.reason }
+            break
+          }
+          case 'take-offer': {
+            const r = acceptOfferPlayer(world, a.offerId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'declare-draft': {
+            const r = declareForDraftPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'retire-sport': {
+            const r = retirePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'scale-up': {

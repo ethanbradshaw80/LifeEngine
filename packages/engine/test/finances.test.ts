@@ -401,6 +401,7 @@ describe('the itemized ledger (P3)', () => {
       const parts = [
         ...ledger.wages,
         ...ledger.servicePay,
+        ...ledger.sportsPay,
         ...ledger.pensions,
         ...ledger.survivorPay,
         ...ledger.statePension,

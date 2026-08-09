@@ -82,6 +82,7 @@ import type {
   World,
 } from './types.js'
 import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
+import { sportsWageOf } from './sports.js'
 import {
   assistanceOf,
   shelterCostFor,
@@ -874,6 +875,11 @@ export function personalIncome(world: World, personId: EntityId): Money {
       : statePensionOf(world, person, accountsOf(world, personId), world.tick)
   return ((job?.monthlyPay ?? 0) +
     servicePayOf(world, personId) +
+    // A PROFESSIONAL ATHLETE'S PAY IS PAY. It has to be here, in the
+    // ledger row below, and in the pension record — the same trio that has
+    // drifted apart four times in this project. `atTodaysPrices` because
+    // the contract is written in base-year cents like every other wage.
+    atTodaysPrices(world, sportsWageOf(world, personId)) +
     pensionOf(world, personId) +
     survivorPensionOf(world, personId) +
     statePension) as Money
@@ -1586,6 +1592,9 @@ export interface HouseholdLedger {
   /** Income, split by where it comes from. Only non-zero entries appear. */
   readonly wages: readonly LedgerEntry[]
   readonly servicePay: readonly LedgerEntry[]
+  /** What a team pays them. Its own row so a screen never calls a
+   *  basketball salary "service pay". */
+  readonly sportsPay: readonly LedgerEntry[]
   readonly pensions: readonly LedgerEntry[]
   readonly survivorPay: readonly LedgerEntry[]
   /**
@@ -1625,6 +1634,7 @@ export interface HouseholdLedger {
 export function householdLedger(world: World, household: Household): HouseholdLedger {
   const wages: LedgerEntry[] = []
   const servicePay: LedgerEntry[] = []
+  const sportsPay: LedgerEntry[] = []
   const pensions: LedgerEntry[] = []
   const survivorPay: LedgerEntry[] = []
   const statePension: LedgerEntry[] = []
@@ -1639,6 +1649,8 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     if (job && job.monthlyPay !== 0) wages.push({ personId: memberId, amount: job.monthlyPay })
     const duty = servicePayOf(world, memberId)
     if (duty !== 0) servicePay.push({ personId: memberId, amount: duty as Money })
+    const sport = atTodaysPrices(world, sportsWageOf(world, memberId))
+    if (sport !== 0) sportsPay.push({ personId: memberId, amount: sport as Money })
     const pension = pensionOf(world, memberId)
     if (pension !== 0) pensions.push({ personId: memberId, amount: pension as Money })
     const survivor = survivorPensionOf(world, memberId)
@@ -1654,7 +1666,14 @@ export function householdLedger(world: World, household: Household): HouseholdLe
   }
 
   // Exactly the rows above, added up: what the household EARNS before tax.
-  const grossTotal = [...wages, ...servicePay, ...pensions, ...survivorPay, ...statePension].reduce(
+  const grossTotal = [
+    ...wages,
+    ...servicePay,
+    ...sportsPay,
+    ...pensions,
+    ...survivorPay,
+    ...statePension,
+  ].reduce(
     (sum, entry) => sum + entry.amount,
     0,
   )
@@ -1697,6 +1716,7 @@ export function householdLedger(world: World, household: Household): HouseholdLe
   return {
     wages,
     servicePay,
+    sportsPay,
     pensions,
     survivorPay,
     statePension,
@@ -1937,7 +1957,10 @@ export function runFinances(world: World, tick: Tick): void {
       // THE WORK RECORD A PENSION IS BUILT FROM. A month with a wage or
       // service pay in it counts; a month on a floor does not, because the
       // floors are what a working record is not.
-      const wage = (world.employment.get(memberId)?.monthlyPay ?? 0) + servicePayOf(world, memberId)
+      const wage =
+        (world.employment.get(memberId)?.monthlyPay ?? 0) +
+        servicePayOf(world, memberId) +
+        sportsWageOf(world, memberId)
       setAccounts(world, {
         ...accounts,
         checking: (accounts.checking + earned) as Money,

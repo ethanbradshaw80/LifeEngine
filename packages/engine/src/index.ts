@@ -692,3 +692,38 @@ export type {
   TournamentResult,
 } from './casino.js'
 export type { GamblingRecord, SessionSummary, TournamentSummary } from './types.js'
+
+// Athlete careers (owner's `sports_careers_master.md`).
+export {
+  BASE_STATS,
+  DRAFT_AGE,
+  DRAFT_PICKS,
+  POSITIONS,
+  SKILL_TITLES,
+  TRAINING_FOCI,
+  TRYOUT_AGE,
+  ceilingFor,
+  isProAthlete,
+  offersFor,
+  overallOf,
+  positionById,
+  positionsFor,
+  rookieWageFor,
+  runDraft,
+  sportsWageOf,
+  statOf,
+  trainingRisk,
+  tryoutBar,
+  veteranWageFor,
+} from './sports.js'
+export type { AthleteLevel, Offer, Position, SeasonLine, SportId, TrainingFocus } from './sports.js'
+export type { AthleteRecord, OfferRecord, SeasonLineRecord } from './types.js'
+export {
+  athleteOf,
+  tryOutPlayer,
+  trainPlayer,
+  restPlayer,
+  acceptOfferPlayer,
+  declareForDraftPlayer,
+  retirePlayer,
+} from './player.js'

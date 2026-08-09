@@ -128,6 +128,7 @@ import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Market } from './Market.js'
 import { Casino } from './Casino.js'
+import { Sports } from './Sports.js'
 import { School } from './School.js'
 import { Career } from './Career.js'
 import type { VerbRequest } from './engine.worker.js'
@@ -267,6 +268,7 @@ type Tab =
   | 'record'
   | 'cityhall'
   | 'casino'
+  | 'sports'
 
 // Icon and name are separate so the rail can drop to icons alone when the
 // screen is too narrow to carry both.
@@ -291,6 +293,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'money', icon: '💰', label: 'Money' },
   { id: 'market', icon: '📉', label: 'Market' },
   { id: 'casino', icon: '🎰', label: 'Casino' },
+  { id: 'sports', icon: '🏅', label: 'Sports' },
   { id: 'property', icon: '🏘️', label: 'Property' },
   { id: 'school', icon: '🎓', label: 'School' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
@@ -1207,6 +1210,18 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             person={person}
             busy={busy}
             wallet={walletOf(world, person.id)}
+            onAct={onAct}
+          />
+        </div>
+      )}
+
+      {tab === 'sports' && (
+        <div className="panel" aria-label="Sports">
+          <Sports
+            world={world}
+            person={person}
+            busy={busy}
+            age={ageAt(person.birthTick, world.tick)}
             onAct={onAct}
           />
         </div>

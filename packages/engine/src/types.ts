@@ -752,6 +752,66 @@ export interface TournamentSummary {
   readonly words: string
 }
 
+/**
+ * AN ATHLETIC CAREER (sports spec).
+ *
+ * Absent for almost everybody, which is the honest default: most people
+ * never join a team, and of those who do almost none go anywhere. A person
+ * with no record here simply never played.
+ */
+export interface AthleteRecord {
+  readonly personId: EntityId
+  readonly sport: string
+  readonly positionId: string
+  /** 'school' | 'highschool' | 'college' | 'pro' | 'done'. */
+  readonly level: string
+  /**
+   * Position skills AND the athletic base, 0-99 each, in one bag.
+   *
+   * ONE MAP RATHER THAN TWO because a stat is a stat: strength matters to
+   * a lineman as a skill and to everybody as a base, and splitting them
+   * would mean deciding which bucket every new number goes in for ever.
+   */
+  readonly stats: Readonly<Record<string, number>>
+  /** The ceiling they were born with, 0-99. Never shown as a number. */
+  readonly potential: number
+  /** 0-1000. Training raises it; rest is the only thing that lowers it. */
+  readonly fatigue: number
+  readonly seasons: number
+  readonly careerGames: number
+  readonly careerPoints: number
+  /** Where they were taken, or null for undrafted and for everybody else. */
+  readonly draftPick: number | null
+  readonly teamName: string
+  /** Cents a month, base-year. Zero until somebody is paying them. */
+  readonly wage: Money
+  readonly turnedProAtTick: Tick | null
+  readonly retiredAtTick: Tick | null
+  /** Why the road ended, in plain words. Empty while it has not. */
+  readonly endedBecause: string
+  readonly lastSeason?: SeasonLineRecord
+  /** College offers standing right now, if any. */
+  readonly offers?: readonly OfferRecord[]
+}
+
+export interface SeasonLineRecord {
+  readonly games: number
+  readonly points: number
+  readonly rebounds: number
+  readonly assists: number
+  readonly shootingPerMille: number
+  readonly teamWins: number
+  readonly teamLosses: number
+}
+
+export interface OfferRecord {
+  readonly id: string
+  readonly programme: string
+  readonly blurb: string
+  readonly ride: string
+  readonly strength: number
+}
+
 export interface Business {
   readonly id: EntityId
   readonly ownerId: EntityId
@@ -2038,6 +2098,12 @@ export type PendingKind =
   | 'study-poker'
   | 'turn-pro'
   | 'seek-help'
+  | 'try-out'
+  | 'train'
+  | 'rest-up'
+  | 'take-offer'
+  | 'declare-draft'
+  | 'retire-sport'
   /** Taking up or giving up an activity (stats phase 5). */
   | 'habit'
   /** A visit about whatever is wrong. */
@@ -2256,6 +2322,13 @@ export type EventType =
   | 'debated'
   | 'paid-down-loan'
   | 'delisted'
+  | 'made-team'
+  | 'missed-squad'
+  | 'signed-letter'
+  | 'drafted'
+  | 'went-undrafted'
+  | 'training-injury'
+  | 'retired-from-sport'
   | 'bought-chips'
   | 'cashed-out'
   | 'gambled'
@@ -2637,6 +2710,11 @@ export interface World {
    * how much trouble this is causing.
    */
   readonly gamblers: Map<EntityId, GamblingRecord>
+  /**
+   * WHO PLAYS, AND HOW FAR THEY GOT (sports spec §"Determinism").
+   * Keyed by personId; the single writer is `sports.ts`.
+   */
+  readonly athletes: Map<EntityId, AthleteRecord>
   /** The analyst panel's standing view, refreshed quarterly. */
   readonly analystViews: Map<string, AnalystView>
   /**

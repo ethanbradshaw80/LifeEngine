@@ -54,6 +54,22 @@ import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, st
 import { nudgeWellbeing } from './wellbeing.js'
 import { disciplineOf, smartsOf } from './stats.js'
 import {
+  DRAFT_AGE,
+  ceilingFor,
+  freshAthlete,
+  makesSquad,
+  overallOf,
+  positionById,
+  potentialFor,
+  rested,
+  rookieWageFor,
+  runDraft,
+  startingStats,
+  train,
+  tryoutBar,
+} from './sports.js'
+import type { TrainingFocus } from './sports.js'
+import {
   CASINO_MIN_AGE,
   HAND_CHOICES,
   POKER_SKILL_MAX,
@@ -198,7 +214,7 @@ import {
 import { OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec } from './types.js'
 import type { HomePurchaseMethod } from './finances.js'
-import type { Business, SessionSummary } from './types.js'
+import type { AthleteRecord, Business, SessionSummary } from './types.js'
 import {
   annualRevenueOf,
   businessBar,
@@ -1320,6 +1336,273 @@ export function seekHelpPlayer(world: World): { done: boolean; reason: string } 
     type: 'sought-help',
     subjectId: person.id,
     detail: 'gambling',
+  })
+  return { done: true, reason: '' }
+}
+
+// ---------------------------------------------------------------------------
+// SPORT (owner's `sports_careers_master.md`)
+// ---------------------------------------------------------------------------
+
+export function athleteOf(world: World, personId: EntityId): AthleteRecord | undefined {
+  return world.athletes.get(personId)
+}
+
+/**
+ * TRY OUT FOR THE TEAM, and pick a position while you are at it.
+ *
+ * The tryout can be FAILED, at twelve, which is deliberate. A pipeline
+ * whose first step nobody fails is not a pipeline.
+ */
+export function tryOutPlayer(
+  world: World,
+  sport: string,
+  positionId: string,
+): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const age = ageAt(person.birthTick, world.tick)
+  const bar = tryoutBar(age, world.athletes.get(person.id))
+  if (bar !== null) return { done: false, reason: bar }
+  const position = positionById(positionId)
+  if (position === undefined || position.sport !== sport) {
+    return { done: false, reason: 'They do not field that position.' }
+  }
+
+  const rng = openStream(world.seed, Stream.Sports, person.id * 3, world.tick)
+  const stats = startingStats(
+    person.traits.vitality,
+    person.traits.resilience,
+    person.traits.diligence,
+    rng.nextIntInclusive(0, 4_095),
+  )
+  const potential = potentialFor(
+    person.traits.vitality,
+    person.traits.resilience,
+    rng.nextIntInclusive(-6, 24),
+  )
+  const trial = freshAthlete(person.id, sport as never, positionId, stats, potential)
+
+  logVerb(world, 'try-out', `${sport}:${positionId}`)
+  if (!makesSquad(overallOf(trial), 'school', rng.nextIntInclusive(-10, 10))) {
+    recordEvent(world, world.tick, {
+      type: 'missed-squad',
+      subjectId: person.id,
+      detail: position.title,
+    })
+    return { done: false, reason: 'You were cut. Plenty of people are, and you can try again next year.' }
+  }
+
+  world.athletes.set(person.id, trial)
+  recordEvent(world, world.tick, {
+    type: 'made-team',
+    subjectId: person.id,
+    detail: `${position.title}`,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * PUT THE WORK IN (spec §"Training is real work" — "an ongoing regimen,
+ * not a switch... with plateaus, fatigue, and injury / overtraining
+ * risk").
+ *
+ * THIS IS THE FULL VERSION of the principle poker started. It can be done
+ * every month and doing it every month is a MISTAKE: fatigue blunts the
+ * work AND raises the chance of getting hurt, so the answer is a rhythm
+ * rather than a held-down button. Resting is the other half of it and is
+ * its own verb for exactly that reason.
+ */
+export function trainPlayer(
+  world: World,
+  focus: string,
+): { done: boolean; reason: string; words: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) {
+    return { done: false, reason: 'Nobody is being played.', words: '' }
+  }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.level === 'done') {
+    return { done: false, reason: 'You are not on a team.', words: '' }
+  }
+  if (isCaptive(world, person.id)) {
+    return { done: false, reason: 'Held prisoner. None of this is yours to ask for.', words: '' }
+  }
+  const health = world.health.get(person.id)
+  if (health !== undefined && health.ailment !== null && health.severity >= 500) {
+    return { done: false, reason: 'Not while you are laid up like this.', words: '' }
+  }
+  const chosen: TrainingFocus =
+    focus === 'strength' ? 'strength' : focus === 'conditioning' ? 'conditioning' : 'skill'
+
+  const age = ageAt(person.birthTick, world.tick)
+  const rng = openStream(world.seed, Stream.Sports, person.id * 5 + record.seasons, world.tick + 900)
+  const result = train(
+    record,
+    chosen,
+    ceilingFor(record.potential, age),
+    rng.nextIntInclusive(0, 999),
+    rng.nextIntInclusive(0, 999),
+  )
+
+  logVerb(world, 'train', chosen)
+  const stats: Record<string, number> = { ...record.stats }
+  for (const [id, gain] of Object.entries(result.gained)) {
+    stats[id] = Math.min(99, (stats[id] ?? 0) + gain)
+  }
+  world.athletes.set(person.id, { ...record, stats, fatigue: result.fatigueAfter })
+
+  if (result.hurt) {
+    // THE HEALTH MODULE OWNS INJURY. This says somebody got hurt; what
+    // that means is not this module's to decide (Law 12).
+    recordEvent(world, world.tick, {
+      type: 'training-injury',
+      subjectId: person.id,
+      detail: chosen,
+    })
+    nudgeWellbeing(world, world.tick, person.id, -30, 'the injury')
+  }
+  return { done: true, reason: '', words: result.words }
+}
+
+/** The other half of training, and the only thing that clears fatigue. */
+export function restPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.level === 'done') {
+    return { done: false, reason: 'You are not on a team.' }
+  }
+  if (record.fatigue <= 0) return { done: false, reason: 'You are already fresh.' }
+  logVerb(world, 'rest-up', String(record.fatigue))
+  world.athletes.set(person.id, { ...record, fatigue: rested(record.fatigue) })
+  return { done: true, reason: '' }
+}
+
+/**
+ * TAKE AN OFFER (spec: a scholarship "ties to the education module's
+ * aid").
+ *
+ * Walking on is a real choice and so is turning them all down — the
+ * developmental road exists precisely so college is not the only door.
+ */
+export function acceptOfferPlayer(world: World, offerId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined) return { done: false, reason: 'You are not on a team.' }
+  const offer = (record.offers ?? []).find((entry) => entry.id === offerId)
+  if (offer === undefined) return { done: false, reason: 'That offer is not on the table.' }
+
+  logVerb(world, 'take-offer', offerId)
+  // The other offers are GONE once one is taken — you cannot sign with a
+  // programme and keep the rest warm. Rebuilt without the key rather than
+  // set to undefined, which the strict optional rules refuse and which
+  // would leave an empty slot meaning two different things.
+  const { offers: _taken, ...rest } = record
+  world.athletes.set(person.id, {
+    ...rest,
+    level: 'college',
+    teamName: offer.programme,
+  })
+  recordEvent(world, world.tick, {
+    type: 'signed-letter',
+    subjectId: person.id,
+    detail: `${offer.programme}:${offer.ride}`,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000), factor('qualified-for-role', offer.strength * 10)],
+    chosen: `signed with ${offer.programme}`,
+    rejected: (record.offers ?? [])
+      .filter((entry) => entry.id !== offerId)
+      .map((entry) => entry.programme),
+    streamId: Stream.Sports,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * DECLARE FOR THE DRAFT.
+ *
+ * The age rule is the sport's real one and is enforced HERE rather than
+ * only greyed out on a screen. Undrafted is the ordinary answer and it is
+ * not the end — the developmental road is still open.
+ */
+export function declareForDraftPlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.level === 'done') {
+    return { done: false, reason: 'You are not on a team.' }
+  }
+  if (record.level === 'pro') return { done: false, reason: 'You are already a professional.' }
+  const age = ageAt(person.birthTick, world.tick)
+  if (age < DRAFT_AGE) {
+    return {
+      done: false,
+      reason: `The league takes nobody under ${String(DRAFT_AGE)}, and a year removed from school. You are ${String(age)}.`,
+    }
+  }
+
+  const rng = openStream(world.seed, Stream.Sports, person.id * 7, world.tick + 1_700)
+  const production = Math.min(99, Math.floor(record.careerPoints / Math.max(1, record.careerGames)) * 3)
+  const result = runDraft(overallOf(record), production, rng.nextIntInclusive(-6, 6))
+
+  logVerb(world, 'declare-draft', String(record.seasons))
+  if (result.pick === null) {
+    world.athletes.set(person.id, { ...record, level: 'pro', teamName: 'the developmental league', wage: 40_000 as Money })
+    recordEvent(world, world.tick, { type: 'went-undrafted', subjectId: person.id, detail: '' })
+    return { done: true, reason: result.words }
+  }
+
+  world.athletes.set(person.id, {
+    ...record,
+    level: 'pro',
+    draftPick: result.pick,
+    teamName: result.teamName,
+    wage: rookieWageFor(result.pick),
+    turnedProAtTick: world.tick,
+  })
+  recordEvent(world, world.tick, {
+    type: 'drafted',
+    subjectId: person.id,
+    detail: `${String(result.pick)}:${result.teamName}`,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'employment-change',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('qualified-for-role', overallOf(record) * 10)],
+    chosen: `drafted ${String(result.pick)} by the ${result.teamName}`,
+    rejected: ['stayed in college'],
+    streamId: Stream.Sports,
+  })
+  return { done: true, reason: result.words }
+}
+
+/** Hang them up. Always available — nobody is trapped in a career here. */
+export function retirePlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const record = world.athletes.get(person.id)
+  if (record === undefined || record.level === 'done') {
+    return { done: false, reason: 'There is nothing to retire from.' }
+  }
+  logVerb(world, 'retire-sport', String(record.seasons))
+  world.athletes.set(person.id, {
+    ...record,
+    level: 'done',
+    retiredAtTick: world.tick,
+    wage: 0 as Money,
+    endedBecause: 'retired',
+  })
+  recordEvent(world, world.tick, {
+    type: 'retired-from-sport',
+    subjectId: person.id,
+    detail: String(record.seasons),
   })
   return { done: true, reason: '' }
 }
@@ -3703,6 +3986,12 @@ export function resolvePending(world: World, choice: string): void {
     case 'study-poker':
     case 'turn-pro':
     case 'seek-help':
+    case 'try-out':
+    case 'train':
+    case 'rest-up':
+    case 'take-offer':
+    case 'declare-draft':
+    case 'retire-sport':
     case 'offence':
     case 'court-friend':
     case 'proposal':
@@ -5051,6 +5340,18 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Went pro.' // log-only
     case 'seek-help':
       return 'Asked for help.' // log-only
+    case 'try-out':
+      return 'Tried out for the team.' // log-only
+    case 'train':
+      return 'Put the work in.' // log-only
+    case 'rest-up':
+      return 'Rested.' // log-only
+    case 'take-offer':
+      return 'Signed with a programme.' // log-only
+    case 'declare-draft':
+      return 'Declared for the draft.' // log-only
+    case 'retire-sport':
+      return 'Hung them up.' // log-only
     case 'offence':
       return 'Went and did it.' // log-only
     case 'court-friend':

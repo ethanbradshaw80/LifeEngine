@@ -79,6 +79,16 @@ export const Stream = {
    * this module is deterministic, and that starts here.
    */
   Casino: 16,
+  /**
+   * Appended for the athlete module, by the sanctioned path. Tryouts,
+   * recruiting, season simulations, key moments and draft night.
+   *
+   * Its own stream because a season is drawn per athlete per year and the
+   * town is full of people who played school sport — sharing one with
+   * careers would have meant somebody making a varsity squad re-rolled
+   * every promotion review in the county.
+   */
+  Sports: 17,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

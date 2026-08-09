@@ -11,6 +11,7 @@ import { freshPolicy, freshStockPrices, generateNations, relationshipKey, specBy
 import type {
   AnalystView,
   Election,
+  AthleteRecord,
   GamblingRecord,
   Officeholder,
   PolicyState,
@@ -313,6 +314,10 @@ function hydrate(
     stockHistory: (body['stockHistory'] as World['stockHistory'] | undefined) ?? {},
     // Nobody in a save written before the casino existed has ever been
     // through its doors, which is what the `?? []` says.
+    // Nobody in a save written before the athlete module ever played.
+    athletes: new Map(
+      ((body['athletes'] as AthleteRecord[] | undefined) ?? []).map((row) => [row.personId, row]),
+    ),
     gamblers: new Map(
       ((body['gamblers'] as GamblingRecord[] | undefined) ?? []).map((row) => [row.personId, row]),
     ),
