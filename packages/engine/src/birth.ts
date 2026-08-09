@@ -22,9 +22,11 @@
  * on the You panel. Nobody chooses their own temperament.
  */
 
-import type { Tick } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
-import type { World } from './types.js'
+import type { Household, Person, World } from './types.js'
+import { rollTraits } from './worldgen.js'
+import { freshHealth } from './health.js'
 
 /** What the player actually chooses. Everything else is settled at birth. */
 export interface BirthRequest {
@@ -243,4 +245,140 @@ export function parentWorkFor(station: number, rngRoll: number): string {
 export function announcementFor(plan: BirthPlan, dateWords: string, placeWords: string): string {
   const article = plan.sex === 'male' ? 'a boy' : 'a girl'
   return `You were born ${plan.givenName} ${plan.familyName}, ${article}, on ${dateWords}, in ${placeWords}.`
+}
+
+// ---------------------------------------------------------------------------
+// REGISTERING THE BIRTH — where a plan becomes people (spec §5)
+// ---------------------------------------------------------------------------
+
+/**
+ * WRITE THE FAMILY INTO THE WORLD, and make the child the player.
+ *
+ * THIS IS THE LAST MILE OF THE FRONT DOOR and the one that matters: until
+ * it existed the certificate named a father, a mother and a sister who did
+ * not exist anywhere, which is precisely the "set dressing" the spec's §5
+ * refuses — "all family members are real registered NPCs so they persist,
+ * age, and can die: the family is real, not set dressing."
+ *
+ * SINGLE-WRITER, HONESTLY. The spec says the NPC/worldgen system owns
+ * people and character-creation only requests a birth. That is what
+ * `planBirth` above does — it decides a shape and writes nothing. THIS
+ * function is the writing, and it lives here rather than in worldgen for
+ * one reason worth stating: worldgen builds a world from nothing at tick
+ * zero, and this inserts a family into a world that is already running.
+ * They are different jobs, and the second one has to know about the first
+ * without being it.
+ *
+ * Returns the child's id, or null when the world cannot take a birth.
+ */
+export function registerBirth(
+  world: World,
+  plan: BirthPlan,
+  seedNumber: number,
+): EntityId | null {
+  const places = [...world.places.values()]
+  if (places.length === 0) return null
+  const rng = openStream(world.seed, Stream.PersonTraits, seedNumber + 7, 5_151)
+
+  // WHERE. A named town if the player picked one and it exists; otherwise
+  // the world chooses, which is what "anywhere" means.
+  const place =
+    (plan.placeId === null
+      ? undefined
+      : places.find((entry) => entry.id === (plan.placeId as unknown as EntityId))) ??
+    places[rng.nextIntInclusive(0, places.length - 1)]
+  if (place === undefined) return null
+
+  const householdId = allocate(world)
+  const memberIds: EntityId[] = []
+
+  // THE PARENTS AND SIBLINGS FIRST, because the child's parentIds have to
+  // point at people who already exist.
+  const parentIds: EntityId[] = []
+  for (const member of plan.family) {
+    const id = allocate(world)
+    const person: Person = {
+      id,
+      givenName: member.givenName,
+      familyName: member.familyName,
+      sex:
+        member.relation === 'mother'
+          ? 'female'
+          : member.relation === 'father'
+            ? 'male'
+            : rng.chance(500, 1_000)
+              ? 'female'
+              : 'male',
+      // Their ages are relative to the CHILD's birth, not to now — the
+      // certificate says the father was twenty-nine when you were born and
+      // the world has to agree with the certificate.
+      birthTick: (plan.birthTick - member.ageYears * 12) as Tick,
+      deathTick: null,
+      causeOfDeath: null,
+      tier: 'deep',
+      traits: rollTraits(openStream(world.seed, Stream.PersonTraits, id, 0)),
+      householdId,
+      parentIds: [],
+      spendStance: null,
+    }
+    world.people.set(id, person)
+    world.health.set(id, freshHealth(id))
+    memberIds.push(id)
+    if (member.relation !== 'sibling') parentIds.push(id)
+  }
+
+  // THEN THE CHILD.
+  const childId = allocate(world)
+  const child: Person = {
+    id: childId,
+    givenName: plan.givenName,
+    familyName: plan.familyName,
+    sex: plan.sex,
+    birthTick: plan.birthTick,
+    deathTick: null,
+    causeOfDeath: null,
+    tier: 'deep',
+    // ROLLED, NEVER PICKED. The spec is explicit, and it is the honest
+    // design — nobody chooses their own temperament.
+    traits: rollTraits(openStream(world.seed, Stream.PersonTraits, childId, 0)),
+    householdId,
+    parentIds,
+    spendStance: null,
+  }
+  world.people.set(childId, child)
+  world.health.set(childId, freshHealth(childId))
+  memberIds.push(childId)
+
+  // SIBLINGS ARE THE PARENTS' CHILDREN TOO. Without this a brother is a
+  // stranger who happens to share a surname and a roof, and every kinship
+  // read in the game — inheritance, the family tree, who grieves — would
+  // quietly disagree with the certificate.
+  for (const id of memberIds) {
+    const person = world.people.get(id)
+    if (person === undefined || id === childId) continue
+    if (parentIds.includes(id)) continue
+    world.people.set(id, { ...person, parentIds })
+  }
+
+  const household: Household = {
+    id: householdId,
+    placeId: place.id,
+    memberIds,
+    formedTick: plan.birthTick,
+    dissolvedTick: null,
+    homelessSinceTick: null,
+    // THE STATION IS REAL MONEY. A silver-spoon birth that started with the
+    // same balance as a hard-up one would make the dial a label.
+    savings: (plan.station * 400) as Money,
+    spendStance: null,
+  }
+  world.households.set(householdId, household)
+
+  return childId
+}
+
+function allocate(world: World): EntityId {
+  const id = world.nextEntityId as EntityId
+  world.nextEntityId += 1
+  return id
 }

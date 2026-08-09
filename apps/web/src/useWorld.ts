@@ -50,6 +50,13 @@ export interface WorldController {
   /** Take the annual fitness test — promotion points for the body. */
   fitnessTest: () => void
   extraDuty: () => void
+  beBorn: (
+    givenName: string,
+    familyName: string,
+    sex: 'male' | 'female',
+    station: number | null,
+    seedNumber: number,
+  ) => void
   /** P2: any player-initiated verb — court, propose, quit, look for a place…
    *  One channel; the engine's honest refusal comes back as the notice. */
   act: (action: VerbRequest) => void
@@ -250,6 +257,19 @@ export function useWorld(initialSeed: number): WorldController {
     send({ type: 'extra-duty' })
   }, [send])
 
+  const beBorn = useCallback(
+    (
+      givenName: string,
+      familyName: string,
+      sex: 'male' | 'female',
+      station: number | null,
+      seedNumber: number,
+    ) => {
+      send({ type: 'be-born', givenName, familyName, sex, station, seedNumber })
+    },
+    [send],
+  )
+
   const act = useCallback(
     (action: VerbRequest) => {
       send({ type: 'verb', action })
@@ -301,6 +321,7 @@ export function useWorld(initialSeed: number): WorldController {
     requestDeploy,
     fitnessTest,
     extraDuty,
+    beBorn,
     act,
     choose,
     save,

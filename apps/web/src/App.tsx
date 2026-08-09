@@ -20,7 +20,9 @@ import { CharacterPicker, DecisionPrompt, Retrospective } from './PlayerPanel.js
 import { VerdictSheet } from './VerdictSheet.js'
 import { Welcome } from './Welcome.js'
 import { BirthCertificate, IntakeScreen, TitleScreen } from './NewLife.js'
-import { planBirth, seedFromRegistryNo } from '@life-engine/engine'
+import { DeathCertificate, PastLives } from './DeathCertificate.js'
+import type { PastLife } from './DeathCertificate.js'
+import { planBirth, registryNoFor, seedFromRegistryNo } from '@life-engine/engine'
 import type { FamilySpec } from '@life-engine/engine'
 import type { LifeChoices } from './NewLife.js'
 import { GameScreen } from './GameScreen.js'
@@ -62,6 +64,7 @@ export function App() {
     requestDeploy,
     fitnessTest,
     extraDuty,
+    beBorn,
     act,
     choose,
     discardSave,
@@ -101,8 +104,38 @@ export function App() {
    *
    * Interface state only. The engine never knows which screen is up.
    */
-  const [front, setFront] = useState<'title' | 'intake' | 'certificate' | 'engine'>('title')
+  const [front, setFront] = useState<'title' | 'intake' | 'certificate' | 'past' | 'engine'>('title')
   const [lifeChoices, setLifeChoices] = useState<LifeChoices | null>(null)
+  /**
+   * THE LEDGER OF ENDED LIVES (spec §6, §12.3).
+   *
+   * localStorage rather than the world, and deliberately: past lives are a
+   * fact about the PLAYER, not about any one simulation. A ledger stored
+   * inside a world would vanish the moment a new world was generated,
+   * which is exactly the "silently deleted" the spec refuses.
+   */
+  const [pastLives, setPastLives] = useState<PastLife[]>(() => {
+    try {
+      const raw = window.localStorage.getItem('life-sim:past-lives')
+      return raw === null ? [] : (JSON.parse(raw) as PastLife[])
+    } catch {
+      return []
+    }
+  })
+
+  function archive(life: PastLife): void {
+    setPastLives((current) => {
+      // Never twice. A life that is already in the ledger stays as it was.
+      if (current.some((entry) => entry.registryNo === life.registryNo)) return current
+      const next = [life, ...current].slice(0, 60)
+      try {
+        window.localStorage.setItem('life-sim:past-lives', JSON.stringify(next))
+      } catch {
+        /* private mode: the ledger simply does not persist */
+      }
+      return next
+    })
+  }
   // A person being read in an overlay while the game screen is up. Interface
   // state only — closing it changes nothing in the world.
   const [inspecting, setInspecting] = useState<EntityId | null>(null)
@@ -225,10 +258,13 @@ export function App() {
           }
           onNewLife={() => setFront('intake')}
           onContinue={() => setFront('engine')}
-          onPastLives={() => setFront('engine')}
+          onPastLives={() => setFront('past')}
           onEngine={() => setFront('engine')}
         />
       )
+    }
+    if (front === 'past') {
+      return <PastLives lives={pastLives} onBack={() => setFront('title')} />
     }
     if (front === 'intake') {
       return (
@@ -282,7 +318,20 @@ export function App() {
               meta: `${String(member.ageYears)}${member.relation === 'father' ? ' · carries the name' : ''}`,
             }))}
             householdWords={plan.householdWords}
-            onBegin={() => setFront('engine')}
+            onBegin={() => {
+              // THE BIRTH IS REGISTERED HERE, which is the difference
+              // between a certificate that names a family and a family
+              // that exists. Until this call the father on the document
+              // was nobody.
+              beBorn(
+                plan.givenName,
+                plan.familyName,
+                plan.sex,
+                lifeChoices.station,
+                seedFromRegistryNo(plan.registryNo) ?? 0,
+              )
+              setFront('engine')
+            }}
           />
         )
       }
@@ -297,6 +346,57 @@ export function App() {
         onContinue={() => setFront('engine')}
         onPastLives={() => setFront('engine')}
         onEngine={() => setFront('engine')}
+      />
+    )
+  }
+
+  // THE BOOKEND. A life that has ended closes on the document that mirrors
+  // the one it opened on — same registry number, same seal.
+  if (playerPerson && playerDead && world !== null) {
+    const years = Math.max(
+      0,
+      Math.floor(((playerPerson.deathTick ?? world.tick) - playerPerson.birthTick) / 12),
+    )
+    const registryNo = registryNoFor(
+      playerPerson.id,
+      playerPerson.givenName,
+      playerPerson.familyName,
+    )
+    const fullName = `${playerPerson.givenName} ${playerPerson.familyName}`
+    return (
+      <DeathCertificate
+        registryNo={registryNo}
+        name={fullName}
+        ageWords={`${String(years)} years`}
+        dateWords={String(1970 + Math.floor((playerPerson.deathTick ?? world.tick) / 12))}
+        placeWords="this world"
+        // NEVER INVENTED HERE. The engine recorded a cause when it
+        // happened; Law 3 says the record explains itself.
+        cause={playerPerson.causeOfDeath ?? 'natural causes'}
+        obituary={`${fullName} lived ${String(years)} years in a world that went on without asking, and went on after.`}
+        survivedBy={[...world.people.values()]
+          .filter((p) => p.deathTick === null && p.parentIds.includes(playerPerson.id))
+          .slice(0, 6)
+          .map((p) => ({
+            role: 'Child',
+            name: `${p.givenName} ${p.familyName}`,
+            meta: `${String(Math.floor((world.tick - p.birthTick) / 12))}`,
+          }))}
+        serviceLine={
+          world.service.get(playerPerson.id) === undefined
+            ? null
+            : 'Served. The record is in the file, and the file is longer than this page.'
+        }
+        epitaph="The countries were real. The history was this world's own. The life was theirs."
+        onClose={() => {
+          archive({
+            registryNo,
+            name: fullName,
+            years: String(years),
+            headline: playerPerson.causeOfDeath ?? 'a life',
+          })
+          setFront('past')
+        }}
       />
     )
   }

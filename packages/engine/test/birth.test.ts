@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { createWorld } from '../src/index.js'
+import { advanceTicks, createWorld } from '../src/index.js'
 import {
   FULL_LIFE_YEARS,
   announcementFor,
@@ -19,6 +19,7 @@ import {
   planBirth,
   registryNoFor,
   seedFromRegistryNo,
+  registerBirth,
 } from '../src/birth.js'
 import type { BirthRequest } from '../src/birth.js'
 
@@ -173,5 +174,119 @@ describe('the first sentence of the game', () => {
     const world = createWorld(makeSeed(4471), 400)
     const girl = planBirth(world, { ...REQUEST, sex: 'female' }, 1)
     expect(announcementFor(girl, 'a date', 'a place')).toContain('a girl')
+  })
+})
+
+describe('the family is real, not set dressing', () => {
+  it('registers everybody the certificate names', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const before = world.people.size
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    expect(childId).not.toBeNull()
+    if (childId === null) return
+    // Everybody on the document exists in the world.
+    expect(world.people.size).toBe(before + plan.family.length + 1)
+    const child = world.people.get(childId)
+    expect(child?.givenName).toBe('Gary')
+    expect(child?.familyName).toBe('Lewis')
+  })
+
+  it('the child has real parents, and they are the ones on the certificate', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    if (childId === null) return
+    const child = world.people.get(childId)
+    expect(child?.parentIds.length).toBe(2)
+    const parents = (child?.parentIds ?? []).map((id) => world.people.get(id))
+    expect(parents.every((p) => p !== undefined)).toBe(true)
+    // The father carries the name.
+    expect(parents.some((p) => p?.sex === 'male' && p.familyName === 'Lewis')).toBe(true)
+    expect(parents.some((p) => p?.sex === 'female')).toBe(true)
+  })
+
+  it('siblings are the parents\' children too', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    // Find a seed that produces a sibling.
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const plan = planBirth(world, REQUEST, seed)
+      if (!plan.family.some((m) => m.relation === 'sibling')) continue
+      const childId = registerBirth(world, plan, seed)
+      if (childId === null) return
+      const child = world.people.get(childId)
+      const household = world.households.get(child?.householdId ?? (0 as never))
+      const siblings = (household?.memberIds ?? [])
+        .map((id) => world.people.get(id))
+        .filter((p) => p !== undefined && p.id !== childId && p.parentIds.length > 0)
+      // Without this a brother is a stranger who shares a surname and a
+      // roof, and every kinship read in the game disagrees with the
+      // certificate.
+      expect(siblings.length).toBeGreaterThan(0)
+      return
+    }
+  })
+
+  it('the parents are older than the child, by the years the document says', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    if (childId === null) return
+    const child = world.people.get(childId)
+    const father = plan.family.find((m) => m.relation === 'father')
+    const registered = (child?.parentIds ?? [])
+      .map((id) => world.people.get(id))
+      .find((p) => p?.sex === 'male')
+    expect(father).toBeDefined()
+    expect(registered).toBeDefined()
+    if (father === undefined || registered === undefined || child === undefined) return
+    // The certificate says the father was twenty-nine when you were born,
+    // and the world has to agree with the certificate.
+    const gap = Math.round((child.birthTick - registered.birthTick) / 12)
+    expect(gap).toBe(father.ageYears)
+  })
+
+  it('a household exists, and money follows the station', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const poor = registerBirth(world, planBirth(world, { ...REQUEST, station: 50 }, 11), 11)
+    const rich = registerBirth(world, planBirth(world, { ...REQUEST, station: 950 }, 12), 12)
+    if (poor === null || rich === null) return
+    const poorHome = world.households.get(world.people.get(poor)?.householdId ?? (0 as never))
+    const richHome = world.households.get(world.people.get(rich)?.householdId ?? (0 as never))
+    expect(poorHome).toBeDefined()
+    expect(richHome).toBeDefined()
+    // A silver-spoon birth that started with the same balance as a
+    // hard-up one would make the dial a label.
+    expect(richHome?.savings ?? 0).toBeGreaterThan(poorHome?.savings ?? 0)
+  })
+
+  it('the same seed registers the same family twice over', () => {
+    const a = createWorld(makeSeed(4471), 400)
+    const b = createWorld(makeSeed(4471), 400)
+    const ca = registerBirth(a, planBirth(a, REQUEST, 999), 999)
+    const cb = registerBirth(b, planBirth(b, REQUEST, 999), 999)
+    if (ca === null || cb === null) return
+    const namesOf = (world: typeof a, id: typeof ca): string[] => {
+      const person = world.people.get(id)
+      const home = world.households.get(person?.householdId ?? (0 as never))
+      return (home?.memberIds ?? [])
+        .map((m) => world.people.get(m))
+        .map((p) => `${p?.givenName ?? ''} ${p?.familyName ?? ''}`)
+    }
+    expect(namesOf(a, ca)).toEqual(namesOf(b, cb))
+  })
+
+  it('and the family keeps living after the birth', () => {
+    const world = createWorld(makeSeed(4471), 400)
+    const plan = planBirth(world, REQUEST, 4471)
+    const childId = registerBirth(world, plan, 4471)
+    if (childId === null) return
+    const before = world.people.get(childId)?.birthTick ?? 0
+    advanceTicks(world, 24)
+    // They persist, age, and can die — the spec's own words.
+    const child = world.people.get(childId)
+    expect(child).toBeDefined()
+    expect(child?.birthTick).toBe(before)
+    expect(world.tick).toBeGreaterThan(before)
   })
 })

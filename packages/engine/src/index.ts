@@ -819,5 +819,6 @@ export {
   planBirth,
   registryNoFor,
   seedFromRegistryNo,
+  registerBirth,
 } from './birth.js'
 export type { BirthPlan, BirthRequest, FamilySpec } from './birth.js'

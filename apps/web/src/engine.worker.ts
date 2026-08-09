@@ -87,6 +87,8 @@ import {
   spendTimeWith,
   tendTheMarriage,
   takeExtraDuty,
+  planBirth,
+  registerBirth,
   trainFitness,
   tryForChild,
   tryOutForUnit,
@@ -192,6 +194,14 @@ export type WorkerRequest =
   | { readonly type: 'request-deploy' }
   | { readonly type: 'fitness-test' }
   | { readonly type: 'extra-duty' }
+  | {
+      readonly type: 'be-born'
+      readonly givenName: string
+      readonly familyName: string
+      readonly sex: 'male' | 'female'
+      readonly station: number | null
+      readonly seedNumber: number
+    }
   /** The main thread's ledger does not match; send the whole thing again. */
   | { readonly type: 'resync' }
   | { readonly type: 'verb'; readonly action: VerbRequest }
@@ -277,6 +287,37 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const started = performance.now()
         advanceTicks(world, request.months)
         send(performance.now() - started)
+        return
+      }
+
+      case 'be-born': {
+        if (!world) {
+          post({ type: 'error', message: 'No world to be born into.' })
+          return
+        }
+        // PLAN, THEN REGISTER, THEN PLAY. Three steps because they are
+        // three different responsibilities: deciding a family's shape,
+        // writing it into a running world, and pointing the camera at the
+        // child.
+        const plan = planBirth(
+          world,
+          {
+            givenName: request.givenName,
+            familyName: request.familyName,
+            sex: request.sex,
+            placeId: null,
+            station: request.station,
+            birthTick: null,
+          },
+          request.seedNumber,
+        )
+        const childId = registerBirth(world, plan, request.seedNumber)
+        if (childId === null) {
+          send(0, 'This world could not take a birth.')
+          return
+        }
+        setPlayer(world, childId, false)
+        send(0)
         return
       }
 
