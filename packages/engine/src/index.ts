@@ -796,6 +796,9 @@ export {
   encodeSequence,
   beatAt,
   beatAsks,
+  whoIsDown,
+  followOnOdds,
+  followOnWords,
 } from './engagement.js'
 export type { BeatKind } from './engagement.js'
 export {

@@ -33,6 +33,9 @@ import {
   decodeSequence,
   beatAt,
   beatAsks,
+  engagementRoll,
+  followOnFor,
+  whoIsDown,
   orientWords,
   consequenceWords,
   afterActionWords,
@@ -635,6 +638,41 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
     const seq = decodeSequence(pending.occupationId)
     const { sceneId, threat } = decodeScene(pending.occupationId)
     const beat = beatAt(seq.beats, seq.step)
+
+    // THE FOLLOW-ON NAMES THE MAN, which is the whole reason the beat
+    // exists. It reads `whoIsDown` from the SAME seed the resolver does,
+    // so the question and the answer are about the same person — two
+    // draws would put one name in the question and another in the
+    // outcome, and nothing feels more arbitrary than that.
+    if (beat === 'followon') {
+      const tour = deploymentsOf(world, pending.personId).find((t) => t.returnedAtTick === null)
+      const squad = tour?.squad ?? []
+      const living = squad.filter((m) => world.people.get(m.personId)?.deathTick === null)
+      const roll = engagementRoll(world, pending.tick, pending.personId, squad.length)
+      const down = whoIsDown(living, roll)
+      if (down !== null) {
+        const record = world.service.get(pending.personId)
+        const isLeader = (record?.rank ?? 0) >= 4 || record?.commissioned === true
+        const follow = followOnFor(down.nickname, isLeader)
+        return (
+          <div className="overlay" role="dialog" aria-modal="true" aria-label="Somebody is down">
+            <div className="sheet">
+              <EngagementView
+                beat="followon"
+                step={seq.step}
+                total={seq.beats.length}
+                threat={threat}
+                situation={follow.tell}
+                labels={follow.labels}
+                onChoose={(c) => onChoose(c)}
+                onContinue={() => onChoose('hold')}
+              />
+            </div>
+          </div>
+        )
+      }
+    }
+
     if (!beatAsks(beat)) {
       const scene = sceneById(sceneId)
       const record = world.service.get(pending.personId)

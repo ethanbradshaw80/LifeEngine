@@ -260,3 +260,71 @@ export function beatAt(beats: readonly BeatKind[], step: number): BeatKind {
 export function beatAsks(beat: BeatKind): boolean {
   return beat === 'decision' || beat === 'followon'
 }
+
+/**
+ * WHICH OF THEM IS DOWN.
+ *
+ * Decided from the engagement's own seed so the screen that asks and the
+ * resolver that answers name the SAME MAN. Two different draws would put
+ * one name in the question and another in the outcome, which is the exact
+ * class of bug that makes a game feel arbitrary.
+ *
+ * Living squadmates only — a follow-on about somebody already dead is not
+ * a decision, it is a mistake.
+ */
+export function whoIsDown<T extends { readonly personId: number; readonly nickname: string }>(
+  living: readonly T[],
+  seedRoll: number,
+): T | null {
+  if (living.length === 0) return null
+  return living[Math.abs(seedRoll) % living.length] ?? null
+}
+
+/**
+ * WHAT GOING FOR HIM COSTS AND BUYS.
+ *
+ * The spec's line is that the worst decisions are the ones where the right
+ * tactical answer costs somebody you know, so none of these is free:
+ *
+ *   PUSH  — you go. Best odds for him, worst for you.
+ *   HOLD  — fire and drag, or send two men. Middling both ways, and for a
+ *           LEADER it is the one that spends other people.
+ *   COVER — nobody moves. You are safe and he probably is not.
+ *
+ * Returned as odds rather than an outcome, because the caller owns the
+ * seeded roll and re-drawing here would let a reload change who lived.
+ */
+export interface FollowOnOdds {
+  /** Per-mille the man on the ground survives. */
+  readonly heLives: number
+  /** Per-mille the person deciding is hit doing it. */
+  readonly youAreHit: number
+  /** Per-mille somebody ELSE in the team is hit — a leader's cost. */
+  readonly anotherIsHit: number
+}
+
+export function followOnOdds(choice: SceneChoice, isLeader: boolean): FollowOnOdds {
+  if (choice === 'push') {
+    return { heLives: 720, youAreHit: 340, anotherIsHit: 0 }
+  }
+  if (choice === 'hold') {
+    return isLeader
+      ? // SENDING TWO MEN IS NOT SAFER, IT IS SAFER FOR YOU. That is the
+        // command weight the design has wanted, and it is the whole reason
+        // a leader's version of this beat reads differently.
+        { heLives: 620, youAreHit: 40, anotherIsHit: 300 }
+      : { heLives: 540, youAreHit: 180, anotherIsHit: 0 }
+  }
+  return { heLives: 180, youAreHit: 20, anotherIsHit: 0 }
+}
+
+export function followOnWords(choice: SceneChoice, nickname: string, lived: boolean): string {
+  if (lived) {
+    return choice === 'cover'
+      ? `${nickname} made it out on his own. Nobody says anything about it afterwards, which is its own kind of saying something.`
+      : `You got him. ${nickname} is alive because somebody went.`
+  }
+  return choice === 'cover'
+    ? `${nickname} did not make it. You were not wrong and it does not help.`
+    : `You went, and it was not enough. ${nickname} did not make it.`
+}

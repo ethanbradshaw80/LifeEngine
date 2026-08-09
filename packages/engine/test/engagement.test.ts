@@ -23,6 +23,9 @@ import {
   encodeSequence,
   beatAt,
   beatAsks,
+  whoIsDown,
+  followOnOdds,
+  followOnWords,
 } from '../src/engagement.js'
 
 describe('length scales with stakes', () => {
@@ -196,5 +199,73 @@ describe('the sequence rides on the scene encoding', () => {
     expect(beatAt(beats, -5)).toBe(beats[0])
     expect(beatAt(beats, 999)).toBe(beats[beats.length - 1])
     expect(beatAt([], 0)).toBe('decision')
+  })
+})
+
+
+describe('the follow-on is its own question', () => {
+  it('the outcome beat is the decision ALONE, not anything that asks', () => {
+    // THE BUG THIS PINS, which shipped and had to be fixed: the resolver
+    // guarded on `beatAsks`, which is true for the follow-on too — so in
+    // an overrun sequence the scene outcome, INCLUDING THE WOUND AND DEATH
+    // MATRIX, fired twice. One firefight, two rolls for a life.
+    //
+    // The earlier test asserted every sequence holds exactly one plain
+    // decision. True, and never the property the guard used.
+    const overrun = beatsFor('overrun', false)
+    const asking = overrun.filter((b) => beatAsks(b))
+    expect(asking.length).toBeGreaterThan(1)
+    // Which is exactly why `beatAsks` must not be what decides whether the
+    // scene outcome runs.
+    expect(overrun.filter((b) => b === 'decision').length).toBe(1)
+    expect(overrun.filter((b) => b === 'followon').length).toBe(1)
+  })
+
+  it('names the same man to the screen and to the resolver', () => {
+    const team = [
+      { personId: 1, nickname: 'Doc' },
+      { personId: 2, nickname: 'Tex' },
+      { personId: 3, nickname: 'Ghost' },
+    ]
+    // Both sides read from the same roll; two draws would put one name in
+    // the question and another in the outcome.
+    for (const roll of [0, 5, 17, 998]) {
+      expect(whoIsDown(team, roll)?.nickname).toBe(whoIsDown(team, roll)?.nickname)
+    }
+    expect(whoIsDown([], 3)).toBeNull()
+  })
+
+  it('none of the three answers is free', () => {
+    for (const choice of ['push', 'hold', 'cover']) {
+      const odds = followOnOdds(choice, false)
+      expect(odds.heLives, choice).toBeGreaterThan(0)
+      expect(odds.heLives, choice).toBeLessThan(1000)
+    }
+    // Going out gives him the best chance and costs you the most.
+    expect(followOnOdds('push', false).heLives).toBeGreaterThan(followOnOdds('cover', false).heLives)
+    expect(followOnOdds('push', false).youAreHit).toBeGreaterThan(followOnOdds('cover', false).youAreHit)
+  })
+
+  it('a leader sending two men is safer for HIM, not safer', () => {
+    const asLeader = followOnOdds('hold', true)
+    const asMan = followOnOdds('hold', false)
+    // The command weight the design has wanted: your risk drops and
+    // somebody else picks it up.
+    expect(asLeader.youAreHit).toBeLessThan(asMan.youAreHit)
+    expect(asLeader.anotherIsHit).toBeGreaterThan(0)
+    expect(asMan.anotherIsHit).toBe(0)
+  })
+
+  it('holding everybody back is the safe one and it mostly kills him', () => {
+    const odds = followOnOdds('cover', false)
+    expect(odds.youAreHit).toBeLessThan(100)
+    expect(odds.heLives).toBeLessThan(400)
+  })
+
+  it('and it says so either way, without letting anybody off', () => {
+    expect(followOnWords('cover', 'Doc', false)).toContain('Doc')
+    // "You were not wrong and it does not help."
+    expect(followOnWords('cover', 'Doc', false).length).toBeGreaterThan(40)
+    expect(followOnWords('push', 'Doc', true)).toContain('alive')
   })
 })

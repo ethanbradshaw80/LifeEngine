@@ -53,7 +53,16 @@ import { activeWars, combatPowerOf, homeland, sueForPeace } from './geopolitics.
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { disciplineOf, smartsOf } from './stats.js'
-import { beatAsks, beatAt, decodeSequence, encodeSequence } from './engagement.js'
+import {
+  beatAt,
+  decodeSequence,
+  encodeSequence,
+  engagementRoll,
+  followOnFor,
+  followOnOdds,
+  whoIsDown,
+} from './engagement.js'
+import { bondWith } from './squad.js'
 import {
   ceilingFor,
   freshAthlete,
@@ -221,7 +230,7 @@ import {
 import { OFFICER_ROLES } from './content.js'
 import type { OfficerRole, ServiceBranchSpec } from './types.js'
 import type { HomePurchaseMethod } from './finances.js'
-import type { AthleteRecord, Business, SessionSummary } from './types.js'
+import type { AthleteRecord, Business, SessionSummary, SquadMember } from './types.js'
 import {
   annualRevenueOf,
   businessBar,
@@ -1772,6 +1781,98 @@ export function retirePlayer(world: World): { done: boolean; reason: string } {
     detail: String(record.seasons),
   })
   return { done: true, reason: '' }
+}
+
+/**
+ * GOING FOR HIM, OR NOT (combat revamp §3).
+ *
+ * The one decision in the game that is explicitly about a person by name.
+ * Nothing here re-rolls the engagement — the odds are the choice's, the
+ * roll is the engagement's own, and both the question and this answer name
+ * the same man because both read `whoIsDown` from the same seed.
+ */
+function resolveFollowOn(
+  world: World,
+  pending: PendingDecision,
+  person: Person,
+  choice: string,
+): void {
+  const tours = world.deployments.get(person.id) ?? []
+  const tour = tours.find((entry) => entry.returnedAtTick === null)
+  const squad: readonly SquadMember[] = tour?.squad ?? []
+  const living = squad.filter(
+    (member) => world.people.get(member.personId)?.deathTick === null,
+  )
+  const roll = engagementRoll(world, pending.tick, person.id, squad.length)
+  const down = whoIsDown(living, roll)
+  if (down === null) return
+
+  const record = world.service.get(person.id)
+  const isLeader = (record?.rank ?? 0) >= 4 || record?.commissioned === true
+  const answer: SceneChoice =
+    choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+  const odds = followOnOdds(answer, isLeader)
+  const rng = openStream(world.seed, Stream.CombatResolution, person.id * 71, pending.tick + 3_900)
+
+  const lived = rng.chance(odds.heLives, 1_000)
+  const mate = world.people.get(down.personId)
+  if (!lived && mate !== undefined && mate.deathTick === null) {
+    performDeath(
+      world, pending.tick, mate, 'killed in action',
+      [factor('battlefield-chaos', 800), factor('own-choice', answer === 'cover' ? 900 : 300)],
+      Stream.CombatResolution,
+    )
+    recordEvent(world, pending.tick, {
+      type: 'squadmate-killed',
+      subjectId: person.id,
+      otherId: mate.id,
+      detail: down.nickname,
+    })
+  }
+
+  // A LEADER'S "SEND TWO MEN" CAN COST ONE OF THE TWO. It is not safer, it
+  // is safer for you, and the model has to be willing to say so.
+  if (odds.anotherIsHit > 0 && rng.chance(odds.anotherIsHit, 1_000)) {
+    const others = living.filter((member) => member.personId !== down.personId)
+    const unlucky = whoIsDown(others, roll + 7)
+    const alsoMate = unlucky === null ? undefined : world.people.get(unlucky.personId)
+    if (unlucky !== null && alsoMate !== undefined && alsoMate.deathTick === null) {
+      recordEvent(world, pending.tick, {
+        type: 'squadmate-wounded',
+        subjectId: person.id,
+        otherId: alsoMate.id,
+        detail: unlucky.nickname,
+      })
+      nudgeWellbeing(world, pending.tick, person.id, -12, `sending ${unlucky.nickname} in`)
+    }
+  }
+
+  // AND IT CAN COST THE PERSON WHO WENT. Wounds are the health module's;
+  // this asks for one rather than inventing it.
+  if (rng.chance(odds.youAreHit, 1_000)) {
+    recordEvent(world, pending.tick, {
+      type: 'wounded-in-action',
+      subjectId: person.id,
+      detail: `going out for ${down.nickname}`,
+    })
+  }
+
+  nudgeWellbeing(
+    world, pending.tick, person.id,
+    lived ? 6 : -28 - Math.floor(bondWith(down, pending.tick) / 30),
+    lived ? `getting ${down.nickname} out` : `losing ${down.nickname}`,
+  )
+  recordDecision(world, pending.tick, {
+    subjectId: person.id,
+    decision: 'deployment',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('witnessed', Math.min(1000, bondWith(down, pending.tick)))],
+    chosen: followOnFor(down.nickname, isLeader).did[answer],
+    rejected: (['push', 'hold', 'cover'] as const)
+      .filter((c) => c !== answer)
+      .map((c) => followOnFor(down.nickname, isLeader).did[c]),
+    streamId: Stream.CombatResolution,
+  })
 }
 
 /**
@@ -4018,7 +4119,21 @@ export function resolvePending(world: World, choice: string): void {
       // because the pending slot is still occupied here.
       {
         const seq = decodeSequence(pending.occupationId)
-        if (!beatAsks(beatAt(seq.beats, seq.step))) break
+        const here = beatAt(seq.beats, seq.step)
+
+        // THE FOLLOW-ON IS ITS OWN QUESTION, and this guard is a fix for a
+        // real bug rather than a refinement. It used to test `beatAsks`,
+        // which is true for the follow-on as well — so in an overrun
+        // sequence the scene outcome below, INCLUDING THE WOUND AND DEATH
+        // MATRIX, fired twice. One firefight, two rolls for a life. The
+        // test that was supposed to catch it asserted that every sequence
+        // holds exactly one plain decision, which is true and was never
+        // the property the guard used.
+        if (here === 'followon') {
+          resolveFollowOn(world, pending, person, choice)
+          break
+        }
+        if (here !== 'decision') break
       }
 
       // THE THREE-OPTION SCENE (owner's combat plan §2). One spectrum —
