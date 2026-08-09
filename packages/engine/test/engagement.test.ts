@@ -19,6 +19,10 @@ import {
   engagementRoll,
   followOnFor,
   orientWords,
+  decodeSequence,
+  encodeSequence,
+  beatAt,
+  beatAsks,
 } from '../src/engagement.js'
 
 describe('length scales with stakes', () => {
@@ -142,5 +146,55 @@ describe('the beats say something', () => {
     expect(afterActionWords('overrun', 2, 1)).toContain('2 killed')
     expect(afterActionWords('heavy', 0, 3)).toContain('3 hit')
     expect(afterActionWords('light', 0, 0)).toContain('obody hurt')
+  })
+})
+
+
+describe('the sequence rides on the scene encoding', () => {
+  it('appending beats does not break an old pending', () => {
+    // decodeScene reads only the first two segments, which is why the
+    // sequence could be added without a new pending kind.
+    const withSeq = encodeSequence('pinned', 'heavy', 2, ['contact', 'decision', 'after'])
+    expect(withSeq.startsWith('pinned:heavy')).toBe(true)
+    const seq = decodeSequence(withSeq)
+    expect(seq.step).toBe(2)
+    expect(seq.beats.length).toBe(3)
+  })
+
+  it('a pending from before engagements existed is one decision', () => {
+    // The old format, exactly as it was written.
+    const old = decodeSequence('pinned:heavy')
+    expect(old.step).toBe(0)
+    // Never zero beats — a sequence with nothing in it renders an empty
+    // screen and swallows the moment.
+    expect(old.beats).toEqual(['decision'])
+    expect(beatAsks(beatAt(old.beats, 0))).toBe(true)
+  })
+
+  it('only the decision beats ask anything', () => {
+    expect(beatAsks('contact')).toBe(false)
+    expect(beatAsks('orient')).toBe(false)
+    expect(beatAsks('consequence')).toBe(false)
+    expect(beatAsks('after')).toBe(false)
+    // The outcome must fire exactly once, on a beat that actually asks.
+    expect(beatAsks('decision')).toBe(true)
+    expect(beatAsks('followon')).toBe(true)
+  })
+
+  it('every sequence contains exactly one plain decision', () => {
+    for (const threat of ['light', 'heavy', 'overrun']) {
+      for (const defining of [false, true]) {
+        const beats = beatsFor(threat, defining)
+        const asks = beats.filter((b) => b === 'decision')
+        expect(asks.length, threat + String(defining)).toBe(1)
+      }
+    }
+  })
+
+  it('beatAt is total — it never walks off either end', () => {
+    const beats = beatsFor('overrun', false)
+    expect(beatAt(beats, -5)).toBe(beats[0])
+    expect(beatAt(beats, 999)).toBe(beats[beats.length - 1])
+    expect(beatAt([], 0)).toBe('decision')
   })
 })

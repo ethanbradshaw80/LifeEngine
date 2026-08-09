@@ -63,6 +63,7 @@ import { inflictFieldIllness, inflictWound } from './health.js'
 import { describeAilment, pickFatalInjury } from './wounds.js'
 import { raisePending } from './player.js'
 import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
+import { beatsFor, encodeSequence } from './engagement.js'
 import {
   beatFor,
   contactShapePerMille,
@@ -1660,12 +1661,21 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
         if (scene !== undefined) {
           const weight = channels.find((c) => c.id === channel)?.weight ?? 0
           const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)
+          // THE WHOLE SEQUENCE, not one popup (combat revamp §3). The beats
+          // are decided here, at contact, and carried on the pending — a
+          // contact that re-planned itself between beats would let a reload
+          // shop for a shorter firefight.
+          const arc = beatFor(
+            tick - deployment.startedAtTick,
+            deployment.endsAtTick - deployment.startedAtTick,
+          )
+          const beats = beatsFor(threat, arc === 'defining')
           raisePending(world, {
             tick,
             kind: 'combat-moment',
             personId,
             otherId: enemyId,
-            occupationId: encodeScene(scene.id, threat),
+            occupationId: encodeSequence(scene.id, threat, 0, beats),
             workplaceId: null,
             monthlyPay: null,
             placeId: null,

@@ -53,6 +53,7 @@ import { activeWars, combatPowerOf, homeland, sueForPeace } from './geopolitics.
 import { alliedWars, canVolunteerForDeployment, deployUnderOrders, isCaptive, startRotation } from './deployment.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { disciplineOf, smartsOf } from './stats.js'
+import { beatAsks, beatAt, decodeSequence, encodeSequence } from './engagement.js'
 import {
   ceilingFor,
   freshAthlete,
@@ -4007,6 +4008,19 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     case 'combat-moment': {
+      // A BEAT THAT IS NOT THE DECISION RESOLVES TO NOTHING BUT THE NEXT
+      // BEAT (combat revamp §3). Contact, orient, consequence and the
+      // after-action are read-and-continue: the sequence is what makes an
+      // engagement an engagement, and the outcome below must fire exactly
+      // ONCE, on the beat that actually asks.
+      //
+      // The re-raise happens after `commit`, at the foot of this function,
+      // because the pending slot is still occupied here.
+      {
+        const seq = decodeSequence(pending.occupationId)
+        if (!beatAsks(beatAt(seq.beats, seq.step))) break
+      }
+
       // THE THREE-OPTION SCENE (owner's combat plan §2). One spectrum —
       // push, hold, cover — and the outcome is the cell where the answer
       // meets how bad the moment actually was. The player was TOLD the
@@ -4423,6 +4437,28 @@ export function resolvePending(world: World, choice: string): void {
   // for a plea instead of the courthouse ruling over the player's head.
   if (pending.kind === 'desperation') {
     answerDesperation(world, pending.tick, person, choice === 'take-it')
+  }
+
+  // THE NEXT BEAT, now the slot is free. An engagement runs until its
+  // beats are done; only then does anything else get to ask.
+  if (pending.kind === 'combat-moment' && person.deathTick === null) {
+    const seq = decodeSequence(pending.occupationId)
+    const next = seq.step + 1
+    if (next < seq.beats.length) {
+      const { sceneId, threat } = decodeScene(pending.occupationId)
+      raisePending(world, {
+        tick: pending.tick,
+        kind: 'combat-moment',
+        personId: person.id,
+        otherId: pending.otherId,
+        occupationId: encodeSequence(sceneId, threat, next, seq.beats),
+        workplaceId: null,
+        monthlyPay: null,
+        placeId: null,
+        options: [...SCENE_OPTIONS],
+      })
+      return
+    }
   }
 
   // A wound taken during the combat moment is still a wound somebody has

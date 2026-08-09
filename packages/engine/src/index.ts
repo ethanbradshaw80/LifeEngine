@@ -792,6 +792,10 @@ export {
   engagementRoll,
   followOnFor,
   orientWords,
+  decodeSequence,
+  encodeSequence,
+  beatAt,
+  beatAsks,
 } from './engagement.js'
 export type { BeatKind } from './engagement.js'
 export {

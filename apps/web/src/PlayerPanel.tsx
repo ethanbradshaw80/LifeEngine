@@ -30,6 +30,13 @@ import {
   crimeSceneFor,
   decodeInterview,
   decodeWorkMoment,
+  decodeSequence,
+  beatAt,
+  beatAsks,
+  orientWords,
+  consequenceWords,
+  afterActionWords,
+  deploymentsOf,
   decodeHeldSession,
   gamblerOf,
   keyHandFor,
@@ -58,6 +65,7 @@ import { ServiceContractView } from './ServiceContract.js'
 import { CrimeSceneView } from './CrimeScene.js'
 import { WorkMomentView } from './WorkMoment.js'
 import { KeyHandView } from './KeyHand.js'
+import { EngagementView } from './Engagement.js'
 import { SchoolMomentView } from './SchoolMoment.js'
 import { InterviewView } from './Interview.js'
 import { RetirementCertificateView, SeparationSheetView } from './SeparationSheet.js'
@@ -614,6 +622,47 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
             standing={`${occupationById(job.occupationId).title} · ${standingWords(job.performance)}`}
             onChoose={onChoose}
           />
+        </div>
+      )
+    }
+  }
+
+  // AN ENGAGEMENT, BEAT BY BEAT (combat revamp §3). The decision beats
+  // fall through to the existing scene sheet — that atom works and the
+  // spec says to keep it. Everything else is read-and-continue, which is
+  // what turns a popup into a sequence.
+  if (pending.kind === 'combat-moment') {
+    const seq = decodeSequence(pending.occupationId)
+    const { sceneId, threat } = decodeScene(pending.occupationId)
+    const beat = beatAt(seq.beats, seq.step)
+    if (!beatAsks(beat)) {
+      const scene = sceneById(sceneId)
+      const record = world.service.get(pending.personId)
+      const tour = deploymentsOf(world, pending.personId).find((t) => t.returnedAtTick === null)
+      const squad = tour?.squad ?? []
+      const lost = squad.filter((m) => world.people.get(m.personId)?.deathTick !== null).length
+      const situation =
+        beat === 'contact'
+          ? (scene?.tell[threat] ?? 'Contact.')
+          : beat === 'orient'
+            ? orientWords(threat, record?.performance ?? 500, squad.some((m) => m.role === 'radio'))
+            : beat === 'consequence'
+              ? consequenceWords('hold', true, threat)
+              : afterActionWords(threat, lost, 0)
+      return (
+        <div className="overlay" role="dialog" aria-modal="true" aria-label="Contact">
+          <div className="sheet">
+            <EngagementView
+              beat={beat}
+              step={seq.step}
+              total={seq.beats.length}
+              threat={threat}
+              situation={situation}
+              labels={null}
+              onChoose={() => onChoose('hold')}
+              onContinue={() => onChoose('hold')}
+            />
+          </div>
         </div>
       )
     }

@@ -212,3 +212,51 @@ export function engagementRoll(
   const rng = openStream(world.seed, Stream.CombatResolution, personId * 67 + nonce, tick + 8_200)
   return rng.nextIntInclusive(0, 999)
 }
+
+/**
+ * THE SEQUENCE, RIDING ON THE SCENE'S OWN ENCODING.
+ *
+ * `encodeScene` writes "sceneId:threat" and `decodeScene` reads only the
+ * first two segments — so appending more is BACKWARD COMPATIBLE by
+ * construction. A pending written before engagements existed still decodes
+ * to a scene and a threat, and simply reports step zero of a one-beat
+ * sequence, which is exactly what it was.
+ *
+ * That is why the sequence lives here rather than in a new pending kind:
+ * the existing combat-moment path keeps working untouched, and the beats
+ * are added around it.
+ */
+export function encodeSequence(
+  sceneId: string,
+  threat: Threat,
+  step: number,
+  beats: readonly BeatKind[],
+): string {
+  return `${sceneId}:${threat}:${String(step)}:${beats.join('+')}`
+}
+
+export function decodeSequence(detail: string | null): {
+  step: number
+  beats: readonly BeatKind[]
+} {
+  const parts = (detail ?? '').split(':')
+  const step = Number(parts[2] ?? 0)
+  const beats = (parts[3] ?? '').split('+').filter((b) => b.length > 0) as BeatKind[]
+  // A pending from before this existed is one beat: the decision it always
+  // was. Never zero beats — a sequence with nothing in it would render an
+  // empty screen and swallow the moment.
+  return {
+    step: Number.isFinite(step) && step >= 0 ? step : 0,
+    beats: beats.length > 0 ? beats : ['decision'],
+  }
+}
+
+/** Which beat is being shown right now. */
+export function beatAt(beats: readonly BeatKind[], step: number): BeatKind {
+  return beats[Math.max(0, Math.min(beats.length - 1, step))] ?? 'decision'
+}
+
+/** Is this the beat that actually asks something? */
+export function beatAsks(beat: BeatKind): boolean {
+  return beat === 'decision' || beat === 'followon'
+}
