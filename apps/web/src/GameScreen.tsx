@@ -1074,12 +1074,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const showYear = previous === undefined || formatYear(world, previous.tick as never) !== year
 
             if (item.kind === 'quiet') {
+              // THE SAME CARD AS ANYTHING ELSE (owner: "show the nothing
+              // happened like you would show if something did so that they
+              // match in size"). A quiet month is still a month of the
+              // life — it gets the year header, the icon, the card. Only
+              // the colour says it was quiet.
               return (
-                <p key={`quiet-${item.tick}-${item.months}`} className="feed-quiet">
-                  {item.months <= 1
-                    ? `${formatDate(world, item.tick as never)} — nothing happened this month.`
-                    : `${year} — a quiet year. Nothing worth writing down.`}
-                </p>
+                <div key={`quiet-${item.tick}-${item.months}`}>
+                  {showYear && <div className="feed-year">{year}</div>}
+                  <div className="card quiet">
+                    <span className="card-icon" aria-hidden="true">
+                      💤
+                    </span>
+                    <span className="card-text">
+                      {item.months <= 1
+                        ? `${formatDate(world, item.tick as never)} — nothing happened this month.`
+                        : 'A quiet year. Nothing worth writing down.'}
+                    </span>
+                  </div>
+                </div>
               )
             }
 
