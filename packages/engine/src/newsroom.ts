@@ -41,6 +41,7 @@ import {
 } from './newsvoice.js'
 import { GRADE_TITLES, isFelony, offenceById } from './content.js'
 import type { NewsItem } from './geopolitics.js'
+import { officeById, PARTIES } from './government.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
@@ -132,6 +133,27 @@ export function articleFor(world: World, item: NewsItem): NewsArticle | null {
       // OWNER: a recruiting season is a notice, not a story. It stays in
       // the feed as a headline and gets no article behind it.
       return null
+    case 'election': {
+      if (subject === undefined) return null
+      const office = officeById(item.detail ?? '')
+      if (office === undefined) return null
+      const name = fullName(subject)
+      // The party from the same deterministic mapping the ballot itself
+      // uses — always answerable, even decades after the term ended.
+      const partyName = PARTIES[Math.abs(subject.id) % PARTIES.length]?.name
+      const age = ageAt(subject.birthTick, item.tick)
+      return {
+        headline: item.text.toUpperCase(),
+        dateline,
+        lede: `${name}, ${String(age)}, was sworn in this week as ${office.title}${partyName === undefined ? '' : `, standing for the ${partyName}`}.`,
+        body: [
+          `The count settled it and the courthouse steps did the rest: the ${office.level} seat changes hands, and the town gets the government it voted for. The office runs a ${String(office.termYears)}-year term.`,
+          `What gets done with the term is the part no paper can print in advance. The record — every vote taken, every purse opened — accrues in the public file, where this desk will be reading it.`,
+        ],
+        quote: null,
+        closing: `The seat is held until the term runs out, or the town says otherwise.`,
+      }
+    }
     case 'crime':
       return subject === undefined ? null : crimeReport(world, item, subject, dateline)
     default:

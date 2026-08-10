@@ -26,6 +26,7 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
 import type { Rng } from './rng.js'
 import type { GeoRelation, GeoState, Nation, World } from './types.js'
+import { officeById } from './government.js'
 import type { Alignment } from './realnations.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -661,6 +662,8 @@ export interface NewsItem {
    * works from the file, not from somebody else's copy.
    */
   readonly subjectId?: EntityId
+  /** The event's own detail, where the article needs it (an office id). */
+  readonly detail?: string
   /** The kind of story, so the newsroom picks the right template. */
   readonly kind?:
     | 'war'
@@ -668,6 +671,7 @@ export interface NewsItem {
     | 'died-in-service'
     | 'recruiting-drive'
     | 'crime'
+    | 'election'
 }
 
 /**
@@ -687,8 +691,35 @@ export function newsSince(world: World, sinceTick: Tick): NewsItem[] {
       event.type !== 'tensions-shifted' &&
       event.type !== 'call-to-arms' &&
       event.type !== 'joined-war' &&
-      event.type !== 'declined-call'
+      event.type !== 'declined-call' &&
+      event.type !== 'took-office'
     ) {
+      continue
+    }
+    /**
+     * ELECTION NIGHT MAKES THE PAPER (playtest idea #12: "reuse the
+     * existing News article/obituary format"). The town has held elections
+     * since the government module landed, resolved them, seated the
+     * winners — and the paper never once reported it. Local news that the
+     * simulation genuinely produced (Law 1) belongs on the front page more
+     * than a foreign squabble does.
+     */
+    if (event.type === 'took-office') {
+      const winner = world.people.get(event.subjectId)
+      const office = officeById(event.detail ?? '')
+      if (winner === undefined || office === undefined) continue
+      items.push({
+        tick: event.tick,
+        text: `${winner.givenName} ${winner.familyName} takes ${office.title}`,
+        nearby: true,
+        kind: 'election',
+        subjectId: event.subjectId,
+        // The office rides the item: by the time an old paper is read, the
+        // winner may have died or termed out, and an article sourced from
+        // the CURRENT officials map would go thin exactly when the story
+        // became history.
+        ...(event.detail !== null ? { detail: event.detail } : {}),
+      })
       continue
     }
     const nearby = home !== undefined && (event.subjectId === home.id || event.otherId === home.id)

@@ -79,6 +79,7 @@ import {
 import {
   atTodaysPrices,
   boardStandingFor,
+  netWorthOf,
   branchSpecFor,
   extraDutyBar,
   walletOf,
@@ -966,6 +967,54 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       <div className="tab-panels">
       {tab === 'story' && (
         <div className="feed" ref={feedRef} aria-label="Your story so far">
+          {/* THE YEAR JUST GONE (playtest idea #11: "a 'State of the
+              Union'-style yearly wrap card... using data that's already
+              tracked"). Everything here is read from the feed the tab
+              already builds — the wrap invents nothing, it gathers. Net
+              worth is stated as it stands rather than as a delta, because
+              the engine stores no year-ago snapshot and a made-up
+              comparison would be worse than none. */}
+          {(() => {
+            const since = world.tick - 12
+            const yearMine = feedItems.filter(
+              (item) => item.tick >= since && item.kind === 'life',
+            )
+            const yearWorld = feedItems.filter(
+              (item) => item.tick >= since && item.kind === 'news',
+            )
+            if (yearMine.length === 0 && yearWorld.length === 0) return null
+            const age = ageAt(person.birthTick, world.tick)
+            const worth = netWorthOf(world, person.id)
+            return (
+              <section className="year-wrap" aria-label="The year just gone">
+                <div className="yw-hd">
+                  <span className="yw-title">The year just gone</span>
+                  <span className="yw-meta">
+                    {formatYear(world, Math.max(0, since) as never)} · turned {age}
+                  </span>
+                </div>
+                <ul className="yw-lines">
+                  {yearMine.slice(-4).map((item) =>
+                    item.kind === 'life' ? (
+                      <li key={`yw-${item.tick}-${item.entry.eventId}`}>{item.entry.text}</li>
+                    ) : null,
+                  )}
+                  {yearMine.length === 0 && (
+                    <li className="muted">A quiet year, and quiet years count too.</li>
+                  )}
+                  {yearWorld.length > 0 && (
+                    <li className="yw-world">
+                      Meanwhile: {yearWorld[yearWorld.length - 1]?.kind === 'news' ? (yearWorld[yearWorld.length - 1] as { text: string }).text : ''}
+                    </li>
+                  )}
+                </ul>
+                <div className="yw-foot">
+                  Standing worth {formatMoney(worth)}
+                  {yearMine.length > 4 && ` · and ${String(yearMine.length - 4)} more moments in the story below`}
+                </div>
+              </section>
+            )
+          })()}
           {feedItems.length === 0 && (
             <p className="feed-empty">
               Your story starts now. Age up and see what the years bring.

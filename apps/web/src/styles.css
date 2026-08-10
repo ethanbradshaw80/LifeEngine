@@ -4966,6 +4966,43 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   border-left: 2px solid var(--line);
 }
 
+/* THE YEAR JUST GONE — a wrap card at the head of the story, gathered from
+   the feed rather than invented (playtest idea #11). */
+.year-wrap {
+  margin: 0 0 0.8rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-raised);
+}
+
+.yw-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+
+.yw-title { font-weight: 700; font-size: 0.9rem; }
+.yw-meta { font-size: 0.72rem; color: var(--muted); }
+
+.yw-lines {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+}
+
+.yw-lines li { margin: 0.18rem 0; }
+.yw-lines .yw-world { color: var(--muted); font-style: italic; }
+
+.yw-foot {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
 /* THE HEIR BUTTON on a death certificate — a quiet document control, in
    the certificate's own serif register rather than the app chrome's. */
 .dc-heir {
