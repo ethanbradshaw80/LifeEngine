@@ -2610,6 +2610,8 @@ export type EventType =
   | 'wounded-in-action'
   /** An aid fitted to a permanent condition — M-HEALTH §7 adaptation. */
   | 'fitted-with-aid'
+  /** The BA read a veteran's claim; detail carries the rating found. */
+  | 'ba-claim-decided'
   /** Came under fire and walked away — contact is not casualty. The texture
    *  of a real tour, and what combat-action recognition reads. */
   | 'saw-combat'

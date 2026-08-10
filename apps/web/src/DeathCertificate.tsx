@@ -18,6 +18,8 @@ export interface DeathRow {
   readonly role: string
   readonly name: string
   readonly meta: string
+  /** The person behind the row, when the line can be continued through them. */
+  readonly personId?: number
 }
 
 export function DeathCertificate({
@@ -29,6 +31,7 @@ export function DeathCertificate({
   cause,
   obituary,
   survivedBy,
+  onContinueAs,
   serviceLine,
   epitaph,
   onClose,
@@ -41,6 +44,13 @@ export function DeathCertificate({
   readonly cause: string
   readonly obituary: string
   readonly survivedBy: readonly DeathRow[]
+  /**
+   * CONTINUE THROUGH AN HEIR (Law 8, and the playtest's own request: the
+   * death screen "already has the data (surviving children, ages); wire
+   * 'continue as Eric Baldwin, 64' into the title-screen flow"). Absent
+   * when the viewer is only reading a past life.
+   */
+  readonly onContinueAs?: (personId: number) => void
   readonly serviceLine: string | null
   readonly epitaph: string
   readonly onClose: () => void
@@ -107,6 +117,18 @@ export function DeathCertificate({
                   <span className="role">{row.role}</span>
                   <span className="nm">{row.name}</span>
                   <span className="mt">{row.meta}</span>
+                  {/* THE LINE GOES ON. Death ends a life, not the save —
+                      the family, the money, the debts and the name pass
+                      down, and the world does not restart for anybody. */}
+                  {onContinueAs !== undefined && row.personId !== undefined && (
+                    <button
+                      type="button"
+                      className="dc-heir"
+                      onClick={() => onContinueAs(row.personId as number)}
+                    >
+                      Continue as {row.name.split(' ')[0]}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -1635,10 +1635,39 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       // 400-800 per mille, landing on the old flat 600 at combatWeight 500,
       // so the average trade is unchanged and the ends are honest. NOBODY
       // reaches zero: a clerk who is shot at still gets asked sometimes.
+      /**
+       * EVERY TOUR GETS ITS SCENE (playtest §5: the marquee combat "shows
+       * up, but not on every deployment... consistently '1 hit and
+       * evacuated'" — and idea #9's exact ask: "guarantee at least one
+       * multi-beat interactive scene per deployment tour").
+       *
+       * A contact only became a played scene on a trade-weighted roll, and
+       * the roll could miss every contact of a tour — so the game's best
+       * system sat out entire deployments and the abstract resolution
+       * carried them. Past the tour's midpoint with no scene yet fired,
+       * the next contact that reaches the player IS the scene.
+       *
+       * The roll is still drawn first, unconditionally — short-circuiting
+       * it when the guarantee applies would shift every later draw on the
+       * stream and change outcomes that have nothing to do with this.
+       */
+      const rolledScene = rng.chance(momentChanceFor(world, record.specialtyId), 1_000)
+      const pastMidTour =
+        tick - deployment.startedAtTick >=
+        Math.floor((deployment.endsAtTick - deployment.startedAtTick) / 2)
+      let hadSceneThisTour = false
+      for (let i = world.player.log.length - 1; i >= 0; i -= 1) {
+        const entry = world.player.log[i]
+        if (entry === undefined || entry.tick < deployment.startedAtTick) break
+        if (entry.kind === 'combat-moment') {
+          hadSceneThisTour = true
+          break
+        }
+      }
       if (
         personId === world.player.personId &&
         world.player.pending === null &&
-        rng.chance(momentChanceFor(world, record.specialtyId), 1_000)
+        (rolledScene || (pastMidTour && !hadSceneThisTour))
       ) {
         // THE SCENE, AND HOW BAD IT IS (owner's combat plan §2). The
         // channel that found them picks the scene — the threat vector

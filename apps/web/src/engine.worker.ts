@@ -41,6 +41,7 @@ import {
   buyChipsPlayer,
   cashOutPlayer,
   dealBlackjack,
+  fileBAClaim,
   playTablePlayer,
   playPokerPlayer,
   enterTournamentPlayer,
@@ -149,6 +150,7 @@ export type VerbRequest =
   | { readonly verb: 'buy-chips'; readonly cents: number }
   | { readonly verb: 'cash-out' }
   | { readonly verb: 'deal-blackjack'; readonly wager: number }
+  | { readonly verb: 'file-ba-claim' }
   | { readonly verb: 'gamble'; readonly game: 'blackjack' | 'slots'; readonly wager: number; readonly choice: 'hit' | 'stand' | 'double' }
   | { readonly verb: 'poker'; readonly stakeId: string; readonly hours: number }
   | { readonly verb: 'tournament'; readonly tournamentId: string }
@@ -562,7 +564,13 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             outcome = { ok: r.done, reason: r.reason }
             break
           }
-          case 'deal-blackjack': {
+          case 'file-ba-claim': {
+        // The board's answer, in its own words, straight to the toast.
+        const r = fileBAClaim(world)
+        outcome = { ok: r.done, reason: r.done ? r.words : r.reason }
+        break
+      }
+      case 'deal-blackjack': {
             // THE WAGER BUYS A DEAL, and the hand is played at the table
             // as a pending decision — it is not resolved here.
             const r = dealBlackjack(world, a.wager as never)

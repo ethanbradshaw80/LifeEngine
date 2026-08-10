@@ -315,8 +315,23 @@ function decayAndReinforce(world: World, tick: Tick): void {
     // a marked year genuinely is one.
     if (relationship.type === 'spouse') {
       const married = tick - relationship.typeSinceTick
-      if (married === 120 || married === 300 || married === 600) {
-        const which = married === 120 ? 'ten years' : married === 300 ? 'the silver' : 'the golden'
+      /**
+       * A FULL CADENCE, NOT THREE ISLANDS (playtest idea #14: "a full
+       * cadence (5, 10, 15, 20…) with small causal texture each time").
+       * Ten, silver and golden were the only marked years, so a marriage
+       * went nineteen years between its first milestone and its second.
+       * Every fifth year gets its day now; the named ones keep their names.
+       */
+      if (married > 0 && married % 60 === 0) {
+        const years = married / 12
+        const which =
+          years === 10
+            ? 'ten years'
+            : years === 25
+              ? 'the silver'
+              : years === 50
+                ? 'the golden'
+                : `${String(years)} years`
         recordEvent(world, tick, { type: 'anniversary', subjectId: relationship.a, otherId: relationship.b, detail: which })
         recordEvent(world, tick, { type: 'anniversary', subjectId: relationship.b, otherId: relationship.a, detail: which })
       }

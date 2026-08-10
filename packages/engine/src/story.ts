@@ -179,8 +179,25 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
         : `${year} — Started ${event.detail} school at ${age}.`
     case 'finished-school':
       return `${year} — Finished ${event.detail === 'college' ? 'college' : event.detail} at ${age}.`
-    case 'hired':
+    case 'hired': {
+      /**
+       * THE FIRST ONE IS A MILESTONE (playtest idea #17: "a 'first job' /
+       * 'first paycheck' milestone card for teenage characters, giving the
+       * School-age years more texture"). Every hiring read identically —
+       * the fortieth job change and the first money a fifteen-year-old
+       * ever earned got the same sentence. The first is found by looking
+       * for any earlier hiring on the same page, which the event index
+       * already holds.
+       */
+      const firstEver = !eventsFor(world, person.id).some(
+        (earlier) => earlier.type === 'hired' && earlier.tick < event.tick,
+      )
+      const young = ageAt(person.birthTick, event.tick) < 20
+      if (firstEver && young) {
+        return `${year} — A first job: ${withArticle(event.detail ?? 'labourer')} at ${placeName(world, event.placeId)}. The first money that was ever yours.`
+      }
       return `${year} — Took work as ${withArticle(event.detail ?? 'labourer')} at ${placeName(world, event.placeId)}.`
+    }
     case 'got-raise': {
       const pay = event.detail === null ? null : Number.parseInt(event.detail, 10)
       return pay !== null && Number.isFinite(pay)
@@ -277,6 +294,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
      * the event otherwise, and it is right to — an event nobody can ever
      * read is an event that did not happen.
      */
+    case 'ba-claim-decided':
+      return `${year} — Filed with the BA. The board read the file and answered in numbers.`
     case 'fitted-with-aid':
       return event.detail === null || event.detail.length === 0
         ? `${year} — Fitted with an aid, and slowly learned to use it.`

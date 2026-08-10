@@ -34,10 +34,31 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function CoverageCard({ world, personId }: { world: World; personId: EntityId }) {
+export function CoverageCard({
+  world,
+  personId,
+  busy = false,
+  onAct,
+}: {
+  world: World
+  personId: EntityId
+  busy?: boolean
+  /** Absent when the card is read-only (another person's page). */
+  onAct?: (action: { verb: 'file-ba-claim' }) => void
+}) {
   const coverage = coverageOf(world, personId, world.tick)
   const veteran = inTheBA(world, personId)
   const rating = disabilityRatingFor(world, personId)
+  /**
+   * THE DOOR TO THE BOARD (owner: "add an 'apply for BA benefits' button so
+   * that you can be rated somewhere by the insurance card"). A discharged
+   * veteran who is not enrolled — rated under the threshold, or carrying
+   * harm the board has never examined — files here. Enrolment itself stays
+   * the engine's: the button asks for a rating, it does not grant one.
+   */
+  const service = world.service.get(personId)
+  const dischargedVeteran = service !== undefined && service.dischargedAtTick !== null
+  const canApply = onAct !== undefined && dischargedVeteran && !veteran
 
   return (
     <section className="cov-card" aria-label="Coverage and benefits">
@@ -89,6 +110,16 @@ export function CoverageCard({ world, personId }: { world: World; personId: Enti
             </>
           )}
           <p className="muted small cov-note">{coverageWords(coverage.source)}</p>
+          {canApply && (
+            <button
+              type="button"
+              className="apply"
+              disabled={busy}
+              onClick={() => onAct({ verb: 'file-ba-claim' })}
+            >
+              🎖 Apply for BA benefits
+            </button>
+          )}
         </div>
       )}
     </section>

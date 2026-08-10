@@ -840,7 +840,7 @@ export {
 export type { ConditionEffects } from './conditions.js'
 export { cardValue, decodeHand, handTotal } from './casino.js'
 export type { BlackjackHand } from './casino.js'
-export { dealBlackjack } from './player.js'
+export { dealBlackjack, fileBAClaim } from './player.js'
 export {
   baCompensationFor,
   coverageOf,

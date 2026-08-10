@@ -2035,7 +2035,37 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // years in grade sailed on to the twelve-year wall instead, and two
       // tests that had been guarding that rule went red.
       if (promote && (branchSpec.grades[rank + 1] ?? 0) === (branchSpec.grades[rank] ?? 0)) {
-        promote = performance >= 520 && rng.chance(1, 30)
+        /**
+         * THE STANDOUT IS NAMED (owner, playing: "I am a SPC and I am not
+         * getting promoted to CPL at all — I have a bunch of schools, good
+         * badges, good fitness test, everything").
+         *
+         * The lateral stays an appointment — the commander names you, most
+         * specialists never are, and making it automatic broke high-year
+         * tenure once already (the comment above). But 1-in-30 a month put
+         * the EXPECTED wait at two and a half years after a soldier had
+         * already met every requirement, invisibly — and badges, schools
+         * and fitness never counted, because an appointment reads the
+         * soldier the commander sees day to day, which is standing.
+         *
+         * The odds now follow how far past the bar the standing is: at 520
+         * it is the old long shot, at 700+ the commander has already
+         * noticed. An NPC town keeps its shape — most of the town's
+         * specialists sit near 500 and stay specialists.
+         */
+        const past = Math.max(0, performance - 520)
+        /**
+         * PLAYER-ONLY SCALING, and the reasoning is calibration rather
+         * than principle: the first version scaled everybody, and two
+         * world-shape tests moved — captivity reach and a specops roster —
+         * because faster corporals reshuffle who is serving where. The
+         * town's career pyramid is tuned around 1-in-30, and "the
+         * commander sees you day to day" is literally the game's camera on
+         * the player. The town keeps its shape; the standout the game is
+         * about gets noticed.
+         */
+        const window_ = isPlayer ? Math.max(6, 30 - Math.floor(past / 8)) : 30
+        promote = performance >= 520 && rng.chance(1, window_)
       }
     } else if (isSeniorBand(branchSpec.grades[rank + 1] ?? 0) && !commissioned) {
       // BAND 3 IS THE BOARD'S, NOT THIS MONTH'S. A senior grade is a fixed

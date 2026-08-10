@@ -79,6 +79,7 @@ import {
 import {
   atTodaysPrices,
   boardStandingFor,
+  branchSpecFor,
   extraDutyBar,
   walletOf,
   upOrOutStandingFor,
@@ -2388,6 +2389,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <dd>{record.qualifications.join(', ')}</dd>
                     </>
                   )}
+                  {/* THE NUMBER THE COMMANDER READS (owner, with a
+                      screenshot: "It doesn't show you the promotion
+                      points"). The screen quoted the bar — standing 520 —
+                      while the soldier's own standing appeared nowhere on
+                      it. A bar without your number against it is a rule
+                      you can only fail. */}
+                  <dt>Standing</dt>
+                  <dd>
+                    {record.performance}
+                    <span className="muted small"> · what the appointment and the boards read</span>
+                  </dd>
                   {(() => {
                     // UP-OR-OUT, VISIBLE. The rule ends careers; the player
                     // should never learn it exists on the month it fires.
@@ -2600,7 +2612,32 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </div>
                     {(() => {
                       const standing = boardStandingFor(world, person.id)
-                      if (!standing) return null
+                      if (!standing) {
+                        /**
+                         * A JUNIOR'S NEXT STEP, STATED (owner, playing: "I
+                         * am a SPC and I am not getting promoted to CPL at
+                         * all... everything"). Below the board ranks
+                         * `boardStandingFor` is rightly null — but the
+                         * screen then said NOTHING, so the one rank whose
+                         * rule is unusual (CPL: a lateral appointment on
+                         * standing alone, not a board, not badges) was
+                         * also the one rank with no explanation anywhere.
+                         * An invisible gate reads as a broken game.
+                         */
+                        const svc = world.service.get(person.id)
+                        if (!svc || svc.dischargedAtTick !== null || svc.commissioned === true) return null
+                        const spec = branchSpecFor(world, svc.branch)
+                        const next = spec.ranks[svc.rank + 1]
+                        if (next === undefined) return null
+                        const lateral = (spec.grades[svc.rank + 1] ?? 0) === (spec.grades[svc.rank] ?? 0)
+                        return (
+                          <p className="muted small">
+                            {lateral
+                              ? `${next} is a lateral appointment — the commander names a specialist who stands out. Your standing is ${String(svc.performance)} against the 520 that keeps you in the running; the further past it, the sooner the call. Schools and badges start counting at the SGT board.`
+                              : `${next} comes with time in grade and standing above 300 — yours is ${String(svc.performance)}.`}
+                          </p>
+                        )
+                      }
                       // The bar the board actually applies (P2): base cutoff
                       // plus what the file of non-selections adds.
                       const realBar = standing.cutoff + standing.filePenalty
@@ -3117,7 +3154,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               to think is missing — which is exactly what happened with the
               tours dashboard. */}
           <BodyDiagram world={world} personId={person.id} />
-          <CoverageCard world={world} personId={person.id} />
+          <CoverageCard world={world} personId={person.id} busy={busy} onAct={onAct} />
           {(() => {
             const record = healthOf(world, person.id)
             const ailing = record !== undefined && record.ailment !== null

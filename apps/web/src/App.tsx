@@ -42,7 +42,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '66773bb0'
+const GOLDEN_HASH_HEX = 'e8fe6fb3'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -292,7 +292,25 @@ export function App() {
             role: 'Child',
             name: `${p.givenName} ${p.familyName}`,
             meta: `${String(Math.floor((world.tick - p.birthTick) / 12))}`,
+            personId: p.id,
           }))}
+        // LAW 8, FINALLY A BUTTON. The engine's play() has carried an heir
+        // flag all along; the world, the household, the inheritance were
+        // ready, and the only exit from a death was the archive. Continuing
+        // archives the ended life exactly as closing does — the ledger
+        // records the parent either way — and hands the same running world
+        // to the child.
+        onContinueAs={(heirId) => {
+          archive({
+            registryNo,
+            name: fullName,
+            years: String(years),
+            headline: playerPerson.causeOfDeath ?? 'a life',
+          })
+          setMournedId(playerPerson.id)
+          play(heirId, true)
+          setFront('engine')
+        }}
         serviceLine={
           world.service.get(playerPerson.id) === undefined
             ? null

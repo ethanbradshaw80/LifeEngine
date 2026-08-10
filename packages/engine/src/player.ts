@@ -23,7 +23,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { isHigherEducation, OCCUPATIONS, occupationById } from './content.js'
+import { isHigherEducation, OCCUPATIONS, occupationById, PENSION_THRESHOLD } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
@@ -2815,6 +2815,48 @@ export function takeExtraDuty(world: World): { done: boolean; standing: number; 
  * day back. It does not give him the leg, and `conditions.ts` is careful
  * that the trades stay closed.
  */
+/**
+ * FILE A CLAIM WITH THE BA (owner: "add an 'apply for BA benefits' button so
+ * that you can be rated somewhere"). The board reads the file and answers
+ * with the actual numbers — the whole lesson of this project's bars is that
+ * an invisible one reads as a broken game, and the BA's threshold was the
+ * last invisible bar in the benefits system.
+ *
+ * DETERMINISTIC AND HONEST: the board reads `serviceDisability`, which is
+ * the provenance ledger the pension already trusts. A file that supports a
+ * compensable rating is already enrolled automatically; the claim exists
+ * for the veteran UNDER the bar, and its value is the written answer — how
+ * far short, in points, on the record.
+ */
+export function fileBAClaim(world: World): { done: boolean; reason: string; words: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) {
+    return { done: false, reason: 'Nobody is being played.', words: '' }
+  }
+  const service = world.service.get(person.id)
+  if (service === undefined || service.dischargedAtTick === null) {
+    return { done: false, reason: 'The BA serves veterans. Finish a term first.', words: '' }
+  }
+  if (inTheBA(world, person.id)) {
+    return { done: false, reason: 'You are already enrolled and rated.', words: '' }
+  }
+  const record = world.health.get(person.id)
+  const connected = record?.serviceDisability ?? 0
+  recordEvent(world, world.tick, {
+    type: 'ba-claim-decided',
+    subjectId: person.id,
+    detail: String(connected),
+  })
+  return {
+    done: true,
+    reason: '',
+    words:
+      connected > 0
+        ? `The board read the file: service-connected disability ${String(connected)} of the ${String(PENSION_THRESHOLD)} a compensable rating requires. Denied — and the denial, with its numbers, is on the record. A worsening condition reopens it.`
+        : 'The board read the file and found no service-connected harm on it. Denied. What the service put on the record is what the board can pay for.',
+  }
+}
+
 export function adaptationBar(world: World): string | null {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return 'Nobody is being played.'
