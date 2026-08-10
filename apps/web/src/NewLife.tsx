@@ -103,14 +103,19 @@ export function TitleScreen({
 export function IntakeScreen({
   onBorn,
   onBack,
+  townName,
 }: {
   readonly onBorn: (choices: LifeChoices) => void
   readonly onBack: () => void
+  /** The world's actual town — the certificate prints this field, and a
+      placeholder that says 'Anywhere' ends up on a legal document
+      (playtest: "'Town: Anywhere' is still the default"). */
+  readonly townName: string
 }): ReactElement {
   const [given, setGiven] = useState('Gary')
   const [family, setFamily] = useState('Lewis')
   const [sex, setSex] = useState<'male' | 'female'>('male')
-  const [town, setTown] = useState('Anywhere')
+  const [town, setTown] = useState(townName)
   const [advanced, setAdvanced] = useState(false)
   const [station, setStation] = useState<number | null>(null)
   const [seedCode, setSeedCode] = useState('')
@@ -124,7 +129,7 @@ export function IntakeScreen({
     setSex(male ? 'male' : 'female')
     setGiven(pick(male ? GIVEN_MALE : GIVEN_FEMALE, n))
     setFamily(pick(FAMILIES, Math.floor(n / 7)))
-    setTown('Anywhere')
+    setTown(townName)
   }
 
   return (

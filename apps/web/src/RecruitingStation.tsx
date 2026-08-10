@@ -30,12 +30,23 @@ export function RecruitingStationView({ world, personId, bar, busy, onEnlist }: 
   const branches = recruitingStationFor(world, personId)
   const [openBranch, setOpenBranch] = useState<string | null>(branches[0]?.id ?? null)
   const shown = branches.find((branch) => branch.id === openBranch)
+  /**
+   * A VETERAN IS NOT A WALK-IN (playtest, Jack Baldwin: the Service tab's
+   * default view "says 'No service record'... for a veteran who has a full
+   * combat record, two Purple Hearts, a Combat Infantryman Badge, a medical
+   * discharge, and an active BA disability rating, all visible one click
+   * away"). The copy was written for the nineteen-year-old at the door and
+   * shown to everybody, including the man whose record contradicted its
+   * first three words.
+   */
+  const veteran = world.service.get(personId)?.dischargedAtTick != null
 
   return (
     <div className="recruiting-station">
       <p className="muted small">
-        No service record. This is what the services are offering — the test comes after you
-        walk in, and what it opens is between you and the recruiter.
+        {veteran
+          ? 'The record is on file. If you want back in, this is what the services are offering — and the recruiter reads the file before anything else.'
+          : 'No service record. This is what the services are offering — the test comes after you walk in, and what it opens is between you and the recruiter.'}
       </p>
 
       <nav className="sub-tabs" aria-label="Services">

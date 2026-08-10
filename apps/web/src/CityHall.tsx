@@ -57,7 +57,11 @@ type Department = 'hall' | 'court' | 'ballot' | 'officials'
  */
 const COMING: readonly { readonly icon: string; readonly name: string; readonly detail: string }[] = [
   { icon: '📜', name: 'Vital Records', detail: 'Births, marriages and deaths in the county.' },
-  { icon: '🏷️', name: 'Property & Deeds', detail: 'Who owns what, and who owned it before.' },
+  // PROPERTY & DEEDS IS OPEN — it was built further down this same page at
+  // the owner's own request, and this stub was never struck from the list,
+  // so a "NOT OPEN YET" badge sat directly above a populated deeds registry
+  // (playtest: "either the badge is stale or the section key is
+  // mismatched" — stale). An honest stub is only honest while it is true.
   { icon: '🏛️', name: 'Business Registry', detail: 'Every business licensed in the county.' },
 ]
 

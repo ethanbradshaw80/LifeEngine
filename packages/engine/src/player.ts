@@ -3551,10 +3551,30 @@ const DECLINE_COOLDOWN: Readonly<Record<string, number>> = {
   marriage: 24,
   'move-house': 12,
   'move-out': 12,
+  /**
+   * ORDERS, TOO (playtest, Jack Baldwin: "'your unit is deploying' —
+   * flagged as over-frequent during active-duty years"). The wartime pass
+   * re-rolls monthly, and his run had seven concurrent wars — so a soldier
+   * who had just been excused was cut new orders within a month or two. An
+   * army processes an exemption; it does not re-order the same man every
+   * month it is told no.
+   */
+  'deployment-order': 12,
 }
 
-/** Answers that mean "no", across the various button sets. */
-const REFUSALS: ReadonlySet<string> = new Set(['decline', 'no', 'refuse', 'stay', 'wait-longer'])
+/** Answers that mean "no", across the various button sets.
+ *
+ * `request-exemption` is here because for cooldown purposes it IS a no —
+ * a man excused from this deployment has answered about this deployment,
+ * and asking him again next month makes the exemption meaningless. */
+const REFUSALS: ReadonlySet<string> = new Set([
+  'decline',
+  'no',
+  'refuse',
+  'stay',
+  'wait-longer',
+  'request-exemption',
+])
 
 export function raisePending(
   world: World,
@@ -3578,7 +3598,39 @@ export function raisePending(
   const cooldown = DECLINE_COOLDOWN[spec.kind] ?? 0
   if (cooldown > 0) {
     const declined = world.player.declinedAtTick?.[spec.kind]
-    if (declined !== undefined && spec.tick - declined < cooldown) return false
+    /**
+     * A REPEATED NO IS A LOUDER NO (playtest: the child prompt "fired at
+     * ages 33, 35, 38, and repeatedly after, despite already having 2
+     * children and declining every time").
+     *
+     * The cooldown WORKED — asks two years apart are exactly an 18-month
+     * cooldown doing its job — and it was still nagging, because a couple
+     * who declined five times over a decade kept being asked on the same
+     * schedule as a couple who declined once. The base cooldown now scales
+     * with CONSECUTIVE declines of that kind: 18 months after the first
+     * no, 36 after the second, 54 after the third. No hard stop, and
+     * deliberately — this file already records why ("a couple who did not
+     * want a child at twenty-two are allowed to want one at twenty-four")
+     * — but by the fourth no the asks are the better part of a decade
+     * apart, which is what respecting an answer looks like.
+     *
+     * Consecutive, not lifetime: an accept resets the count, because a
+     * couple who said yes to a third child are plainly open to the
+     * question again.
+     */
+    if (declined !== undefined) {
+      const who = world.player.personId
+      let noes = 0
+      for (let i = world.player.log.length - 1; i >= 0; i -= 1) {
+        const entry = world.player.log[i]
+        if (entry === undefined) break
+        if (entry.kind !== spec.kind || entry.personId !== who) continue
+        if (!REFUSALS.has((entry.choice ?? '').split(':')[0] ?? '')) break
+        noes += 1
+      }
+      const scaled = cooldown * Math.max(1, noes)
+      if (spec.tick - declined < scaled) return false
+    }
   }
   world.player.pending = { ...spec, id: world.player.nextDecisionId }
   world.player.nextDecisionId += 1

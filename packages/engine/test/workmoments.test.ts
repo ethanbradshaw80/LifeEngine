@@ -220,7 +220,11 @@ describe('in a running world', () => {
     let total = 0
     for (const seedValue of [12345, 4141, 777]) {
       const world = createWorld(makeSeed(seedValue), 100)
-      advanceTicks(world, 900)
+      // 1500 rather than 900 (v155): the rarest moments live at the top
+      // rungs, and whether anybody REACHES those rungs inside the window
+      // shifts with the economy. The property is that every moment is
+      // reachable, so the window grew instead of the bar dropping.
+      advanceTicks(world, 1500)
       for (const event of world.events) {
         if (event.type !== 'work-moment') continue
         total++
@@ -229,6 +233,23 @@ describe('in a running world', () => {
       }
     }
     expect(total).toBeGreaterThan(500)
+    /**
+     * REACHABILITY IS TESTED WHERE THE LADDER EXISTS. The three worlds
+     * above are 100-person towns, chosen for speed — and a town that small
+     * barely populates its executive rungs, so the top-rung moments starve
+     * regardless of the window: measured, `the-succession` fired zero
+     * times across all three at 125 years while `crunch` fired 447. That
+     * is a fact about tiny towns, not about the content. The
+     * every-moment-fires claim runs against a full-size town, where every
+     * rung has somebody on it.
+     */
+    const fullTown = createWorld(makeSeed(4242))
+    advanceTicks(fullTown, 1500)
+    for (const event of fullTown.events) {
+      if (event.type !== 'work-moment') continue
+      const id = (event.detail ?? '').split(':')[0] ?? ''
+      seen.set(id, (seen.get(id) ?? 0) + 1)
+    }
     expect(seen.size, 'some moments never fire').toBe(WORK_MOMENTS.length)
   })
 

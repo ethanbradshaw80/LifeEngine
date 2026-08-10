@@ -27,7 +27,7 @@ import {
   GRADUATE_ADMISSION,
   HALLS_PER_YEAR,
 } from './content.js'
-import { factor, recordDecision, recordEvent } from './records.js'
+import { eventsFor, factor, recordDecision, recordEvent } from './records.js'
 import { atTodaysPrices } from './economy.js'
 import { openStream, Stream } from './rng.js'
 import { disciplineOf, smartsOf } from './stats.js'
@@ -1291,7 +1291,35 @@ function runWorkMoments(world: World, tick: Tick): void {
     const place = placeOf(job.occupationId)
     const open = momentsFor(place?.rung ?? 0)
     if (open.length === 0) continue
-    const moment = open[rng.nextIntInclusive(0, open.length - 1)]
+    /**
+     * NOT THE SAME SCENE TWICE, while there is anything else to show
+     * (playtest, Jack Baldwin: "'The Crunch' (2016, 2024, and again
+     * verbatim in 2037/2038)... 'The New One' (2009, 2014, 2024, 2027,
+     * 2034)"). The pick was uniform over the rung's pool with no memory,
+     * and the pools are small, so a career reran its own scenes word for
+     * word — which is what erodes "every life is different" fastest.
+     *
+     * The ledger already remembers: every resolved moment records a
+     * `work-moment` event whose detail leads with the moment id. For the
+     * PLAYER, the pick now excludes seen moments until the pool is
+     * exhausted, then starts over — a rerun after everything has been
+     * seen is honest; a rerun instead of something new is not. NPCs keep
+     * the plain roll: nobody reads their scenes, and their behaviour is
+     * settled by the same maths either way (M-CAREER §3 parity is about
+     * the numbers, not the prose).
+     */
+    let pool = open
+    if (person.id === world.player.personId) {
+      const seen = new Set<string>()
+      for (const event of eventsFor(world, person.id)) {
+        if (event.type !== 'work-moment') continue
+        const id = (event.detail ?? '').split(':')[0]
+        if (id !== undefined && id.length > 0) seen.add(id)
+      }
+      const fresh = open.filter((m) => !seen.has(m.id))
+      if (fresh.length > 0) pool = fresh
+    }
+    const moment = pool[rng.nextIntInclusive(0, pool.length - 1)]
     if (!moment) continue
     const variant = rng.nextIntInclusive(0, 999)
 

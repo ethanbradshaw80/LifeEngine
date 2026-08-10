@@ -42,7 +42,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '01ffa354'
+const GOLDEN_HASH_HEX = '66773bb0'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -250,9 +250,15 @@ export function App() {
     if (front === 'title') {
       return (
         <TitleScreen
-          hasSave={playerPerson !== undefined}
+          /* A DEAD CHARACTER IS NOT A CONTINUE TARGET (playtest: after the
+             Certificate of Death, the title screen still offered "Continue —
+             Jack Baldwin"). The check asked only whether a player EXISTED,
+             and a dead one does. Their ending lives under Past lives, which
+             is the door built for it; a new life begins in the same running
+             world through "Begin a new life". */
+          hasSave={playerPerson !== undefined && !playerDead}
           activeLine={
-            playerPerson === undefined || world === null
+            playerPerson === undefined || world === null || playerDead
               ? null
               : `${playerPerson.givenName} ${playerPerson.familyName}`
           }
@@ -269,6 +275,7 @@ export function App() {
     if (front === 'intake') {
       return (
         <IntakeScreen
+          townName={world?.town.name ?? 'Haverlock'}
           onBack={() => setFront('title')}
           onBorn={(choices) => {
             setLifeChoices(choices)

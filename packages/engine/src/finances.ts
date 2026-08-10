@@ -27,6 +27,7 @@ import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor }
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
   creditScoreOf,
@@ -54,6 +55,7 @@ import {
   DEPOSIT_MONTHS,
   LEASE_MONTHS,
   leaseBar,
+  propertiesOwnedBy,
   rentOf as propertyRentOf,
   saleProceedsOf,
   setOwner,
@@ -3350,15 +3352,41 @@ function runMoneyShocks(world: World, tick: Tick): void {
     // long life and is remembered when it does.
     if (!rng.chance(2, 1000)) continue
 
-    const kind = SHOCK_KINDS[rng.nextIntInclusive(0, SHOCK_KINDS.length - 1)] ?? 'medical'
-    // Sized against what they HAVE, so it stings without being a wipe-out:
-    // a fifth to two thirds of liquid money.
-    // A fifth to a third of liquid money: enough to hurt and to be worth a
-    // decision, never enough to end a life on its own (Law 7).
-    const bill = Math.max(
-      625,
-      Math.floor((worth * rng.nextIntInclusive(200, 340)) / 1000),
-    ) as Money
+    /**
+     * THE SHOCK HAS TO FIT THE LIFE IT LANDS ON (playtest, Jack Baldwin: a
+     * lifelong renter was handed "The roof has been leaking... $233,605.24
+     * to put it right" — "structural repair costs are a landlord's
+     * responsibility for a renter... and the amount itself is wildly out of
+     * scale").
+     *
+     * Both halves were real. The kind was rolled with no ownership check,
+     * so renters drew repair bills for roofs they do not own. And every
+     * shock was sized as a share of liquid wealth — right for a scam, which
+     * takes what it finds, and absurd for a roof, which costs what roofs
+     * cost whether you are rich or broke.
+     */
+    const owns = propertiesOwnedBy(world, person.id).length > 0
+    let kind = SHOCK_KINDS[rng.nextIntInclusive(0, SHOCK_KINDS.length - 1)] ?? 'medical'
+    if (kind === 'repairs' && !owns) kind = rng.chance(1, 2) ? 'medical' : 'scam'
+
+    let bill: Money
+    if (kind === 'repairs') {
+      // A REAL TRADESMAN'S NUMBER, at today's prices — not a wealth share.
+      bill = atTodaysPrices(world, rng.nextIntInclusive(60_000, 450_000) as Money) as Money
+    } else if (kind === 'medical') {
+      // THROUGH THE RESOLVER, like every other care cost (M-BENEFITS §3:
+      // "every care action is paid through the resolver"). This shock
+      // predates the coverage system and was billing gross — an insured
+      // person's surprise bill is their share, an uninsured person's is
+      // the whole thing, and that difference is the entire point of
+      // carrying insurance.
+      const gross = atTodaysPrices(world, rng.nextIntInclusive(150_000, 1_200_000) as Money) as Money
+      bill = outOfPocketFor(world, person.id, gross, false, tick)
+      if (bill <= 0) continue
+    } else {
+      // A scam takes what it finds: a fifth to a third of liquid money.
+      bill = Math.max(625, Math.floor((worth * rng.nextIntInclusive(200, 340)) / 1000)) as Money
+    }
 
     if (person.id === world.player.personId) {
       const raised = raisePending(world, {

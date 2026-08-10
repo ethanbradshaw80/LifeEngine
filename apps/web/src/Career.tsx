@@ -19,7 +19,6 @@ import { useState } from 'react'
 import type { JSX } from 'react'
 import {
   BUSINESS_KINDS,
-  OCCUPATIONS,
   annualPay,
   atTodaysPrices,
   annualRevenueOf,
@@ -32,7 +31,6 @@ import {
   ipoBar,
   scaleUpBar,
   valuationOf,
-  jobBar,
   nextRungOf,
   branchName,
   isServing,
@@ -51,12 +49,11 @@ import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
 
-type CareerTab = 'over' | 'ladder' | 'open' | 'resume' | 'biz'
+type CareerTab = 'over' | 'ladder' | 'resume' | 'biz'
 
 const TABS: readonly { id: CareerTab; icon: string; label: string }[] = [
   { id: 'over', icon: '▚', label: 'Overview' },
   { id: 'ladder', icon: '≣', label: 'Ladder' },
-  { id: 'open', icon: '🔎', label: 'Openings' },
   { id: 'resume', icon: '▤', label: 'Résumé' },
   { id: 'biz', icon: '◈', label: 'Business' },
 ]
@@ -77,13 +74,11 @@ export function Career({
   world,
   person,
   busy,
-  onApplyJob,
   onAct,
 }: {
   readonly world: World
   readonly person: Person
   readonly busy: boolean
-  readonly onApplyJob: (occupationId: string) => void
   readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
   const [tab, setTab] = useState<CareerTab>('over')
@@ -166,7 +161,7 @@ export function Career({
               <section className="career-card">
                 <h4>No work</h4>
                 <p className="career-note">
-                  Nothing coming in from a job this month. The Openings tab has what the town is
+                  Nothing coming in from a job this month. The Jobs tab has what the town is
                   hiring for.
                 </p>
               </section>
@@ -273,54 +268,13 @@ export function Career({
           </section>
         )}
 
-        {tab === 'open' && (
-          <>
-            <section className="career-card">
-              <h4>Openings</h4>
-              {/* THE ENGINE'S OWN REFUSAL. jobBar is the same function the
-                  button answers from, so a live row and an honest no cannot
-                  disagree — the offenceBar pattern. */}
-              <ul className="openings">
-                {OCCUPATIONS.map((occupation) => ({
-                  occupation,
-                  shut: jobBar(world, occupation.id),
-                }))
-                  .sort(
-                    (a, b) =>
-                      Number(a.shut !== null) - Number(b.shut !== null) ||
-                      b.occupation.minMonthlyPay - a.occupation.minMonthlyPay,
-                  )
-                  .slice(0, 18)
-                  .map(({ occupation, shut }) => (
-                    <li key={occupation.id} className={shut === null ? undefined : 'is-shut'}>
-                      <span className="o-title">
-                        {occupation.title}
-                        <span className="s">
-                          {formatMoney(
-                            annualPay(atTodaysPrices(world, occupation.minMonthlyPay) as Money),
-                          )}
-                          –
-                          {formatMoney(
-                            annualPay(atTodaysPrices(world, occupation.maxMonthlyPay) as Money),
-                          )}{' '}
-                          / yr
-                        </span>
-                        {shut !== null && <span className="s bar">{shut}</span>}
-                      </span>
-                      <button
-                        type="button"
-                        className="apply"
-                        disabled={busy || shut !== null}
-                        onClick={() => onApplyJob(occupation.id)}
-                      >
-                        Apply
-                      </button>
-                    </li>
-                  ))}
-              </ul>
-            </section>
-          </>
-        )}
+        {/* OPENINGS LIVED HERE TWICE (owner: "take away 'openings' under
+            the career tab — these are the old job layout"; the playtest
+            called the same duplication out in §6). The Jobs tab is the job
+            board; this was an older copy of it, and once the two tabs sat
+            beside each other under Work the duplicate stopped being
+            navigable clutter and became visibly the same list twice. One
+            board, one place. */}
 
         {tab === 'resume' && (
           <section className="career-card">

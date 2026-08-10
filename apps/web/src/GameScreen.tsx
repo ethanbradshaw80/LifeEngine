@@ -77,6 +77,7 @@ import {
   veteranUnlocks,
 } from '@life-engine/engine'
 import {
+  atTodaysPrices,
   boardStandingFor,
   extraDutyBar,
   walletOf,
@@ -291,6 +292,28 @@ type Tab =
  * everybody else, and the order runs from the closest thing to a life —
  * the story of it — outward to the institutions around it.
  */
+/**
+ * SEVEN DOORS OVER EIGHTEEN ROOMS (playtest, Jack Baldwin: "18 top-level
+ * nav items force scrolling on a standard viewport... several are also
+ * functionally duplicated", with the exact grouping proposed in §6 of the
+ * review — adopted as written).
+ *
+ * DELIBERATELY A LAYER, NOT A REWRITE. Every Tab id, every piece of panel
+ * content and every `tab === '...'` conditional below is untouched; the
+ * groups exist only in the rail. The reviewer's own observation made the
+ * case: Career and Service already prove the sub-tab pattern works in this
+ * codebase, so the fix is to use it, not to invent a new one.
+ */
+const GROUPS: readonly { id: string; icon: string; label: string; tabs: readonly Tab[] }[] = [
+  { id: 'g-story', icon: '📖', label: 'Story', tabs: ['story'] },
+  { id: 'g-you', icon: '📊', label: 'You', tabs: ['home', 'health', 'school'] },
+  { id: 'g-money', icon: '💰', label: 'Money', tabs: ['money', 'market', 'casino', 'property'] },
+  { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career'] },
+  { id: 'g-people', icon: '👪', label: 'People', tabs: ['family', 'people'] },
+  { id: 'g-service', icon: '🪖', label: 'Service', tabs: ['service'] },
+  { id: 'g-town', icon: '🏙️', label: 'Town', tabs: ['record', 'cityhall', 'news', 'stats', 'sports'] },
+]
+
 const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'story', icon: '📖', label: 'Story' },
   { id: 'home', icon: '📊', label: 'You' },
@@ -620,6 +643,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // id of their own because they are derived from events, not stored.
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
+  // Which room the player was last in, per door. Interface state only.
+  const lastInGroup = useRef<Record<string, Tab>>({})
+  useEffect(() => {
+    const group = GROUPS.find((g) => g.tabs.includes(tab))
+    if (group) lastInGroup.current[group.id] = tab
+  }, [tab])
   const [moneyView, setMoneyView] = useState<'month' | 'bank'>('month')
   /**
    * AND THE SERVICE TAB OPENS ON THE TOUR WHEN THERE IS ONE.
@@ -878,23 +907,57 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
       <div className="tab-layout">
       <nav className="tab-bar" aria-label="Life sections">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={tab === t.id ? 'active' : undefined}
-            aria-current={tab === t.id}
-            title={t.label}
-            onClick={() => {
-              setTab(t.id)
-              setConfirming(null)
-            }}
-          >
-            <span className="tab-icon" aria-hidden="true">{t.icon}</span>
-            <span className="tab-name">{t.label}</span>
-          </button>
-        ))}
+        {GROUPS.map((g) => {
+          const active = g.tabs.includes(tab)
+          return (
+            <button
+              key={g.id}
+              type="button"
+              className={active ? 'active' : undefined}
+              aria-current={active}
+              title={g.label}
+              onClick={() => {
+                // Return to wherever the player last was inside this group,
+                // or its first room — a door that forgot which room you
+                // were in would make every switch cost a second click.
+                setTab(lastInGroup.current[g.id] ?? g.tabs[0] ?? 'story')
+                setConfirming(null)
+              }}
+            >
+              <span className="tab-icon" aria-hidden="true">{g.icon}</span>
+              <span className="tab-name">{g.label}</span>
+            </button>
+          )
+        })}
       </nav>
+      {(() => {
+        const group = GROUPS.find((g) => g.tabs.includes(tab))
+        if (!group || group.tabs.length < 2) return null
+        return (
+          <nav className="tab-bar tab-bar-sub" aria-label={`${group.label} sections`}>
+            {group.tabs.map((id) => {
+              const t = TABS.find((entry) => entry.id === id)
+              if (!t) return null
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={tab === t.id ? 'active' : undefined}
+                  aria-current={tab === t.id}
+                  title={t.label}
+                  onClick={() => {
+                    setTab(t.id)
+                    setConfirming(null)
+                  }}
+                >
+                  <span className="tab-icon" aria-hidden="true">{t.icon}</span>
+                  <span className="tab-name">{t.label}</span>
+                </button>
+              )
+            })}
+          </nav>
+        )
+      })()}
 
       <div className="tab-panels">
       {tab === 'story' && (
@@ -1439,6 +1502,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         <span className="ledger-amount">+{formatMoney(line.amount)}</span>
                       </li>
                     ))}
+                    {/* THE ROW THAT MAKES THE ARITHMETIC VISIBLE (playtest:
+                        "sum of pension lines ≈ $18,815/mo vs. displayed
+                        'Coming in' $16,510.95, an unexplained ~$2,300 gap").
+                        Nothing was unexplained — the lines are gross, the
+                        total is net, and the engine has carried
+                        `taxWithheld` on this very ledger precisely so the
+                        itemisation sums. The UI never rendered it, so the
+                        reviewer reconciled a payslip with its tax line
+                        hidden and reasonably suspected a phantom salary. */}
+                    {ledger.taxWithheld > 0 && (
+                      <li className="ledger-row out">
+                        <span className="ledger-label">Tax withheld</span>
+                        <span className="ledger-amount">−{formatMoney(ledger.taxWithheld)}</span>
+                      </li>
+                    )}
                     <li className="ledger-row subtotal">
                       <span className="ledger-label">Coming in</span>
                       <span className="ledger-amount">{formatMoney(ledger.income)}</span>
@@ -1590,7 +1668,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             world={world}
             person={person}
             busy={busy}
-            onApplyJob={onApplyJob}
             onAct={onAct}
           />
         </div>
@@ -1984,7 +2061,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     <div className="op-r1">
                       <span className="op-ti">{occupation.title}</span>
                       <span className="op-pay tabular">
-                        {formatMoney(annualPay(occupation.minMonthlyPay))}/yr
+                        {/* AT TODAY'S PRICES (playtest: "The Jobs tab listed
+                            'bookkeeper — $5,004.00/yr,' but the actual
+                            interview offer... was '$25,809.84/yr' — roughly
+                            5x"). The band is stored in base-year cents and
+                            this line printed it raw, so the gap between the
+                            listing and the offer was simply fifty years of
+                            inflation. Career.tsx's Openings sub-tab already
+                            converts; this was the one listing that did not,
+                            which is also why the two screens disagreed. */}
+                        {formatMoney(annualPay(atTodaysPrices(world, occupation.minMonthlyPay) as Money))}/yr
                       </span>
                     </div>
                     <div className="op-emp">
@@ -2269,18 +2355,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const unlocks = veteranUnlocks(world, person.id)
             return (
               <>
-                {/* The door first for a veteran — it is the one thing on
-                    this screen they might act on — and their record under
-                    it, which is the thing they came to read. */}
-                {discharged && serviceTab === 'career' && (
-                  <RecruitingStationView
-                    world={world}
-                    personId={person.id}
-                    bar={enlistmentBar(world, person, world.tick)}
-                    busy={busy}
-                    onEnlist={onRequestEnlist}
-                  />
-                )}
+                {/* THE RECORD LEADS (playtest: the default view "should
+                    reflect prior service for anyone with an existing record
+                    instead of always pitching fresh enlistment"). The door
+                    used to come first, on the theory it was the actionable
+                    thing — but for most veterans it is not actionable at
+                    all: a medical discharge is RE-4 and the recruiter will
+                    not process them. A pitch above a record it contradicts
+                    read as a bug, because it was one. Now the record is the
+                    screen, and the door appears under it only when the
+                    recruiter would actually open it; a barred veteran gets
+                    the refusal as one quiet line instead of a storefront. */}
                 {serviceTab === 'career' && (
                 <dl className="facts">
                   <dt>Branch</dt>
@@ -2407,6 +2492,21 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </>
                   )}
                 </dl>
+                )}
+                {discharged && serviceTab === 'career' && (
+                  enlistmentBar(world, person, world.tick) === null ? (
+                    <RecruitingStationView
+                      world={world}
+                      personId={person.id}
+                      bar={null}
+                      busy={busy}
+                      onEnlist={onRequestEnlist}
+                    />
+                  ) : (
+                    <p className="muted small">
+                      The recruiter's door: {enlistmentBar(world, person, world.tick)}
+                    </p>
+                  )
                 )}
                 {record.dischargedAtTick === null && serviceTab === 'career' &&
                   (() => {

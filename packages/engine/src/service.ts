@@ -2403,7 +2403,23 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
       // no alternative. The player is selected, or passed over, like
       // everybody else.
       const senior = !commissioned && isSeniorBand(branchSpec.grades[gates.targetRank] ?? 0)
-      if (over >= 0 && over % 12 <= 2 && !askedRecently && !owesSchool && !senior) {
+      /**
+       * NO WINDOW ON TOP OF THE CADENCE (owner, playing: "I am not getting
+       * past the rank of spc").
+       *
+       * The ask used to require `over % 12 <= 2` — a three-month window out
+       * of every twelve past the time-in-grade mark. But `raisePending`
+       * refuses while ANY other question is up, and the questions never
+       * stop in the years this matters: deployments, engagements, work
+       * moments, family. Every window a busy life missed cost a year's
+       * wait, and SPC→SGT is the FIRST board rank — which is exactly where
+       * careers were stalling.
+       *
+       * The `askedRecently` guard below already provides the annual
+       * cadence after an ANSWER; the window only punished the months when
+       * the slot happened to be full. First eligible free month asks now.
+       */
+      if (over >= 0 && !askedRecently && !owesSchool && !senior) {
         raisePending(world, {
           tick,
           kind: 'promotion-board',

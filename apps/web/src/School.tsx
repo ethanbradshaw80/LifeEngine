@@ -123,6 +123,81 @@ export function School({
   const at = record.enrolledIn ?? record.level
   const higher = at === 'college' || at === 'trade' || at === 'graduate'
 
+  /**
+   * SCHOOL IS OVER FOR MOST ADULTS (playtest, Jack Baldwin: "clicking
+   * School at age 55 rendered... '2.0 GPA — C average · high school,'
+   * complete with 'College admission odds: Narrow'... and 'Study / Join a
+   * team' action buttons").
+   *
+   * `at` falls back from what they are enrolled in to what they ATTAINED,
+   * and nothing ever asked whether they were enrolled at all — so a
+   * fifty-five-year-old veteran was shown his teenage report card as if it
+   * were live, admission odds for a college he was never going to sit, and
+   * a button to join a school team. Stale childhood state, never re-gated
+   * by age: exactly what the review called it.
+   *
+   * An adult out of school gets a TRANSCRIPT — what they finished, what it
+   * was like, the loan if it still follows them — and the door to go back
+   * (night school is a real path; the enrol bar decides, not the age).
+   */
+  const levelWords = (l: string): string => l === 'college' ? 'College' : l === 'graduate' ? 'Graduate school' : l === 'trade' ? 'Trade school' : l === 'highschool' ? 'High school' : l === 'primary' ? 'Primary school' : l.charAt(0).toUpperCase() + l.slice(1)
+  if (record.enrolledIn === null && age >= 19) {
+    const attained =
+      record.level === 'none'
+        ? 'No schooling on record'
+        : record.level === 'college' || record.level === 'graduate'
+          ? `${levelWords(record.level)} — ${field?.title ?? 'no major on file'}`
+          : levelWords(record.level)
+    return (
+      <div className="school">
+        <div className="school-head">
+          <div className="k">Education</div>
+          <div className="school-title">{attained}</div>
+          <div className="muted small">
+            Finished. The record stands — a {report.figure} GPA, {report.letter} average.
+          </div>
+        </div>
+        {loan !== undefined && (
+          <section className="school-card">
+            <h3>Student loan</h3>
+            <p>
+              {formatMoney(loan.balance)} still owed.{' '}
+              {loan.balance > 0 ? 'This one is not cleared by bankruptcy.' : ''}
+            </p>
+          </section>
+        )}
+        {enrolBar === null ? (
+          <section className="school-card">
+            <h3>Going back</h3>
+            <p className="muted small">
+              The door is open — a course fits around a working life, and the money is the story.
+            </p>
+            <div className="verb-row">
+              <button
+                type="button"
+                className="apply primary"
+                disabled={busy}
+                onClick={() => onAct({ verb: 're-enrol', level: 'college' })}
+              >
+                University
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 're-enrol', level: 'trade' })}
+              >
+                Trade school
+              </button>
+            </div>
+          </section>
+        ) : (
+          <p className="muted small">{enrolBar}</p>
+        )}
+      </div>
+    )
+  }
+
   const smarts = smartsOf(world, person.id)
   const wellbeing = wellbeingOf(world, person.id)
   const studying = (world.habits.get(person.id)?.active ?? []).some((h) => h.kind === 'study')

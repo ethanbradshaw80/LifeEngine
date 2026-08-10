@@ -160,8 +160,24 @@ export function Bank({
                 const left = household ? monthlyNetOf(world, household) : (0 as Money)
                 return (
                   <>
+                    {/* NAMED FOR WHAT IT IS (playtest: after retiring,
+                        "Your pay: $172,804.92/yr" — "a figure that doesn't
+                        reconcile with pension income... or any prior
+                        salary"). It reconciled perfectly — it WAS the
+                        pensions, at today's prices, printed under a label
+                        that says wages. The reviewer chased a phantom
+                        salary because the label lied about the
+                        composition. `personalIncome` is wages + service
+                        pay + sports pay + pensions; the label now follows
+                        whichever is actually flowing. */}
                     <Row
-                      label="Your pay"
+                      label={
+                        (world.employment.get(person.id)?.monthlyPay ?? 0) > 0
+                          ? 'Your pay'
+                          : gross > 0
+                            ? 'Pensions & benefits'
+                            : 'Your pay'
+                      }
                       value={gross > 0 ? `${formatMoney(annualPay(gross))} / yr` : 'no wages'}
                     />
                     <Row
