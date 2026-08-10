@@ -4958,6 +4958,21 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .sq-state.s-evac { color: var(--amber); }
 .sq-state.s-kia { color: var(--bad); }
 
+/* A PAST TOUR'S ROSTER, unfolded under its line in the deployment list.
+   Same rows as the live tour panel — the people are the same people. */
+.tour-squad-past {
+  margin: 0.4rem 0 0.6rem 2.4rem;
+  padding: 0.4rem 0.6rem;
+  border-left: 2px solid var(--line);
+}
+
+.tour-history-btn {
+  margin-left: auto;
+  flex: none;
+  font-size: 0.7rem;
+  padding: 0.2rem 0.55rem;
+}
+
 /* WHAT THE LAST HAND DID (owner: "it doesn't tell you if you win or lose
    after you do the decision"). Read from the settled event, shown where the
    player's eyes already are when the overlay closes. */

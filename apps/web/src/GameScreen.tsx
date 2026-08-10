@@ -666,6 +666,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       ? 'deployments'
       : 'career'
   })
+  // Which past tour's roster is open on the Deployments list. Interface
+  // state only — the rosters themselves live on the deployment records.
+  const [openTourHistory, setOpenTourHistory] = useState<number | null>(null)
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -2889,7 +2892,83 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                               ? ` · came home ${formatYear(world, tour.returnedAtTick)}`
                               : ' · still there'}
                           </span>
+                          <button
+                            type="button"
+                            className="apply tour-history-btn"
+                            onClick={() =>
+                              setOpenTourHistory(
+                                openTourHistory === tour.tourNumber ? null : tour.tourNumber,
+                              )
+                            }
+                          >
+                            {openTourHistory === tour.tourNumber ? 'Close' : 'History'}
+                          </button>
                         </div>
+                        {/* THE PEOPLE YOU WERE THERE WITH (owner: "there
+                            should be a 'history' button and it shows your
+                            squad and the guys you were there with,
+                            including the ones that died"). The rosters
+                            were always on the deployment records — the
+                            squad persists, spec §2, "squadmates are real
+                            registered NPCs" — but only the CURRENT tour
+                            ever showed its people. A finished tour showed
+                            a date and an enemy, as if you had gone alone.
+                            The dead stay on the list, which is the
+                            game's oldest rule about squads. */}
+                        {openTourHistory === tour.tourNumber && (
+                          <div className="tour-squad tour-squad-past">
+                            {(tour.squad ?? []).length === 0 ? (
+                              <p className="muted small">
+                                No roster survives from this tour.
+                              </p>
+                            ) : (
+                              (tour.squad ?? []).map((member) => {
+                                const them = world.people.get(member.personId)
+                                if (them === undefined) return null
+                                const over = tour.returnedAtTick ?? world.tick
+                                const fellHere =
+                                  them.deathTick !== null &&
+                                  them.deathTick >= tour.startedAtTick &&
+                                  them.deathTick <= over
+                                const diedSince = them.deathTick !== null && !fellHere
+                                const state = fellHere ? 'kia' : diedSince ? 'kia' : 'ok'
+                                const words = fellHere
+                                  ? `KIA · ${formatYear(world, them.deathTick ?? over)}`
+                                  : diedSince
+                                    ? `died ${formatYear(world, them.deathTick ?? world.tick)}`
+                                    : `${String(ageAt(them.birthTick, world.tick))} now`
+                                return (
+                                  <div
+                                    key={member.personId}
+                                    className={fellHere ? 'sq-row gone' : 'sq-row'}
+                                  >
+                                    <span className="sq-ic" aria-hidden="true">
+                                      {member.role === 'medic'
+                                        ? '💊'
+                                        : member.role === 'radio'
+                                          ? '📻'
+                                          : member.role === 'leader'
+                                            ? '🎖️'
+                                            : '🪖'}
+                                    </span>
+                                    <div>
+                                      <div className="nm">
+                                        {member.nickname.length > 0
+                                          ? `${them.givenName} "${member.nickname}" ${them.familyName}`
+                                          : `${them.givenName} ${them.familyName}`}
+                                      </div>
+                                      <div className="sub">{member.role.replace(/-/g, ' ')}</div>
+                                    </div>
+                                    <span className={`sq-state s-${state}`}>
+                                      <i className={`sq-dot d-${state}`} aria-hidden="true" />
+                                      {words}
+                                    </span>
+                                  </div>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ol>
