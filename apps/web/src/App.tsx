@@ -142,6 +142,14 @@ export function App() {
   // The month a plea was answered, so the verdict can be read back and shown
   // as its own moment. Interface state: the case is already on the record.
   const [verdictTick, setVerdictTick] = useState<number | null>(null)
+  /**
+   * WHOSE DEATH HAS BEEN SEEN. The certificate must render the moment the
+   * player dies, wherever they were — and then never again for the same
+   * life once it is closed. Keyed by person id rather than a boolean so a
+   * new life (a different id) gets its own ending, and an heir's death is
+   * not swallowed by their parent's.
+   */
+  const [mournedId, setMournedId] = useState<EntityId | null>(null)
   const busy = status === 'working' || status === 'starting'
   const verdict =
     world !== null && verdictTick !== null && world.player.personId !== null
@@ -242,6 +250,69 @@ export function App() {
       </div>
     )
   }
+
+  /**
+   * THE BOOKEND, AHEAD OF EVERY OTHER SCREEN (owner, playing: "I just died
+   * and didn't get the death screen").
+   *
+   * This branch used to sit BELOW the front door, so it only rendered when
+   * `front === 'engine'` — which is why the playtest saw the certificate
+   * only after pressing "Continue" (the press set front to engine), and why
+   * hiding Continue for the dead made the certificate unreachable
+   * altogether. A death is the one moment the interface must not route
+   * around: it renders here, wherever the player was standing, and the
+   * `mournedId` guard is what lets the close button actually leave.
+   */
+  if (playerPerson && playerDead && world !== null && mournedId !== playerPerson.id) {
+    const years = Math.max(
+      0,
+      Math.floor(((playerPerson.deathTick ?? world.tick) - playerPerson.birthTick) / 12),
+    )
+    const registryNo = registryNoFor(
+      playerPerson.id,
+      playerPerson.givenName,
+      playerPerson.familyName,
+    )
+    const fullName = `${playerPerson.givenName} ${playerPerson.familyName}`
+    return (
+      <DeathCertificate
+        registryNo={registryNo}
+        name={fullName}
+        ageWords={`${String(years)} years`}
+        dateWords={String(1970 + Math.floor((playerPerson.deathTick ?? world.tick) / 12))}
+        placeWords="this world"
+        // NEVER INVENTED HERE. The engine recorded a cause when it
+        // happened; Law 3 says the record explains itself.
+        cause={playerPerson.causeOfDeath ?? 'natural causes'}
+        obituary={`${fullName} lived ${String(years)} years in a world that went on without asking, and went on after.`}
+        survivedBy={[...world.people.values()]
+          .filter((p) => p.deathTick === null && p.parentIds.includes(playerPerson.id))
+          .slice(0, 6)
+          .map((p) => ({
+            role: 'Child',
+            name: `${p.givenName} ${p.familyName}`,
+            meta: `${String(Math.floor((world.tick - p.birthTick) / 12))}`,
+          }))}
+        serviceLine={
+          world.service.get(playerPerson.id) === undefined
+            ? null
+            : 'Served. The record is in the file, and the file is longer than this page.'
+        }
+        epitaph="The countries were real. The history was this world's own. The life was theirs."
+        onClose={() => {
+          archive({
+            registryNo,
+            name: fullName,
+            years: String(years),
+            headline: playerPerson.causeOfDeath ?? 'a life',
+          })
+          setMournedId(playerPerson.id)
+          setFront('past')
+        }}
+      />
+    )
+  }
+
 
   // THE FRONT DOOR, ahead of everything. A player who is mid-life goes
   // straight to their life; everybody else sees a game rather than a
@@ -353,57 +424,6 @@ export function App() {
         onContinue={() => setFront('engine')}
         onPastLives={() => setFront('engine')}
         onEngine={() => setFront('engine')}
-      />
-    )
-  }
-
-  // THE BOOKEND. A life that has ended closes on the document that mirrors
-  // the one it opened on — same registry number, same seal.
-  if (playerPerson && playerDead && world !== null) {
-    const years = Math.max(
-      0,
-      Math.floor(((playerPerson.deathTick ?? world.tick) - playerPerson.birthTick) / 12),
-    )
-    const registryNo = registryNoFor(
-      playerPerson.id,
-      playerPerson.givenName,
-      playerPerson.familyName,
-    )
-    const fullName = `${playerPerson.givenName} ${playerPerson.familyName}`
-    return (
-      <DeathCertificate
-        registryNo={registryNo}
-        name={fullName}
-        ageWords={`${String(years)} years`}
-        dateWords={String(1970 + Math.floor((playerPerson.deathTick ?? world.tick) / 12))}
-        placeWords="this world"
-        // NEVER INVENTED HERE. The engine recorded a cause when it
-        // happened; Law 3 says the record explains itself.
-        cause={playerPerson.causeOfDeath ?? 'natural causes'}
-        obituary={`${fullName} lived ${String(years)} years in a world that went on without asking, and went on after.`}
-        survivedBy={[...world.people.values()]
-          .filter((p) => p.deathTick === null && p.parentIds.includes(playerPerson.id))
-          .slice(0, 6)
-          .map((p) => ({
-            role: 'Child',
-            name: `${p.givenName} ${p.familyName}`,
-            meta: `${String(Math.floor((world.tick - p.birthTick) / 12))}`,
-          }))}
-        serviceLine={
-          world.service.get(playerPerson.id) === undefined
-            ? null
-            : 'Served. The record is in the file, and the file is longer than this page.'
-        }
-        epitaph="The countries were real. The history was this world's own. The life was theirs."
-        onClose={() => {
-          archive({
-            registryNo,
-            name: fullName,
-            years: String(years),
-            headline: playerPerson.causeOfDeath ?? 'a life',
-          })
-          setFront('past')
-        }}
       />
     )
   }

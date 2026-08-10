@@ -2172,9 +2172,30 @@ function runInsolvency(world: World, tick: Tick): void {
   // The means test is against what this town actually earns, so it moves
   // with the economy instead of being a number typed once.
   const spare: number[] = []
+  /**
+   * COMPUTED ONCE, USED TWICE (profiled at world-year 200: this function
+   * was the single most expensive item in the month at 768ms per twelve
+   * ticks, and half of it was computing every household's income and costs
+   * for the median here and then AGAIN, identically, in the action loop
+   * below).
+   *
+   * SAFE TO CACHE, and verified rather than assumed: the action loop's
+   * mutations — bankruptcy filings, voided holdings, written debts — touch
+   * nothing these two functions read. `householdIncome` is wages, service
+   * pay, sports pay and pensions; `householdCosts` is rent, living costs
+   * and tuition. None of those move when another household files. The
+   * golden fingerprints are the proof: they were pinned before this cache
+   * and pass unchanged with it, which is only possible if every reused
+   * value equals what the recomputation returned.
+   */
+  const cached = new Map<number, { income: Money; costs: Money }>()
   for (const household of world.households.values()) {
     if (household.dissolvedTick !== null) continue
-    spare.push(householdIncome(world, household) - householdCosts(world, household))
+    const held = cached.get(household.id)
+    const income = held?.income ?? householdIncome(world, household)
+    const costs = held?.costs ?? householdCosts(world, household)
+    cached.set(household.id, { income, costs })
+    spare.push(income - costs)
   }
   const townMedian = medianMonthlyIncome(spare)
 
