@@ -3300,9 +3300,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         <button type="button" className="age-up" disabled={busy} onClick={() => { setTab('story'); onAdvance(12) }}>
           {busy ? '…' : 'Age a year'}
         </button>
-        <button type="button" disabled={busy} onClick={() => { setTab('story'); onAdvance(60) }}>
-          + 5 years
-        </button>
+        {/* NO FIVE-YEAR SKIP (owner: "remove the +5 year option"). Five
+            years at a press outran everything the game asks a player to
+            notice — boards, schools, children, whole deployments resolved
+            unseen. A month and a year are the two speeds a life reads at. */}
       </footer>
     </div>
   )
