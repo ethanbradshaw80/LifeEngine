@@ -698,7 +698,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     // The service feed is asked WHOSE story this is, so a recruiting season
     // reaches the people it could be about rather than everyone alive.
     const news = [
-      ...newsSince(world, person.birthTick),
+      // THE STORY IS A LIFE, NOT A PAPER (owner: "we don't need the news of
+      // the mayor and shit to be in the actual feed on 'story'"). Elections
+      // and civic items belong on the News tab, which has a whole desk for
+      // them — the personal feed keeps only the news that reaches into a
+      // life from outside: wars, call-ups, the things a family actually
+      // stops dinner to talk about. The player's OWN swearing-in still
+      // appears here, because that arrives through their personal timeline,
+      // not the wire.
+      ...newsSince(world, person.birthTick).filter((item) => item.kind !== 'election'),
       ...serviceNewsSince(world, person.birthTick, person.id),
     ]
     const merged: (
@@ -3286,13 +3294,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       {notice !== null && <div className="action-notice">{notice}</div>}
 
       <footer className="action-bar">
-        <button type="button" disabled={busy} onClick={() => onAdvance(1)}>
+        <button type="button" disabled={busy} onClick={() => { setTab('story'); onAdvance(1) }}>
           + month
         </button>
-        <button type="button" className="age-up" disabled={busy} onClick={() => onAdvance(12)}>
+        <button type="button" className="age-up" disabled={busy} onClick={() => { setTab('story'); onAdvance(12) }}>
           {busy ? '…' : 'Age a year'}
         </button>
-        <button type="button" disabled={busy} onClick={() => onAdvance(60)}>
+        <button type="button" disabled={busy} onClick={() => { setTab('story'); onAdvance(60) }}>
           + 5 years
         </button>
       </footer>
