@@ -4966,6 +4966,16 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
   border-left: 2px solid var(--line);
 }
 
+/* A QUIET STRETCH, said in the player's pacing — blue, brief, and honest
+   about a month or a year in which nothing asked for ink. */
+.feed-quiet {
+  margin: 0.3rem 0;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-style: italic;
+  opacity: 0.85;
+}
+
 /* THE YEAR JUST GONE — a wrap card at the head of the story, gathered from
    the feed rather than invented (playtest idea #11). */
 .year-wrap {

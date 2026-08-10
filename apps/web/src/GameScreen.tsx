@@ -313,7 +313,8 @@ const GROUPS: readonly { id: string; icon: string; label: string; tabs: readonly
   { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career'] },
   { id: 'g-people', icon: '👪', label: 'People', tabs: ['family', 'people'] },
   { id: 'g-service', icon: '🪖', label: 'Service', tabs: ['service'] },
-  { id: 'g-town', icon: '🏙️', label: 'Town', tabs: ['record', 'cityhall', 'news', 'stats', 'sports'] },
+  { id: 'g-news', icon: '📰', label: 'News', tabs: ['news'] },
+  { id: 'g-town', icon: '🏙️', label: 'Town', tabs: ['record', 'cityhall', 'stats', 'sports'] },
 ]
 
 const TABS: readonly { id: Tab; icon: string; label: string }[] = [
@@ -645,6 +646,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // id of their own because they are derived from events, not stored.
   const [openArticles, setOpenArticles] = useState<ReadonlySet<string>>(new Set())
   const [tab, setTab] = useState<Tab>('story')
+  /**
+   * THE QUIET STRETCHES, ACKNOWLEDGED (owner: "even if nothing happens it
+   * should show the month and say so... I think the only time months
+   * should be shown is when the player advances by the month tho").
+   *
+   * A feed that skips silently from March 1974 to March 1975 reads like a
+   * broken screen, not a quiet year. So every press of an age button that
+   * produces NOTHING visible leaves one marker at the granularity of the
+   * press — a month line for a month step, a year line for a year step.
+   *
+   * INTERFACE STATE, deliberately. "Nothing happened" is a fact about what
+   * the player witnessed between two presses, not about the world — the
+   * engine records what happened, and no record IS the record. Session
+   * scoped: reloading a save rebuilds the story from the world, which
+   * cannot and should not know how somebody paced their way through it.
+   */
+  const [quietSpans, setQuietSpans] = useState<readonly { tick: number; months: number }[]>([])
+  const pendingAdvance = useRef<{ from: number; months: number } | null>(null)
+
   // Which room the player was last in, per door. Interface state only.
   const lastInGroup = useRef<Record<string, Tab>>({})
   useEffect(() => {
@@ -712,12 +732,32 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     const merged: (
       | { kind: 'life'; tick: number; entry: (typeof entries)[number] }
       | { kind: 'news'; tick: number; text: string; nearby: boolean }
+      | { kind: 'quiet'; tick: number; months: number }
     )[] = []
     for (const entry of entries) merged.push({ kind: 'life', tick: entry.tick, entry })
     for (const item of news) merged.push({ kind: 'news', tick: item.tick, text: item.text, nearby: item.nearby })
+    // THE QUIET LINES, threaded where their presses landed — month-worded
+    // for a month step, year-worded for a year step. The only time the
+    // feed speaks in months is when the player walked in months.
+    for (const span of quietSpans) merged.push({ kind: 'quiet', tick: span.tick, months: span.months })
     merged.sort((x, y) => x.tick - y.tick)
     return merged
-  }, [world, person.birthTick, person.id, entries])
+  }, [world, person.birthTick, person.id, entries, quietSpans])
+
+  // A finished press with nothing to show leaves its marker.
+  useEffect(() => {
+    const pending = pendingAdvance.current
+    if (pending === null) return
+    if (world.tick < pending.from + pending.months) return // still advancing
+    pendingAdvance.current = null
+    const landed = feedItems.some(
+      (item) => item.tick > pending.from && item.tick <= world.tick,
+    )
+    if (!landed) {
+      setQuietSpans((spans) => [...spans, { tick: world.tick, months: pending.months }])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world.tick])
 
   // The feed follows the life: new events scroll into view as years pass.
   useEffect(() => {
@@ -1032,6 +1072,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             const previous = feedItems[index - 1]
             const year = formatYear(world, item.tick as never)
             const showYear = previous === undefined || formatYear(world, previous.tick as never) !== year
+
+            if (item.kind === 'quiet') {
+              return (
+                <p key={`quiet-${item.tick}-${item.months}`} className="feed-quiet">
+                  {item.months <= 1
+                    ? `${formatDate(world, item.tick as never)} — nothing happened this month.`
+                    : `${year} — a quiet year. Nothing worth writing down.`}
+                </p>
+              )
+            }
 
             if (item.kind === 'news') {
               return (
@@ -3294,10 +3344,10 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       {notice !== null && <div className="action-notice">{notice}</div>}
 
       <footer className="action-bar">
-        <button type="button" disabled={busy} onClick={() => { setTab('story'); onAdvance(1) }}>
+        <button type="button" disabled={busy} onClick={() => { setTab('story'); pendingAdvance.current = { from: world.tick, months: 1 }; onAdvance(1) }}>
           + month
         </button>
-        <button type="button" className="age-up" disabled={busy} onClick={() => { setTab('story'); onAdvance(12) }}>
+        <button type="button" className="age-up" disabled={busy} onClick={() => { setTab('story'); pendingAdvance.current = { from: world.tick, months: 12 }; onAdvance(12) }}>
           {busy ? '…' : 'Age a year'}
         </button>
         {/* NO FIVE-YEAR SKIP (owner: "remove the +5 year option"). Five
