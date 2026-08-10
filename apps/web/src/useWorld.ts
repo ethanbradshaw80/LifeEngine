@@ -170,7 +170,16 @@ export function useWorld(initialSeed: number): WorldController {
       }
 
       const request: WorkerRequest =
-        stored === undefined ? { type: 'new', seed: initialSeed } : { type: 'load', save: stored }
+        // A FRESH BOOT IS AMERICAN HEARTLAND (owner, releasing: "the engine
+        // starts off as the classic preset and if people don't know how to
+        // change they'll play in that one"). Omitting the preset here fell
+        // through to Classic in the worker, so every first-time player got
+        // the fully fictional Republic without ever being asked. Existing
+        // saves are untouched — the load path keeps whatever world the
+        // save was made in, because a world's preset is its own (ADR-0020).
+        stored === undefined
+          ? { type: 'new', seed: initialSeed, presetId: 'american-heartland' }
+          : { type: 'load', save: stored }
       worker.postMessage(request)
     })()
 

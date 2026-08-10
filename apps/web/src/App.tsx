@@ -71,15 +71,6 @@ export function App() {
   } = useWorld(GOLDEN_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
-  // The preset for the NEXT world. The current world's own preset is
-  // world.spec and cannot be changed (ADR-0020).
-  //
-  // It follows the LOADED world until the player touches it. Without that,
-  // reopening an American Heartland save showed Classic's description —
-  // "an invented country called the Republic" — over a world whose homeland
-  // is the United States, which is worse than no framing at all (military
-  // review, ADR-0021 §3).
-  const [presetId, setPresetId] = useState<string | null>(null)
   const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
@@ -204,7 +195,14 @@ export function App() {
 
   // Null means "whatever this world is" — the picker follows the loaded save
   // until the player chooses otherwise (military review, ADR-0021 §3).
-  const chosenPreset = presetId ?? world?.spec.id ?? 'classic'
+  /**
+   * EVERY NEW WORLD IS AMERICAN HEARTLAND (owner, releasing: "lock that
+   * option and just have it to where you can only play the american
+   * heartland"). Classic stays in the ENGINE — the golden determinism
+   * test runs on it and old saves live in it — but it is no longer a
+   * door a player can walk through by accident.
+   */
+  const chosenPreset = 'american-heartland'
 
   function applySeed() {
     const value = Number.parseInt(seedInput, 10)
@@ -589,19 +587,15 @@ export function App() {
             again: it is fixed for a world's whole life, because place ids
             lead person ids lead trait streams, so the same seed under two
             presets is two different towns. */}
+        {/* THE SETTING IS FIXED. This was a selector, and its default was
+            Classic — so a player who never touched it released themselves
+            into the fictional Republic. One world ships; the line stays as
+            information rather than a choice. */}
         <label className="preset">
           Setting
-          <select
-            value={chosenPreset}
-            disabled={busy}
-            onChange={(event) => setPresetId(event.target.value)}
-          >
-            {PRESETS.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.name}
-              </option>
-            ))}
-          </select>
+          <span className="preset-fixed">
+            {PRESETS.find((preset) => preset.id === chosenPreset)?.name ?? 'American Heartland'}
+          </span>
         </label>
         {/* The preset's own words. For a real homeland this is the
             alternate-history framing WORLD_MODES_PLAN.md requires. */}
