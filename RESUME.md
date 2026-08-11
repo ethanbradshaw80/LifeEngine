@@ -1,5 +1,7 @@
 # Resume Here
 
+> **RELEASED 2026-08-10** — live at https://causagames.itch.io/the-life-simulator (build 4e2a5cf, SIMULATION_VERSION 157, American Heartland only). First two days: 292 views, 102 browser plays, 4 collections.
+
 **Paste this into a new Claude Code session started in `Documents\LifeEngine`:**
 
 ```
