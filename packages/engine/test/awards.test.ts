@@ -28,8 +28,25 @@ import { inflictWound } from '../src/health.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { pensionOf } from '../src/service.js'
 import { recordEvent } from '../src/records.js'
+import { freshHealth } from '../src/health.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
+
+
+  /** The gate reads the record, so an event needs the wound behind it. */
+  function putWoundOnRecord(world: World, personId: EntityId): void {
+    const health = world.health.get(personId) ?? freshHealth(personId)
+    world.health.set(personId, {
+      ...health,
+      ailment: 'injury',
+      ailmentKind: 'shrapnel',
+      ailmentSite: 'arm',
+      severity: 640,
+      peakSeverity: 640,
+      sinceTick: world.tick,
+      ailmentServiceConnected: true,
+    })
+  }
 
 function worldWithASoldier(): { world: World; soldierId: EntityId } {
   const world = createWorld(makeSeed(12345), 100)
@@ -178,6 +195,7 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
 
   it('the qualifying grant works, and a second qualifying event adds a device, not a medal', () => {
     const { world, soldierId } = worldWithASoldier()
+    putWoundOnRecord(world, soldierId)
     const wound = recordEvent(world, world.tick, {
       type: 'wounded-in-action',
       subjectId: soldierId,
@@ -203,6 +221,7 @@ describe('eligibility is strict — the wrong grant FAILS', () => {
 
   it('one qualifying event earns one thing, however often it is submitted', () => {
     const { world, soldierId } = worldWithASoldier()
+    putWoundOnRecord(world, soldierId)
     const wound = recordEvent(world, world.tick, {
       type: 'wounded-in-action',
       subjectId: soldierId,
@@ -326,5 +345,56 @@ describe('the pension', () => {
     const rng = { pick: <T>(items: readonly T[]) => items[0] as T }
     inflictWound(world, world.tick, soldierId, 700, 'direct-combat', rng)
     expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(true)
+  })
+})
+
+describe('the wound decoration is for enemy fire', () => {
+  /**
+   * THE SECOND REPORT OF THE SAME MEDAL (owner, on itch: "I am still be
+   * evacuated and given a purple heart in combat for things like blown out
+   * hearing and 'deep gash on forearm'... we talked about this already").
+   *
+   * The first fix gated ONE of the five call sites. These tests pin the
+   * granter itself, so there is no call site left to forget.
+   */
+  function woundedSoldier(kind: string, severity: number) {
+    const { world, soldierId: personId } = worldWithASoldier()
+    const health = world.health.get(personId) ?? freshHealth(personId)
+    world.health.set(personId, {
+      ...health,
+      ailment: 'injury',
+      ailmentKind: kind,
+      ailmentSite: 'arm',
+      severity,
+      peakSeverity: severity,
+      sinceTick: world.tick,
+      ailmentServiceConnected: true,
+    })
+    const event = recordEvent(world, world.tick, {
+      type: 'wounded-in-action',
+      subjectId: personId,
+      detail: 'serious:a wound',
+    })
+    return { world, personId, event }
+  }
+
+  it('refuses blown-out hearing, whatever the event says', () => {
+    const { world, personId, event } = woundedSoldier('hearing-damage', 320)
+    expect(grantWoundRecognition(world, world.tick, personId, event, 'Rondesia')).toBeNull()
+  })
+
+  it('refuses the deep gash on the forearm', () => {
+    const { world, personId, event } = woundedSoldier('laceration', 560)
+    expect(grantWoundRecognition(world, world.tick, personId, event, 'Rondesia')).toBeNull()
+  })
+
+  it('grants for the gunshot', () => {
+    const { world, personId, event } = woundedSoldier('gunshot', 700)
+    expect(grantWoundRecognition(world, world.tick, personId, event, 'Rondesia')).not.toBeNull()
+  })
+
+  it('refuses even enemy-fire kinds below citation severity', () => {
+    const { world, personId, event } = woundedSoldier('shrapnel', 200)
+    expect(grantWoundRecognition(world, world.tick, personId, event, 'Rondesia')).toBeNull()
   })
 })

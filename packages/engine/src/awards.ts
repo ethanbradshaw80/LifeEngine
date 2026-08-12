@@ -135,6 +135,29 @@ export function grantWoundRecognition(
     (qualifying.type === 'died' && qualifying.detail === 'wounds taken in action')
   if (!enemyAction) return null
 
+  /**
+   * THE DECORATION IS FOR ENEMY FIRE, GATED HERE AND NOWHERE ELSE (owner,
+   * twice now: "purple heart is for people wounded in combat by enemy fire
+   * or contact"). Five call sites grant this across two wound pipelines;
+   * a gate at any one of them is a gate with four ways around it — the
+   * first attempt proved that in production. The granter itself now reads
+   * the wound off the health record: a kind enemy fire produces, at a
+   * severity worth a citation. A death from wounds always qualifies.
+   */
+  if (qualifying.type === 'wounded-in-action') {
+    const record = world.health.get(personId)
+    const kind = record?.ailmentKind ?? null
+    const ENEMY_FIRE: ReadonlySet<string> = new Set([
+      'gunshot',
+      'shrapnel',
+      'blast',
+      'burns',
+      'chemical-burns',
+    ])
+    if (kind === null || !ENEMY_FIRE.has(kind)) return null
+    if ((record?.severity ?? 0) < 300) return null
+  }
+
   return grant(world, tick, personId, {
     kind: 'wound-recognition',
     title: WOUND_RECOGNITION_TITLE,

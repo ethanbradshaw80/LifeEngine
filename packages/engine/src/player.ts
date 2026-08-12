@@ -3602,11 +3602,25 @@ function resolveMomentCasualty(
   }
 
   const wound = inflictWound(world, tick, person.id, severity, 'direct-combat', rng)
+  /**
+   * EVERYTHING BELOW READS THE WOUND, NOT THE DRAW (owner, on itch, the
+   * SECOND report: "I am still be evacuated and given a purple heart in
+   * combat for things like blown out hearing and 'deep gash on forearm'").
+   *
+   * The raw draw decided the serious/minor label and the evacuation while
+   * `inflictWound` capped the RECORD by kind — so a hearing wound drawn at
+   * 700 was stored as minor (320), never crossed the field-aid threshold,
+   * and was medevaced and decorated anyway off the number the record had
+   * already rejected. Third instance of the same pre-cap-variable bug;
+   * the first fix only reached the abstract pipeline, and the per-tour
+   * scene guarantee then routed MORE combat through this one. The label,
+   * the evacuation and the medal now all read `wound.severity`.
+   */
   const woundEvent = recordEvent(world, tick, {
     type: 'wounded-in-action',
     subjectId: person.id,
     ...(enemyId !== null ? { otherId: enemyId } : {}),
-    detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+    detail: `${wound.severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
   })
   grantWoundRecognition(world, tick, person.id, woundEvent, enemyName)
   // NOTE: field aid for a combat-moment wound cannot be raised here — the
@@ -3614,7 +3628,7 @@ function resolveMomentCasualty(
   // the ask would be silently refused (review S7 found this comment
   // claiming otherwise). resolvePending raises it after the commit; the
   // evacuation is what happens here.
-  if (severity >= 600) evacuateHome(world, tick, person.id)
+  if (wound.severity >= 600) evacuateHome(world, tick, person.id)
 }
 
 /**
