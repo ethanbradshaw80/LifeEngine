@@ -1198,7 +1198,19 @@ export function fieldAidWillBeOffered(
   pendingSlotFree = true,
 ): boolean {
   const playerId = world.player.personId
-  if (playerId === null || severity < 600) return false
+  if (playerId === null) return false
+  /**
+   * THE PLAYER SEES EVERY WOUND THAT MATTERS (owner, THIRD report: "still
+   * didn't get the popups of the wounds of when I got hurt"). The 600
+   * floor meant a kind-capped wound — a gash at 560, a concussion at 520 —
+   * never opened a moment at all: the player learned they had been hit
+   * from a feed line. Their own wound now shows from 300 up; what changes
+   * with severity is the QUESTION, not the visibility — under 600 there is
+   * no life to fight for, only a wound to see and get dressed. A
+   * squadmate's wound keeps the 600 bar: the medic scene is for the
+   * minutes that decide it, not for every scrape in the platoon.
+   */
+  if (severity < (casualtyId === playerId ? 300 : 600)) return false
   if (pendingSlotFree && world.player.pending !== null) return false
   if (casualtyId === playerId) {
     const person = world.people.get(playerId)
@@ -1259,7 +1271,10 @@ export function offerFieldAid(
       workplaceId: null,
       monthlyPay: null,
       placeId: null,
-      options: ['press-the-wound', 'call-for-help', 'lie-still'],
+      options:
+        severity >= 600
+          ? ['press-the-wound', 'call-for-help', 'lie-still']
+          : ['get-it-dressed'],
     })
   }
 

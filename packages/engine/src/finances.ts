@@ -27,6 +27,7 @@ import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor }
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { eventsFor } from './eventindex.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
@@ -3622,6 +3623,30 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
   const households = [...world.households.values()]
   for (const household of households) {
     if (household.dissolvedTick !== null || household.savings >= 0) continue
+    /**
+     * ONE MOVE, THEN TIME TO LIVE IN IT (owner, on itch, live: "still
+     * getting caught up in the lost the housing, nowhere cheaper to go,
+     * and switching new roofs"). This pass gated on debt size and monthly
+     * shortfall but never on WHEN the household last moved — so a family
+     * still underwater after moving down was moved again the next month,
+     * and the next, a cascade of roofs that read as churn because it was.
+     * A move is a chance to dig out, and a chance takes seasons: no
+     * household is pushed twice within a year.
+     */
+    const head0 = eldestMember(world, household)
+    if (head0 !== undefined) {
+      const events = eventsFor(world, head0.id)
+      let movedRecently = false
+      for (let i = events.length - 1; i >= 0; i -= 1) {
+        const event = events[i]
+        if (event === undefined || tick - event.tick >= 12) break
+        if (event.type === 'moved-house' || event.type === 'rehoused') {
+          movedRecently = true
+          break
+        }
+      }
+      if (movedRecently) continue
+    }
 
     const income = householdIncome(world, household)
     const costs = householdCosts(world, household)

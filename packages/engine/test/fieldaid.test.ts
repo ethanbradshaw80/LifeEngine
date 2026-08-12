@@ -29,10 +29,22 @@ function woundedPlayer(seedValue: number, severity: number): { world: World; id:
 }
 
 describe('the field-aid moment', () => {
-  it('is offered for serious wounds and never for minor ones', () => {
+  it('shows every wound that matters, and asks by the stakes', () => {
+    /**
+     * THE RULE THIS TEST GUARDED WAS THE THIRD REPORT (owner: "still
+     * didn't get the popups of the wounds of when I got hurt"). A wound
+     * at 400 got no moment at all — the player learned they were hit from
+     * a feed line. The player's own wound now shows from 300 up; what
+     * severity changes is the QUESTION. Under 600 there is no life to
+     * fight for, so the only option is seeing it and getting it dressed.
+     */
     const minor = woundedPlayer(12345, 400)
-    expect(offerFieldAid(minor.world, minor.world.tick, minor.id, 400)).toBe(false)
-    expect(minor.world.player.pending).toBeNull()
+    expect(offerFieldAid(minor.world, minor.world.tick, minor.id, 400)).toBe(true)
+    expect(minor.world.player.pending?.kind).toBe('first-aid')
+    expect(minor.world.player.pending?.options).toEqual(['get-it-dressed'])
+
+    const scratch = woundedPlayer(777, 250)
+    expect(offerFieldAid(scratch.world, scratch.world.tick, scratch.id, 250)).toBe(false)
 
     const serious = woundedPlayer(12345, 780)
     expect(offerFieldAid(serious.world, serious.world.tick, serious.id, 780)).toBe(true)

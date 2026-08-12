@@ -5433,6 +5433,16 @@ function resolveFieldAid(
   let delayCost: number
   let chosen: string
   switch (choice) {
+    // A wound below the fight-for-your-life line: seen, dressed, carried.
+    // The safest parameters in the table, because there is nothing here to
+    // gamble with — the moment exists so the player SEES the hit, which is
+    // what three reports asked for.
+    case 'get-it-dressed':
+      skill = 700 + trained
+      extraExposure = 0
+      delayCost = 0
+      chosen = 'got it dressed and stayed in the fight'
+      break
     case 'press-the-wound':
     case 'work-the-wound':
       skill = 520 + trained + Math.floor(actor.traits.resilience / 5)

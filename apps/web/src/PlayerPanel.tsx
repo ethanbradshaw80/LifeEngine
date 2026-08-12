@@ -314,6 +314,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   'support-deployment': { 'stay-and-fight': 'Stay and fight', 'go-home': 'Go home' },
   desperation: { 'take-it': 'Take it', 'go-without': 'Go without' },
   'first-aid': {
+    'get-it-dressed': 'Get it dressed',
     'press-the-wound': 'Press the wound',
     'call-for-help': 'Call out for help',
     'lie-still': 'Lie still',
