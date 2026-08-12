@@ -1839,8 +1839,77 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // for a year. The same reasoning the career discharges below already use
   // for a theatre: the boat home first.
   if (disability >= MEDICAL_LIMIT && !isCaptive(world, person.id)) {
-    discharge(world, tick, person, record, 'medical', [factor('medically-unfit', disability)])
-    return
+    /**
+     * THE BOARD CONVENES INSTEAD OF THE TRAPDOOR OPENING (live player, on
+     * itch: "I heal up and then get medically discharged, there is no
+     * warning it just happens. Medical discharges are rare and are usually
+     * just for the worst of the worst injuries").
+     *
+     * Two things were wrong. The discharge fired the tick the number
+     * crossed 400 — no moment, no warning, the career simply ended
+     * mid-month. And it fired for EVERYBODY over the line, when a real
+     * medical evaluation board retains people every day: the found-fit
+     * desk-side retention is half the reason the board exists.
+     *
+     * Now: the worst of the worst — a catastrophic permanent condition, or
+     * disability past 500 — is discharged, because there is genuinely no
+     * duty left to assign. In the 400–499 band the board decides, SEEDED
+     * AND STABLE: keyed to the person alone, not the tick, so the verdict
+     * does not re-roll every month — the board that retained you in March
+     * has not changed its mind by April. Retention odds scale down as the
+     * number climbs.
+     *
+     * A retained member keeps serving CARRYING the rating — and every
+     * combat door already reads the same disability figure this branch
+     * does, which is the bar pattern doing the retention's paperwork: no
+     * new deployments, no combat schools, no stored flag to drift.
+     *
+     * THE PLAYER SEES IT HAPPEN either way: a board event lands in the
+     * story, and a discharge arrives as a decision moment rather than a
+     * fait accompli — the warning the player asked for IS the moment.
+     */
+    // 450 is where the blinding and paralyzing floors land, and where an
+    // amputation starts; the board's discretionary band is 400–449.
+    const catastrophic =
+      disability >= 450 ||
+      (world.health.get(person.id)?.permanent ?? []).some((c) => c.kind === 'amputation')
+    const boardRoom = openStream(world.seed, Stream.Health, person.id, 424_242)
+    const retained =
+      !catastrophic && boardRoom.chance(Math.max(100, 700 - (disability - MEDICAL_LIMIT) * 6), 1_000)
+
+    if (retained) {
+      const alreadyFound = eventsFor(world, person.id).some(
+        (e) => e.type === 'completed-training' && e.detail === 'medical board: retained',
+      )
+      if (!alreadyFound) {
+        recordEvent(world, tick, {
+          type: 'completed-training',
+          subjectId: person.id,
+          detail: 'medical board: retained',
+        })
+      }
+    } else {
+      if (person.id === world.player.personId) {
+        // The board's finding arrives as a moment. Answering it is when
+        // the discharge executes — see 'medical-board' in resolvePending.
+        const raised = raisePending(world, {
+          tick,
+          kind: 'medical-board',
+          personId: person.id,
+          otherId: null,
+          occupationId: String(disability),
+          workplaceId: null,
+          monthlyPay: null,
+          placeId: null,
+          options: ['accept-findings'],
+        })
+        // The slot may be busy this month; the board reconvenes next tick.
+        if (raised) return
+        return
+      }
+      discharge(world, tick, person, record, 'medical', [factor('medically-unfit', disability)])
+      return
+    }
   }
 
   // M-ARMY2 career shape (owner): thirty years is a career, sixty-two is

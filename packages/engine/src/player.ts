@@ -23,7 +23,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { isHigherEducation, OCCUPATIONS, occupationById, PENSION_THRESHOLD } from './content.js'
+import { isHigherEducation, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
@@ -176,7 +176,6 @@ import {
   unitOptionsFor,
   veteranUnlocks,
   branchName,
-  discharge,
 } from './service.js'
 import { MAX_FITNESS_POINTS } from './content.js'
 import { placesOfKind } from './worldgen.js'
@@ -254,7 +253,7 @@ import {
   valuationOf,
 } from './business.js'
 import { openBusiness } from './finances.js'
-import { inTheBA, outOfPocketFor } from './benefits.js'
+import { baCompensationFor, inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
@@ -2837,8 +2836,27 @@ export function fileBAClaim(world: World): { done: boolean; reason: string; word
   if (service === undefined || service.dischargedAtTick === null) {
     return { done: false, reason: 'The BA serves veterans. Finish a term first.', words: '' }
   }
-  if (inTheBA(world, person.id)) {
-    return { done: false, reason: 'You are already enrolled and rated.', words: '' }
+  /**
+   * THE LETTER ARRIVES AS A MOMENT (live player, on itch: "when you click
+   * apply for BA benefits you literally don't get anything, every time
+   * nothing happens — you need to create a popup and a system that tells
+   * you your rating").
+   *
+   * The old verb returned words into a toast and recorded an event; below
+   * the threshold it refused outright, and an enrolled veteran was told
+   * "already rated" and shown nothing. Nobody ever SAW their rating.
+   *
+   * Filing now raises a decision card — the rating letter — carrying the
+   * true derived rating and the monthly figure. A denial is a letter too:
+   * "nothing happened" and "denied, here are the numbers" are different
+   * experiences, and only one of them is a system. Re-filing is allowed
+   * any time; the letter restates the current rating, which is exactly
+   * the "tells you your rating" the player asked for. No money moves
+   * here — the disability share is already inside the service pension,
+   * and this module does not get a second pen.
+   */
+  if (world.player.pending !== null) {
+    return { done: false, reason: 'A decision is already waiting.', words: '' }
   }
   const record = world.health.get(person.id)
   const connected = record?.serviceDisability ?? 0
@@ -2847,14 +2865,18 @@ export function fileBAClaim(world: World): { done: boolean; reason: string; word
     subjectId: person.id,
     detail: String(connected),
   })
-  return {
-    done: true,
-    reason: '',
-    words:
-      connected > 0
-        ? `The board read the file: service-connected disability ${String(connected)} of the ${String(PENSION_THRESHOLD)} a compensable rating requires. Denied — and the denial, with its numbers, is on the record. A worsening condition reopens it.`
-        : 'The board read the file and found no service-connected harm on it. Denied. What the service put on the record is what the board can pay for.',
-  }
+  raisePending(world, {
+    tick: world.tick,
+    kind: 'ba-claim',
+    personId: person.id,
+    otherId: null,
+    occupationId: String(connected),
+    workplaceId: null,
+    monthlyPay: baCompensationFor(world, person.id, world.tick),
+    placeId: null,
+    options: ['accept'],
+  })
+  return { done: true, reason: '', words: '' }
 }
 
 export function adaptationBar(world: World): string | null {
@@ -4889,6 +4911,33 @@ export function resolvePending(world: World, choice: string): void {
       break
     }
 
+    /**
+     * THE BOARD'S FINDING, EXECUTED ON ACKNOWLEDGEMENT. The discharge the
+     * player used to get with no warning now happens HERE, after they have
+     * read the finding — the moment IS the warning. There is no choice to
+     * make (a medical board's finding is not a negotiation), but a career
+     * ending is not something that happens to a player off-screen.
+     */
+    case 'medical-board': {
+      const record = world.service.get(person.id)
+      if (record && record.dischargedAtTick === null) {
+        const disability = world.health.get(person.id)?.disability ?? 0
+        dischargeService(world, pending.tick, person, record, 'medical', [
+          factor('medically-unfit', disability),
+        ])
+      }
+      break
+    }
+
+    /**
+     * THE RATING, DELIVERED. Filing was the verb; this is the letter
+     * arriving. Money does not move here — the disability share is already
+     * inside the service pension, single writer — the letter tells the
+     * player what they are owed and that it is flowing.
+     */
+    case 'ba-claim':
+      break
+
     default: {
       const never: never = pending.kind
       throw new Error(`Unhandled decision kind ${String(never)}`)
@@ -6156,6 +6205,21 @@ export function describePending(world: World, pending: PendingDecision): string 
       return `You have ${String(handTotal(hand.player))}. The dealer shows ${String(handTotal(hand.dealer))}.`
     }
 
+    case 'medical-board': {
+      const rated = Number(pending.occupationId ?? '0')
+      return `The medical evaluation board has reviewed your record. Finding: not fit for continued service. Rated at ${String(Math.min(100, Math.floor(rated / 10)))} percent. The discharge is medical, with benefits — the BA takes it from here.`
+    }
+    case 'ba-claim': {
+      const rated = Number(pending.occupationId ?? '0')
+      const monthly = Number(pending.monthlyPay ?? 0)
+      if (monthly <= 0) {
+        return rated > 0
+          ? `The Benefits Administration has reviewed your claim. Service-connected disability recorded at ${String(Math.min(100, Math.floor(rated / 10)))} percent — below the compensable threshold. No compensation is payable. The rating stands on your file, and a worsening condition reopens it.`
+          : 'The Benefits Administration has reviewed your claim and found no service-connected harm on the record. Denied. What the service put on the record is what the board can pay for.'
+      }
+      return `The Benefits Administration has rated your claim: ${String(Math.min(100, Math.floor(rated / 10)))} percent, service-connected. Compensation of ${formatMoney(monthly as Money)} a month is in your service pension, and service-connected care is covered in full.`
+    }
+
     default: {
       const never: never = pending.kind
       return String(never)
@@ -6842,7 +6906,7 @@ function refuseOrders(
   })
 
   // And out of the service, for the reason it actually was.
-  discharge(
+  dischargeService(
     world,
     tick,
     person,

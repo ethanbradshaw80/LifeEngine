@@ -49,7 +49,7 @@ export const SCHOOL_CHOICES: readonly SchoolChoice[] = ['reach', 'steady', 'duck
 export type SchoolResult = 'good' | 'bad'
 
 /** Which stage of the ladder a moment belongs to. */
-export type SchoolStage = 'primary' | 'middle' | 'secondary'
+export type SchoolStage = 'early' | 'primary' | 'middle' | 'secondary'
 
 export interface SchoolOption {
   readonly id: SchoolChoice
@@ -1126,7 +1126,105 @@ const THE_CRUNCH: SchoolMoment = {
   },
 }
 
+
+/**
+ * THE EARLY YEARS (live player, on itch: "from ages 0-18 there is pretty
+ * much nothing to do besides click"). Before school there was NOTHING — the
+ * first moment a life could offer arrived at six, in a classroom. These
+ * three run from three to five, before enrollment, because a childhood
+ * starts before a school does.
+ */
+const THE_DARK: SchoolMoment = {
+  id: 'the-dark',
+  stage: 'early',
+  title: 'The Dark',
+  situations: [
+    'The hallway light went out and the bedroom door is a long way from the switch. Something is definitely in the corner. It has always been the coat.',
+    'Everyone is asleep and the house is making its night noises, and the dark between the bed and the door has gotten bigger than it was.',
+  ],
+  options: [
+    { id: 'reach', title: 'Cross the dark yourself', tag: 'brave', detail: 'It is your hallway. Walk it.' },
+    { id: 'steady', title: 'Bring the blanket', tag: 'steady', detail: 'Armour counts, at five.' },
+    { id: 'duck', title: 'Call for somebody', tag: 'safe', detail: 'That is what the big ones are for.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'It was the coat', text: 'You crossed the whole hallway with your heart going like a drum, and it was the coat, and you knew it would be, and you did it anyway.', foot: 'That is the whole trick, and you have it now.', attainment: 10, wellbeing: 18 }],
+      bad: [{ title: 'The floor creaked', text: 'Halfway across, the floor creaked, and the last ten feet did not go with dignity. You made it though.', foot: 'Brave is not the same as smooth.', attainment: 5, wellbeing: 4 }],
+    },
+    steady: {
+      good: [{ title: 'The blanket held', text: 'Nothing gets through a blanket. This is known. You made the door in armour and the armour worked.', foot: 'A tool for the job.', attainment: 5, wellbeing: 10 }],
+      bad: [{ title: 'Tangled', text: 'The armour caught your feet at the worst moment and the landing was loud enough to wake the house.', foot: 'Next time, socks.', attainment: 2, wellbeing: 2 }],
+    },
+    duck: {
+      good: [{ title: 'Somebody came', text: 'You called, and steps came down the hall, and the light went on, and the corner was just a corner with a coat in it.', foot: 'Knowing when to call is knowing something.', attainment: 2, wellbeing: 8 }],
+      bad: [{ title: 'A long minute', text: 'You called, and for one long minute nobody heard, and you crossed the dark anyway because you had to.', foot: 'Sometimes the call is the first step.', attainment: 6, wellbeing: 5 }],
+    },
+  },
+}
+
+const THE_BIG_SLIDE: SchoolMoment = {
+  id: 'the-big-slide',
+  stage: 'early',
+  title: 'The Big Slide',
+  situations: [
+    'The big slide is the tall one, the one the big kids use, the one with the ladder that goes up past the point where the ground looks right.',
+    'Somebody said you were too little for the big slide, and now the big slide is the only thing on the playground that exists.',
+  ],
+  options: [
+    { id: 'reach', title: 'Climb it', tag: 'brave', detail: 'The whole ladder. The top. The drop.' },
+    { id: 'steady', title: 'The middle slide first', tag: 'steady', detail: 'Work up to it. The big one is not going anywhere.' },
+    { id: 'duck', title: 'The swings are fine', tag: 'safe', detail: 'The swings have never once been a problem.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'The top of the world', text: 'The ladder took a year. The top took your breath. The way down took two seconds and you were laughing before the bottom.', foot: 'First one down. They saw.', attainment: 8, wellbeing: 20 }],
+      bad: [{ title: 'Frozen at the top', text: 'You made the top and the ground was wrong from up there, and coming back down the LADDER is the part everybody remembers.', foot: 'The slide will still be there. So will you.', attainment: 4, wellbeing: -6 }],
+    },
+    steady: {
+      good: [{ title: 'The apprenticeship', text: 'Middle slide, then middle slide standing start, then the big one on a quiet morning with nobody watching. By summer it was just a slide.', foot: 'That is how most brave things are actually done.', attainment: 8, wellbeing: 12 }],
+      bad: [{ title: 'The queue', text: 'You were still mastering the middle slide when the little kids started queueing behind you, which was not the audience you wanted.', foot: 'Progress is progress.', attainment: 4, wellbeing: 3 }],
+    },
+    duck: {
+      good: [{ title: 'King of the swings', text: 'The swings went higher than anyone else got them that day, and the slide is a slide, and you were flying.', foot: 'There is more than one tall thing.', attainment: 2, wellbeing: 8 }],
+      bad: [{ title: 'Watching', text: 'You watched the others go down it all afternoon, and the swings were fine, and fine is the word for it.', foot: 'Next summer, maybe.', attainment: 1, wellbeing: 0 }],
+    },
+  },
+}
+
+const THE_FIRST_FRIEND: SchoolMoment = {
+  id: 'the-first-friend',
+  stage: 'early',
+  title: 'The Kid Next Door',
+  situations: [
+    'There is a kid your size in the next yard, and they have been looking over here exactly as long as you have been looking over there.',
+    'Somebody new is at the fence line with a truck that is clearly the good kind of truck, and nobody has said anything yet.',
+  ],
+  options: [
+    { id: 'reach', title: 'Go say hello', tag: 'brave', detail: 'Walk over. Say the thing. See what happens.' },
+    { id: 'steady', title: 'Bring the good truck', tag: 'steady', detail: 'Let the truck do the talking.' },
+    { id: 'duck', title: 'Wait for them', tag: 'safe', detail: 'If they want to, they will come.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'Best friends by dinner', text: 'You said hello and they said hello and by dinnertime there was a fort with rules and a password neither of you can remember now.', foot: 'That is how the good ones start.', attainment: 5, wellbeing: 22 }],
+      bad: [{ title: 'A shrug', text: 'You said hello and got a shrug, and walked back across the yard with your ears hot. Two days later they came over anyway.', foot: 'Hello was still the right call.', attainment: 5, wellbeing: 6 }],
+    },
+    steady: {
+      good: [{ title: 'The truck summit', text: 'The trucks met at the fence, and then the trucks needed a road, and the road needed both of you, and that was that.', foot: 'Diplomacy.', attainment: 4, wellbeing: 16 }],
+      bad: [{ title: 'Truck custody', text: 'The truck changed hands and took a while to change back, which was a lesson about lending before it was a friendship.', foot: 'Terms first, next time.', attainment: 4, wellbeing: 4 }],
+    },
+    duck: {
+      good: [{ title: 'They came over', text: 'You waited, and they came, and it turned out waiting is a thing some friendships forgive.', foot: 'Lucky, this once.', attainment: 2, wellbeing: 12 }],
+      bad: [{ title: 'The summer went by', text: 'You watched each other across two yards for a whole summer, and then their family moved, and you never did learn their name.', foot: 'Hello costs nothing. Remember that.', attainment: 3, wellbeing: -6 }],
+    },
+  },
+}
+
 export const SCHOOL_MOMENTS: readonly SchoolMoment[] = [
+  THE_DARK,
+  THE_BIG_SLIDE,
+  THE_FIRST_FRIEND,
   FIRST_FRIEND,
   THE_BULLY,
   THE_SUBJECT,

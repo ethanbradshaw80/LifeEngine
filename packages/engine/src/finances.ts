@@ -762,7 +762,29 @@ function serviceDebts(world: World, tick: Tick): void {
     const stillEnrolled = world.education.get(personId)?.enrolledIn !== null &&
       world.education.get(personId)?.enrolledIn !== undefined
 
+    /**
+     * THE AUTOMATIC STAY COVERS THE DEBTS IN THE PLAN. While a chapter 13
+     * runs, the plan payment IS the payment on every debt the plan
+     * consolidated — this loop was collecting the same loans monthly on
+     * top of it, so a filer paid twice for the privilege of going
+     * bankrupt. Frozen entirely under the stay: no collection, no
+     * interest, no missed-month marks — the discharge at the end clears
+     * these loans, so their balance during the plan is a number nobody
+     * will ever be asked for. Student loans and mortgages ride OUTSIDE
+     * the plan (they survive it) and keep their ordinary rules.
+     */
+    const underStay = (world.bankruptcies.get(personId) ?? []).some(
+      (filing) =>
+        filing.chapter === 13 &&
+        filing.dischargedAtTick === null &&
+        filing.planEndsAtTick !== null,
+    )
+
     for (const loan of accounts.loans) {
+      if (underStay && survivesChapter13(loan) === false) {
+        remaining.push(loan)
+        continue
+      }
       // A CHARGED-OFF STUDENT DEBT STOPS GROWING. Three missed months put
       // any loan in default; for this one the debt SURVIVES it (below),
       // and a surviving debt that also kept compounding for the rest of a
@@ -2508,6 +2530,7 @@ function runPlans(world: World, tick: Tick): void {
       personId,
       filings.map((entry, i) => (i === index ? done : entry)),
     )
+    applyPlanDischargeToLoans(world, personId)
     recordEvent(world, tick, {
       type: 'plan-completed',
       subjectId: personId,
@@ -2535,6 +2558,45 @@ function runPlans(world: World, tick: Tick): void {
  * The plan's real length is on the filing — `planEndsAtTick` minus
  * `filedAtTick` — and that is what was paid into it.
  */
+/**
+ * WHICH LOANS RIDE THROUGH A CHAPTER 13 UNTOUCHED.
+ *
+ * The same two survivors chapter 7 keeps, for the same documented reasons:
+ * a STUDENT loan survives every bankruptcy in this game (the ruling above
+ * fileBankruptcy — the education debt is the long consequence the college
+ * choice is meant to carry), and a MORTGAGE is secured by the home itself.
+ * Everything else was consolidated into the plan the day it was filed.
+ */
+function survivesChapter13(loan: Loan): boolean {
+  return loan.kind === 'student' || loan.kind === 'mortgage'
+}
+
+/**
+ * THE DISCHARGE ACTUALLY DISCHARGES (live player, on itch: "there is no
+ * way to pay off your chapter 13 debt, every time I click payoff amount it
+ * pays like a percentage and just keeps the rest of the debt causing the
+ * player to fall into a constant cycle of switching street").
+ *
+ * He was right, and the mechanism was bookkeeping without consequence.
+ * Chapter 7 clears `accounts.loans` at the filing — the filter is right
+ * there in fileBankruptcy. Chapter 13 never touched the loans ANYWHERE in
+ * its lifecycle: not at filing, not at term's end, not at early payoff.
+ * The filing recorded a `discharged` figure, the life story printed it,
+ * and the loans sat in the accounts still being collected. A player paid
+ * the plan in full and walked out owing everything the plan was supposed
+ * to settle.
+ *
+ * ONE writer for both discharge sites — term served and early payoff —
+ * because two copies of this filter is how chapter 7 and chapter 13
+ * drifted apart in the first place.
+ */
+function applyPlanDischargeToLoans(world: World, personId: EntityId): void {
+  const accounts = accountsOf(world, personId)
+  const kept = accounts.loans.filter(survivesChapter13)
+  if (kept.length === accounts.loans.length) return
+  setAccounts(world, { ...accounts, loans: kept })
+}
+
 function dischargedAtEndOf(filing: Bankruptcy): Money {
   const months =
     filing.planEndsAtTick === null
@@ -2593,6 +2655,7 @@ export function payOffPlan(world: World, tick: Tick, personId: EntityId): boolea
     personId,
     filings.map((entry, i) => (i === index ? settled : entry)),
   )
+  applyPlanDischargeToLoans(world, personId)
   recordEvent(world, tick, {
     type: 'plan-completed',
     subjectId: personId,

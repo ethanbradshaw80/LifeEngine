@@ -44,12 +44,29 @@ export function Avatar({ world, person, size = 64 }: Props) {
   const hair = age >= 62 ? pick(ELDER_HAIR, person.id, 2) : pick(HAIR, person.id, 2)
   const shirt = pick(SHIRT, person.id, 3)
   const longHair = person.sex === 'female' ? hash(person.id, 4) % 4 !== 0 : hash(person.id, 4) % 8 === 0
-  const child = age < 15
 
-  // Children: smaller head, higher in frame. Elders keep their face; only the
-  // hair says the years. The dead are greyscale — history, not presence.
-  const headR = child ? 15 : 17
-  const cy = child ? 26 : 24
+  /**
+   * FIVE AGES OF A FACE (live player, on itch: "My character didn't change
+   * how they looked from when she was a baby to an adult. The character
+   * also looks weird, like with a really long neck").
+   *
+   * Two complaints, both right. The bands were child/adult/grey-hair — a
+   * newborn wore a ten-year-old's face for fifteen years, then jumped
+   * straight to the adult one. And no neck was ever drawn: the gap between
+   * the head circle and the shoulder curve showed through as a skin-toned
+   * void, seven pixels tall on a child — the "really long neck".
+   *
+   * The features stay the person's own (skin, hair, shirt, all id-keyed);
+   * only the PROPORTIONS age. A baby is mostly head, low in the frame; a
+   * teen is longer and leaner; an elder's shoulders come up a little,
+   * which is what a stoop looks like at this size. And there is a neck
+   * now — drawn, short, connecting the head to the shoulders it was
+   * always floating above.
+   */
+  const band = age < 4 ? 'baby' : age < 13 ? 'child' : age < 18 ? 'teen' : age >= 62 ? 'elder' : 'adult'
+  const headR = band === 'baby' ? 18 : band === 'child' ? 14 : band === 'teen' ? 16 : 17
+  const cy = band === 'baby' ? 30 : band === 'child' ? 27 : band === 'teen' ? 25 : band === 'elder' ? 25 : 24
+  const shoulderTop = band === 'baby' ? 54 : band === 'child' ? 46 : band === 'elder' ? 43 : 44
 
   return (
     <svg
@@ -61,8 +78,10 @@ export function Avatar({ world, person, size = 64 }: Props) {
       style={dead ? { filter: 'grayscale(1)', opacity: 0.75 } : undefined}
     >
       <circle cx="32" cy="32" r="31" fill={shirt} opacity="0.18" />
+      {/* neck — short and drawn, so the head no longer floats */}
+      <rect x={32 - 4} y={cy + headR - 3} width="8" height={Math.max(3, shoulderTop - (cy + headR) + 5)} fill={skin} />
       {/* shoulders */}
-      <path d={`M 12 64 Q 32 ${child ? 48 : 44} 52 64 Z`} fill={shirt} />
+      <path d={`M 12 64 Q 32 ${shoulderTop} 52 64 Z`} fill={shirt} />
       {/* head */}
       <circle cx="32" cy={cy} r={headR} fill={skin} />
       {/* hair cap */}

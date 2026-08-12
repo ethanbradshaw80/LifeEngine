@@ -371,8 +371,18 @@ function runDebateNight(world: World, tick: Tick): void {
 function runSchoolMoments(world: World, tick: Tick): void {
   for (const person of livingPeople(world)) {
     const record = world.education.get(person.id)
-    if (record === undefined || record.enrolledIn === null) continue
-    // Only the K-12 stages. A trade course is not a childhood.
+    if (record === undefined) continue
+    /**
+     * A CHILDHOOD STARTS BEFORE A SCHOOL DOES (live player, on itch: "from
+     * ages 0-18 there is pretty much nothing to do besides click").
+     *
+     * Two starvations, one loop. Before enrollment there was no stage at
+     * all — the first moment a life could offer arrived at six, in a
+     * classroom, so ages nought-to-five were empty by construction. The
+     * 'early' stage covers three-to-five: the dark hallway, the big slide,
+     * the kid next door.
+     */
+    const age = ageAt(person.birthTick, tick)
     const stage: SchoolStage | null =
       record.enrolledIn === 'primary'
         ? 'primary'
@@ -380,16 +390,26 @@ function runSchoolMoments(world: World, tick: Tick): void {
           ? 'middle'
           : record.enrolledIn === 'secondary'
             ? 'secondary'
-            : null
+            : record.enrolledIn === null && age >= 3 && age <= 5
+              ? 'early'
+              : null
     if (stage === null) continue
     // Not in the first term: a moment needs somebody to have been there
-    // long enough for the room to mean anything.
-    if (record.enrolledAtTick !== null && tick - record.enrolledAtTick < 4) continue
+    // long enough for the room to mean anything. (The early years have no
+    // term to be new in.)
+    if (stage !== 'early' && record.enrolledAtTick !== null && tick - record.enrolledAtTick < 4) continue
 
     // Its own tick offset, so this cannot disturb the enrolment draws or
     // the performance walk that share Stream.Education.
+    //
+    // AND THE SECOND STARVATION WAS THE RATE. Fourteen in a thousand,
+    // monthly, is one moment every six years — the whole authored pool
+    // (eleven moments before the early years joined) effectively never
+    // fired, and a player's school years were the empty clicking the
+    // complaint describes. Fifty-five a month is a moment most years:
+    // texture, not spam, across a fifteen-year childhood.
     const rng = openStream(world.seed, Stream.Education, person.id, tick + 44_100)
-    if (!rng.chance(14, 1000)) continue
+    if (!rng.chance(55, 1000)) continue
 
     const open = schoolMomentsFor(stage)
     if (open.length === 0) continue

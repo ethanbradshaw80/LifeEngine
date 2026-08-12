@@ -236,7 +236,11 @@ describe('school-age moments', () => {
       const person = world.people.get(event.subjectId as never)
       if (person === undefined) continue
       const age = ageAt(person.birthTick, event.tick)
-      expect(age).toBeGreaterThanOrEqual(6)
+      // THE EARLY YEARS JOINED (live player: "from ages 0-18 there is
+      // pretty much nothing to do"). Three-to-five now carries its own
+      // authored pool — the dark hallway, the big slide — so the floor is
+      // three. The ceiling stands: a degree is still not a childhood.
+      expect(age).toBeGreaterThanOrEqual(3)
       expect(age).toBeLessThanOrEqual(20)
     }
   })
@@ -250,7 +254,14 @@ describe('school-age moments', () => {
       perChild.set(event.subjectId, (perChild.get(event.subjectId) ?? 0) + 1)
     }
     const worst = Math.max(...perChild.values())
-    expect(worst).toBeLessThanOrEqual(12)
+    // RETUNED WITH THE FAMINE FIX. Fourteen-in-a-thousand monthly made the
+    // whole authored pool fire once every six years — the "occasional" this
+    // test guarded had starved into "never", and the player said so. At
+    // fifty-five the expectation is a moment most years: across a
+    // fifteen-year childhood the busiest child should still sit well under
+    // two a year. The rule this test keeps is unchanged — a childhood is
+    // not a popup gallery — only the arithmetic under it moved.
+    expect(worst).toBeLessThanOrEqual(24)
   })
 })
 

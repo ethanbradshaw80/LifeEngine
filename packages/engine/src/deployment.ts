@@ -946,6 +946,27 @@ function hitSquadmate(
     return
   }
 
+  /**
+   * THE WOUND IS REAL (live player, on itch: combat "always says 1 person
+   * wounded and 8/10 times its me").
+   *
+   * He was seeing the truth: a squadmate being "wounded" was a feed line
+   * and a mood hit — no `inflictWound`, no health record, no recovery, no
+   * mark. The player was the only person in the squad whose wounds
+   * actually existed, so every evacuation and every decoration was
+   * theirs. The roster's status dots read the health record and said "in
+   * the fight" about a man the feed had just called wounded.
+   *
+   * A hit squadmate now takes the same wound anybody takes, through the
+   * same single writer, scaled off the moment's severity — so he heals,
+   * carries marks, and can be medically discharged by the same rules as
+   * the player he serves beside (Law 2).
+   */
+  inflictWound(
+    world, tick, mate.id,
+    Math.max(200, Math.min(850, threatSeverity + rng.nextInt(-120, 121))),
+    'direct-combat', rng,
+  )
   recordEvent(world, tick, {
     type: 'squadmate-wounded',
     subjectId: person.id,
@@ -1872,16 +1893,29 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // attack burns. The health system carries it from here — evacuation home
     // when it is bad enough that the war is over for them this tour.
     const wound = inflictWound(world, tick, personId, severity, context, rng)
+    // THE LABEL READS THE WOUND, not the dice. Severity is capped by KIND
+    // inside inflictWound now — hearing damage cannot be graver than
+    // hearing damage — and a record that still said "serious" off the
+    // pre-cap draw would put a lie in the story and the paper.
     const woundEvent = recordEvent(world, tick, {
       type: isAccident ? 'was-injured' : 'wounded-in-action',
       subjectId: personId,
       otherId: enemyId,
-      detail: `${severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
+      detail: `${wound.severity >= 600 ? 'serious' : 'minor'}:${wound.description}`,
     })
     // The decoration follows the wound at the same tick, referencing it.
     // For an accident the event is 'was-injured' and the grant refuses —
     // which is the eligibility rule doing its job, not a missing case.
-    grantWoundRecognition(world, tick, personId, woundEvent, enemy.name)
+    //
+    // AND NOT FOR HEARING DAMAGE (live player: decorated "for something
+    // like blown out hearing"). The real criteria draw the same line — a
+    // wound of the eardrums from blast, with nothing else, does not
+    // qualify. Every other enemy-action wound still does; the gate is the
+    // KIND, known right here where the wound was rolled, not a parse of
+    // the description downstream.
+    if (wound.kind !== 'hearing-damage') {
+      grantWoundRecognition(world, tick, personId, woundEvent, enemy.name)
+    }
     // Hit and still conscious — the minutes that decide it, if this is the
     // player's own wound or one their medic's hands can reach (M-ARMY2).
     offerFieldAid(world, tick, personId, severity)

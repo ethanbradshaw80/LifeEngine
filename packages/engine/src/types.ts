@@ -2166,6 +2166,10 @@ export type PendingKind =
   | 'convalesce'
   /** A hand of blackjack in progress — hit, stand or double. */
   | 'blackjack-hand'
+  /** The medical evaluation board's finding — the discharge, seen coming. */
+  | 'medical-board'
+  /** A filed BA claim comes back rated. */
+  | 'ba-claim'
   /** A recruiter's offer, or the fork at eighteen. */
   | 'enlist'
   | 'commission'

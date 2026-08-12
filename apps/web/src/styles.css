@@ -755,6 +755,15 @@ ul.welcome-points li + li {
   color: var(--bad);
 }
 
+/* A place name is not a detail — the home chip wraps instead of trailing
+   off, and carries its full name in the hover title besides. */
+.stat-value-wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
+}
+
 .stat-sub {
   font-size: 0.75rem;
   color: var(--muted);

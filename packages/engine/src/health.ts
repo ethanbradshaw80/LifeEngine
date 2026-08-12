@@ -374,7 +374,36 @@ function recoverOrWorsen(
      * So the floor is 450: past the bar with room to spare, no matter how
      * mild the roll that took the limb.
      */
-    const added = Math.max(450, Math.floor(record.peakSeverity / 2))
+    /**
+     * THE FLOOR SCALES WITH WHAT WAS ACTUALLY LOST (live player, on itch:
+     * "everytime I get like an eye injury I heal up and then get medically
+     * discharged... Medical discharges are rare and are usually just for
+     * the worst of the worst injuries").
+     *
+     * He is right about eyes and backs. The flat 450 was set for the
+     * amputation case — past the 400 medical bar with room to spare, so a
+     * one-legged man could not re-enlist — and then applied to every
+     * irreversible kind alike, which made EVERY eye injury blinding and
+     * EVERY spinal injury paralyzing. A limb is binary; sight and spines
+     * are not.
+     *
+     * Scaled by the wound's own peak, deterministically — no new draw:
+     *   - amputation: 450 always. A limb does not partially not grow back.
+     *   - eye-injury: partial (peak < 700) floors at 250 — rated, BA-claimable,
+     *     career survives; blinding (peak >= 700) floors at 450.
+     *   - spinal-injury: moderate (peak < 700) floors at 300; severe at 450.
+     *
+     * 250 and 300 sit BELOW the 400 medical bar on purpose: those careers
+     * continue, carrying the rating — which is exactly the discharge-rarity
+     * the player asked for.
+     */
+    const blinding = record.peakSeverity >= 700
+    const added =
+      record.ailmentKind === 'amputation'
+        ? Math.max(450, Math.floor(record.peakSeverity / 2))
+        : record.ailmentKind === 'eye-injury'
+          ? blinding ? 450 : 250
+          : blinding ? 450 : 300
     disability = Math.min(1000, disability + added)
     if (record.ailmentServiceConnected) {
       serviceDisability = Math.min(1000, serviceDisability + added)
@@ -462,6 +491,26 @@ function recoverOrWorsen(
  * rule); the deployment system asks, this module does. Returns false when an
  * active ailment already occupies the body (the wound then worsens it).
  */
+/**
+ * How bad each wound KIND can possibly be, 0-1000. The consequence ladder
+ * reads severity — evacuation, the convalescence ask, mortality — so this
+ * is where "blown-out hearing" stops being able to end a tour. Kinds not
+ * listed carry no cap: a gunshot is as bad as the dice say it is.
+ */
+const WOUND_SEVERITY_CAPS: Readonly<Record<string, number>> = {
+  'hearing-damage': 320,
+  'concussion': 520,
+  'laceration': 560,
+  'animal-bite': 480,
+  'heatstroke': 540,
+  'frostbite': 540,
+  'smoke-inhalation': 560,
+}
+
+function woundSeverityCapFor(kind: string): number {
+  return WOUND_SEVERITY_CAPS[kind] ?? 1000
+}
+
 export function inflictWound(
   world: World,
   tick: Tick,
@@ -469,9 +518,27 @@ export function inflictWound(
   severity: number,
   context: InjuryContext,
   rng: { pick: <T>(items: readonly T[]) => T },
-): { kind: string; site: BodySite | null; description: string } {
+): { kind: string; site: BodySite | null; description: string; severity: number } {
   const record = world.health.get(personId) ?? freshHealth(personId)
   const injury = pickInjury(rng as never, context)
+  /**
+   * THE KIND CAPS THE SEVERITY (live player, on itch: evacuated home and
+   * decorated "for something like blown out hearing").
+   *
+   * Severity was drawn by the caller — a bell across 300–1000 for a combat
+   * month — and the KIND was drawn here, independently. The two never met:
+   * a draw could land 'hearing-damage' at severity 800, which the health
+   * system then treated as a life-threatening casualty — medevac, the war
+   * over, a decoration — for a wound whose real-world worst case is a
+   * hearing aid. The consequence machinery was right; the pairing was
+   * nonsense.
+   *
+   * Each kind now carries a ceiling on how bad IT can be. The caller's
+   * severity stands wherever it fits under the ceiling, so gunshots and
+   * blasts are untouched and the minor kinds stop masquerading as mortal.
+   */
+  const severityCapped = Math.min(severity, woundSeverityCapFor(injury.kind))
+  severity = severityCapped
   const description = describeAilment('injury', injury.kind, injury.site)
 
   if (record.ailment !== null) {
@@ -489,7 +556,7 @@ export function inflictWound(
       peakSeverity: Math.max(record.peakSeverity, worse),
       askedConvalesce: false,
     })
-    return { kind: injury.kind, site: injury.site, description }
+    return { kind: injury.kind, site: injury.site, description, severity }
   }
   world.health.set(personId, {
     ...record,
@@ -506,7 +573,7 @@ export function inflictWound(
     // this becomes when it resolves, however many years from now.
     ailmentServiceConnected: true,
   })
-  return { kind: injury.kind, site: injury.site, description }
+  return { kind: injury.kind, site: injury.site, description, severity }
 }
 
 /**

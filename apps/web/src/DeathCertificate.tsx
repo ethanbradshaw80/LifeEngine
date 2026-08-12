@@ -33,6 +33,7 @@ export function DeathCertificate({
   survivedBy,
   onContinueAs,
   serviceLine,
+  lifeLines,
   epitaph,
   onClose,
 }: {
@@ -52,6 +53,15 @@ export function DeathCertificate({
    */
   readonly onContinueAs?: (personId: number) => void
   readonly serviceLine: string | null
+  /**
+   * THE LIFE, SUMMARIZED (live player, on itch: "the death certificate
+   * doesn't list any achievements or summary of that persons life at all,
+   * very dull"). Law 8 has owed this since Layer 3: career, service,
+   * decorations, family, the shape of what actually happened — assembled
+   * from the records, never invented. Label/value rows in the document's
+   * own register.
+   */
+  readonly lifeLines?: readonly { readonly label: string; readonly value: string }[]
   readonly epitaph: string
   readonly onClose: () => void
 }): ReactElement {
@@ -100,6 +110,20 @@ export function DeathCertificate({
 
         <div className="cert-rule" />
         <p className="hh">{obituary}</p>
+
+        {(lifeLines ?? []).length > 0 && (
+          <>
+            <div className="sc parentage">The life</div>
+            <div className="par">
+              {(lifeLines ?? []).map((row) => (
+                <div key={row.label} className="row">
+                  <span className="role">{row.label}</span>
+                  <span className="nm">{row.value}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
         {serviceLine !== null && (
           <>

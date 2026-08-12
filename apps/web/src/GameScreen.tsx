@@ -902,7 +902,14 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         </div>
         <div className="stat">
           <span className="stat-label">Home</span>
-          <span className="stat-value">{home?.name ?? '—'}</span>
+          {/* THE FULL NAME, HOWEVER LONG (live player: "the name of the
+              area where I lived was just cut off"). The chip row ellipsizes
+              by design, but the place a person lives is not a detail — it
+              wraps instead, and the hover title carries it for the cases
+              where even two lines are tight. */}
+          <span className="stat-value stat-value-wrap" title={home?.name ?? undefined}>
+            {home?.name ?? '—'}
+          </span>
           {household && familyHomeSince(world, household) !== null && (
             <span className="stat-sub">the family home</span>
           )}

@@ -124,10 +124,15 @@ export function IntakeScreen({
     // THE DICE ARE A SUGGESTION, not a seed. Rolling a name here must not
     // decide the life — the life's seed is its own field, and conflating
     // the two would make "leave it to chance" quietly un-shareable.
+    //
+    // AND THE DICE RESPECT THE PLAYER'S SEX (live player, on itch: "In the
+    // beginning I selected female. The name given to the character was
+    // Gary"). The roll used to pick a sex OF ITS OWN — n % 2 — and
+    // silently overwrite whatever the player had chosen, then name them
+    // from the overwritten pool. A choice the player already made is not
+    // the dice's to reroll; the dice fill in what was left to chance.
     const n = Math.floor(Math.random() * 100_000)
-    const male = n % 2 === 0
-    setSex(male ? 'male' : 'female')
-    setGiven(pick(male ? GIVEN_MALE : GIVEN_FEMALE, n))
+    setGiven(pick(sex === 'male' ? GIVEN_MALE : GIVEN_FEMALE, n))
     setFamily(pick(FAMILIES, Math.floor(n / 7)))
     setTown(townName)
   }

@@ -3,16 +3,19 @@ import {
   advanceTicks,
   ageAt,
   createWorld,
+  decorationsOf,
   formatDate,
   fullName,
   isServing,
   livingPeople,
+  netWorthOf,
   PRESETS,
   personSummary,
+  rankTitle,
   worldHashHex,
   courtOutcomeOf,
 } from '@life-engine/engine'
-import { seed as makeSeed } from '@life-engine/shared'
+import { formatMoney, seed as makeSeed } from '@life-engine/shared'
 import type { EntityId } from '@life-engine/shared'
 import { TownStats } from './TownStats.js'
 import { PersonDetail } from './PersonDetail.js'
@@ -42,7 +45,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = 'e8fe6fb3'
+const GOLDEN_HASH_HEX = '3fc25314'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -309,6 +312,54 @@ export function App() {
           play(heirId, true)
           setFront('engine')
         }}
+        // EVERY LINE BELOW IS A RECORD, NOT A SENTENCE SOMEBODY WROTE.
+        // Law 8's retrospective, assembled at the moment of death from what
+        // the simulation actually kept — awards with their years, the rank
+        // actually held, the children actually raised. A certificate that
+        // said less was the player's complaint; one that said MORE than the
+        // records could back would be worse.
+        lifeLines={(() => {
+          const lines: { label: string; value: string }[] = []
+          const svc = world.service.get(playerPerson.id)
+          if (svc !== undefined) {
+            const grade = rankTitle(world, svc.branch, svc.rank, svc.commissioned === true)
+            const years = Math.max(
+              1,
+              Math.floor(((svc.dischargedAtTick ?? world.tick) - svc.enlistedAtTick) / 12),
+            )
+            lines.push({ label: 'Service', value: `${grade} · ${String(years)} years` })
+          }
+          const job = world.employment.get(playerPerson.id)
+          if (job !== undefined) {
+            lines.push({ label: 'Work', value: personSummary(world, playerPerson.id) })
+          }
+          const education = world.education.get(playerPerson.id)
+          if (education !== undefined && education.level !== 'none') {
+            lines.push({ label: 'Education', value: String(education.level).replace(/-/g, ' ') })
+          }
+          const decorations = decorationsOf(world, playerPerson.id)
+          if (decorations.length > 0) {
+            lines.push({
+              label: 'Decorations',
+              value: decorations
+                .slice(0, 4)
+                .map((a) => (a.count > 1 ? `${a.title} ×${String(a.count)}` : a.title))
+                .join(' · '),
+            })
+          }
+          const children = [...world.people.values()].filter((p) =>
+            p.parentIds.includes(playerPerson.id),
+          ).length
+          if (children > 0) {
+            lines.push({ label: 'Family', value: `${String(children)} ${children === 1 ? 'child' : 'children'}` })
+          }
+          const worth = netWorthOf(world, playerPerson.id)
+          lines.push({
+            label: 'Estate',
+            value: worth > 0 ? formatMoney(worth) : 'debts and belongings',
+          })
+          return lines
+        })()}
         serviceLine={
           world.service.get(playerPerson.id) === undefined
             ? null
