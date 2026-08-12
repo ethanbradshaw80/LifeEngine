@@ -336,14 +336,60 @@ export function Bank({
             {accounts.loans.length > 0 && (
               <section className="bank-card">
                 <h4>What you carry</h4>
-                {accounts.loans.map((loan) => (
-                  <Row
-                    key={loan.kind}
-                    label={`${loan.kind} · ${(loan.ratePerMille / 10).toFixed(1)}%`}
-                    value={`${formatMoney(loan.balance)} · ${formatMoney(loan.monthlyPayment)}/mo`}
-                    tone={loan.missedMonths > 0 ? 'bad' : undefined}
-                  />
-                ))}
+                {accounts.loans.map((loan) => {
+                  /**
+                   * A DEBT YOU CAN ACTUALLY ATTACK (live player, with a
+                   * screenshot: "still no way to pay off your debt, and
+                   * debt doesn't automatically mean file for bankruptcy
+                   * either — we need to be able to pay off debt").
+                   *
+                   * The whole chain existed — the 'pay-down' verb, the
+                   * bar, the single-writer movement in finances — and
+                   * this screen never wired a button to it. The player
+                   * held $54,000 against a $57,000 student loan and the
+                   * only debt verbs the game surfaced were new loans and
+                   * bankruptcy. Eighth time a working capability sat
+                   * behind no path.
+                   *
+                   * Two buttons per loan: a chunk (a tenth of the
+                   * balance, floored at $500) and the full balance. Both
+                   * grey through the same bar the verb refuses with, and
+                   * the engine caps what actually moves at what the
+                   * accounts hold — the button names an intent, the
+                   * ledger decides the cents.
+                   */
+                  const liquid = accounts.checking + accounts.savings
+                  const chunk = Math.max(50_000, Math.floor(loan.balance / 10))
+                  const canPay = liquid > 0
+                  return (
+                    <div key={loan.kind} className="loan-row">
+                      <Row
+                        label={`${loan.kind} · ${(loan.ratePerMille / 10).toFixed(1)}%`}
+                        value={`${formatMoney(loan.balance)} · ${formatMoney(loan.monthlyPayment)}/mo`}
+                        tone={loan.missedMonths > 0 ? 'bad' : undefined}
+                      />
+                      <div className="loan-actions">
+                        <button
+                          type="button"
+                          className="apply"
+                          disabled={!canPay}
+                          onClick={() => onAct({ verb: 'pay-down', kind: loan.kind, cents: Math.min(chunk, liquid) })}
+                        >
+                          Pay {formatMoney(Math.min(chunk, liquid) as never)}
+                        </button>
+                        <button
+                          type="button"
+                          className="apply"
+                          disabled={liquid < loan.balance}
+                          title={liquid < loan.balance ? 'You cannot cover the whole balance yet.' : undefined}
+                          onClick={() => onAct({ verb: 'pay-down', kind: loan.kind, cents: loan.balance })}
+                        >
+                          Pay it off
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
               </section>
             )}
 

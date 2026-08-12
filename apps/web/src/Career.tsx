@@ -43,6 +43,7 @@ import {
   standingWords,
   moneyOnHand,
   trackById,
+  disciplineOf,
 } from '@life-engine/engine'
 import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
@@ -252,7 +253,8 @@ export function Career({
                       <span className="dot" />
                       <span className="t">
                         {occupation.title}
-                        {state === 'here' && ' — you'}
+                        {state === 'here' &&
+                          ` — you · standing ${String(Math.floor((job?.performance ?? 0) / 10))}`}
                         <span className="s">
                           {formatMoney(annualPay(atTodaysPrices(world, occupation.minMonthlyPay) as Money))}
                           {state === 'future' &&
@@ -263,6 +265,35 @@ export function Career({
                     </li>
                   )
                 })}
+              {(() => {
+                /**
+                 * WHY YOU ARE STILL ON THIS RUNG (live players, two of
+                 * them: "never got promoted in 30 years"). The ladder
+                 * quoted the bar — needs 58 — and never your own number or
+                 * the reason this year's review said no. An invisible gate
+                 * reads as a broken game; this is the same fix the military
+                 * Standing row got, from the same complaint. The words are
+                 * `promotionBar`'s own — the engine that refuses is the
+                 * engine that explains.
+                 */
+                if (job === undefined || job.trackId === null || track === undefined) return null
+                const rungNow = placeOf(job.occupationId)?.rung ?? 0
+                const holding = promotionBar(
+                  track,
+                  rungNow,
+                  job.performance,
+                  world.tick - job.rungSinceTick,
+                  disciplineOf(world, person.id, world.tick),
+                  world.education.get(person.id)?.level ?? 'none',
+                )
+                return (
+                  <p className="muted small ladder-holding">
+                    {holding !== null
+                      ? `What is holding the next rung: ${holding.charAt(0).toLowerCase()}${holding.slice(1)}`
+                      : 'You meet the bar. The yearly review decides — being qualified is not the same as being chosen.'}
+                  </p>
+                )
+              })()}
               </ol>
             )}
           </section>

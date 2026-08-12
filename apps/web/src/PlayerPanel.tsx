@@ -597,19 +597,27 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
     const moment = schoolMomentById(state.momentId)
     const record = world.education.get(pending.personId)
     if (moment && record) {
+      // THE EARLY YEARS ARE NOT A SCHOOL (live player, age five, with a
+      // screenshot: "High school popups when I am 5 years old"). The
+      // fallthrough said 'High school' about anyone not enrolled in
+      // primary or middle — including a five-year-old whose moment fires
+      // BEFORE school exists. The stage comes from the MOMENT now, not
+      // from guessing at enrollment.
       const stage =
-        record.enrolledIn === 'primary'
-          ? 'Elementary'
-          : record.enrolledIn === 'middle'
-            ? 'Middle school'
-            : 'High school'
+        moment.stage === 'early'
+          ? 'Small'
+          : record.enrolledIn === 'primary'
+            ? 'Elementary'
+            : record.enrolledIn === 'middle'
+              ? 'Middle school'
+              : 'High school'
       return (
         <div className="overlay" role="dialog" aria-modal="true" aria-label="A moment at school">
           <SchoolMomentView
             moment={moment}
             variant={state.variant}
             attainment={record.attainment}
-            standing={`${stage} · ${schoolStandingWords(record.attainment)}`}
+            standing={moment.stage === 'early' ? `${stage} · the world is new` : `${stage} · ${schoolStandingWords(record.attainment)}`}
             onChoose={onChoose}
           />
         </div>

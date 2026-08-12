@@ -126,7 +126,15 @@ describe('the field-aid moment', () => {
     expect(checked).toBeGreaterThan(0)
   })
 
-  it('does not fire while another question holds the world', () => {
+  it('preempts whatever question was holding the world', () => {
+    /**
+     * THE RULE THIS TEST USED TO GUARD WAS THE BUG (live player, on itch:
+     * "I just got wounded in combat 2 times and I never got the popup").
+     * A busy decision slot lost the moment forever — and fed the fatal
+     * roll besides, so answering a work chat the month you were hit meant
+     * NPC-grade mortality. Being shot outranks every question a month can
+     * ask: the wound clears the slot and takes it.
+     */
     const { world, id } = woundedPlayer(12345, 800)
     world.player.pending = {
       id: 999,
@@ -140,7 +148,7 @@ describe('the field-aid moment', () => {
       placeId: null,
       options: ['retire', 'keep-working'],
     }
-    expect(offerFieldAid(world, world.tick, id, 800)).toBe(false)
-    expect(world.player.pending?.kind).toBe('retirement')
+    expect(offerFieldAid(world, world.tick, id, 800)).toBe(true)
+    expect(world.player.pending?.kind).toBe('first-aid')
   })
 })

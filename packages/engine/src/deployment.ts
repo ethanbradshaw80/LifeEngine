@@ -1225,8 +1225,29 @@ export function offerFieldAid(
   severity: number,
 ): boolean {
   const playerId = world.player.personId
-  if (playerId === null || world.player.pending !== null) return false
-  if (!fieldAidWillBeOffered(world, casualtyId, severity)) return false
+  if (playerId === null) return false
+  /**
+   * BEING SHOT PREEMPTS THE SLOT (live player, on itch: "I just got
+   * wounded in combat 2 times and I never got the popup showing where I
+   * was hit and the options").
+   *
+   * A busy decision slot used to LOSE this moment forever — and worse:
+   * `aidComing` came back false, which fed the FATAL roll, so a player
+   * answering a work chat the month they were hit faced NPC-grade
+   * mortality instead of the minutes that decide it. The state of a UI
+   * queue was changing whether a man lived.
+   *
+   * A serious wound now clears whatever was waiting and takes the slot.
+   * The displaced kinds that matter re-raise themselves (orders,
+   * separations, boards); a displaced work chat is a work chat, and being
+   * shot outranks it in any life.
+   */
+  if (world.player.pending !== null && (casualtyId === playerId || world.player.pending.kind !== 'first-aid')) {
+    if (!fieldAidWillBeOffered(world, casualtyId, severity, false)) return false
+    world.player.pending = null
+  } else if (!fieldAidWillBeOffered(world, casualtyId, severity)) {
+    return false
+  }
 
   if (casualtyId === playerId) {
     return raisePending(world, {
@@ -1795,7 +1816,9 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // carries the mortal tail — rolling here as well would make the
     // player's wounds (and any wound a player medic can reach) far more
     // lethal than the same wound on anyone else (review S3).
-    const aidComing = fieldAidWillBeOffered(world, personId, severity)
+    // The slot no longer decides mortality: the moment preempts it, so
+    // aid is coming whenever the wound qualifies at all.
+    const aidComing = fieldAidWillBeOffered(world, personId, severity, false)
     // MEASURED, THEN WIDENED (owner: "people die in war man... we should
     // still be dying if we get shot in the head"). At severity 720 the four
     // fifteen-year wars ran 177 contacts, 35 wounded and 7 killed — a
@@ -1918,7 +1941,10 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     }
     // Hit and still conscious — the minutes that decide it, if this is the
     // player's own wound or one their medic's hands can reach (M-ARMY2).
-    offerFieldAid(world, tick, personId, severity)
+    // The moment describes the wound the record KEEPS — kind-capped — not
+    // the raw draw. A hearing wound capped to minor must not open a
+    // life-or-death scene the health record contradicts.
+    offerFieldAid(world, tick, personId, wound.severity)
     if (!isAccident) {
       recordDecision(world, tick, {
         subjectId: personId,

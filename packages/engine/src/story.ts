@@ -559,9 +559,13 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       const [momentId, , result] = (event.detail ?? '::').split(':')
       const moment = schoolMomentById(momentId ?? '')
       if (moment === undefined) return null
+      // An early-years moment happened at home, in a yard, in a hallway —
+      // "at school" about the dark outside a bedroom is the narrator
+      // guessing, and the narrator does not guess.
+      const where = moment.stage === 'early' ? '' : ', at school'
       return result === 'bad'
-        ? `${year} — ${moment.title}, at school, and it went badly.`
-        : `${year} — ${moment.title}, at school.`
+        ? `${year} — ${moment.title}${where}, and it went badly.`
+        : `${year} — ${moment.title}${where}.`
     }
     case 'work-moment': {
       // M-CAREER §3. Only the ones that MOVED something reach a timeline —

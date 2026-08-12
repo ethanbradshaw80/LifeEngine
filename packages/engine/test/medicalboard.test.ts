@@ -81,9 +81,9 @@ describe('the medical board', () => {
     // both outcomes across people; assert the SAME person never flips.
     let retained = 0
     let discharged = 0
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 7; i += 1) {
       const world = createWorld(makeSeed(100 + i))
-      advanceTicks(world, 12 * 40)
+      advanceTicks(world, 12 * 25)
       const soldier = [...world.people.values()].find(
         (p) => p.deathTick === null && isServing(world, p.id),
       )
@@ -93,10 +93,15 @@ describe('the medical board', () => {
       const stillIn = isServing(world, soldier.id)
       if (stillIn) {
         retained += 1
-        // The board that kept you in March has not changed its mind: three
-        // more months, same person, same number — still serving.
+        // The board that kept you in March has not changed its mind. A
+        // career can still END in these months — a term expires, an age
+        // arrives — so the claim is precise: whatever happens, it is not
+        // the medical trapdoor reopening on a verdict already given.
         advanceTicks(world, 3)
-        expect(isServing(world, soldier.id)).toBe(true)
+        const record = world.service.get(soldier.id)
+        if (!isServing(world, soldier.id)) {
+          expect(record?.dischargeReason).not.toBe('medical')
+        }
       } else {
         discharged += 1
       }

@@ -140,6 +140,7 @@ import {
 } from './crime.js'
 import { GRADE_TITLES, isTrustSensitive, offenceById } from './content.js'
 import type { Offence } from './content.js'
+import { describeAilment } from './wounds.js'
 import {
   ADAPTATION_COST,
   adjustAilmentSeverity,
@@ -2973,6 +2974,20 @@ export function requestDeployment(world: World): { deployed: boolean; reason: st
   if (world.player.pending !== null) return { deployed: false, reason: 'A decision is already waiting.' }
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return { deployed: false, reason: 'Not serving.' }
+  /**
+   * A BOARD-RETAINED BODY DOES NOT GO BACK TO THE FRONT. The medical
+   * board's retention (service.ts) keeps a member serving past disability
+   * 400 on the promise that the combat doors are closed to them — and this
+   * door, the biggest one, never actually checked. The same class of bug
+   * as the pay-down button: a claim about wiring with no wire. Found by
+   * auditing the claim rather than trusting it.
+   */
+  if ((world.health.get(person.id)?.disability ?? 0) >= 400) {
+    return {
+      deployed: false,
+      reason: 'The medical file closes the theatre. Retention is a desk, not a deployment.',
+    }
+  }
 
   world.player.log.push({
     decisionId: world.player.nextDecisionId,
@@ -6780,30 +6795,36 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
     case 'treat-casualty': {
       const casualtyId = pending.kind === 'first-aid' ? pending.personId : pending.otherId
       const record = casualtyId === null ? undefined : world.health.get(casualtyId)
+      /**
+       * WRITTEN AS A MOMENT, NOT A MANUAL (live player, with a screenshot
+       * of six flat bullets and "a shrapnel to the shoulder" — the article
+       * bolted onto a word that refuses one).
+       *
+       * The wound and its weight are ONE composed sentence — the ailment
+       * phrase from wounds.ts already knows its own grammar, so nothing
+       * here adds articles to it. The what-each-choice-costs lines are
+       * gone from the body entirely: that is what the option buttons'
+       * own detail text is for, and saying it twice made the card read
+       * like a rulebook while a man bled in it.
+       */
       if (record) {
-        // How bad it is, in the words the model actually supports.
+        const named =
+          record.ailmentKind !== null
+            ? describeAilment('injury', record.ailmentKind, record.ailmentSite)
+            : 'the wound'
         lines.push(
           record.severity >= 850
-            ? 'It is bleeding badly. This is the kind people do not always come back from.'
+            ? `${named.charAt(0).toUpperCase()}${named.slice(1)} — and it is bleeding badly. This is the kind people do not always come back from.`
             : record.severity >= 720
-              ? 'It is serious, and it is not going to hold on its own.'
-              : 'It is bad, but it is the kind that gets dressed and carried.',
+              ? `${named.charAt(0).toUpperCase()}${named.slice(1)} — serious, and not going to hold on its own.`
+              : `${named.charAt(0).toUpperCase()}${named.slice(1)} — bad, but the kind that gets dressed and carried.`,
         )
-        if (record.ailmentKind !== null && record.ailmentSite !== null) {
-          lines.push(`${withArticle(String(record.ailmentKind))} to the ${record.ailmentSite}.`)
-        }
       }
-      if (pending.kind === 'first-aid') {
-        lines.push('Pressing the wound works best and keeps you in the open longest.')
-        lines.push('Calling out brings better hands, and costs the minutes it takes them.')
-        lines.push('Lying still is the safest thing to do and the least help.')
-      } else {
-        lines.push('Working it where they lie is the best medicine and the worst cover.')
-        lines.push('Dragging them out first costs them minutes and buys you both cover.')
-        lines.push('Calling the evacuation is steadier, and slower.')
-        lines.push('Your training counts here — this is the trade.')
-      }
-      lines.push('Whatever you choose, a wound this bad can still be lost.')
+      lines.push(
+        pending.kind === 'first-aid'
+          ? 'Pressure works best and keeps you in the open; calling out brings better hands, slower; lying still is safest, and the least help. There is no spending these minutes twice.'
+          : 'Working them where they lie is the best medicine and the worst cover; dragging them out first costs minutes and buys cover; the evacuation is steadier, and slower. This is the trade you trained for.',
+      )
       break
     }
 

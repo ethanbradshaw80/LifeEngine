@@ -2286,7 +2286,7 @@ function runInsolvency(world: World, tick: Tick): void {
     }
 
     if (head.id === world.player.personId) {
-      const raised = raisePending(world, {
+      raisePending(world, {
         tick,
         kind: 'bankruptcy',
         personId: head.id,
@@ -2308,12 +2308,28 @@ function runInsolvency(world: World, tick: Tick): void {
         // the court asks again if they are still under.
         options: [...open.map((chapter) => `chapter-${String(chapter)}`), 'ride-it-out'],
       })
-      if (raised) continue
+      /**
+       * AND THE COURT WAITS FOR AN ANSWER (live player, on itch, carrying
+       * a chapter 7 he never chose: "debt doesn't automatically mean file
+       * for bankruptcy").
+       *
+       * The ask was built and the owner's rule was written right above it
+       * — "they can say no" — but the fallthrough beneath treated a player
+       * whose decision slot happened to be FULL as if they were an NPC and
+       * filed for them. Being in the middle of answering a school moment
+       * the month the court came calling was enough to be liquidated
+       * without ever seeing the question.
+       *
+       * The player is NEVER routed automatically. Slot full this month?
+       * The court comes back next month — the criteria that brought it
+       * will still be standing, and so will the question.
+       */
+      continue
     }
 
-    // NPCs, and a player whose slot was full: the court routes them. Where
-    // both are open the honest default is the one that keeps the home - a
-    // plan is what a person with income is actually put on.
+    // NPCs: the court routes them. Where both are open the honest default
+    // is the one that keeps the home — a plan is what a person with income
+    // is actually put on.
     fileBankruptcy(world, tick, head.id, open.includes(13) ? 13 : 7)
   }
 }
