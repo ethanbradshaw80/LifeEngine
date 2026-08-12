@@ -79,6 +79,7 @@ import {
 import {
   atTodaysPrices,
   boardStandingFor,
+  eventsFor,
   netWorthOf,
   branchSpecFor,
   extraDutyBar,
@@ -3001,6 +3002,52 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </ul>
                         </>
                       )}
+                      {(() => {
+                        /**
+                         * THE WOUNDS, ON THE RECORD (spec 3d's UI half: a
+                         * service record that lists what the service cost
+                         * the body). Read from the events the wounds
+                         * themselves wrote — dated, named, and marked
+                         * permanent where the condition is. A DD-214 that
+                         * lists the medals and not the wounds is half a
+                         * record.
+                         */
+                        const woundLines = eventsFor(world, person.id)
+                          .filter((e) => e.type === 'wounded-in-action')
+                          .slice(-8)
+                        const permanent = world.health.get(person.id)?.permanent ?? []
+                        if (woundLines.length === 0 && permanent.length === 0) return null
+                        return (
+                          <>
+                            <h3>Wounds</h3>
+                            <ol className="timeline">
+                              {woundLines.map((e) => (
+                                <li key={e.id}>
+                                  <div className="row">
+                                    <span className="year">{formatYear(world, e.tick as never)}</span>
+                                    <span className="what">
+                                      {(e.detail ?? '').split(':')[1] ?? 'wounds taken in action'}
+                                      {(e.detail ?? '').startsWith('serious') ? ' · serious' : ''}
+                                    </span>
+                                  </div>
+                                </li>
+                              ))}
+                              {permanent.map((c) => (
+                                <li key={`${c.kind}-${String(c.sinceTick)}`}>
+                                  <div className="row">
+                                    <span className="year">{formatYear(world, c.sinceTick as never)}</span>
+                                    <span className="what bad">
+                                      {String(c.kind).replace(/-/g, ' ')}
+                                      {c.site ? ` — the ${c.site}` : ''} · permanent
+                                      {(c.adaptedAtTick ?? null) !== null ? ' · fitted with an aid' : ''}
+                                    </span>
+                                  </div>
+                                </li>
+                              ))}
+                            </ol>
+                          </>
+                        )
+                      })()}
                       <h3>Decorations</h3>
                       <ol className="timeline">
                         {decorations

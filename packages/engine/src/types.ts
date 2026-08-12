@@ -1275,6 +1275,18 @@ export interface HealthRecord {
    */
   readonly ailmentServiceConnected: boolean
   /**
+   * THE RATING THE BOARD GRANTED, 0-1000, or null when no claim was ever
+   * decided (spec 3a — the stored half that makes appeals real).
+   *
+   * Distinct from `serviceDisability` on purpose: that is what the body
+   * carries; this is what the Benefits Administration RECOGNIZED, and the
+   * two can disagree — a board can rate secondary conditions the raw
+   * record understates, and an appeal can move this number where no wound
+   * moved. Pay follows the higher of the two, so no veteran is ever paid
+   * less for having filed.
+   */
+  readonly baRating?: number | null
+  /**
    * The service-connected share of `disability` — accrued when a
    * service-stamped ailment resolves badly, WHENEVER that happens, including
    * years after discharge. This is the field the pension reads (L4-M5): not

@@ -1221,7 +1221,103 @@ const THE_FIRST_FRIEND: SchoolMoment = {
   },
 }
 
+
+/**
+ * THE TEEN YEARS' OWN MOMENTS (spec Phase 6, the half the famine fix did
+ * not cover): the secondary pool fired again once the rate was fixed, but
+ * nothing in it was ABOUT being sixteen. These three are.
+ */
+const THE_CRUSH: SchoolMoment = {
+  id: 'the-crush',
+  stage: 'secondary',
+  title: 'Across the Room',
+  situations: [
+    'There is a person in your third period who has started existing very loudly, and you are almost certain they looked over twice on Tuesday.',
+    'Somebody laughed at the thing you said, in the good way, and now the whole week has rearranged itself around when you might see them again.',
+  ],
+  options: [
+    { id: 'reach', title: 'Say something', tag: 'brave', detail: 'Actual words, out loud, to their face.' },
+    { id: 'steady', title: 'Be around', tag: 'steady', detail: 'Same lunch table orbit. Let it happen at its own speed.' },
+    { id: 'duck', title: 'Say nothing', tag: 'safe', detail: 'The week can stay rearranged. Quietly.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'They said yes', text: 'You said the thing. It came out about sixty percent right, which turned out to be enough — they were waiting for somebody to go first.', foot: 'Going first is a skill. You have it now.', attainment: 5, wellbeing: 24 }],
+      bad: [{ title: 'The long walk back', text: 'You said the thing and they were kind about it, which is somehow worse, and the walk back across that room took a geological age.', foot: 'You said it out loud. Most people never do.', attainment: 5, wellbeing: -8 }],
+    },
+    steady: {
+      good: [{ title: 'It happened at its own speed', text: 'Three weeks of the same lunch orbit, and then one day the seat next to you was just theirs, without either of you deciding it.', foot: 'Patience read the room right.', attainment: 4, wellbeing: 16 }],
+      bad: [{ title: 'Orbit decay', text: 'The orbit held all term, close enough to hope and never closer, and by spring somebody less patient had said something first.', foot: 'Some rooms reward going first.', attainment: 3, wellbeing: -4 }],
+    },
+    duck: {
+      good: [{ title: 'The week settled', text: 'You said nothing, and the loud existing quieted on its own, and honestly it was mostly the idea of them anyway.', foot: 'Knowing the difference counts for something.', attainment: 3, wellbeing: 4 }],
+      bad: [{ title: 'Tuesday, remembered', text: 'You said nothing, and years from now some Tuesday will still occasionally walk up and ask what would have happened.', foot: 'The safe thing has a long tail.', attainment: 2, wellbeing: -3 }],
+    },
+  },
+}
+
+const THE_FIRST_PAYCHECK: SchoolMoment = {
+  id: 'the-first-paycheck',
+  stage: 'secondary',
+  title: 'The Help Wanted Sign',
+  situations: [
+    'The shop on the corner wants weekend help, cash paid, and you are old enough now that the sign is talking to you.',
+    'Somebody is quitting the after-school job at the counter and says they will put your name in if you want it.',
+  ],
+  options: [
+    { id: 'reach', title: 'Take the job', tag: 'brave', detail: 'Weekends and two weeknights. Your own money, your own hours gone.' },
+    { id: 'steady', title: 'Summers only', tag: 'steady', detail: 'The money without the term-time cost.' },
+    { id: 'duck', title: 'Not yet', tag: 'safe', detail: 'School is the job. The sign will find somebody.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'Your own money', text: 'The first envelope had your name on it and numbers you had earned, and you counted it twice, and nothing anybody gives you will ever feel quite like it.', foot: 'Tired all term. Worth it, mostly.', attainment: -6, wellbeing: 20 }],
+      bad: [{ title: 'The candle, both ends', text: 'The envelopes were real but so was falling asleep in third period, and the term report read like a bill for them.', foot: 'The money was honest. So is the cost.', attainment: -18, wellbeing: 6 }],
+    },
+    steady: {
+      good: [{ title: 'The summer wage', text: 'June to August behind the counter, and back to school in autumn with money in a jar and your grades where you left them.', foot: 'Both things, by taking turns.', attainment: 0, wellbeing: 14 }],
+      bad: [{ title: 'The short summer', text: 'The job ate the summer whole, and the jar was lighter than the hours said it should be, and autumn came fast.', foot: 'Wages teach arithmetic nothing else does.', attainment: 0, wellbeing: 4 }],
+    },
+    duck: {
+      good: [{ title: 'The term held', text: 'You kept the hours for the books, and the term showed it, and the sign found somebody else like signs do.', foot: 'A choice, made on purpose.', attainment: 12, wellbeing: 4 }],
+      bad: [{ title: 'Everyone else had money', text: 'The term was fine and the books got read, and every Friday somebody else bought the chips, and you noticed.', foot: 'Next sign, maybe.', attainment: 8, wellbeing: -2 }],
+    },
+  },
+}
+
+const THE_KITCHEN_TABLE: SchoolMoment = {
+  id: 'the-kitchen-table',
+  stage: 'secondary',
+  title: 'The Kitchen Table',
+  situations: [
+    'You came downstairs for water and the kitchen went quiet in the way that means the conversation was about money, and about you being able to hear it.',
+    'The car has been making the noise for a month and nobody has taken it in, and tonight you understood why.',
+  ],
+  options: [
+    { id: 'reach', title: 'Sit down and ask', tag: 'brave', detail: 'You live here too. Ask what is actually going on.' },
+    { id: 'steady', title: 'Help without asking', tag: 'steady', detail: 'Quietly stop costing so much. Notice more.' },
+    { id: 'duck', title: 'Go back upstairs', tag: 'safe', detail: 'Some rooms are not yours yet.' },
+  ],
+  outcomes: {
+    reach: {
+      good: [{ title: 'They told you', text: 'You sat down and asked, and after a silence they actually told you — and being trusted with the real number was somehow steadier than not knowing.', foot: 'Grown-ups are made, not born.', attainment: 8, wellbeing: 10 }],
+      bad: [{ title: 'Not tonight', text: 'You sat down and asked, and got the smile that means not tonight, and carried the question back upstairs with you.', foot: 'Asking was still right.', attainment: 5, wellbeing: 2 }],
+    },
+    steady: {
+      good: [{ title: 'They noticed', text: 'You stopped asking for things and started turning off lights, and nobody said anything, and one night your father squeezed your shoulder on his way past.', foot: 'Some help is quiet.', attainment: 6, wellbeing: 12 }],
+      bad: [{ title: 'Invisible work', text: 'You did the quiet helping for a term and nobody noticed, because that is what quiet means, and you learned something about it.', foot: 'Do it anyway. But know the cost.', attainment: 5, wellbeing: 0 }],
+    },
+    duck: {
+      good: [{ title: 'The room stayed theirs', text: 'You went back up, and whatever it was worked itself out below you, the way it mostly does.', foot: 'Not every weight is yours to lift yet.', attainment: 2, wellbeing: 4 }],
+      bad: [{ title: 'The noise stopped anyway', text: 'You went back up, and the car noise stopped a month later because the car did, and you pieced the rest together from the bus schedule.', foot: 'Some things you learn sideways.', attainment: 3, wellbeing: -4 }],
+    },
+  },
+}
+
 export const SCHOOL_MOMENTS: readonly SchoolMoment[] = [
+  THE_CRUSH,
+  THE_FIRST_PAYCHECK,
+  THE_KITCHEN_TABLE,
   THE_DARK,
   THE_BIG_SLIDE,
   THE_FIRST_FRIEND,

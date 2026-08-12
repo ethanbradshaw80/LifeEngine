@@ -284,7 +284,7 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   convalesce: { rest: 'Rest and heal', 'push-on': 'Push on' },
   // The board's finding is not a negotiation; the letter is not an offer.
   'medical-board': { 'accept-findings': 'Acknowledge the finding' },
-  'ba-claim': { accept: 'File the letter away' },
+  'ba-claim': { accept: 'File the letter away', appeal: 'Appeal the rating' },
   enlist: { accept: 'Enlist', decline: 'Not for me' },
   // Not a medal glyph: a decoration is earned, and this is a job choice.
   commission: { officer: '📜 Take the commission', enlisted: '🪖 Sign as enlisted' },

@@ -12,6 +12,7 @@ import {
   PRESETS,
   personSummary,
   rankTitle,
+  timelineFor,
   worldHashHex,
   courtOutcomeOf,
 } from '@life-engine/engine'
@@ -45,7 +46,7 @@ import { useWorld } from './useWorld.js'
  */
 const GOLDEN_SEED = 12345
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '0245776f'
+const GOLDEN_HASH_HEX = '1e4a7f87'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -358,6 +359,14 @@ export function App() {
             label: 'Estate',
             value: worth > 0 ? formatMoney(worth) : 'debts and belongings',
           })
+          // THE MOMENTS THE YEARS KEPT (spec Phase 4's second half): a few
+          // lines of the life itself, quoted from the timeline the story
+          // tab already writes — most recent last, the way a life reads.
+          const moments = timelineFor(world, playerPerson.id)
+          const kept = moments.slice(-4)
+          for (const entry of kept) {
+            lines.push({ label: entry.year ?? '·', value: entry.text })
+          }
           return lines
         })()}
         serviceLine={

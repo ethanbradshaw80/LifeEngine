@@ -114,6 +114,17 @@ export function fitAdaptation(
   return true
 }
 
+/**
+ * THE BOARD'S GRANT, WRITTEN. One writer, monotone upward — an appeal or a
+ * re-filing can raise a granted rating and nothing can lower one, which is
+ * the promise that makes filing always safe to click.
+ */
+export function setBaRating(world: World, personId: EntityId, rating: number): void {
+  const record = world.health.get(personId) ?? freshHealth(personId)
+  const next = Math.max(record.baRating ?? 0, Math.max(0, Math.min(1000, rating)))
+  world.health.set(personId, { ...record, baRating: next })
+}
+
 /** A blank record: well, unmarked. Every person gets one at creation. */
 export function freshHealth(personId: EntityId): HealthRecord {
   return {
@@ -126,6 +137,7 @@ export function freshHealth(personId: EntityId): HealthRecord {
     sinceTick: null,
     askedConvalesce: false,
     disability: 0,
+    baRating: null,
     permanent: [],
     ailmentServiceConnected: false,
     serviceDisability: 0,

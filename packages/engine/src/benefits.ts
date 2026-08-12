@@ -79,7 +79,10 @@ export const PUBLICCARE_INCOME_CEILING = 140_000 as Money
  */
 export function inTheBA(world: World, personId: EntityId): boolean {
   const record = world.health.get(personId)
-  if (record === undefined || record.serviceDisability < PENSION_THRESHOLD) return false
+  // The granted rating counts the same as the carried one — a board that
+  // recognized you is not un-recognized by the raw number lagging.
+  const effective = Math.max(record?.serviceDisability ?? 0, record?.baRating ?? 0)
+  if (record === undefined || effective < PENSION_THRESHOLD) return false
   const service = world.service.get(personId)
   return service !== undefined && service.dischargedAtTick !== null
 }
@@ -92,7 +95,7 @@ export function inTheBA(world: World, personId: EntityId): boolean {
 export function disabilityRatingFor(world: World, personId: EntityId): number {
   const record = world.health.get(personId)
   if (record === undefined) return 0
-  return Math.min(100, Math.floor(record.serviceDisability / 10))
+  return Math.min(100, Math.floor(Math.max(record.serviceDisability, record.baRating ?? 0) / 10))
 }
 
 /**
@@ -120,7 +123,7 @@ export function baCompensationFor(world: World, personId: EntityId, tick: Tick):
   const record = world.health.get(personId)
   if (record === undefined) return 0 as Money
 
-  const base = record.serviceDisability * PENSION_CENTS_PER_POINT
+  const base = Math.max(record.serviceDisability, record.baRating ?? 0) * PENSION_CENTS_PER_POINT
   // A DEPENDENT IS A PERSON UNDER THIS ROOF WHO IS NOT EARNING. Counted from
   // the household rather than from a marriage record, so a man raising his
   // sister's children is not told they do not count.

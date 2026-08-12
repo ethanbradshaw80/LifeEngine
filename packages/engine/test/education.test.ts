@@ -151,14 +151,26 @@ describe('the school years leave a mark', () => {
   })
 
   it('pays off on average without being a guarantee', () => {
+    /**
+     * POOLED ACROSS SEEDS, because the claim is about the MECHANISM and
+     * the old sample was one seed's 18-to-26-year-olds who went private —
+     * a handful of people, and v160's childhood-moment cascade left that
+     * handful EMPTY in the shared world. An average over nobody is not a
+     * refutation of anything. Three towns' worth of graduates is a sample;
+     * the property under test is unchanged.
+     */
     const priv: number[] = []
     const pub: number[] = []
-    for (const person of livingPeople(world)) {
-      const record = world.education.get(person.id)
-      if (record === undefined || record.schooling === undefined) continue
-      const age = ageAt(person.birthTick, world.tick)
-      if (age < 18 || age > 26) continue
-      ;(record.schooling === 'private' ? priv : pub).push(record.attainment)
+    for (const seedValue of [4141, 12345, 777]) {
+      const sample = seedValue === 4141 ? world : createWorld(makeSeed(seedValue), 400)
+      if (sample !== world) advanceTicks(sample, 12 * 30)
+      for (const person of livingPeople(sample)) {
+        const record = sample.education.get(person.id)
+        if (record === undefined || record.schooling === undefined) continue
+        const age = ageAt(person.birthTick, sample.tick)
+        if (age < 18 || age > 26) continue
+        ;(record.schooling === 'private' ? priv : pub).push(record.attainment)
+      }
     }
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length
     expect(priv.length).toBeGreaterThan(0)

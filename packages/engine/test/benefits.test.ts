@@ -10,6 +10,7 @@ import {
   outOfPocketFor,
 } from '../src/benefits.js'
 import { personalIncome } from '../src/finances.js'
+import { setBaRating } from '../src/health.js'
 import type { Money, Tick } from '@life-engine/shared'
 
 /**
@@ -144,5 +145,38 @@ describe('the coverage resolver', () => {
     expect(outOfPocketFor(world, personId, ruinous, false, world.tick)).toBeLessThanOrEqual(
       coverage.outOfPocketMax,
     )
+  })
+})
+
+describe('the stored grant (spec 3a, the schema half)', () => {
+  it('a grant never lowers what a veteran already had', () => {
+    const world = createWorld({ seed: 707, townSize: 'small' })
+    const personId = [...world.people.keys()][0]!
+    const health = world.health.get(personId)!
+    world.health.set(personId, { ...health, serviceDisability: 400, baRating: 500 })
+    // A worse roll than the standing rating must change nothing: the
+    // writer is monotone upward, which is what makes filing safe to click.
+    setBaRating(world, personId, 300)
+    expect(world.health.get(personId)?.baRating).toBe(500)
+    // And the money reads the higher of carried and granted.
+    expect(disabilityRatingFor(world, personId)).toBe(50)
+  })
+
+  it('the granted rating raises the pension, not a second payment', () => {
+    const world = createWorld({ seed: 707, townSize: 'small' })
+    const personId = [...world.people.keys()][0]!
+    const health = world.health.get(personId)!
+    world.health.set(personId, { ...health, serviceDisability: 300, baRating: null })
+    world.service.set(personId, {
+      ...(world.service.get(personId) ?? ({} as never)),
+      personId,
+      dischargedAtTick: world.tick as Tick,
+    } as never)
+    const before = personalIncome(world, personId)
+    setBaRating(world, personId, 450)
+    const after = personalIncome(world, personId)
+    // The board recognized more than the raw record; the one pension pays
+    // it. No new payment path exists — that mistake was already made once.
+    expect(after).toBeGreaterThan(before)
   })
 })

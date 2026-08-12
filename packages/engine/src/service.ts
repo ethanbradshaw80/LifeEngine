@@ -265,6 +265,19 @@ export function servicePayOf(world: World, personId: EntityId): number {
   // risen eightfold. The stored `monthlyPay` stays base-year — it is the
   // grade's pay, not this month's — and the price level is applied here,
   // in the one place the number is read.
+  /**
+   * DESK-SIDE RETENTION PAYS DESK-SIDE MONEY (spec 3b, the piece the
+   * schema-free retention left out). A member the medical board kept past
+   * the 400 line serves on in a limited role — the combat doors already
+   * refuse them — and the pay reflects it: no deployment rotations, no
+   * special-duty postings, so the special-duty pay goes and the grade
+   * draws at eighty-five percent. Derived from the same disability figure
+   * everything else reads; nothing stored, nothing to drift.
+   */
+  const retained = (world.health.get(personId)?.disability ?? 0) >= 400
+  if (retained) {
+    return atTodaysPrices(world, Math.floor((record.monthlyPay * 850) / 1000) as Money)
+  }
   return atTodaysPrices(world, (record.monthlyPay + (unit?.dutyPay ?? 0)) as Money)
 }
 
@@ -1195,7 +1208,14 @@ export function pensionValueOf(world: World, personId: EntityId): number {
   // The RATE is base-year content, like a grade's pay; the price level is
   // applied at the end. A pension that never rose would be the same bug
   // service pay had — a veteran drawing 1970 money in 2070.
-  const serviceDisability = world.health.get(personId)?.serviceDisability ?? 0
+  /**
+   * PAY FOLLOWS THE HIGHER OF WHAT THE BODY CARRIES AND WHAT THE BOARD
+   * GRANTED (spec 3a). An appeal that raised the rating raises the check;
+   * a veteran who never filed keeps the automatic figure. `setBaRating`
+   * is monotone upward, so filing can never cut anybody's pension.
+   */
+  const bodyFile = world.health.get(personId)
+  const serviceDisability = Math.max(bodyFile?.serviceDisability ?? 0, bodyFile?.baRating ?? 0)
   if (serviceDisability >= PENSION_THRESHOLD) {
     monthly += serviceDisability * PENSION_CENTS_PER_POINT
   }

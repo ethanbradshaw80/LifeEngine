@@ -148,6 +148,7 @@ import {
   fitAdaptation,
   inflictWound,
   isSeverelyAiling,
+  setBaRating,
   SEVERE_AILMENT,
 } from './health.js'
 import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
@@ -2860,22 +2861,35 @@ export function fileBAClaim(world: World): { done: boolean; reason: string; word
     return { done: false, reason: 'A decision is already waiting.', words: '' }
   }
   const record = world.health.get(person.id)
-  const connected = record?.serviceDisability ?? 0
+  const carried = record?.serviceDisability ?? 0
+  /**
+   * THE BOARD RATES THE WHOLE CLAIM (spec 3a, now with the stored half).
+   * The roll runs 100–115 percent of what the body carries — a board can
+   * recognize the secondary conditions the raw record understates — and
+   * the grant is stored monotone-upward, so a bad roll against an
+   * existing rating changes nothing and a good one raises the check for
+   * life. A grant that came in under 110 percent leaves room to argue,
+   * and the letter offers the appeal.
+   */
+  const board = openStream(world.seed, Stream.Health, person.id, world.tick + 313_131)
+  const granted = Math.min(1000, Math.floor((carried * board.nextIntInclusive(1000, 1150)) / 1000))
+  setBaRating(world, person.id, granted)
+  const effective = Math.max(carried, world.health.get(person.id)?.baRating ?? 0)
   recordEvent(world, world.tick, {
     type: 'ba-claim-decided',
     subjectId: person.id,
-    detail: String(connected),
+    detail: String(effective),
   })
   raisePending(world, {
     tick: world.tick,
     kind: 'ba-claim',
     personId: person.id,
     otherId: null,
-    occupationId: String(connected),
+    occupationId: String(effective),
     workplaceId: null,
     monthlyPay: baCompensationFor(world, person.id, world.tick),
     placeId: null,
-    options: ['accept'],
+    options: granted < Math.floor((carried * 1100) / 1000) ? ['accept', 'appeal'] : ['accept'],
   })
   return { done: true, reason: '', words: '' }
 }
@@ -4945,13 +4959,41 @@ export function resolvePending(world: World, choice: string): void {
     }
 
     /**
-     * THE RATING, DELIVERED. Filing was the verb; this is the letter
-     * arriving. Money does not move here — the disability share is already
-     * inside the service pension, single writer — the letter tells the
-     * player what they are owed and that it is flowing.
+     * THE RATING, DELIVERED — and the appeal, argued. Money does not move
+     * here (the pension is the single payer); an appeal re-rolls the
+     * board at better odds, the store keeps the higher figure, and the
+     * final letter arrives with no appeal left on it. One appeal per
+     * claim, the way the spec drew it.
      */
-    case 'ba-claim':
+    case 'ba-claim': {
+      if (choice === 'appeal') {
+        const carried = world.health.get(person.id)?.serviceDisability ?? 0
+        const panel = openStream(world.seed, Stream.Health, person.id, pending.tick + 626_262)
+        const regranted = Math.min(
+          1000,
+          Math.floor((carried * panel.nextIntInclusive(1050, 1200)) / 1000),
+        )
+        setBaRating(world, person.id, regranted)
+        const effective = Math.max(carried, world.health.get(person.id)?.baRating ?? 0)
+        recordEvent(world, pending.tick, {
+          type: 'ba-claim-decided',
+          subjectId: person.id,
+          detail: `appeal:${String(effective)}`,
+        })
+        raisePending(world, {
+          tick: pending.tick,
+          kind: 'ba-claim',
+          personId: person.id,
+          otherId: null,
+          occupationId: String(effective),
+          workplaceId: null,
+          monthlyPay: baCompensationFor(world, person.id, pending.tick),
+          placeId: null,
+          options: ['accept'],
+        })
+      }
       break
+    }
 
     default: {
       const never: never = pending.kind
