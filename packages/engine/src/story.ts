@@ -791,10 +791,17 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Released, at ${age}. The record came home too.`
     case 'mounting-debts':
       // The slide announces itself on the way down, so the −$500k
-      // paperwork never arrives out of nowhere (H1).
+      // paperwork never arrives out of nowhere (H1) — and neither does a
+      // foreclosure (H2 §5).
       return event.detail === 'calls'
         ? `${year} — The phone calls about the money have started.`
-        : `${year} — The letters about the money are piling up.`
+        : event.detail === 'mortgage'
+          ? `${year} — The bank's letters turned formal: catch the mortgage up, or the house goes.`
+          : `${year} — The letters about the money are piling up.`
+    case 'refinanced': {
+      const [was, now] = (event.detail ?? ':').split(':')
+      return `${year} — The mortgage was rewritten: ${String(Number(was) / 10)}% down to ${String(Number(now) / 10)}%.`
+    }
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':

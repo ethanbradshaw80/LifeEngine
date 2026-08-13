@@ -18,16 +18,23 @@ import {
   accountsOf,
   creditOf,
   creditWords,
+  depositFor,
+  depositShareFor,
   downPaymentFor,
   equityOf,
+  leaseOf,
   listingsFor,
   monthlyPaymentFor,
   moveBackInBar,
   offeredRatePerMille,
   ownershipCostOf,
-  portfolioValueOf,
   propertiesOwnedBy,
+  refinanceBar,
+  rentalIncomeOf,
+  rentOf,
   saleProceedsOf,
+  trendOf,
+  trendWords,
   valueOf,
 } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
@@ -161,37 +168,59 @@ export function RealEstate({
   readonly hasLease: boolean
   readonly onAct: (action: VerbRequest) => void
 }): React.ReactElement {
-  const [mode, setMode] = useState<'own' | 'buy' | 'rent'>('own')
   const [open, setOpen] = useState<string | null>(null)
-  const [minBeds, setMinBeds] = useState<number>(0)
-  const [downPerMille, setDownPerMille] = useState<number>(200)
+  const [downPerMille, setDownPerMille] = useState<number>(0)
 
   const mine = propertiesOwnedBy(world, personId as never)
-  const all = listingsFor(world, minBeds > 0 ? { minBeds } : undefined)
-  const shown = all.filter((l) => (mode === 'buy' ? l.forSale : l.forRent))
-  const detail = open === null ? null : (shown.find((l) => l.property.id === open) ?? null)
+  const all = listingsFor(world)
+  const detail = open === null ? null : (all.find((l) => l.property.id === open) ?? null)
+  const credit = creditOf(world, personId as never)
+  const rate = offeredRatePerMille(world, credit, 'mortgage')
+  const minSharePerMille = depositShareFor(credit)
+  const accounts = accountsOf(world, personId as never)
+  const myMortgage = accounts.loans.find((l) => l.kind === 'mortgage')
 
-  // ---- THE PROPERTY PAGE -------------------------------------------------
+  /** The household actually living in a property, if it is not the player's. */
+  const tenantOf = (propertyId: string) => {
+    for (const household of world.households.values()) {
+      if (household.dissolvedTick !== null || household.propertyId !== propertyId) continue
+      if (household.memberIds.includes(personId as never)) return undefined
+      return household
+    }
+    return undefined
+  }
+
+  /** Whether this deed is the roof over the player's own head. */
+  const livedIn = (propertyId: string) => {
+    const person = world.people.get(personId as never)
+    const household = person?.householdId === null || person === undefined
+      ? undefined
+      : world.households.get(person.householdId)
+    return household?.propertyId === propertyId
+  }
+
+  // ---- THE PROPERTY PAGE (More Info) --------------------------------------
   if (detail !== null) {
     const { property, price } = detail
     const place = world.places.get(property.neighbourhoodPlaceId)
-    const floor = Math.ceil(price / 5)
-    const down = downPaymentFor(price as never, downPerMille, floor as never)
+    // THE FLOOR IS YOUR FILE'S (housing spec): the bank names the minimum
+    // down off the credit score, the same number the loan door checks.
+    const floor = depositFor(price as never, credit)
+    const share = Math.max(minSharePerMille, downPerMille)
+    const down = downPaymentFor(price as never, share, floor as never)
     const borrowed = Math.max(0, price - down)
-    // THE RATE IS YOURS, NOT THE POSTCODE'S (Verdant layer): the same
-    // credit-gated number the engine writes on the loan, so the estimate
-    // and the mortgage that actually arrives cannot disagree.
-    const credit = creditOf(world, personId as never)
-    const rate = offeredRatePerMille(world, credit, 'mortgage')
     const monthly = monthlyPaymentFor(borrowed as never, rate, 360)
     const cost = ownershipCostOf(world, property, monthly)
+    const trend = trendOf(world, property.neighbourhoodPlaceId, world.tick)
 
     return (
-      <div className="re">
+      <div className="re2">
         <button type="button" className="re-back" onClick={() => setOpen(null)}>
-          ‹ Back to listings
+          ‹ Back to the portfolio
         </button>
-        <Illustration type={property.type} desirability={place?.desirability ?? 500} tall />
+        <div className="re-hero">
+          <Illustration type={property.type} desirability={place?.desirability ?? 500} tall />
+        </div>
         <div className="re-hero-price">
           <b>{formatMoney(price)}</b>
           <span>Est. {formatMoney(cost.total as never)}/mo</span>
@@ -210,22 +239,31 @@ export function RealEstate({
           </div>
         </section>
 
-        {mode === 'buy' && (
+        {detail.forSale && (
           <section className="re-sec">
-            <h4>Monthly cost estimate</h4>
+            <h4>The numbers</h4>
+            <div className="re-tiles">
+              <div className="re-tile hot"><span>Price</span><b>{formatMoney(price)}</b></div>
+              <div className="re-tile hot"><span>Down payment</span><b>{formatMoney(down as never)} ({(share / 10).toFixed(0)}%)</b></div>
+              <div className="re-tile"><span>Mortgage rate</span><b>{(rate / 10).toFixed(1)}%/yr</b></div>
+              <div className="re-tile"><span>Est. monthly</span><b>{formatMoney(cost.total as never)}</b></div>
+              <div className="re-tile"><span>Market rent</span><b>{formatMoney(detail.monthlyRent)}/mo</b></div>
+              <div className="re-tile"><span>Market trend</span><b>{trendWords(trend)}</b></div>
+            </div>
+            <h4>Your month, itemized</h4>
             <div className="re-slider-label">
-              Down payment · {(downPerMille / 10).toFixed(0)}% ({formatMoney(down as never)})
+              Down payment · {(share / 10).toFixed(0)}% ({formatMoney(down as never)})
             </div>
             {/* THE SLIDER IS THE CHOICE the spec asks for: more down means a
                 smaller payment and less interest, at the cost of everything
-                no longer in the bank. */}
+                no longer in the bank. The bank's own minimum is the floor. */}
             <input
               className="re-slider"
               type="range"
-              min={200}
+              min={minSharePerMille}
               max={800}
               step={50}
-              value={downPerMille}
+              value={share}
               onChange={(e) => setDownPerMille(Number(e.target.value))}
             />
             <div className="re-row">
@@ -249,29 +287,26 @@ export function RealEstate({
             <div><span>Desirability</span><b>{desirabilityWords(place?.desirability ?? 0)}</b></div>
             <div><span>Condition</span><b>{conditionWords(property.condition)}</b></div>
             <div><span>Rent here</span><b>{formatMoney(detail.monthlyRent)}/mo</b></div>
-            <div><span>Lot</span><b>{property.lotSqft > 0 ? `${property.lotSqft.toLocaleString()} sqft` : 'none'}</b></div>
+            <div><span>Trajectory</span><b>{trendWords(trend)}</b></div>
           </div>
         </section>
 
         <div className="re-trade">
-          {mode === 'buy' && detail.forSale && (
+          {detail.forSale && (
             <>
-              {/* CASH OR A MORTGAGE, SIDE BY SIDE (Verdant layer): the two
-                  real ways to buy, each wearing its own price so the choice
-                  is a comparison rather than a discovery. */}
               <button
                 type="button"
                 className="re-buy"
-                disabled={cash < floor}
+                disabled={cash < down}
                 onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'mortgage' })}
               >
-                {cash < floor
-                  ? `Needs ${formatMoney(floor as never)} down`
-                  : `Buy with mortgage — ${formatMoney(floor as never)} down · ${(rate / 10).toFixed(1)}%`}
+                {cash < down
+                  ? `Needs ${formatMoney(down as never)} down`
+                  : `Buy with mortgage — ${formatMoney(down as never)} down · ${(rate / 10).toFixed(1)}%`}
               </button>
               <button
                 type="button"
-                className="re-buy"
+                className="re-buy re-alt"
                 disabled={cash < price}
                 onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'cash' })}
               >
@@ -281,10 +316,10 @@ export function RealEstate({
               </button>
             </>
           )}
-          {mode === 'rent' && detail.forRent && (
+          {detail.forRent && (
             <button
               type="button"
-              className="re-buy"
+              className="re-buy re-alt"
               disabled={hasLease || cash < detail.monthlyRent * 2}
               onClick={() => onAct({ verb: 'rent-property', propertyId: property.id })}
             >
@@ -296,169 +331,294 @@ export function RealEstate({
     )
   }
 
-  // ---- THE LISTINGS ------------------------------------------------------
+  // ---- THE PORTFOLIO (the owner's property-ui mockup) ----------------------
+  const totalEquity = mine.reduce((total, property) => {
+    const owing = livedIn(property.id) ? (myMortgage?.balance ?? 0) : 0
+    return total + equityOf(world, property.id, owing as never)
+  }, 0)
+  const rental = rentalIncomeOf(world, personId as never)
+  const forSale = all.filter((l) => l.forSale).slice(0, 9)
+  const forRent = all.filter((l) => l.forRent && !l.forSale).slice(0, 6)
+  const hoods = [...world.places.values()]
+    .filter((entry) => entry.kind === 'neighbourhood')
+    .sort((a, b) => a.id - b.id)
+  const refiBar = refinanceBar(world, personId as never)
+  const canMoveHome = moveBackInBar(world, personId as never) === null
+
+  const trendTag = (placeId: number) => {
+    const trend = trendOf(world, placeId as never, world.tick)
+    return (
+      <span className={`re2-tag re2-tag-${trend}`}>
+        {trend === 'gentrifying' ? 'Gentrifying' : trend === 'declining' ? 'Declining' : 'Established'}
+      </span>
+    )
+  }
+  /** An honest "Deal": the rent covers the price unusually fast. */
+  const isDeal = (price: number, rent: number) => price > 0 && (rent * 12_000) / price >= 62
+
   return (
-    <div className="re">
-      <div className="re-toggle">
-        <button type="button" className={mode === 'own' ? 'on' : ''} onClick={() => setMode('own')}>
-          Yours{mine.length > 0 ? ` (${String(mine.length)})` : ''}
-        </button>
-        <button type="button" className={mode === 'buy' ? 'on' : ''} onClick={() => setMode('buy')}>
-          Buy
-        </button>
-        <button type="button" className={mode === 'rent' ? 'on' : ''} onClick={() => setMode('rent')}>
-          Rent
-        </button>
+    <div className="re2">
+      <div className="re2-header">
+        <h1>Property</h1>
+        <p>Own the roof, collect the rents, watch the streets move.</p>
       </div>
-      {mode === 'own' && (
+
+      <div className="re2-summary">
+        <div className="re2-scard">
+          <span>Total equity</span>
+          <b className={totalEquity >= 0 ? 'good' : 'bad'}>{formatMoney(totalEquity as never)}</b>
+        </div>
+        <div className="re2-scard">
+          <span>Properties owned</span>
+          <b>{mine.length}</b>
+        </div>
+        <div className="re2-scard">
+          <span>Rental income</span>
+          <b className={rental > 0 ? 'good' : ''}>{formatMoney(rental)}/mo</b>
+        </div>
+        <div className="re2-scard">
+          <span>Cash available</span>
+          <b>{formatMoney(cash as never)}</b>
+        </div>
+      </div>
+
+      <div className="re2-title">Your properties</div>
+      {mine.length === 0 ? (
+        <p className="re2-cdesc">
+          You own nothing yet. Every deed you buy lands here — live in it, rent it out, or sell it.
+        </p>
+      ) : (
         <>
-          {mine.length === 0 ? (
-            <p className="bank-note">
-              You do not own any property. Buying and renting are both on the tabs above.
-            </p>
-          ) : (
-            <>
-              <div className="re-portfolio">
-                <span>{mine.length} propert{mine.length === 1 ? 'y' : 'ies'}</span>
-                <b>{formatMoney(portfolioValueOf(world, personId as never))}</b>
-              </div>
-              {mine.map((property) => {
-                const place = world.places.get(property.neighbourhoodPlaceId)
-                const lived = world.households.get(
-                  [...world.households.values()].find((h) => h.propertyId === property.id)?.id ??
-                    (-1 as never),
-                )
-                // THE EQUITY LINE (Verdant layer): what the house is worth
-                // to YOU — value less the mortgage still owed on it. The
-                // one mortgage a person can carry belongs to the home they
-                // live in; everything else is owned clear.
-                const mortgage =
-                  lived !== undefined
-                    ? (accountsOf(world, personId as never).loans.find((l) => l.kind === 'mortgage')
-                        ?.balance ?? 0)
-                    : 0
-                const equity = equityOf(world, property.id, mortgage as never)
-                return (
-                  <article className="re-card" key={property.id}>
-                    <div className="re-thumb">
-                      <Illustration type={property.type} desirability={place?.desirability ?? 500} />
-                      <span className="re-badge sale">Owned</span>
-                      <span className="re-tagpx">{formatMoney(valueOf(world, property))}</span>
+          <div className="re2-grid">
+            {mine.map((property) => {
+              const place = world.places.get(property.neighbourhoodPlaceId)
+              const value = valueOf(world, property)
+              const isHome = livedIn(property.id)
+              const owing = isHome ? (myMortgage?.balance ?? 0) : 0
+              const equity = equityOf(world, property.id, owing as never)
+              const tenant = tenantOf(property.id)
+              const lease = tenant === undefined ? undefined : leaseOf(world, tenant.id)
+              const income = tenant === undefined ? 0 : (lease?.monthlyRent ?? rentOf(world, property))
+              const upkeep = ownershipCostOf(world, property, 0 as never).maintenance
+              return (
+                <article className="re2-card" key={property.id}>
+                  <div className="re2-chead">
+                    <div>
+                      <div className="re2-ctitle">{property.address}</div>
+                      <div className="re2-cmeta">
+                        {(place?.name ?? 'town').toUpperCase()} · {property.type.toUpperCase()}
+                        {isHome ? ' · YOUR HOME' : ''}
+                      </div>
                     </div>
-                    <div className="re-cbody">
-                      <div className="re-addr-sm">{property.address}</div>
-                      <div className="re-hood">
-                        {place?.name ?? 'town'} · {property.type} ·{' '}
-                        {lived === undefined ? 'empty' : 'you live here'}
+                    <div className="re2-cprice">{formatMoney(value)}</div>
+                  </div>
+                  <p className="re2-cdesc">{listingWords(property, place?.desirability ?? 500)}</p>
+                  <div className="re2-tags">
+                    {trendTag(property.neighbourhoodPlaceId)}
+                    {tenant !== undefined && <span className="re2-tag re2-tag-let">Tenanted</span>}
+                  </div>
+                  <div className="re2-stats">
+                    <div className="re2-srow">
+                      <span>Equity{owing > 0 ? ` (owing ${formatMoney(owing as never)})` : ' — owned clear'}</span>
+                      <b className={equity >= 0 ? 'good' : 'bad'}>{formatMoney(equity as never)}</b>
+                    </div>
+                    {isHome && myMortgage !== undefined && (
+                      <div className="re2-srow">
+                        <span>Mortgage rate</span>
+                        <b>{(myMortgage.ratePerMille / 10).toFixed(1)}%/yr</b>
                       </div>
-                      <div className="re-facts">
-                        <span><b>{property.beds}</b> bd</span>
-                        <span><b>{property.baths}</b> ba</span>
-                        <span><b>{property.sqft.toLocaleString()}</b> sqft</span>
-                        <span>{conditionWords(property.condition)}</span>
-                      </div>
-                      <div className="re-row">
-                        <span>{mortgage > 0 ? `Equity (owing ${formatMoney(mortgage as never)})` : 'Equity — owned clear'}</span>
-                        <b>{formatMoney(equity as never)}</b>
-                      </div>
-                      <div className="re-trade">
+                    )}
+                    <div className="re2-srow">
+                      <span>Monthly rent</span>
+                      <b className={income > 0 ? 'good' : ''}>
+                        {tenant === undefined ? (isHome ? '— you live here' : 'vacant') : `${formatMoney(income as never)}/mo`}
+                      </b>
+                    </div>
+                    <div className="re2-srow">
+                      <span>Upkeep</span>
+                      <b className="bad">−{formatMoney(upkeep)}/mo</b>
+                    </div>
+                  </div>
+                  <div className="re2-actions">
+                    <button
+                      type="button"
+                      className="re2-btn"
+                      onClick={() => onAct({ verb: 'sell-property', propertyId: property.id })}
+                    >
+                      Sell · {formatMoney(saleProceedsOf(world, property.id).net)}
+                    </button>
+                    <button type="button" className="re2-btn" onClick={() => setOpen(property.id)}>
+                      Details
+                    </button>
+                    {/* THE MANAGEMENT VERBS (owner: "live in one, rent out
+                        the other"): what the deed's state allows, only. */}
+                    {!isHome && tenant === undefined && (
+                      <>
                         <button
                           type="button"
-                          className="re-buy"
-                          onClick={() => onAct({ verb: 'sell-property', propertyId: property.id })}
+                          className="re2-btn"
+                          onClick={() => onAct({ verb: 'move-into-own', propertyId: property.id })}
                         >
-                          Sell — {formatMoney(saleProceedsOf(world, property.id).net)} after fees
+                          Move in
                         </button>
-                      </div>
-                    </div>
-                  </article>
-                )
-              })}
-            </>
-          )}
+                        <button
+                          type="button"
+                          className="re2-btn re2-primary"
+                          onClick={() => onAct({ verb: 'find-tenant', propertyId: property.id })}
+                        >
+                          Find a tenant — {formatMoney(rentOf(world, property))}/mo
+                        </button>
+                      </>
+                    )}
+                    {!isHome && tenant !== undefined && (
+                      <button
+                        type="button"
+                        className="re2-btn re2-primary"
+                        onClick={() => onAct({ verb: 'end-tenancy', propertyId: property.id })}
+                      >
+                        End the tenancy
+                      </button>
+                    )}
+                    {isHome && myMortgage !== undefined && (
+                      <button
+                        type="button"
+                        className="re2-btn re2-primary"
+                        disabled={refiBar !== null}
+                        title={refiBar ?? undefined}
+                        onClick={() => onAct({ verb: 'refinance' })}
+                      >
+                        {refiBar === null ? 'Refinance' : 'Refinance — nothing better today'}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
         </>
       )}
 
-      {/* THE WAY BACK (Verdant layer, owner confirmed): a grown child under
-          water on rent can fold the household back into a living parent's.
-          The wallet stays theirs — adult kids at home pay nothing (H0). */}
-      {mode === 'rent' && moveBackInBar(world, personId as never) === null && (
-        <div className="re-trade">
-          <button
-            type="button"
-            className="re-buy"
-            onClick={() => onAct({ verb: 'move-in-parents' })}
-          >
+      <div className="re2-title">Available this month</div>
+      <div className="re2-grid">
+        {forSale.map(({ property, price, monthlyRent }) => {
+          const place = world.places.get(property.neighbourhoodPlaceId)
+          const down = depositFor(price as never, credit)
+          return (
+            <article className="re2-card" key={property.id}>
+              <div className="re2-chead">
+                <div>
+                  <div className="re2-ctitle">{property.address}</div>
+                  <div className="re2-cmeta">
+                    {(place?.name ?? 'town').toUpperCase()} · {property.type.toUpperCase()} · {property.beds}bd {property.baths}ba
+                  </div>
+                </div>
+                <div className="re2-cprice">{formatMoney(price)}</div>
+              </div>
+              <p className="re2-cdesc">{listingWords(property, place?.desirability ?? 500)}</p>
+              <div className="re2-tags">
+                {trendTag(property.neighbourhoodPlaceId)}
+                {isDeal(price, monthlyRent) && <span className="re2-tag re2-tag-deal">Deal</span>}
+              </div>
+              <div className="re2-stats">
+                <div className="re2-srow">
+                  <span>Down payment</span>
+                  <b>{formatMoney(down as never)} ({(minSharePerMille / 10).toFixed(0)}%)</b>
+                </div>
+                <div className="re2-srow">
+                  <span>Mortgage rate</span>
+                  <b>{(rate / 10).toFixed(1)}%/yr</b>
+                </div>
+                <div className="re2-srow">
+                  <span>Est. monthly rent</span>
+                  <b className="good">{formatMoney(monthlyRent)}/mo</b>
+                </div>
+                <div className="re2-srow">
+                  <span>Market trend</span>
+                  <b>{trendWords(trendOf(world, property.neighbourhoodPlaceId, world.tick))}</b>
+                </div>
+              </div>
+              <div className="re2-actions">
+                <button type="button" className="re2-btn" onClick={() => setOpen(property.id)}>
+                  More info
+                </button>
+                <button
+                  type="button"
+                  className="re2-btn"
+                  disabled={cash < price}
+                  onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'cash' })}
+                >
+                  Buy cash
+                </button>
+                <button
+                  type="button"
+                  className="re2-btn re2-primary"
+                  disabled={cash < down}
+                  onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'mortgage' })}
+                >
+                  {cash < down ? `Needs ${formatMoney(down as never)} down` : 'Buy with mortgage'}
+                </button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
+
+      <div className="re2-title">Places to rent</div>
+      {canMoveHome && (
+        <div className="re2-moveback">
+          <button type="button" className="re2-btn re2-primary" onClick={() => onAct({ verb: 'move-in-parents' })}>
             Move back in with your parents — rent free, wallet stays yours
           </button>
         </div>
       )}
-
-      {mode !== 'own' && (
-      <div className="re-filters">
-        {[0, 2, 3, 4].map((n) => (
-          <button
-            type="button"
-            key={n}
-            className={minBeds === n ? 'on' : ''}
-            onClick={() => setMinBeds(n)}
-          >
-            {n === 0 ? 'Any beds' : `${String(n)}+ beds`}
-          </button>
-        ))}
+      <div className="re2-grid">
+        {forRent.map(({ property, monthlyRent }) => {
+          const place = world.places.get(property.neighbourhoodPlaceId)
+          return (
+            <article className="re2-card" key={property.id}>
+              <div className="re2-chead">
+                <div>
+                  <div className="re2-ctitle">{property.address}</div>
+                  <div className="re2-cmeta">
+                    {(place?.name ?? 'town').toUpperCase()} · {property.type.toUpperCase()} · {property.beds}bd {property.baths}ba
+                  </div>
+                </div>
+                <div className="re2-cprice">{formatMoney(monthlyRent)}/mo</div>
+              </div>
+              <p className="re2-cdesc">{listingWords(property, place?.desirability ?? 500)}</p>
+              <div className="re2-tags">{trendTag(property.neighbourhoodPlaceId)}</div>
+              <div className="re2-actions">
+                <button type="button" className="re2-btn" onClick={() => setOpen(property.id)}>
+                  More info
+                </button>
+                <button
+                  type="button"
+                  className="re2-btn re2-primary"
+                  disabled={hasLease || cash < monthlyRent * 2}
+                  onClick={() => onAct({ verb: 'rent-property', propertyId: property.id })}
+                >
+                  {hasLease ? 'Already on a lease' : 'Take the lease'}
+                </button>
+              </div>
+            </article>
+          )
+        })}
       </div>
-      )}
 
-      {mode !== 'own' && (shown.length === 0 ? (
-        <p className="bank-note">Nothing on the market matches that right now.</p>
-      ) : (
-        shown.slice(0, 20).map((listing) => (
-          <button
-            type="button"
-            className="re-card"
-            key={listing.property.id}
-            onClick={() => setOpen(listing.property.id)}
-          >
-            <div className="re-thumb">
-              <Illustration
-                type={listing.property.type}
-                desirability={world.places.get(listing.property.neighbourhoodPlaceId)?.desirability ?? 500}
-              />
-              <span className={`re-badge ${mode === 'buy' ? 'sale' : 'rentb'}`}>
-                {mode === 'buy' ? 'For sale' : 'To rent'}
-              </span>
-              <span className="re-tagpx">
-                {mode === 'buy' ? formatMoney(listing.price) : `${formatMoney(listing.monthlyRent)}/mo`}
-              </span>
+      <div className="re2-watch">
+        <h3>Neighbourhood watch</h3>
+        {hoods.map((place) => {
+          const trend = trendOf(world, place.id, world.tick)
+          return (
+            <div className="re2-trendrow" key={place.id}>
+              <span>{place.name}</span>
+              <b className={trend === 'gentrifying' ? 'warn' : trend === 'declining' ? 'bad' : 'good'}>
+                {trendWords(trend)}
+              </b>
             </div>
-            <div className="re-cbody">
-              <div className="re-addr-sm">{listing.property.address}</div>
-              <div className="re-hood">
-                {world.places.get(listing.property.neighbourhoodPlaceId)?.name ?? 'town'} ·{' '}
-                {listing.property.type}
-              </div>
-              <div className="re-facts">
-                <span><b>{listing.property.beds}</b> bd</span>
-                <span><b>{listing.property.baths}</b> ba</span>
-                <span><b>{listing.property.sqft.toLocaleString()}</b> sqft</span>
-                <span>{conditionWords(listing.property.condition)}</span>
-              </div>
-              <p className="re-blurb">
-                {listingWords(
-                  listing.property,
-                  world.places.get(listing.property.neighbourhoodPlaceId)?.desirability ?? 500,
-                ).split('. ')[0]}.
-              </p>
-            </div>
-          </button>
-        ))
-      ))}
-      {mode !== 'own' && (
-        <p className="bank-note">
-          {shown.length} on the market. Prices follow the neighbourhood, the size and the state of
-          the place — and every one of these is a home somebody could be living in instead.
-        </p>
-      )}
+          )
+        })}
+      </div>
     </div>
   )
 }

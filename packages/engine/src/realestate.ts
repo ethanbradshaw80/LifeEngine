@@ -573,3 +573,61 @@ export function improveProperty(world: World, propertyId: string, targetConditio
   world.properties.set(propertyId, { ...property, condition: next })
   return true
 }
+
+// ---------------------------------------------------------------------------
+// The neighbourhood's own weather (housing spec, Verdant layer).
+// ---------------------------------------------------------------------------
+
+/** Five-year eras: long enough to feel like a story, short enough to turn. */
+const DRIFT_EPOCH_TICKS = 60
+
+export type NeighbourhoodTrend = 'gentrifying' | 'established' | 'declining'
+
+/**
+ * Which way this street is going in the current era: −1, 0 or +1.
+ *
+ * Seeded off (place, era) alone — no state, no history buffer — so the
+ * label a screen shows and the drift the world applies can never disagree,
+ * and a save reloaded mid-era keeps the same weather. Weighted 3/4/3:
+ * most streets hold, some rise, some fade (Law 10 — unequal, believable).
+ */
+function driftTendencyOf(world: World, placeId: EntityId, tick: Tick): number {
+  const era = Math.floor(Math.max(0, tick) / DRIFT_EPOCH_TICKS)
+  const roll = hash32(world.seed as unknown as number, 909_000, placeId, era) % 10
+  return roll < 3 ? -1 : roll < 7 ? 0 : 1
+}
+
+/** The era's name, for tags and the neighbourhood watch. */
+export function trendOf(world: World, placeId: EntityId, tick: Tick): NeighbourhoodTrend {
+  const tendency = driftTendencyOf(world, placeId, tick)
+  return tendency > 0 ? 'gentrifying' : tendency < 0 ? 'declining' : 'established'
+}
+
+/** The watch line's words — an honest RANGE, not a fake precision. */
+export function trendWords(trend: NeighbourhoodTrend): string {
+  return trend === 'gentrifying'
+    ? '+3–8%/yr · Gentrifying'
+    : trend === 'declining'
+      ? '−5% to −1%/yr · Declining'
+      : '+0–2%/yr · Established'
+}
+
+/**
+ * A month of drift: each neighbourhood's desirability steps with its era's
+ * tendency. Values and rents both read desirability, so a gentrifying
+ * street genuinely appreciates and a declining one genuinely cheapens —
+ * about ±7% a year at the middle of the scale, which is a boom or a slow
+ * bleed over an era, not a lottery. Clamped so no street becomes heaven
+ * or a crater.
+ */
+export function runNeighbourhoodDrift(world: World, tick: Tick): void {
+  for (const place of [...world.places.values()].sort((a, b) => a.id - b.id)) {
+    if (place.kind !== 'neighbourhood') continue
+    const tendency = driftTendencyOf(world, place.id, tick)
+    if (tendency === 0) continue
+    const next = Math.max(80, Math.min(960, place.desirability + tendency * 3))
+    if (next !== place.desirability) {
+      world.places.set(place.id, { ...place, desirability: next })
+    }
+  }
+}

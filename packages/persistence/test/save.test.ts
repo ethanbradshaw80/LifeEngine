@@ -143,7 +143,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(69) // v1 through v70, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(70) // v1 through v71, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household
@@ -336,6 +336,46 @@ describe('the pot becomes people (M-ECON §1, schema v28)', () => {
     const wallet = accounts.find((a) => a.personId === 1)
     expect(wallet).toBeDefined()
     expect((wallet?.checking ?? 0) + (wallet?.savings ?? 0)).toBe(-45_000)
+  })
+
+  it('sweeps a shadow balance off a married spouse into the joint wallet', () => {
+    /**
+     * THE LIVE BUG (owner, playing): a mortgage paid off "taking nothing
+     * from my actual money", and unlimited casino chips. Between v70 and
+     * the wallet sweep the engine still wrote wages to each person's own
+     * record, so a second balance grew on the non-holder's file — money no
+     * screen showed and every verb could still spend. A v70 save carrying
+     * one must arrive with it merged, to the cent.
+     */
+    const world = {
+      tick: 360,
+      people: [
+        { id: 7, birthTick: 0, deathTick: null },
+        { id: 9, birthTick: 0, deathTick: null },
+      ],
+      relationships: [{ a: 7, b: 9, type: 'spouse', endedAtTick: null }],
+      accounts: [
+        { personId: 7, checking: 120_000, savings: 40_000 },
+        // The shadow: the higher-id spouse's stranded wages.
+        { personId: 9, checking: 310_000, savings: 55_000 },
+      ],
+    }
+    const before = 120_000 + 40_000 + 310_000 + 55_000
+    const save = { header: { schemaVersion: 70, checksum: checksumOf(world) }, world }
+
+    const out = migrate(save).save as { world: Record<string, unknown> }
+    const accounts = out.world['accounts'] as {
+      personId: number
+      checking: number
+      savings: number
+    }[]
+    const holder = accounts.find((a) => a.personId === 7)
+    const other = accounts.find((a) => a.personId === 9)
+
+    // Every cent survives, and it is all on the joint record.
+    expect((holder?.checking ?? 0) + (holder?.savings ?? 0)).toBe(before)
+    expect(other?.checking).toBe(0)
+    expect(other?.savings).toBe(0)
   })
 })
 

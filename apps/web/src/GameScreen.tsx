@@ -891,9 +891,24 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {/* M-ECON §1: YOUR money, not the roof's — and ON HAND, not net
               worth. A chip reading $300,000 to somebody who cannot make
               rent is a lie; the house and the portfolio are on the Bank,
-              where there is room to say what they are. */}
+              where there is room to say what they are.
+
+              H0: a CHILD'S chip says "Family money", so it reads the
+              family's — the head parent's wallet, where the station money
+              and the wages actually live. A newborn reading $0.00 while
+              the label said "family" was the pot speaking from the grave. */}
           <span className={household && arrearsOf(world, household) > 0 ? 'stat-value bad' : 'stat-value'}>
-            {formatMoney(moneyOnHand(world, person.id))}
+            {formatMoney(
+              moneyOnHand(
+                world,
+                age < 18
+                  ? (person.parentIds
+                      .map((id) => world.people.get(id))
+                      .filter((p) => p !== undefined && p.deathTick === null && p.householdId === person.householdId)
+                      .sort((a, b) => a!.birthTick - b!.birthTick || a!.id - b!.id)[0]?.id ?? person.id)
+                  : person.id,
+              ),
+            )}
           </span>
           {household && (
             <span className={monthlyNet < 0 ? 'stat-sub bad' : 'stat-sub'}>

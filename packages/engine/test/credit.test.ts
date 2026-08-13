@@ -152,12 +152,16 @@ describe('the bar on a loan', () => {
     expect(bar).toContain('620')
   })
 
-  it('wants a fifth down on a house', () => {
+  it('wants the file-gated share down on a house', () => {
     const world = createWorld(makeSeed(3003), 40)
     const price = 20_000_000 as Money
+    // Legacy callers keep the flat fifth; a named file gets the ladder.
     expect(depositFor(price)).toBe(4_000_000)
-    expect(loanBar(world, 'mortgage', 760, [], 100_000 as Money, price)).toContain('fifth')
-    expect(loanBar(world, 'mortgage', 760, [], depositFor(price), price)).toBeNull()
+    expect(depositFor(price, 760)).toBe(2_000_000)
+    const bar = loanBar(world, 'mortgage', 760, [], 100_000 as Money, price)
+    expect(bar).toContain('10%')
+    expect(bar).toContain('$20,000.00')
+    expect(loanBar(world, 'mortgage', 760, [], depositFor(price, 760), price)).toBeNull()
   })
 
   it('will not write a second of the same kind', () => {

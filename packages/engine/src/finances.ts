@@ -55,9 +55,11 @@ import { openStream, Stream } from './rng.js'
 import {
   DEPOSIT_MONTHS,
   LEASE_MONTHS,
+  isVacant,
   leaseBar,
   propertiesOwnedBy,
   rentOf as propertyRentOf,
+  runNeighbourhoodDrift,
   saleProceedsOf,
   setOwner,
   useRentCurve,
@@ -347,10 +349,34 @@ export function moneyOnHand(world: World, personId: EntityId): Money {
 }
 
 /** Everything a person holds in money. Property and debt join it later. */
+/**
+ * THIS PERSON'S SHARE OF THE LIQUID MONEY (H0).
+ *
+ * A married couple hold ONE balance, on the lower-id spouse's record. Net
+ * worth has to answer two questions at once without lying to either:
+ * summed across a household it must not count that balance twice, and read
+ * for one person it must not report a spouse as penniless. So the joint
+ * money splits down the middle — the same rule a divorce uses — with the
+ * odd cent to the holder, which means the two halves always add back to
+ * exactly the joint total.
+ *
+ * MEASURED BUG THIS FIXES: a married non-holder's net worth counted their
+ * own LOANS but none of the couple's cash, so borrowing $8,000 read as
+ * minus $8,000 of wealth.
+ */
+function liquidShareOf(world: World, personId: EntityId): number {
+  const wallet = walletOf(world, personId)
+  const joint = wallet.checking + wallet.savings
+  const spouse = spouseOf(world, personId)
+  const shared = spouse !== null && walletHolderOf(world, spouse) === wallet.personId
+  if (!shared) return joint
+  const half = Math.floor(joint / 2)
+  return personId === wallet.personId ? joint - half : half
+}
+
 export function netWorthOf(world: World, personId: EntityId): Money {
   const a = accountsOf(world, personId)
-  return (a.checking +
-    a.savings +
+  return (liquidShareOf(world, personId) +
     a.brokerage +
     a.retirement +
     portfolioValue(world, a.holdings) +
@@ -481,9 +507,14 @@ export function takeLoan(
     maturesAtTick: maturityOf(tick, kind),
     missedMonths: 0,
   }
+  // PRINCIPAL TO THE WALLET, LOAN TO THE FILE (H0). Wallet first, file
+  // re-read after — for an unmarried borrower they are one record.
+  {
+    const wallet = walletOf(world, personId)
+    setAccounts(world, { ...wallet, savings: (wallet.savings + principal) as Money })
+  }
   setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings + principal) as Money,
+    ...accountsOf(world, personId),
     loans: [...accounts.loans, loan],
   })
   recordEvent(world, tick, {
@@ -563,7 +594,10 @@ export function signLease(
   if (!household) return false
   const property = world.properties.get(propertyId)
   if (!property) return false
-  const cash = (accountsOf(world, personId).savings + accountsOf(world, personId).checking) as Money
+  // The bar reads the WALLET the debit will draw on (H0) — reading the raw
+  // record judged a married signer by a ledger the money does not live on.
+  const wallet = walletOf(world, personId)
+  const cash = (wallet.savings + wallet.checking) as Money
   if (leaseBar(world, household.id, propertyId, cash) !== null) return false
 
   const rent = propertyRentOf(world, property)
@@ -624,6 +658,164 @@ export function endLease(world: World, tick: Tick, householdId: EntityId): boole
 
 
 /**
+ * AN INFORMAL RENTER, for the leasing passes: a seated household that does
+ * not own the roof it is under and holds no lease on it — the worldgen
+ * arrangement, paying the street's going rate to nobody in particular.
+ */
+function isInformalRenter(world: World, household: Household): boolean {
+  if (household.dissolvedTick !== null || household.memberIds.length === 0) return false
+  if (household.homelessSinceTick !== null) return false
+  if (world.leases.has(household.id)) return false
+  if (typeof household.propertyId !== 'string') return true
+  const property = world.properties.get(household.propertyId)
+  const ownerId = property?.ownerId ?? null
+  return ownerId === null || !household.memberIds.includes(ownerId)
+}
+
+/**
+ * THE TOWN RENTS ON ITS OWN (owner: "why did you not add a renting system
+ * to npc's?"). Every so often an informal renter looks at the market and
+ * signs a real lease on a vacant home they can afford — which is what
+ * fills a landlord's empty house without anybody clicking, and what makes
+ * the lease map a living market instead of a player-only ledger.
+ *
+ * Seeded and slow: a household reconsiders roughly once every three years,
+ * and the signing itself still passes `leaseBar` — no cash for the
+ * deposit, no lease, exactly like everybody else.
+ */
+function runNpcLeasing(world: World, tick: Tick): void {
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (!isInformalRenter(world, household)) continue
+    const head = household.memberIds
+      .map((id) => world.people.get(id))
+      .filter((p): p is Person => p !== undefined && p.deathTick === null)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (head === undefined || head.id === world.player.personId) continue
+    const rng = openStream(world.seed, Stream.Career, household.id, tick + 71_700)
+    if (!rng.chance(1, 36)) continue
+    const income = householdIncome(world, household)
+    if (income <= 0) continue
+    // A home they would actually take: affordable, and not a hovel far
+    // below their means. Sorted by id so the walk is reproducible.
+    const candidates = [...world.properties.values()]
+      .filter((property) => {
+        if (!isVacant(world, property.id)) return false
+        const rent = propertyRentOf(world, property)
+        return rent * 3 <= income && rent * 8 >= income
+      })
+      .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    const pick = candidates[0]
+    if (pick === undefined) continue
+    signLease(world, tick, head.id, pick.id)
+  }
+}
+
+/**
+ * FIND A TENANT for a vacant deed — the landlord's own verb (owner's
+ * mockup: manage the portfolio, live in one, rent out the other). Walks the
+ * town's informal renters for the first household that can afford the place
+ * and signs them on the spot; scarcity is real — some months nobody in
+ * town wants your house at that rent.
+ */
+export function findTenantBar(world: World, ownerId: EntityId, propertyId: string): string | null {
+  const property = world.properties.get(propertyId)
+  if (!property) return 'No such address.'
+  if (property.ownerId !== ownerId) return 'Not your deed.'
+  const owner = world.people.get(ownerId)
+  const ownHousehold = owner?.householdId === null || owner === undefined
+    ? undefined
+    : world.households.get(owner.householdId)
+  if (ownHousehold?.propertyId === propertyId) return 'You live here.'
+  if (!isVacant(world, propertyId)) return 'Somebody already lives there.'
+  return null
+}
+
+export function findTenant(
+  world: World,
+  tick: Tick,
+  ownerId: EntityId,
+  propertyId: string,
+): { done: boolean; reason: string } {
+  const bar = findTenantBar(world, ownerId, propertyId)
+  if (bar !== null) return { done: false, reason: bar }
+  const property = world.properties.get(propertyId)
+  if (!property) return { done: false, reason: 'No such address.' }
+  const rent = propertyRentOf(world, property)
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (!isInformalRenter(world, household)) continue
+    if (household.memberIds.includes(ownerId)) continue
+    const head = household.memberIds
+      .map((id) => world.people.get(id))
+      .filter((p): p is Person => p !== undefined && p.deathTick === null)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (head === undefined || head.id === world.player.personId) continue
+    if (householdIncome(world, household) < rent * 3) continue
+    if (signLease(world, tick, head.id, propertyId)) return { done: true, reason: '' }
+  }
+  return { done: false, reason: 'Nobody in town is looking at that rent this month.' }
+}
+
+/** End the tenancy on a deed you own — lease or informal occupancy alike. */
+export function endTenancyOn(
+  world: World,
+  tick: Tick,
+  ownerId: EntityId,
+  propertyId: string,
+): { done: boolean; reason: string } {
+  const property = world.properties.get(propertyId)
+  if (!property) return { done: false, reason: 'No such address.' }
+  if (property.ownerId !== ownerId) return { done: false, reason: 'Not your deed.' }
+  const tenant = [...world.households.values()].find(
+    (h) => h.dissolvedTick === null && h.propertyId === propertyId && !h.memberIds.includes(ownerId),
+  )
+  if (tenant === undefined) return { done: false, reason: 'Nobody lives there.' }
+  if (world.leases.has(tenant.id)) {
+    endLease(world, tick, tenant.id)
+  } else {
+    // An informal occupancy simply ends: they stay in the neighbourhood at
+    // the going arrangement — no street, ever (H1).
+    world.households.set(tenant.id, { ...tenant, propertyId: null })
+    const head = tenant.memberIds[0]
+    if (head !== undefined) {
+      recordEvent(world, tick, { type: 'moved-house', subjectId: head, placeId: tenant.placeId })
+    }
+  }
+  return { done: true, reason: '' }
+}
+
+/** Move your own household into a house you own. */
+export function moveIntoOwnHome(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  propertyId: string,
+): { done: boolean; reason: string } {
+  const property = world.properties.get(propertyId)
+  if (!property) return { done: false, reason: 'No such address.' }
+  if (property.ownerId !== personId) return { done: false, reason: 'Not your deed.' }
+  const person = world.people.get(personId)
+  if (!person || person.householdId === null) return { done: false, reason: 'There is no household to move.' }
+  const household = world.households.get(person.householdId)
+  if (!household) return { done: false, reason: 'There is no household to move.' }
+  if (household.propertyId === propertyId) return { done: false, reason: 'You already live there.' }
+  if (!isVacant(world, propertyId)) return { done: false, reason: 'Your tenant lives there — end the tenancy first.' }
+  // Leaving a rental ends the lease properly, deposit and all.
+  if (world.leases.has(household.id)) endLease(world, tick, household.id)
+  const fresh = world.households.get(household.id) ?? household
+  world.households.set(household.id, {
+    ...fresh,
+    placeId: property.neighbourhoodPlaceId,
+    propertyId: property.id,
+  })
+  recordEvent(world, tick, {
+    type: 'moved-house',
+    subjectId: personId,
+    placeId: property.neighbourhoodPlaceId,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
  * SELL THE HOUSE (real estate §5).
  *
  * Pay off whatever is left on the mortgage, take the agent's fee, and the
@@ -673,18 +865,19 @@ export function sellHome(
   // The mortgage is settled out of the proceeds first — a buyer's money
   // never reaches a seller who still owes on the place.
   const toSeller = net - owed
+  // PROCEEDS TO THE WALLET (H0), the file changes on the personal record.
+  if (toSeller > 0) creditPerson(world, personId, toSeller as Money)
   setAccounts(world, {
-    ...accounts,
+    ...accountsOf(world, personId),
     loans: isResidence ? accounts.loans.filter((l) => l.kind !== 'mortgage') : accounts.loans,
     // Only give up the residence marker when the residence is what sold.
     homePlaceId: isResidence ? null : accounts.homePlaceId,
     homePurchasePrice: isResidence ? (0 as Money) : accounts.homePurchasePrice,
     ...(toSeller >= 0
-      ? { savings: (accounts.savings + toSeller) as Money }
+      ? {}
       : // Underwater: the shortfall follows them as a personal debt rather
         // than evaporating, because somebody is still owed it.
         {
-          savings: accounts.savings,
           loans: [
             ...accounts.loans.filter((l) => l.kind !== 'mortgage'),
             ...(mortgage === undefined
@@ -740,33 +933,38 @@ export function payDownLoan(
   amount: Money,
 ): Money {
   if (amount <= 0) return 0 as Money
-  const accounts = accountsOf(world, personId)
-  const loan = accounts.loans.find((l) => l.kind === kind)
+  const loan = accountsOf(world, personId).loans.find((l) => l.kind === kind)
   if (loan === undefined) return 0 as Money
 
+  // THE LOAN IS PERSONAL; THE MONEY IS THE WALLET'S (H0). Paying from the
+  // raw record let a married player settle a mortgage out of the shadow
+  // ledger without their visible balance moving a cent.
+  const wallet = walletOf(world, personId)
   const owed = loan.balance as number
   const wanted = Math.min(amount, owed)
-  const available = accounts.savings + accounts.checking
+  const available = Math.max(0, wallet.savings) + Math.max(0, wallet.checking)
   const paid = Math.min(wanted, available)
   if (paid <= 0) return 0 as Money
 
-  const fromSavings = Math.min(paid, accounts.savings)
+  const fromSavings = Math.min(paid, Math.max(0, wallet.savings))
   const fromChecking = paid - fromSavings
-  const left = (owed - paid) as Money
+  setAccounts(world, {
+    ...wallet,
+    savings: (wallet.savings - fromSavings) as Money,
+    checking: (wallet.checking - fromChecking) as Money,
+  })
 
+  const left = (owed - paid) as Money
   // CLEARED, or smaller. A loan paid to zero is gone from the file — and
   // its monthly payment goes with it, which is the point of doing this.
+  // Re-read AFTER the wallet write: when the payer holds the wallet these
+  // are one record, and a stale copy would undo the debit.
+  const accounts = accountsOf(world, personId)
   const remaining =
     left <= 0
       ? accounts.loans.filter((l) => l.kind !== kind)
       : accounts.loans.map((l) => (l.kind === kind ? { ...l, balance: left } : l))
-
-  setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings - fromSavings) as Money,
-    checking: (accounts.checking - fromChecking) as Money,
-    loans: remaining,
-  })
+  setAccounts(world, { ...accounts, loans: remaining })
   recordEvent(world, tick, {
     type: left <= 0 ? 'paid-off-loan' : 'paid-down-loan',
     subjectId: personId,
@@ -804,7 +1002,6 @@ export function buyHome(
 ): boolean {
   const place = world.places.get(placeId)
   if (!place) return false
-  const accounts = accountsOf(world, personId)
   if (homePurchaseBar(world, personId, placeId, method) !== null) return false
   const property = propertyId === undefined ? undefined : world.properties.get(propertyId)
   // A NAMED HOME IS PRICED AS ITSELF. A three-bed in good repair and the
@@ -815,15 +1012,21 @@ export function buyHome(
     : propertyValueOf(world, property)
   // PAYING CASH PAYS THE WHOLE PRICE. A mortgage pays the deposit now and
   // owes the rest; there is no third thing.
-  const nowDue = method === 'cash' ? price : depositFor(price)
+  const nowDue = method === 'cash' ? price : depositFor(price, creditOf(world, personId))
 
-  // The money comes out of savings first, then checking.
-  const fromSavings = Math.min(nowDue, accounts.savings)
+  // The money comes out of the WALLET (H0) — savings first, then checking.
+  // The deed stays on the buyer's own record: houses are personal, the
+  // couple's cash is not.
+  const wallet = walletOf(world, personId)
+  const fromSavings = Math.min(nowDue, Math.max(0, wallet.savings))
   const fromChecking = nowDue - fromSavings
   setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings - fromSavings) as Money,
-    checking: (accounts.checking - fromChecking) as Money,
+    ...wallet,
+    savings: (wallet.savings - fromSavings) as Money,
+    checking: (wallet.checking - fromChecking) as Money,
+  })
+  setAccounts(world, {
+    ...accountsOf(world, personId),
     homePlaceId: placeId,
     homePurchasePrice: price,
   })
@@ -859,9 +1062,9 @@ export function buyHome(
   if (method === 'mortgage') {
     const borrowed = (price - nowDue) as Money
     takeLoan(world, tick, personId, 'mortgage', borrowed)
-    // takeLoan credits savings with the principal; a mortgage never touches
-    // the buyer's hands, so it goes straight back out to the seller.
-    const after = accountsOf(world, personId)
+    // takeLoan credits the wallet with the principal; a mortgage never
+    // touches the buyer's hands, so it goes straight back out to the seller.
+    const after = walletOf(world, personId)
     setAccounts(world, { ...after, savings: (after.savings - borrowed) as Money })
   }
 
@@ -901,8 +1104,13 @@ function serviceDebts(world: World, tick: Tick): void {
     const accounts = accountsOf(world, personId)
     if (accounts.loans.length === 0) continue
 
-    let checking = accounts.checking as number
-    let savings = accounts.savings as number
+    // THE MONEY IS THE WALLET'S (H0). A married earner's pay lives on the
+    // joint record, so that is what the month's debt service draws on —
+    // reading the raw record would put every married non-holder straight
+    // into default the moment wages started routing to the wallet.
+    const wallet = walletOf(world, personId)
+    let checking = wallet.checking as number
+    let savings = wallet.savings as number
     let monthsPaid = accounts.monthsPaid
     let defaults = accounts.defaults
     let homePlaceId = accounts.homePlaceId
@@ -1003,8 +1211,28 @@ function serviceDebts(world: World, tick: Tick): void {
             recordEvent(world, tick, { type: 'lost-home', subjectId: personId, placeId: homePlaceId })
             homePlaceId = null
             homePurchasePrice = 0 as Money
+            // FORECLOSURE IS A SALE, not an evaporation (housing spec §H2.5).
+            // The deed used to stay with the defaulter forever — "lost the
+            // home" while the registry still named them the owner. The bank
+            // sells at a distressed price, keeps what it is owed, and any
+            // surplus is the family's — that is how foreclosure actually
+            // works, and the surplus is what softens Law 7's landing. The
+            // household stays put and pays rent like anybody else: no
+            // street, ever (H1).
+            const surplus = forecloseHome(world, personId, (loan.balance + interest) as Money)
+            if (surplus > 0) savings += surplus
           }
           continue // the debt is closed by the default; the record carries it
+        }
+        // THE WARNING MOMENT (spec: foreclosure joins the same machinery as
+        // every other slide). The second miss is the formal letter, so the
+        // third — the default itself — never arrives unannounced.
+        if (loan.kind === 'mortgage' && missed === 2) {
+          recordEvent(world, tick, {
+            type: 'mounting-debts',
+            subjectId: personId,
+            detail: 'mortgage',
+          })
         }
         remaining.push({
           ...loan,
@@ -1025,10 +1253,17 @@ function serviceDebts(world: World, tick: Tick): void {
       remaining.push({ ...loan, balance, missedMonths: 0 })
     }
 
+    // Two writers, two records: money to the wallet, the file to the raw
+    // record. When the payer holds the wallet these are one record, so the
+    // wallet write happens FIRST and the file write re-reads it — a stale
+    // spread here would silently undo the month's collections.
     setAccounts(world, {
-      ...accounts,
+      ...wallet,
       checking: checking as Money,
       savings: savings as Money,
+    })
+    setAccounts(world, {
+      ...accountsOf(world, personId),
       loans: remaining,
       monthsPaid,
       defaults,
@@ -2296,14 +2531,21 @@ export function runFinances(world: World, tick: Tick): void {
         (world.employment.get(memberId)?.monthlyPay ?? 0) +
         servicePayOf(world, memberId) +
         sportsWageOf(world, memberId)
+      // THE WORK RECORD IS PERSONAL, THE MONEY IS THE WALLET'S (H0). Tax
+      // years and pension months belong to the person who worked them; the
+      // pay itself belongs to the couple. Writing the cash to the raw
+      // record built a shadow ledger for every married earner whose wallet
+      // lives on their spouse's record — income the Money tab never showed,
+      // which loan payoffs then quietly spent (owner, playing: "it just let
+      // me pay it off and took nothing from my actual money").
       setAccounts(world, {
         ...accounts,
-        checking: (accounts.checking + earned) as Money,
         taxableYtd: (accounts.taxableYtd + gross) as Money,
         withheldYtd: (accounts.withheldYtd + withheld) as Money,
         monthsWorked: wage > 0 ? accounts.monthsWorked + 1 : accounts.monthsWorked,
         lastMonthlyPay: wage > 0 ? (wage as Money) : accounts.lastMonthlyPay,
       })
+      creditPerson(world, memberId, earned)
       earners.push({ personId: memberId, income: earned })
       income += earned
     }
@@ -2422,8 +2664,14 @@ export function runFinances(world: World, tick: Tick): void {
     }
   }
 
+  runNpcLeasing(world, tick)
+  runLandlords(world, tick)
   runNpcVentures(world, tick)
   runNpcHomeBuying(world, tick)
+  // The street's own weather moves before anybody prices against it next
+  // month — a gentrifying block appreciates under its owners and a fading
+  // one cheapens honestly (housing spec, Verdant layer).
+  runNeighbourhoodDrift(world, tick)
   runBusinesses(world, tick)
   runPlans(world, tick)
   runInsolvency(world, tick)
@@ -2781,18 +3029,21 @@ function runPlans(world: World, tick: Tick): void {
       continue
     }
 
-    const accounts = accountsOf(world, personId)
-    const fromChecking = Math.max(0, Math.min(filing.planMonthly, accounts.checking))
-    const fromSavings = Math.max(0, Math.min(filing.planMonthly - fromChecking, accounts.savings))
+    // The plan collects from the WALLET (H0) — the same place every other
+    // monthly obligation draws — and the paying record stays personal.
+    const wallet = walletOf(world, personId)
+    const fromChecking = Math.max(0, Math.min(filing.planMonthly, wallet.checking))
+    const fromSavings = Math.max(0, Math.min(filing.planMonthly - fromChecking, wallet.savings))
     if (fromChecking + fromSavings > 0) {
       setAccounts(world, {
-        ...accounts,
-        checking: (accounts.checking - fromChecking) as Money,
-        savings: (accounts.savings - fromSavings) as Money,
-        // Months met under a plan build the file back the same way months
-        // met on a loan do. It is the same thing: a record of paying.
-        monthsPaid: accounts.monthsPaid + 1,
+        ...wallet,
+        checking: (wallet.checking - fromChecking) as Money,
+        savings: (wallet.savings - fromSavings) as Money,
       })
+      const own = accountsOf(world, personId)
+      // Months met under a plan build the file back the same way months
+      // met on a loan do. It is the same thing: a record of paying.
+      setAccounts(world, { ...own, monthsPaid: own.monthsPaid + 1 })
     }
 
     // THE PLAN CAN FAIL, and it must be able to. Measured: without this a
@@ -3138,6 +3389,123 @@ export function openBusiness(
  * estate's cash settled what it settled, and burdening an heir with a dead
  * man's loan would make every inheritance a trap.
  */
+/**
+ * THE LANDLORD IS A PERSON (owner's property-ui mockup: "Monthly Rental
+ * Income"). A household's roof money used to vanish into the void whatever
+ * the deed said; now, where the roof over a family is a home some living
+ * person owns, the month's roof lands in that owner's wallet. The void
+ * landlord remains only for homes nobody owns — the market keeps those.
+ *
+ * Conservation: the tenant household is billed exactly this number through
+ * `householdCosts`, and under H1 an unpayable month rides as their own
+ * negative balance — so the rent is always "paid", in cash or in debt,
+ * and crediting the owner moves money rather than minting it.
+ */
+function runLandlords(world: World, tick: Tick): void {
+  void tick
+  for (const household of [...world.households.values()].sort((a, b) => a.id - b.id)) {
+    if (household.dissolvedTick !== null || household.memberIds.length === 0) continue
+    if (household.homelessSinceTick !== null) continue
+    if (everybodyInHalls(world, household)) continue
+    if (typeof household.propertyId !== 'string') continue
+    const property = world.properties.get(household.propertyId)
+    const ownerId = property?.ownerId ?? null
+    if (property === undefined || ownerId === null) continue
+    const owner = world.people.get(ownerId)
+    if (owner === undefined || owner.deathTick !== null) continue
+    // Living in your own house is shelter, not income.
+    if (household.memberIds.includes(ownerId)) continue
+    const rent = roofCostFor(world, household)
+    if (rent > 0) creditPerson(world, ownerId, rent)
+  }
+}
+
+/**
+ * Why the mortgage cannot be rewritten today, or null (the bar pattern).
+ * The one honest reason to refinance is a better rate, and the file is
+ * what earns it — so the bar and the button read the same comparison.
+ */
+export function refinanceBar(world: World, personId: EntityId): string | null {
+  const accounts = accountsOf(world, personId)
+  const mortgage = accounts.loans.find((l) => l.kind === 'mortgage')
+  if (mortgage === undefined) return 'There is no mortgage to rewrite.'
+  if (mortgage.missedMonths > 0) return 'The bank will not rewrite a loan that is behind.'
+  const offered = offeredRatePerMille(world, creditOf(world, personId), 'mortgage')
+  if (offered >= mortgage.ratePerMille) {
+    return `The bank offers ${String(offered / 10)}% against your ${String(mortgage.ratePerMille / 10)}% — nothing worth signing.`
+  }
+  return null
+}
+
+/** Rewrite the mortgage at today's file: same balance, fresh thirty years. */
+export function refinanceMortgage(world: World, tick: Tick, personId: EntityId): boolean {
+  if (refinanceBar(world, personId) !== null) return false
+  const accounts = accountsOf(world, personId)
+  const mortgage = accounts.loans.find((l) => l.kind === 'mortgage')
+  if (mortgage === undefined) return false
+  const rate = offeredRatePerMille(world, creditOf(world, personId), 'mortgage')
+  const rewritten: Loan = {
+    ...mortgage,
+    ratePerMille: rate,
+    monthlyPayment: monthlyPaymentFor(mortgage.balance, rate, 360),
+    takenAtTick: tick,
+    maturesAtTick: (tick + 360) as Tick,
+  }
+  setAccounts(world, {
+    ...accounts,
+    loans: accounts.loans.map((l) => (l.kind === 'mortgage' ? rewritten : l)),
+  })
+  recordEvent(world, tick, {
+    type: 'refinanced',
+    subjectId: personId,
+    detail: `${String(mortgage.ratePerMille)}:${String(rate)}`,
+  })
+  return true
+}
+
+/** What a person's tenanted properties bring in a month — the screen's read. */
+export function rentalIncomeOf(world: World, personId: EntityId): Money {
+  let total = 0
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick !== null || household.memberIds.length === 0) continue
+    if (household.homelessSinceTick !== null) continue
+    if (everybodyInHalls(world, household)) continue
+    if (typeof household.propertyId !== 'string') continue
+    const property = world.properties.get(household.propertyId)
+    if (property === undefined || property.ownerId !== personId) continue
+    if (household.memberIds.includes(personId)) continue
+    total += roofCostFor(world, household)
+  }
+  return total as Money
+}
+
+/**
+ * The bank's sale. Distressed — 85 cents on the dollar is what a forced
+ * sale fetches — the lender recovers up to what it is owed, and whatever
+ * is left over belongs to the family. Returns the surplus in cents; the
+ * caller (the loan loop) puts it into their savings, because the loop is
+ * mid-write on that very record. The deed goes back to the market.
+ */
+function forecloseHome(world: World, personId: EntityId, owed: Money): Money {
+  const person = world.people.get(personId)
+  const household =
+    person === undefined || person.householdId === null
+      ? undefined
+      : world.households.get(person.householdId)
+  const owned = propertiesOwnedBy(world, personId)
+  if (owned.length === 0) return 0 as Money
+  // The mortgage secures the RESIDENCE where they own it; otherwise the
+  // first deed on the registry goes.
+  const home =
+    (household !== undefined && typeof household.propertyId === 'string'
+      ? owned.find((p) => p.id === household.propertyId)
+      : undefined) ?? owned[0]
+  if (home === undefined) return 0 as Money
+  const distressed = Math.floor((propertyValueOf(world, home) * 850) / 1_000)
+  setOwner(world, home.id, null)
+  return Math.max(0, distressed - owed) as Money
+}
+
 export function passOnHomes(world: World, tick: Tick, deceasedId: EntityId): void {
   const deceased = accountsOf(world, deceasedId)
   if (deceased.homePlaceId === null) return
@@ -3433,7 +3801,9 @@ export function moveBetweenOwnAccounts(
   cents: Money,
   toSavings: boolean,
 ): Money {
-  const accounts = accountsOf(world, personId)
+  // BOTH SIDES OF THE WINDOW ARE THE WALLET'S (H0): a married couple move
+  // money between the accounts they actually share.
+  const accounts = walletOf(world, personId)
   const from = toSavings ? accounts.checking : accounts.savings
   const moved = Math.max(0, Math.min(cents, from)) as Money
   if (moved <= 0) return 0 as Money
@@ -3553,7 +3923,9 @@ export function buyShares(
   const stock = stockById(world, stockId)
   if (stock === undefined) return 0 as Money
   const accounts = accountsOf(world, personId)
-  const affordable = Math.min(cents, accounts.savings) as Money
+  // MONEY FROM THE WALLET, POSITIONS ON THE PERSONAL FILE (H0).
+  const wallet = walletOf(world, personId)
+  const affordable = Math.min(cents, Math.max(0, wallet.savings)) as Money
   if (affordable <= 0) return 0 as Money
   const shares = sharesFor(world, stockId, affordable)
   if (shares <= 0) return 0 as Money
@@ -3571,9 +3943,10 @@ export function buyShares(
   const updated = [...rest, merged].sort((a, b) =>
     holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
   )
+  // Wallet first, file re-read after — one record when unmarried.
+  setAccounts(world, { ...wallet, savings: (wallet.savings - spent) as Money })
   setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings - spent) as Money,
+    ...accountsOf(world, personId),
     holdings: intoRetirement ? accounts.holdings : updated,
     retirementHoldings: intoRetirement ? updated : accounts.retirementHoldings,
   })
@@ -3607,12 +3980,21 @@ export function sellShares(
   const tax = fromRetirement ? 0 : capitalGainsTaxOn(gain as Money)
   const net = (proceeds - tax) as Money
   const rest = which.filter((h) => h.stockId !== stockId)
-  setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings + net) as Money,
-    holdings: fromRetirement ? accounts.holdings : rest,
-    retirementHoldings: fromRetirement ? rest : accounts.retirementHoldings,
-  })
+  // TAXABLE PROCEEDS TO THE WALLET; a retirement sale stays INSIDE the
+  // retirement account, exactly as the fund path (sellInvestment) rules —
+  // this used to pay sheltered proceeds into savings, an untaxed door out
+  // of the shelter that the fund path had already closed.
+  if (fromRetirement) {
+    setAccounts(world, {
+      ...accounts,
+      retirement: (accounts.retirement + net) as Money,
+      retirementHoldings: rest,
+    })
+  } else {
+    const wallet = walletOf(world, personId)
+    setAccounts(world, { ...wallet, savings: (wallet.savings + net) as Money })
+    setAccounts(world, { ...accountsOf(world, personId), holdings: rest })
+  }
   recordEvent(world, tick, {
     type: 'sold-investment',
     subjectId: personId,
@@ -3630,7 +4012,9 @@ export function buyInvestment(
   intoRetirement = false,
 ): Money {
   const accounts = accountsOf(world, personId)
-  const affordable = Math.min(cents, accounts.savings) as Money
+  // MONEY FROM THE WALLET, POSITIONS ON THE PERSONAL FILE (H0).
+  const wallet = walletOf(world, personId)
+  const affordable = Math.min(cents, Math.max(0, wallet.savings)) as Money
   if (affordable <= 0) return 0 as Money
   const units = unitsFor(world, sectorId, affordable)
   if (units <= 0) return 0 as Money
@@ -3653,9 +4037,10 @@ export function buyInvestment(
     holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
   )
 
+  // Wallet first, file re-read after — one record when unmarried.
+  setAccounts(world, { ...wallet, savings: (wallet.savings - spent) as Money })
   setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings - spent) as Money,
+    ...accountsOf(world, personId),
     holdings: intoRetirement ? accounts.holdings : updated,
     retirementHoldings: intoRetirement ? updated : accounts.retirementHoldings,
   })
@@ -3694,13 +4079,19 @@ export function sellInvestment(
   // crediting only the fund's proceeds — the shares would simply vanish.
   const rest = which.filter((h) => h.stockId !== undefined || h.sectorId !== sectorId)
 
-  setAccounts(world, {
-    ...accounts,
-    savings: (accounts.savings + (fromRetirement ? 0 : net)) as Money,
-    retirement: (accounts.retirement + (fromRetirement ? net : 0)) as Money,
-    holdings: fromRetirement ? accounts.holdings : rest,
-    retirementHoldings: fromRetirement ? rest : accounts.retirementHoldings,
-  })
+  // TAXABLE PROCEEDS TO THE WALLET (H0); sheltered ones stay inside the
+  // personal retirement account.
+  if (fromRetirement) {
+    setAccounts(world, {
+      ...accounts,
+      retirement: (accounts.retirement + net) as Money,
+      retirementHoldings: rest,
+    })
+  } else {
+    const wallet = walletOf(world, personId)
+    setAccounts(world, { ...wallet, savings: (wallet.savings + net) as Money })
+    setAccounts(world, { ...accountsOf(world, personId), holdings: rest })
+  }
   recordEvent(world, tick, {
     type: 'sold-investment',
     subjectId: personId,
@@ -3726,12 +4117,17 @@ function payDividends(world: World): void {
     for (const holding of accounts.holdings) taxable += dividendOn(world, holding)
     for (const holding of accounts.retirementHoldings) sheltered += dividendOn(world, holding)
     if (taxable <= 0 && sheltered <= 0) continue
+    // Taxable dividends land in the WALLET (H0); the tax year and the
+    // sheltered compounding stay on the personal file.
     setAccounts(world, {
       ...accounts,
-      savings: (accounts.savings + taxable) as Money,
       retirement: (accounts.retirement + sheltered) as Money,
       taxableYtd: (accounts.taxableYtd + taxable) as Money,
     })
+    if (taxable > 0) {
+      const wallet = walletOf(world, personId)
+      setAccounts(world, { ...wallet, savings: (wallet.savings + taxable) as Money })
+    }
   }
 }
 
@@ -3866,7 +4262,9 @@ export function applyMoneyShock(
   if (overTime) {
     takeLoan(world, tick, personId, 'personal', bill)
   }
-  const accounts = accountsOf(world, personId)
+  // A BILL IS PAID FROM THE WALLET (H0) — the couple's money, not a
+  // shadow ledger on one spouse's file.
+  const accounts = walletOf(world, personId)
   const fromChecking = Math.max(0, Math.min(bill, accounts.checking))
   const fromSavings = Math.max(0, Math.min(bill - fromChecking, accounts.savings))
   setAccounts(world, {
@@ -4026,10 +4424,10 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person): vo
     remainder = 0
     if (amount <= 0) continue
 
-    // Into the heir's OWN savings — an inheritance is money somebody has,
-    // not a credit against the rent of whatever house they sleep in.
-    const accounts = accountsOf(world, heir.id)
-    setAccounts(world, { ...accounts, savings: (accounts.savings + amount) as Money })
+    // Into the heir's WALLET savings (H0) — an inheritance is money
+    // somebody has, and a married heir's money lives on the joint record.
+    const heirWallet = walletOf(world, heir.id)
+    setAccounts(world, { ...heirWallet, savings: (heirWallet.savings + amount) as Money })
     recordEvent(world, tick, {
       type: 'inherited',
       subjectId: heir.id,

@@ -36,6 +36,7 @@ import {
   inArrears,
   monthlyNetOf,
   setSpendStance,
+  walletOf as walletAccountsOf,
 } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
 import {
@@ -198,6 +199,11 @@ import {
   homePurchaseBar,
   moneyOnHand,
   payOffPlan,
+  endTenancyOn,
+  findTenant,
+  moveIntoOwnHome,
+  refinanceBar,
+  refinanceMortgage,
   buyInvestment,
   buyShares,
   grantShares,
@@ -940,10 +946,15 @@ export function buyChipsPlayer(world: World, cents: Money): { done: boolean; rea
   const creep = holdFromCashier(cents, liquid, rebuys, disciplineOf(world, person.id, world.tick))
 
   logVerb(world, 'buy-chips', String(cents))
-  debitPerson(world, person.id, cents)
+  // THE TRAY GETS WHAT THE WINDOW TOOK — debitPerson returns what it could
+  // actually collect, and that is the only number the cashier may honour.
+  // Crediting the ASKED amount minted chips from thin air the moment the
+  // wallet ran dry (owner, playing: "I can get unlimited chips").
+  const taken = debitPerson(world, person.id, cents)
+  if (taken <= 0) return { done: false, reason: 'The window counts your money and slides it back.' }
   world.gamblers.set(person.id, {
     ...record,
-    chips: (record.chips + cents) as Money,
+    chips: (record.chips + taken) as Money,
     hold: Math.min(1_000, record.hold + creep),
     lastPlayedTick: world.tick,
     inRecoverySinceTick: null,
@@ -983,7 +994,10 @@ export function cashOutPlayer(world: World): { done: boolean; reason: string; ce
 
 /** Money that is actually theirs to spend — the cashier's side of the window. */
 export function walletOf(world: World, personId: EntityId): Money {
-  const accounts = accountsOf(world, personId)
+  // THE JOINT WALLET, not the raw record (H0). Reading the raw record let a
+  // married player's cashier see a shadow ledger the Money tab never shows —
+  // the fuel behind the unlimited-chips report.
+  const accounts = walletAccountsOf(world, personId)
   return Math.max(0, accounts.savings + accounts.checking) as Money
 }
 
@@ -2135,6 +2149,45 @@ export function payOffBankruptcyPlayer(world: World): { done: boolean; reason: s
   return payOffPlan(world, world.tick, person.id)
     ? { done: true, reason: '' }
     : { done: false, reason: 'The court did not close the plan.' }
+}
+
+/** Rewrite the mortgage at today's file (owner's property mockup). */
+export function refinancePlayer(world: World): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const bar = refinanceBar(world, person.id)
+  if (bar !== null) return { done: false, reason: bar }
+  logVerb(world, 'refinance', String(world.tick))
+  return refinanceMortgage(world, world.tick, person.id)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The bank did not write it.' }
+}
+
+/** Fill a vacant deed with a paying tenant (owner's property mockup). */
+export function findTenantPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const result = findTenant(world, world.tick, person.id, propertyId)
+  if (result.done) logVerb(world, 'find-tenant', propertyId)
+  return result
+}
+
+/** End the tenancy on a deed you own. */
+export function endTenancyPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const result = endTenancyOn(world, world.tick, person.id, propertyId)
+  if (result.done) logVerb(world, 'end-tenancy', propertyId)
+  return result
+}
+
+/** Move your household into a house you own. */
+export function moveIntoOwnPlayer(world: World, propertyId: string): { done: boolean; reason: string } {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  const result = moveIntoOwnHome(world, world.tick, person.id, propertyId)
+  if (result.done) logVerb(world, 'move-into-own', propertyId)
+  return result
 }
 
 
@@ -4734,6 +4787,10 @@ export function resolvePending(world: World, choice: string): void {
     case 'pay-down':
     case 'drop-out':
     case 'pay-off-plan':
+    case 'refinance':
+    case 'find-tenant':
+    case 'end-tenancy':
+    case 'move-into-own':
     case 'school-request':
     case 'unit-tryout':
     case 'fitness-test':
@@ -6241,6 +6298,14 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Paid down a debt.' // log-only
     case 'pay-off-plan':
       return 'Paid off the bankruptcy plan.' // log-only
+    case 'refinance':
+      return 'Rewrote the mortgage.' // log-only
+    case 'find-tenant':
+      return 'Signed a tenant.' // log-only
+    case 'end-tenancy':
+      return 'Ended a tenancy.' // log-only
+    case 'move-into-own':
+      return 'Moved into their own house.' // log-only
     case 'school-request':
       return 'Asked for a school slot.' // log-only
     case 'unit-tryout':

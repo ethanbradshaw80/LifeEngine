@@ -44,7 +44,7 @@ import {
 import { livingPeople } from '../src/systems.js'
 import { homeland, sueForPeace } from '../src/geopolitics.js'
 import { ownershipCostOf } from '../src/realestate.js'
-import { accountsOf, creditPerson } from '../src/finances.js'
+import { accountsOf, creditPerson, walletOf } from '../src/finances.js'
 import { clearanceBonusOf } from '../src/crime.js'
 import { BASELINE_INCOME_RATE, withholdingFor } from '../src/tax.js'
 
@@ -368,7 +368,9 @@ describe('corruption', () => {
     expect(mayor).toBeDefined()
     if (mayor === undefined) return
 
-    const before = accountsOf(own, mayor.personId).savings
+    // The graft lands in the mayor's WALLET (H0) — a married official's
+    // money lives on the joint record, not their personal file.
+    const before = walletOf(own, mayor.personId).savings + walletOf(own, mayor.personId).checking
     let credited = 0
     const took = takeGraft(own, mayor.personId, 'rezoning', own.tick, (id, amount) => {
       credited += amount
@@ -378,7 +380,7 @@ describe('corruption', () => {
     expect(credited).toBe(took)
     // The money is REQUESTED, never written here — the same single-writer
     // rule everything else obeys.
-    expect(accountsOf(own, mayor.personId).savings + accountsOf(own, mayor.personId).checking)
+    expect(walletOf(own, mayor.personId).savings + walletOf(own, mayor.personId).checking)
       .toBeGreaterThan(before)
     // And it is on the file.
     expect(own.officials.get('mayor')?.exposure ?? 0).toBeGreaterThan(0)

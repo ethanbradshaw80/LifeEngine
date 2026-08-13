@@ -2247,6 +2247,12 @@ export type PendingKind =
   /** Real estate: taking a tenancy, and selling up. */
   | 'rent-home'
   | 'sell-home'
+  /** Rewriting the mortgage at today's file (owner's property mockup). */
+  | 'refinance'
+  /** Landlording: filling, ending and taking up residence in your deeds. */
+  | 'find-tenant'
+  | 'end-tenancy'
+  | 'move-into-own'
   | 'drop-out'
   | 'vote'
   | 'stand'
@@ -2469,6 +2475,8 @@ export type EventType =
   | 'inherited-business'
   /** The family home passed to the eldest living child (H2). */
   | 'inherited-home'
+  /** The mortgage rewritten at a better rate (owner's property mockup). */
+  | 'refinanced'
   | 'commissioned'
   | 'promoted-at-work'
   | 'passed-over'

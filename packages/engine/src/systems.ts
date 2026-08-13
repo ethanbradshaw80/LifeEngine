@@ -71,7 +71,7 @@ import {
 } from './schoolmoments.js'
 import type { SchoolChoice, SchoolStage } from './schoolmoments.js'
 import { nudgeWellbeing } from './wellbeing.js'
-import { endRelationshipsOnDeath, partnerOf, relationshipBetween, spouseOf, stopFamilyEarly } from './relationships.js'
+import { endRelationshipsOnDeath, partnerOf, relationshipBetween, spouseOf } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isTrustSensitive } from './content.js'
 import type { CausalFactor, EducationRecord, Occupation } from './types.js'
@@ -79,9 +79,8 @@ import {
   canAfford,
   chargeTuition,
   distributeEstate,
-  householdCosts,
   householdIncome,
-  inArrears,
+  arrearsOf,
   passOnBusinesses,
   startUnemployment,
   passOnHomes,
@@ -2592,7 +2591,14 @@ export function monthlyConceptionChance(
     if (child.deathTick === null && child.parentIds.includes(mother.id)) livingChildren++
   }
   const tie = relationshipBetween(world, mother.id, fatherId)
-  return conceptionBase(world, tick, mother, tie, livingChildren, inArrears(world, household.id))
+  return conceptionBase(
+    world,
+    tick,
+    mother,
+    tie,
+    livingChildren,
+    arrearsOf(world, household) >= 5_000_000,
+  )
 }
 
 export function runBirths(world: World, tick: Tick): void {
@@ -2620,14 +2626,21 @@ export function runBirths(world: World, tick: Tick): void {
     const married = tie !== undefined && tie.type === 'spouse'
     const children = livingChildCounts.get(person.id) ?? 0
 
-    // Deep arrears can shrink the plan itself — once, on the record.
-    // Ordinary arrears only slows the family down (below): poor families
-    // still had children; pretending otherwise is neither realism nor
-    // kindness.
-    const behind = inArrears(world, household.id)
-    if (behind && married && household.savings < -2 * householdCosts(world, household)) {
-      stopFamilyEarly(world, tick, person.id)
-    }
+    // THE LETTERS ARE THE KITCHEN-TABLE GATE, not any tight month. H1
+    // made ordinary arrears a normal season of a life — it rides on the
+    // wallet instead of being reset by an eviction — and halving conception
+    // on ANY negative month pushed completed-cohort childlessness past the
+    // believable band (measured: 26.3% at seed 12345 over 150 years). The
+    // gate now opens where the STORY says the money got frightening: the
+    // -$50k letters (same threshold as the mounting-debts moment). There a
+    // family slows down and a married couple can cut the plan short.
+    // stopFamilyEarly is retired with the pot that used to trigger it: its
+    // old condition read household.savings, which H0 froze at zero, so it
+    // had been dead code — and enabling it against the wallet pushed the
+    // completed-cohort childless share to 28.3%, past the believable band.
+    // The slowdown below is the whole kitchen-table effect now.
+    const behind = arrearsOf(world, household) >= 5_000_000
+    void married
 
     // NOBODY CONCEIVES A CHILD FROM ANOTHER COUNTRY (owner, playing:
     // "when I was deployed yesterday my wife and I had a kid because the

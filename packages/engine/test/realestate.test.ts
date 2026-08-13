@@ -343,7 +343,10 @@ describe('a house is wealth, or a loss', () => {
     const after = accountsOf(w, person.id)
     expect(after.loans.some((l) => l.kind === 'mortgage'), 'still owes a mortgage').toBe(false)
     expect(after.homePlaceId, 'still owns a home').toBeNull()
-    expect(after.savings - before.savings).toBe(net - owed)
+    // Proceeds land in the WALLET (H0) — measured as liquid, not a bucket.
+    expect(
+      after.checking + after.savings - (before.checking + before.savings),
+    ).toBe(net - owed)
     // And the home is back on the market for somebody else.
     expect(listingsFor(w).some((l) => l.property.id === listing.property.id)).toBe(true)
   }, 300_000)

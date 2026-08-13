@@ -73,6 +73,10 @@ import {
   endCourtship,
   lookForPlace,
   moveBackInWithParents,
+  refinancePlayer,
+  findTenantPlayer,
+  endTenancyPlayer,
+  moveIntoOwnPlayer,
   propose,
   quitJob,
   requestDeployment,
@@ -131,6 +135,10 @@ export type VerbRequest =
   | { readonly verb: 'spend-stance'; readonly stance: 'thrifty' | 'loose' | null }
   | { readonly verb: 'look-for-place'; readonly placeId: number }
   | { readonly verb: 'move-in-parents' }
+  | { readonly verb: 'refinance' }
+  | { readonly verb: 'find-tenant'; readonly propertyId: string }
+  | { readonly verb: 'end-tenancy'; readonly propertyId: string }
+  | { readonly verb: 'move-into-own'; readonly propertyId: string }
   | { readonly verb: 'convalesce-stance'; readonly rest: boolean }
   | { readonly verb: 'request-discharge' }
   | { readonly verb: 'commit-offence'; readonly offenceId: string }
@@ -491,6 +499,26 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'move-in-parents': {
             const r = moveBackInWithParents(world)
             outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
+          case 'refinance': {
+            const r = refinancePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'find-tenant': {
+            const r = findTenantPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'end-tenancy': {
+            const r = endTenancyPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'move-into-own': {
+            const r = moveIntoOwnPlayer(world, a.propertyId)
+            outcome = { ok: r.done, reason: r.reason }
             break
           }
           case 'look-for-place': {

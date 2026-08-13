@@ -83,6 +83,10 @@ export {
   lookForPlace,
   moveBackInBar,
   moveBackInWithParents,
+  refinancePlayer,
+  findTenantPlayer,
+  endTenancyPlayer,
+  moveIntoOwnPlayer,
   moveBar,
   motherCandidates,
   playerIsAlive,
@@ -251,6 +255,9 @@ export {
   sellShares,
   applyMoneyShock,
   creditOf,
+  refinanceBar,
+  findTenantBar,
+  rentalIncomeOf,
   homeValueOf,
   fileBankruptcy,
   discretionaryForUnit,
@@ -378,6 +385,7 @@ export {
   LOAN_TERMS,
   creditWords,
   depositFor,
+  depositShareFor,
   homeEquityOf,
   homePriceFor,
   monthlyPaymentFor,
@@ -624,9 +632,11 @@ export {
 } from './stats.js'
 
 // --- Real estate (the property market) ------------------------------------
-export type { Listing, OwnershipCost } from './realestate.js'
+export type { Listing, NeighbourhoodTrend, OwnershipCost } from './realestate.js'
 export {
   generateProperties,
+  trendOf,
+  trendWords,
   listingOf,
   listingsFor,
   ownershipCostOf,

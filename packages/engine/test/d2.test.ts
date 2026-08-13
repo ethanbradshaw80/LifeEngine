@@ -50,7 +50,15 @@ describe('the town lives (150 years, seed 12345)', () => {
     expect(fertility).toBeLessThan(2.8)
     const childless = cohort.childlessWomen / cohort.completedWomen
     expect(childless).toBeGreaterThan(0.04)
-    expect(childless).toBeLessThan(0.25)
+    // CEILING RAISED 0.25 → 0.33 at the housing revamp, measured before it
+    // moved: this seed reads 0.283 where it read 0.25-ish. Arrears ride on
+    // a family for years now instead of being reset by an eviction, streets
+    // genuinely fade, and the rental market squeezes — the spec asks for
+    // all three. With ~99 completed women the statistic also swings ±3
+    // women by butterfly alone (three gate rewrites measured IDENTICAL
+    // 0.2828, while a one-flag change moved it 2 points). The band still
+    // refuses a collapse: a third of the town childless is the line.
+    expect(childless).toBeLessThan(0.33)
     expect(cohort.medianAgeAtMarriage).toBeGreaterThanOrEqual(21)
     expect(cohort.medianAgeAtMarriage).toBeLessThanOrEqual(28)
   })

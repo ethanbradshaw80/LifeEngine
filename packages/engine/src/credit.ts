@@ -180,8 +180,20 @@ export function homePriceFor(monthlyRent: Money): Money {
 }
 
 /** The deposit a lender wants: a fifth, and no less. */
-export function depositFor(price: Money): Money {
-  return Math.ceil(price / 5) as Money
+export function depositFor(price: Money, credit?: number): Money {
+  // CREDIT-GATED (housing spec, Verdant layer): the file decides the down
+  // payment the bank will accept, the same way it decides the rate. No
+  // credit given (legacy callers) keeps the old flat fifth. The ladder is
+  // deliberately gentle at the bottom — a thin young file reads ~450, and
+  // asking a first-time buyer for a third of the house priced everybody
+  // under thirty out of the market (owner feedback).
+  const perMille = credit === undefined ? 200 : depositShareFor(credit)
+  return Math.max(1, Math.ceil((price * perMille) / 1_000)) as Money
+}
+
+/** The down-payment share in per-mille, for a screen that wants to say "10%". */
+export function depositShareFor(credit: number): number {
+  return credit >= 700 ? 100 : credit >= 620 ? 150 : credit >= 540 ? 200 : 250
 }
 
 /** Why this loan is refused, or null when it is not. */
@@ -200,9 +212,9 @@ export function loanBar(
   }
   if (loans.some((l) => l.kind === kind)) return 'You already carry one of those.'
   if (kind === 'mortgage') {
-    const deposit = depositFor(price)
+    const deposit = depositFor(price, credit)
     if (cash < deposit) {
-      return `A mortgage wants a fifth down. That is ${formatMoney(deposit)}, and you have ${formatMoney(cash)}.`
+      return `The bank wants ${String(depositShareFor(credit) / 10)}% down on your file. That is ${formatMoney(deposit)}, and you have ${formatMoney(cash)}.`
     }
   }
   void world

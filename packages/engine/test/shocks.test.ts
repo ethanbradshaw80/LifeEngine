@@ -25,18 +25,53 @@ import {
   netWorthOf,
 } from '../src/index.js'
 import { eventsFor } from '../src/records.js'
+import { walletOf } from '../src/finances.js'
+import { spouseOf } from '../src/relationships.js'
 
+/**
+ * Put money where this person's money actually lives.
+ *
+ * H0: a married couple share ONE wallet, on the lower-id spouse's record,
+ * and every verb spends it — so a fixture that wrote the raw personal
+ * record was funding a ledger the engine no longer spends from. (Measured:
+ * these fixtures pick the town's eldest adult, who at seeds 4444 and 6666
+ * is a married non-holder.) The personal record still carries the loans,
+ * the deed and the tax year; the cash goes to the wallet.
+ */
 function fund(
   world: ReturnType<typeof createWorld>,
   personId: number,
   savings: number,
   checking = 0,
 ): void {
-  world.accounts.set(personId as never, {
-    ...accountsOf(world, personId as never),
+  const wallet = walletOf(world, personId as never)
+  world.accounts.set(wallet.personId, {
+    ...wallet,
     savings: savings as Money,
     checking: checking as Money,
   })
+}
+
+/** What this person can actually spend — the joint balance, not the file. */
+function liquidOf(world: ReturnType<typeof createWorld>, personId: number): number {
+  const wallet = walletOf(world, personId as never)
+  return wallet.savings + wallet.checking
+}
+
+/**
+ * An UNMARRIED adult. The loan claim below — borrowed cash and the debt it
+ * creates cancel exactly — is arithmetic about one person's balance sheet.
+ * For a married borrower it does not hold and should not: the cash lands in
+ * the couple's joint wallet (half of it is now their spouse's) while the
+ * loan stays personal, so borrowing really does move wealth. Testing the
+ * loan rule on a spouse would be testing marriage instead.
+ */
+function aSingleAdult(world: ReturnType<typeof createWorld>) {
+  const person = [...world.people.values()]
+    .filter((p) => p.deathTick === null && spouseOf(world, p.id) === null)
+    .sort((a, b) => a.birthTick - b.birthTick)[0]
+  expect(person, 'nobody in this town is single').toBeDefined()
+  return person!
 }
 
 function anAdult(world: ReturnType<typeof createWorld>) {
@@ -98,10 +133,11 @@ describe('the bill itself', () => {
     fund(world, person.id, 500_000, 200_000)
 
     applyMoneyShock(world, world.tick, person.id, 'medical', 300_000 as Money, false)
-    const accounts = accountsOf(world, person.id)
+    // The bill comes out of the WALLET (H0); the loans stay on the file.
+    const accounts = walletOf(world, person.id)
     expect(accounts.checking).toBe(0)
     expect(accounts.savings).toBe(400_000)
-    expect(accounts.loans).toHaveLength(0)
+    expect(accountsOf(world, person.id).loans).toHaveLength(0)
     expect(eventsFor(world, person.id).some((e) => e.type === 'money-shock')).toBe(true)
   })
 
@@ -138,7 +174,7 @@ describe('the bank verbs', () => {
 
     const moved = moveBetweenOwnAccounts(world, person.id, 400_000 as Money, true)
     expect(moved).toBe(250_000) // clamped to what checking actually held
-    const accounts = accountsOf(world, person.id)
+    const accounts = walletOf(world, person.id)
     expect(accounts.checking).toBe(0)
     expect(accounts.savings).toBe(350_000)
     // Nothing was created: the two balances still sum to what they did.
@@ -186,14 +222,15 @@ describe('the bank verbs', () => {
 describe('net worth', () => {
   it('does not count borrowed money as wealth', () => {
     const world = createWorld(makeSeed(6666), 60)
-    const person = anAdult(world)
+    const person = aSingleAdult(world)
     setPlayer(world, person.id)
     fund(world, person.id, 1_000_000)
 
     const before = netWorthOf(world, person.id)
     expect(borrowPlayer(world, 'personal', 800_000).done).toBe(true)
     // The cash arrived and the debt arrived with it. They cancel, exactly.
-    expect(accountsOf(world, person.id).savings).toBe(1_800_000)
+    // The cash lands in the WALLET (H0); the debt stays on the personal file.
+    expect(liquidOf(world, person.id)).toBe(1_800_000)
     expect(netWorthOf(world, person.id)).toBe(before)
   })
 })

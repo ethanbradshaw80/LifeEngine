@@ -325,16 +325,19 @@ export function registerBirth(
   plan: BirthPlan,
   seedNumber: number,
 ): EntityId | null {
-  const places = [...world.places.values()]
+  // A FAMILY LIVES ON A STREET. The random pool used to be every place in
+  // the world — courthouses, libraries, workplaces — and a player's birth
+  // certificate could honestly say they grew up in the Carnegie library.
+  const places = [...world.places.values()].filter((entry) => entry.kind === 'neighbourhood')
   if (places.length === 0) return null
   const rng = openStream(world.seed, Stream.PersonTraits, seedNumber + 7, 5_151)
 
-  // WHERE. A named town if the player picked one and it exists; otherwise
-  // the world chooses, which is what "anywhere" means.
+  // WHERE. A named place if the player picked one and it exists; otherwise
+  // the world chooses a street, which is what "anywhere" means.
   const place =
     (plan.placeId === null
       ? undefined
-      : places.find((entry) => entry.id === (plan.placeId as unknown as EntityId))) ??
+      : [...world.places.values()].find((entry) => entry.id === (plan.placeId as unknown as EntityId))) ??
     places[rng.nextIntInclusive(0, places.length - 1)]
   if (place === undefined) return null
 
