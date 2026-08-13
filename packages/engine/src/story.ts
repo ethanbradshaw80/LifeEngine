@@ -253,6 +253,14 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'inherited-stake':
       return `A share of ${event.detail ?? 'a business'} passed down.`
+    case 'bought-rival': {
+      const [name] = (event.detail ?? '').split(':')
+      return `Bought out ${name ?? 'a rival'}.`
+    }
+    case 'sold-business': {
+      const [name, price] = (event.detail ?? '').split(':')
+      return `Sold ${name ?? 'the business'} for ${formatMoney(Number(price ?? 0) as never)}.`
+    }
     case 'business-grew': {
       const [how, name] = (event.detail ?? '').split(':')
       const told =

@@ -36,9 +36,30 @@ import {
   setPlayer,
   startBusiness,
 } from '../src/player.js'
-import { EXPANSIONS, upliftPerMilleOf } from '../src/equity.js'
+import {
+  EXPANSIONS,
+  competitionPerMilleFor,
+  marketWeightOf,
+  shareOfTradePerMille,
+  upliftPerMilleOf,
+} from '../src/equity.js'
 import { businessKindById, monthlyProfitFor } from '../src/business.js'
-import type { Shareholder } from '../src/types.js'
+import type { Business, Shareholder } from '../src/types.js'
+
+function aBusiness(capital: number): Business {
+  return {
+    id: 1 as never,
+    ownerId: 2 as never,
+    kindId: 'shop',
+    name: 'A Shop',
+    foundedTick: 0 as never,
+    capital: capital as Money,
+    employees: 0,
+    badMonths: 0,
+    closedTick: null,
+    generations: 0,
+  }
+}
 
 function aHolder(perMille: number, id = 'x'): Shareholder {
   return {
@@ -251,5 +272,47 @@ describe('growing beyond the four walls', () => {
     }))
     const total = upliftPerMilleOf(list)
     expect(total).toBe(EXPANSIONS.reduce((sum, t) => sum + t.upliftPerMille, 0))
+  })
+})
+
+describe('the market a business trades in', () => {
+  it('divides the town’s custom rather than inventing customers', () => {
+    /**
+     * THE BUG IN THE SUPPLIED DESIGN, AS A TEST. It computed each
+     * business's share on its own and never normalised, so the shares of a
+     * trade did not add up to the trade — a market that invents customers.
+     * Here a share is a business's weight over everybody's, so they sum to
+     * the whole by construction and one shop winning IS another losing.
+     */
+    const weights = [300, 200, 100, 400]
+    const shares = weights.map((w) => shareOfTradePerMille(w, weights))
+    expect(shares.reduce((sum, s) => sum + s, 0)).toBe(1000)
+    // The biggest weight takes the biggest share.
+    expect(Math.max(...shares)).toBe(shares[3])
+  })
+
+  it('leaves a business alone in its trade completely alone', () => {
+    expect(shareOfTradePerMille(50, [50])).toBe(1000)
+    expect(competitionPerMilleFor(1000, 0)).toBe(0)
+  })
+
+  it('rewards the leader and punishes the laggard', () => {
+    // The supplied formula peaked at exactly the market average, so ANY
+    // deviation lost you share and undercutting was strictly a mistake.
+    const leader = competitionPerMilleFor(700, 1)
+    const laggard = competitionPerMilleFor(300, 1)
+    expect(leader).toBeGreaterThan(0)
+    expect(laggard).toBeLessThan(0)
+    // An even split of a crowded trade is neither reward nor punishment.
+    expect(competitionPerMilleFor(200, 4)).toBe(0)
+  })
+
+  it('counts staff and growth as strength, not just money', () => {
+    const bare = { ...aBusiness(1_000_000), kindId: 'shop' }
+    const alone = marketWeightOf(bare, 0, 0)
+    expect(marketWeightOf(bare, 3, 0)).toBeGreaterThan(alone)
+    expect(marketWeightOf(bare, 0, 550)).toBeGreaterThan(alone)
+    // A closed business is no competition to anybody.
+    expect(marketWeightOf({ ...bare, closedTick: 1 as never }, 5, 500)).toBe(0)
   })
 })

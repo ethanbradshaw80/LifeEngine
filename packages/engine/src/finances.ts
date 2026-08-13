@@ -32,8 +32,11 @@ import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
+  competitionPerMilleFor,
   expansionTermsFor,
   foundingCapTable,
+  marketWeightOf,
+  shareOfTradePerMille,
   investmentFor,
   issueShares,
   privateValuationOf,
@@ -3705,6 +3708,78 @@ export function buyExpansion(
 }
 
 /**
+ * BUY A RIVAL OUTRIGHT.
+ *
+ * The other owner is a real person with a real business, so this is a real
+ * transaction: they are PAID, in full, into their own wallet, and what
+ * they built folds into yours. Their staff come with it where there is
+ * room — the rest lose their jobs, which is what an acquisition actually
+ * does to people and the reason it is not a free win.
+ *
+ * A premium over the plain valuation, because nobody sells at the price
+ * you would like to pay.
+ */
+export const ACQUISITION_PREMIUM_PER_MILLE = 1250
+
+export function priceOfRival(world: World, rivalId: EntityId): Money {
+  const rival = world.businesses.get(rivalId)
+  if (rival === undefined || rival.closedTick !== null) return 0 as Money
+  const base = privateValuationOf(world, rival)
+  return Math.floor((base * ACQUISITION_PREMIUM_PER_MILLE) / 1000) as Money
+}
+
+export function acquireRival(
+  world: World,
+  tick: Tick,
+  buyerBusinessId: EntityId,
+  rivalId: EntityId,
+): boolean {
+  const mine = world.businesses.get(buyerBusinessId)
+  const rival = world.businesses.get(rivalId)
+  if (mine === undefined || rival === undefined) return false
+  if (mine.closedTick !== null || rival.closedTick !== null) return false
+  if (mine.id === rival.id || mine.ownerId === rival.ownerId) return false
+  const seller = world.people.get(rival.ownerId)
+  if (seller === undefined || seller.deathTick !== null) return false
+
+  const price = priceOfRival(world, rivalId)
+  if (price <= 0) return false
+  if (debitPerson(world, mine.ownerId, price) < price) return false
+  creditPerson(world, rival.ownerId, price)
+
+  // What they built becomes part of what you have.
+  world.businesses.set(mine.id, {
+    ...mine,
+    capital: (mine.capital + rival.capital) as Money,
+  })
+  world.businesses.set(rival.id, { ...rival, capital: 0 as Money, closedTick: tick })
+  world.capTables.delete(rival.id)
+  world.expansions.delete(rival.id)
+
+  recordEvent(world, tick, {
+    type: 'bought-rival',
+    subjectId: mine.ownerId,
+    otherId: rival.ownerId,
+    detail: `${rival.name}:${String(price)}`,
+  })
+  recordEvent(world, tick, {
+    type: 'sold-business',
+    subjectId: rival.ownerId,
+    detail: `${rival.name}:${String(price)}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: mine.ownerId,
+    decision: 'business',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: `bought out ${rival.name}`,
+    rejected: ['leaving them to it'],
+    streamId: Stream.Economy,
+  })
+  return true
+}
+
+/**
  * A SHAREHOLDER DIES AND THEIR CHILDREN OWN IT.
  *
  * The stake is a real asset, so it passes like one — eldest living child,
@@ -3880,7 +3955,41 @@ function runNpcVentures(world: World, tick: Tick): void {
  * the capital cannot absorb touches the owner. Three consecutive months in
  * the red and the doors shut.
  */
+/**
+ * WHO ELSE IS IN EACH TRADE, weighed once for the whole month.
+ *
+ * Computed here rather than per-business because a share only means
+ * anything against everybody else's — and doing it once is also what keeps
+ * this out of the hot loop. Keyed by kindId: a diner does not compete with
+ * a dental practice.
+ */
+function marketWeightsByTrade(world: World): Map<string, number[]> {
+  const byTrade = new Map<string, number[]>()
+  for (const business of world.businesses.values()) {
+    if (business.closedTick !== null) continue
+    let staff = 0
+    for (const [personId, job] of world.employment) {
+      if (job.workplaceId !== business.id) continue
+      if (world.people.get(personId)?.deathTick !== null) continue
+      staff += 1
+    }
+    const weight = marketWeightOf(
+      business,
+      staff,
+      upliftPerMilleOf(world.expansions.get(business.id)),
+    )
+    const list = byTrade.get(business.kindId) ?? []
+    list.push(weight)
+    byTrade.set(business.kindId, list)
+  }
+  return byTrade
+}
+
 function runBusinesses(world: World, tick: Tick): void {
+  // The whole market, weighed once. A share only means anything against
+  // everybody else's, and doing this per-business would be the hot loop
+  // squared.
+  const weightsByTrade = marketWeightsByTrade(world)
   for (const id of [...world.businesses.keys()].sort((a, b) => a - b)) {
     const business = world.businesses.get(id)
     if (!business || business.closedTick !== null) continue
@@ -3902,11 +4011,31 @@ function runBusinesses(world: World, tick: Tick): void {
      * in this town is paid for by that business.
      */
     let payroll = 0
+    let staff = 0
     for (const [personId, job] of world.employment) {
       if (job.workplaceId !== business.id) continue
       if (world.people.get(personId)?.deathTick !== null) continue
       payroll += job.monthlyPay
+      staff += 1
     }
+
+    /**
+     * WHAT THE COMPETITION IS DOING TO IT.
+     *
+     * The town's custom in a trade is a fixed thing that gets divided, so
+     * one shop winning is another losing — which is what a market is. A
+     * business alone in its trade feels nothing at all.
+     */
+    const rivalWeights = weightsByTrade.get(business.kindId) ?? []
+    const mine = marketWeightOf(
+      business,
+      staff,
+      upliftPerMilleOf(world.expansions.get(business.id)),
+    )
+    const competition = competitionPerMilleFor(
+      shareOfTradePerMille(mine, rivalWeights),
+      Math.max(0, rivalWeights.length - 1),
+    )
     const profit = monthlyProfitFor(
       business,
       kind,
@@ -3917,6 +4046,7 @@ function runBusinesses(world: World, tick: Tick): void {
       toDate(world, tick).year,
       payroll,
       upliftPerMilleOf(world.expansions.get(business.id)),
+      competition,
     )
 
     if (profit >= 0) {

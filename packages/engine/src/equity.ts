@@ -228,3 +228,73 @@ export function upliftPerMilleOf(list: readonly Expansion[] | undefined): number
   if (list === undefined || list.length === 0) return 0
   return list.reduce((sum, entry) => sum + entry.upliftPerMille, 0)
 }
+
+// ---------------------------------------------------------------------------
+// The market: who else is in this trade, and how the town's custom splits
+// ---------------------------------------------------------------------------
+
+/**
+ * HOW STRONG A BUSINESS IS IN ITS MARKET, in arbitrary weight.
+ *
+ * Weight, not a share — the share falls out of dividing one business's
+ * weight by everybody's. That is the whole reason this is written this way:
+ * shares computed independently do not add up to the town's custom, and a
+ * market where the parts do not sum to the whole is a market that invents
+ * customers. (The supplied design computed each share on its own and never
+ * normalised; it also had UNDERCUTTING LOSE share, its formula peaking at
+ * exactly the market average.)
+ *
+ * Three things make a business strong, and every one of them is something
+ * the owner did: the capital in it, the people working there, and how far
+ * it has grown beyond its own doors.
+ */
+export function marketWeightOf(
+  business: Business,
+  staffCount: number,
+  expansionPerMille: number,
+): number {
+  if (business.closedTick !== null) return 0
+  // Capital is the floor — a bigger business serves more people.
+  const fromCapital = Math.max(1, Math.floor(business.capital / 10_000))
+  // Staff multiply what one pair of hands could do.
+  const fromStaff = staffCount * 40
+  // And growth counts for what it cost.
+  const fromGrowth = Math.floor((fromCapital * expansionPerMille) / 1000)
+  return fromCapital + fromStaff + fromGrowth
+}
+
+/**
+ * WHAT SHARE OF THE TRADE'S CUSTOM THIS ONE TAKES, per-mille.
+ *
+ * By construction the shares of everybody in a trade sum to a thousand, so
+ * the town's custom is conserved: one business winning is another losing,
+ * which is what competition IS. A trade with one business in it takes all
+ * of it, and correctly feels no competition at all.
+ */
+export function shareOfTradePerMille(mine: number, allWeights: readonly number[]): number {
+  const total = allWeights.reduce((sum, weight) => sum + weight, 0)
+  if (total <= 0) return 1000
+  return Math.floor((mine * 1000) / total)
+}
+
+/**
+ * WHAT COMPETITION DOES TO THE MONTH, per-mille of the ordinary earning.
+ *
+ * A business alone in its trade earns what it always did. Rivals take
+ * custom away, and the model is deliberately gentle at the top and harsh
+ * at the bottom: holding half a two-horse trade costs you nothing, being
+ * the fourth shop of five hurts.
+ *
+ * Expressed against the EVEN share rather than against a thousand, so a
+ * trade with more businesses in it is not automatically poorer for
+ * everybody — only for whoever is losing.
+ */
+export function competitionPerMilleFor(sharePerMille: number, rivals: number): number {
+  if (rivals <= 0) return 0
+  const even = Math.floor(1000 / (rivals + 1))
+  if (even <= 0) return 0
+  // How far above or below an even split this business sits, per-mille of
+  // the even split, clamped so one dominant shop cannot earn without end.
+  const relative = Math.floor((sharePerMille * 1000) / even) - 1000
+  return Math.max(-600, Math.min(500, Math.floor(relative / 2)))
+}

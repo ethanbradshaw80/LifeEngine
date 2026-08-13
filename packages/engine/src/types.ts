@@ -2210,6 +2210,8 @@ export type PendingKind =
   | 'raise-capital'
   /** Grew your own business. */
   | 'expand-business'
+  /** Bought out a rival in the same trade. */
+  | 'buy-rival'
   /** Took somebody on at your own business. */
   | 'hire-staff'
   /** Let somebody go from your own business. */
@@ -2505,6 +2507,8 @@ export type EventType =
   | 'moved-house'
   | 'raised-capital'
   | 'business-grew'
+  | 'bought-rival'
+  | 'sold-business'
   | 'inherited-stake'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */

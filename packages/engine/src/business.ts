@@ -469,6 +469,11 @@ export function monthlyProfitFor(
    * supplier you own stops charging you their margin.
    */
   expansionPerMille = 0,
+  /**
+   * WHAT THE COMPETITION IS DOING TO IT, per-mille. Zero for a trade with
+   * nobody else in it, negative when rivals are taking the custom.
+   */
+  competitionPerMille = 0,
 ): Money {
   // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
   // over a decade rather than at a stroke, so the owner has years to sell,
@@ -480,7 +485,8 @@ export function monthlyProfitFor(
   // Additive, not compounding — three ways of growing make a business
   // three times bigger, not eight, and compounding here is how a shop
   // quietly becomes worth more than the town it stands in.
-  const grown = Math.floor((earning * (1000 + expansionPerMille)) / 1000)
+  const contested = Math.max(0, 1000 + expansionPerMille + competitionPerMille)
+  const grown = Math.floor((earning * contested) / 1000)
   const base = Math.floor((grown * kind.returnPerMille) / 1000 / 12)
   // What the staff bring in, derived FROM the wage rather than a per-head
   // constant, so it scales with whoever was actually hired.

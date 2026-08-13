@@ -52,6 +52,7 @@ import {
   hireIntoBusiness,
   raiseCapitalPlayer,
   expandBusinessPlayer,
+  acquireRivalPlayer,
   letGoFromBusiness,
   takePublicPlayer,
   rentPropertyPlayer,
@@ -163,6 +164,7 @@ export type VerbRequest =
   | { readonly verb: 'scale-up' }
   | { readonly verb: 'raise-capital' }
   | { readonly verb: 'expand-business'; readonly kind: 'location' | 'franchise' | 'supply-chain' }
+  | { readonly verb: 'buy-rival'; readonly rivalId: number }
   | { readonly verb: 'hire-staff'; readonly candidateId: number }
   | { readonly verb: 'let-go'; readonly employeeId: number }
   | { readonly verb: 'buy-chips'; readonly cents: number }
@@ -692,6 +694,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'retire-sport': {
             const r = retirePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'buy-rival': {
+            const r = acquireRivalPlayer(world, a.rivalId as never)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

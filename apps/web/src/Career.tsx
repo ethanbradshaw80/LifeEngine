@@ -26,6 +26,7 @@ import {
   candidatesForBusiness,
   employeesOf,
   expansionOffers,
+  rivalsForSale,
   nextRoundOffer,
   privateValuationOf,
   raiseBar,
@@ -421,6 +422,49 @@ export function Career({
                             Do it
                           </button>
                         )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })()}
+
+            {/* THE RIVALS. The town's custom in a trade is a fixed thing
+                that gets divided, so one shop winning is another losing.
+                Buying one out is real money to a real person, and what
+                they built folds into yours. */}
+            {business !== undefined && (() => {
+              const rivals = rivalsForSale(world)
+              if (rivals.length === 0) return null
+              return (
+                <section className="career-card">
+                  <h4>Others in your trade</h4>
+                  <p className="career-note">
+                    The town only has so much custom for {businessKindById(business.kindId)?.title ?? 'this'}.
+                    Every one of these is taking a share of it.
+                  </p>
+                  <ul className="openings">
+                    {rivals.map((rival) => (
+                      <li
+                        key={rival.business.id}
+                        className={rival.bar === null ? undefined : 'is-shut'}
+                      >
+                        <span className="o-title">
+                          {rival.business.name}
+                          <span className="s">
+                            capital {formatMoney(rival.business.capital)} ·{' '}
+                            {businessHealthWords(rival.business)}
+                          </span>
+                          {rival.bar !== null && <span className="s bar">{rival.bar}</span>}
+                        </span>
+                        <button
+                          type="button"
+                          className="apply"
+                          disabled={busy || rival.bar !== null}
+                          onClick={() => onAct({ verb: 'buy-rival', rivalId: rival.business.id })}
+                        >
+                          Buy for {formatMoney(rival.price)}
+                        </button>
                       </li>
                     ))}
                   </ul>

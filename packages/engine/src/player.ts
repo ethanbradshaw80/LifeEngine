@@ -35,7 +35,9 @@ import {
   householdIncome,
   inArrears,
   monthlyNetOf,
+  acquireRival,
   buyExpansion,
+  priceOfRival,
   raiseRound,
   setSpendStance,
   walletOf as walletAccountsOf,
@@ -957,6 +959,61 @@ export function expandBusinessPlayer(
   return buyExpansion(world, world.tick, business.id, kind)
     ? { done: true, reason: '' }
     : { done: false, reason: 'It did not come together.' }
+}
+
+/** The rivals in your trade you could buy, with what each would cost. */
+export function rivalsForSale(
+  world: World,
+): readonly { readonly business: Business; readonly price: Money; readonly bar: string | null }[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const mine = businessOf(world, person.id)
+  if (mine === undefined) return []
+  const wallet = walletAccountsOf(world, person.id)
+  const cash = wallet.checking + wallet.savings
+  return [...world.businesses.values()]
+    .filter(
+      (rival) =>
+        rival.closedTick === null &&
+        rival.id !== mine.id &&
+        rival.kindId === mine.kindId &&
+        rival.ownerId !== person.id &&
+        world.people.get(rival.ownerId)?.deathTick === null,
+    )
+    .sort((a, b) => a.id - b.id)
+    .map((rival) => {
+      const price = priceOfRival(world, rival.id)
+      return {
+        business: rival,
+        price,
+        bar:
+          price <= 0
+            ? 'It is not earning enough to price.'
+            : cash < price
+              ? `It would take ${formatMoney(price)} and you have ${formatMoney(cash as Money)}.`
+              : null,
+      }
+    })
+}
+
+/** Buy one of them out. */
+export function acquireRivalPlayer(
+  world: World,
+  rivalId: EntityId,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const mine = businessOf(world, person.id)
+  if (mine === undefined) return { done: false, reason: 'You have no business to buy with.' }
+  const offer = rivalsForSale(world).find((entry) => entry.business.id === rivalId)
+  if (offer === undefined) return { done: false, reason: 'They are not in your trade.' }
+  if (offer.bar !== null) return { done: false, reason: offer.bar }
+
+  logVerb(world, 'buy-rival', String(rivalId))
+  return acquireRival(world, world.tick, mine.id, rivalId)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'They would not sell.' }
 }
 
 /** Why you cannot take this person on, or null. The screen and the verb read it. */
@@ -5138,6 +5195,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'house-hunt':
     case 'raise-capital':
     case 'expand-business':
+    case 'buy-rival':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -6695,6 +6753,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Sold a slice of the business.' // log-only
     case 'expand-business':
       return 'Grew the business.' // log-only
+    case 'buy-rival':
+      return 'Bought out a rival.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':
