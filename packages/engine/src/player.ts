@@ -35,6 +35,7 @@ import {
   householdIncome,
   inArrears,
   monthlyNetOf,
+  buyExpansion,
   raiseRound,
   setSpendStance,
   walletOf as walletAccountsOf,
@@ -265,8 +266,16 @@ import {
 import { openBusiness } from './finances.js'
 import { baCompensationFor, inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
-import { foundingCapTable, investmentFor, nextRoundFor, privateValuationOf } from './equity.js'
-import type { RoundTerms } from './equity.js'
+import {
+  EXPANSIONS,
+  expansionTermsFor,
+  foundingCapTable,
+  investmentFor,
+  nextRoundFor,
+  privateValuationOf,
+} from './equity.js'
+import type { ExpansionTerms, RoundTerms } from './equity.js'
+import type { ExpansionKind } from './types.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -870,6 +879,84 @@ export function raiseCapitalPlayer(world: World): { done: boolean; reason: strin
     }
   }
   return { done: true, reason: '' }
+}
+
+/**
+ * WHY YOU CANNOT GROW THE BUSINESS THIS WAY, or null.
+ *
+ * Every rung asks for the same three things in different amounts: years at
+ * the wheel, a run of profitable months, and the money. A business that has
+ * never had a good year is not held back by ambition, it is held back by
+ * having nothing to grow.
+ */
+export function expansionBar(world: World, kind: ExpansionKind): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const business = businessOf(world, person.id)
+  if (business === undefined) return 'You have no business to grow.'
+  if (business.closedTick !== null) return 'It has closed.'
+  const terms = expansionTermsFor(kind)
+  const trade = businessKindById(business.kindId)
+  if (terms === undefined || trade === undefined) return 'No such way of growing.'
+  if ((world.expansions.get(business.id) ?? []).some((entry) => entry.kind === kind)) {
+    return 'Already done.'
+  }
+
+  const years = Math.floor((world.tick - business.foundedTick) / TICKS_PER_YEAR)
+  if (years < terms.yearsTrading) {
+    return `${String(terms.yearsTrading)} years of trading first — you have ${String(years)}.`
+  }
+  if (business.badMonths > 0) return 'Not in the middle of a bad run.'
+  const cost = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000)
+  const wallet = walletAccountsOf(world, person.id)
+  const cash = wallet.checking + wallet.savings
+  if (cash < cost) {
+    return `It takes ${formatMoney(cost as Money)} and you have ${formatMoney(cash as Money)}.`
+  }
+  return null
+}
+
+/** What each rung would cost right now, for the screen. */
+export function expansionOffers(
+  world: World,
+): readonly {
+  readonly terms: ExpansionTerms
+  readonly cost: Money
+  readonly bar: string | null
+  readonly bought: boolean
+}[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const business = businessOf(world, person.id)
+  if (business === undefined) return []
+  const trade = businessKindById(business.kindId)
+  if (trade === undefined) return []
+  const bought = world.expansions.get(business.id) ?? []
+  return EXPANSIONS.map((terms) => ({
+    terms,
+    cost: Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000) as Money,
+    bar: expansionBar(world, terms.kind),
+    bought: bought.some((entry) => entry.kind === terms.kind),
+  }))
+}
+
+/** Grow it. */
+export function expandBusinessPlayer(
+  world: World,
+  kind: ExpansionKind,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = expansionBar(world, kind)
+  if (bar !== null) return { done: false, reason: bar }
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have no business.' }
+
+  logVerb(world, 'expand-business', kind)
+  return buyExpansion(world, world.tick, business.id, kind)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'It did not come together.' }
 }
 
 /** Why you cannot take this person on, or null. The screen and the verb read it. */
@@ -5050,6 +5137,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'spend-stance':
     case 'house-hunt':
     case 'raise-capital':
+    case 'expand-business':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -6605,6 +6693,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Went looking for a place.' // log-only
     case 'raise-capital':
       return 'Sold a slice of the business.' // log-only
+    case 'expand-business':
+      return 'Grew the business.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':

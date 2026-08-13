@@ -253,6 +253,16 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'inherited-stake':
       return `A share of ${event.detail ?? 'a business'} passed down.`
+    case 'business-grew': {
+      const [how, name] = (event.detail ?? '').split(':')
+      const told =
+        how === 'location'
+          ? 'opened a second place'
+          : how === 'supply-chain'
+            ? 'bought out the supplier'
+            : 'licensed the name to somebody else'
+      return `${name ?? 'The business'} ${told}.`
+    }
     case 'moved-house':
       return `${year} — Moved to ${placeName(world, event.placeId)}.`
     case 'started-courting':

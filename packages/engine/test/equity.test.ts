@@ -27,7 +27,17 @@ import {
   ROUNDS,
   termsFor,
 } from '../src/equity.js'
-import { businessOf, raiseBar, raiseCapitalPlayer, setPlayer, startBusiness } from '../src/player.js'
+import {
+  businessOf,
+  expandBusinessPlayer,
+  expansionOffers,
+  raiseBar,
+  raiseCapitalPlayer,
+  setPlayer,
+  startBusiness,
+} from '../src/player.js'
+import { EXPANSIONS, upliftPerMilleOf } from '../src/equity.js'
+import { businessKindById, monthlyProfitFor } from '../src/business.js'
 import type { Shareholder } from '../src/types.js'
 
 function aHolder(perMille: number, id = 'x'): Shareholder {
@@ -182,5 +192,64 @@ describe('raising money against a real business', () => {
     if (!business) return
     expect(world.capTables.has(business.id)).toBe(false)
     expect(privateValuationOf(world, business)).toBeGreaterThan(0)
+  })
+})
+
+describe('growing beyond the four walls', () => {
+  it('asks for years at the wheel before each rung, and says how many', () => {
+    // The ladder is climbed in order and the refusals are honest about
+    // what is missing — a business two years old is not held back by
+    // ambition, it is held back by having nothing yet to grow.
+    const { world } = aFounder()
+    const offers = expansionOffers(world)
+    expect(offers).toHaveLength(EXPANSIONS.length)
+
+    const location = offers.find((o) => o.terms.kind === 'location')
+    const franchise = offers.find((o) => o.terms.kind === 'franchise')
+    expect(location?.bar, 'two years should be enough for a second place').toBeNull()
+    expect(franchise?.bar, 'five years is not two').toContain('5 years')
+  })
+
+  it('costs real money and makes the month bigger, once', () => {
+    const { world, person } = aFounder()
+    const business = businessOf(world, person.id)
+    expect(business).toBeDefined()
+    if (!business) return
+    const kind = businessKindById(business.kindId)
+    if (!kind) return
+
+    const before = walletOf(world, person.id)
+    const cashBefore = before.checking + before.savings
+    const earnBefore = monthlyProfitFor(business, kind, 'expansion', 40, 600, 0, 2005, 0, 0)
+
+    expect(expandBusinessPlayer(world, 'location').done).toBe(true)
+
+    const uplift = upliftPerMilleOf(world.expansions.get(business.id))
+    expect(uplift).toBeGreaterThan(0)
+    const earnAfter = monthlyProfitFor(business, kind, 'expansion', 40, 600, 0, 2005, 0, uplift)
+    expect(earnAfter).toBeGreaterThan(earnBefore)
+
+    // It was paid for, out of the owner's own money.
+    const after = walletOf(world, person.id)
+    const paid = cashBefore - (after.checking + after.savings)
+    expect(paid).toBe(world.expansions.get(business.id)?.[0]?.costCents)
+
+    // And it cannot be bought twice.
+    expect(expandBusinessPlayer(world, 'location').done).toBe(false)
+  })
+
+  it('adds rungs together rather than compounding them', () => {
+    // Three ways of growing make a business three times bigger, not eight.
+    // Compounding is how a shop quietly becomes worth more than its town.
+    const list = EXPANSIONS.map((terms, index) => ({
+      kind: terms.kind,
+      name: terms.title,
+      sinceTick: 0 as never,
+      costCents: 1 as Money,
+      upliftPerMille: terms.upliftPerMille,
+      index,
+    }))
+    const total = upliftPerMilleOf(list)
+    expect(total).toBe(EXPANSIONS.reduce((sum, t) => sum + t.upliftPerMille, 0))
   })
 })

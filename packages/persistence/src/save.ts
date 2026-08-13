@@ -264,6 +264,10 @@ function hydrate(
       shareholders: (entry.shareholders ?? []) as never,
     })
   }
+  const expansions = new Map<import('@life-engine/shared').EntityId, readonly import('@life-engine/engine').Expansion[]>()
+  for (const entry of (body['expansions'] as { businessId: number; list: unknown[] }[] | undefined) ?? []) {
+    expansions.set(entry.businessId as never, (entry.list ?? []) as never)
+  }
   const leases = new Map<import('@life-engine/shared').EntityId, Lease>()
   for (const lease of (body['leases'] as Lease[] | undefined) ?? []) {
     leases.set(lease.householdId, lease)
@@ -352,6 +356,7 @@ function hydrate(
     properties,
     leases,
     capTables,
+    expansions,
     deployments,
     nations,
     geoRelations,

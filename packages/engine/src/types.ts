@@ -2156,6 +2156,25 @@ export interface GeoRelation {
 // ---------------------------------------------------------------------------
 
 /** Which round a stake was bought in. */
+/**
+ * A WAY A BUSINESS GROWS BEYOND ITS OWN FOUR WALLS.
+ *
+ * Each is bought once, costs real money, and changes how the business
+ * earns from then on — a second shop trades on its own, a franchise pays
+ * royalties for the name, and owning your supplier takes a bite out of
+ * what everything costs.
+ */
+export type ExpansionKind = 'location' | 'franchise' | 'supply-chain'
+
+export interface Expansion {
+  readonly kind: ExpansionKind
+  readonly name: string
+  readonly sinceTick: Tick
+  readonly costCents: Money
+  /** What it adds, per-mille of the trade's ordinary monthly earning. */
+  readonly upliftPerMille: number
+}
+
 export type InvestmentRound = 'seed' | 'series-a' | 'series-b' | 'series-c'
 
 /**
@@ -2189,6 +2208,8 @@ export interface CapTable {
 export type PendingKind =
   /** Sold a slice of your own business. */
   | 'raise-capital'
+  /** Grew your own business. */
+  | 'expand-business'
   /** Took somebody on at your own business. */
   | 'hire-staff'
   /** Let somebody go from your own business. */
@@ -2483,6 +2504,7 @@ export type EventType =
   | 'moved-in-together'
   | 'moved-house'
   | 'raised-capital'
+  | 'business-grew'
   | 'inherited-stake'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
@@ -2991,6 +3013,8 @@ export interface World {
   readonly leases: Map<EntityId, Lease>
   /** Who owns a piece of which business. Keyed by business id. */
   readonly capTables: Map<EntityId, CapTable>
+  /** How each business has grown beyond its own doors. Keyed by business id. */
+  readonly expansions: Map<EntityId, readonly Expansion[]>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

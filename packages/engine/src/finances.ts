@@ -23,7 +23,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import type { InvestmentRound, Shareholder } from './types.js'
+import type { ExpansionKind, InvestmentRound, Shareholder } from './types.js'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
@@ -31,7 +31,16 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
-import { foundingCapTable, investmentFor, issueShares, privateValuationOf, shareOf, termsFor } from './equity.js'
+import {
+  expansionTermsFor,
+  foundingCapTable,
+  investmentFor,
+  issueShares,
+  privateValuationOf,
+  shareOf,
+  termsFor,
+  upliftPerMilleOf,
+} from './equity.js'
 import {
   creditScoreOf,
   depositFor,
@@ -3648,6 +3657,54 @@ export function raiseRound(
 }
 
 /**
+ * GROW THE BUSINESS. finances owns it because it spends money: the cost
+ * comes out of the owner's wallet and the business earns more from then on.
+ */
+export function buyExpansion(
+  world: World,
+  tick: Tick,
+  businessId: EntityId,
+  kind: ExpansionKind,
+): boolean {
+  const business = world.businesses.get(businessId)
+  const terms = expansionTermsFor(kind)
+  const trade = business === undefined ? undefined : businessKindById(business.kindId)
+  if (business === undefined || terms === undefined || trade === undefined) return false
+  if (business.closedTick !== null) return false
+  const already = world.expansions.get(businessId) ?? []
+  if (already.some((entry) => entry.kind === kind)) return false
+
+  const cost = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000) as Money
+  if (debitPerson(world, business.ownerId, cost) < cost) return false
+
+  world.expansions.set(businessId, [
+    ...already,
+    {
+      kind,
+      name: terms.title,
+      sinceTick: tick,
+      costCents: cost,
+      upliftPerMille: terms.upliftPerMille,
+    },
+  ])
+  recordEvent(world, tick, {
+    type: 'business-grew',
+    subjectId: business.ownerId,
+    detail: `${kind}:${business.name}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: business.ownerId,
+    decision: 'business',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: terms.title.toLowerCase(),
+    rejected: ['leaving it as it was'],
+    streamId: Stream.Economy,
+  })
+  return true
+}
+
+/**
  * A SHAREHOLDER DIES AND THEIR CHILDREN OWN IT.
  *
  * The stake is a real asset, so it passes like one — eldest living child,
@@ -3859,6 +3916,7 @@ function runBusinesses(world: World, tick: Tick): void {
       swing,
       toDate(world, tick).year,
       payroll,
+      upliftPerMilleOf(world.expansions.get(business.id)),
     )
 
     if (profit >= 0) {

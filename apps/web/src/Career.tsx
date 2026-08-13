@@ -25,6 +25,7 @@ import {
   businessBar,
   candidatesForBusiness,
   employeesOf,
+  expansionOffers,
   nextRoundOffer,
   privateValuationOf,
   raiseBar,
@@ -378,6 +379,54 @@ export function Career({
                 </p>
               </section>
             ) : null}
+
+            {/* GROWING IT (the expansion ladder). Every rung asks for years
+                at the wheel, a run of good months and the money — and each
+                one is bought once and changes how the business earns from
+                then on. This is what raising money is FOR. */}
+            {business !== undefined && (() => {
+              const offers = expansionOffers(world)
+              if (offers.length === 0) return null
+              return (
+                <section className="career-card">
+                  <h4>Growing it</h4>
+                  <ul className="openings">
+                    {offers.map((offer) => (
+                      <li
+                        key={offer.terms.kind}
+                        className={offer.bought || offer.bar === null ? undefined : 'is-shut'}
+                      >
+                        <span className="o-title">
+                          {offer.terms.title}
+                          <span className="s">{offer.terms.blurb}</span>
+                          <span className="s">
+                            {formatMoney(offer.cost)} · adds{' '}
+                            {(offer.terms.upliftPerMille / 10).toFixed(0)}% to the month
+                          </span>
+                          {!offer.bought && offer.bar !== null && (
+                            <span className="s bar">{offer.bar}</span>
+                          )}
+                        </span>
+                        {offer.bought ? (
+                          <span className="s">Done</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="apply"
+                            disabled={busy || offer.bar !== null}
+                            onClick={() =>
+                              onAct({ verb: 'expand-business', kind: offer.terms.kind })
+                            }
+                          >
+                            Do it
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })()}
 
             {/* WHO OWNS IT (owner's ruling: real townspeople AND generated
                 firms). A trade nobody has backed shows the register at a

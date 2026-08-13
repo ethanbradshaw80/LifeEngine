@@ -103,6 +103,9 @@ export {
   raiseBar,
   raiseCapitalPlayer,
   nextRoundOffer,
+  expansionBar,
+  expansionOffers,
+  expandBusinessPlayer,
   hireBar,
   hireIntoBusiness,
   letGoFromBusiness,
@@ -403,8 +406,20 @@ export {
   totalDebtOf,
 } from './credit.js'
 export type { Loan, LoanKind } from './types.js'
-export type { Bankruptcy, BankruptcyChapter, Business, CapTable, Shareholder, InvestmentRound } from './types.js'
+export type {
+  Bankruptcy,
+  BankruptcyChapter,
+  Business,
+  CapTable,
+  Expansion,
+  ExpansionKind,
+  InvestmentRound,
+  Shareholder,
+} from './types.js'
 export {
+  EXPANSIONS,
+  expansionTermsFor,
+  upliftPerMilleOf,
   ROUNDS,
   boardWeightFor,
   capTableSums,
@@ -416,7 +431,7 @@ export {
   shareOf,
   termsFor,
 } from './equity.js'
-export type { RoundTerms } from './equity.js'
+export type { RoundTerms, ExpansionTerms } from './equity.js'
 export {
   BUSINESS_KINDS,
   annualRevenueOf,

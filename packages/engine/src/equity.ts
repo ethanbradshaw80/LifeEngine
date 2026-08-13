@@ -23,7 +23,14 @@
  */
 
 import type { Money } from '@life-engine/shared'
-import type { Business, CapTable, Shareholder, InvestmentRound } from './types.js'
+import type {
+  Business,
+  CapTable,
+  Expansion,
+  ExpansionKind,
+  InvestmentRound,
+  Shareholder,
+} from './types.js'
 import { annualRevenueOf, businessKindById, valuationMultipleFor } from './business.js'
 
 /** A business nobody has raised against: the founder holds all of it. */
@@ -146,4 +153,78 @@ export function boardWeightFor(table: CapTable): number {
   return table.shareholders
     .filter((holder) => holder.boardSeat)
     .reduce((sum, holder) => sum + holder.perMille, 0)
+}
+
+// ---------------------------------------------------------------------------
+// Growing beyond the four walls
+// ---------------------------------------------------------------------------
+
+/** What each way of growing costs and what it buys. */
+export interface ExpansionTerms {
+  readonly kind: ExpansionKind
+  readonly title: string
+  readonly blurb: string
+  /** Cost as a share of what the trade took to open, per-mille. */
+  readonly costPerMille: number
+  /** What it adds to the monthly earning, per-mille. */
+  readonly upliftPerMille: number
+  /** Years of trading before anybody would consider it. */
+  readonly yearsTrading: number
+  /** Consecutive profitable months before it is worth trying. */
+  readonly goodMonths: number
+}
+
+/**
+ * THE LADDER, in the order a real business climbs it.
+ *
+ * A second location is the ordinary next step and the cheapest. Franchising
+ * needs a name worth licensing, so it asks for far longer at the wheel and
+ * pays a smaller, safer royalty. Owning the supplier is the most expensive
+ * and the most valuable, because it takes a bite out of everything the
+ * business will ever buy.
+ */
+export const EXPANSIONS: readonly ExpansionTerms[] = [
+  {
+    kind: 'location',
+    title: 'Open a second place',
+    blurb: 'Another set of doors, trading on its own, under the same name.',
+    costPerMille: 700,
+    upliftPerMille: 550,
+    yearsTrading: 2,
+    goodMonths: 12,
+  },
+  {
+    kind: 'supply-chain',
+    title: 'Buy your supplier',
+    blurb: 'Own what you buy from, and take the margin they were charging you.',
+    costPerMille: 1200,
+    upliftPerMille: 400,
+    yearsTrading: 3,
+    goodMonths: 18,
+  },
+  {
+    kind: 'franchise',
+    title: 'License the name',
+    blurb: 'Let somebody else run one and pay you for the sign above the door.',
+    costPerMille: 500,
+    upliftPerMille: 300,
+    yearsTrading: 5,
+    goodMonths: 24,
+  },
+]
+
+export function expansionTermsFor(kind: ExpansionKind): ExpansionTerms | undefined {
+  return EXPANSIONS.find((entry) => entry.kind === kind)
+}
+
+/**
+ * WHAT THE EXPANSIONS ADD TOGETHER, per-mille of the ordinary month.
+ *
+ * Additive rather than compounding, deliberately: three ways of growing
+ * should make a business three times bigger, not eight times. Compounding
+ * here is how a shop quietly becomes worth more than the town.
+ */
+export function upliftPerMilleOf(list: readonly Expansion[] | undefined): number {
+  if (list === undefined || list.length === 0) return 0
+  return list.reduce((sum, entry) => sum + entry.upliftPerMille, 0)
 }

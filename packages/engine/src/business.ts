@@ -463,13 +463,25 @@ export function monthlyProfitFor(
   year?: number,
   /** What the staff cost this month, in cents. Zero for a one-person trade. */
   payroll = 0,
+  /**
+   * WHAT THE BUSINESS HAS GROWN INTO, per-mille on top of its ordinary
+   * earning. A second set of doors trades like most of another shop; a
+   * supplier you own stops charging you their margin.
+   */
+  expansionPerMille = 0,
 ): Money {
   // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
   // over a decade rather than at a stroke, so the owner has years to sell,
   // pivot or ride it down — Law 7's recovery path, not a cliff.
   const demand = year === undefined ? 1000 : kindDemandPerMille(kind, year)
   const earning = Math.floor((business.capital * demand) / 1000)
-  const base = Math.floor((earning * kind.returnPerMille) / 1000 / 12)
+  // WHAT IT HAS GROWN INTO. A second set of doors trades like most of
+  // another shop; a supplier you own stops charging you their margin.
+  // Additive, not compounding — three ways of growing make a business
+  // three times bigger, not eight, and compounding here is how a shop
+  // quietly becomes worth more than the town it stands in.
+  const grown = Math.floor((earning * (1000 + expansionPerMille)) / 1000)
+  const base = Math.floor((grown * kind.returnPerMille) / 1000 / 12)
   // What the staff bring in, derived FROM the wage rather than a per-head
   // constant, so it scales with whoever was actually hired.
   const staffBase = Math.floor((payroll * STAFF_EARNS_PER_MILLE) / 1000)

@@ -143,7 +143,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(71) // v1 through v72, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(72) // v1 through v73, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household
