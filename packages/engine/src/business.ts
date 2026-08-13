@@ -40,8 +40,77 @@ export interface BusinessKind {
   readonly exposure: number
   /** Zero for a one-person trade. */
   readonly maxEmployees: number
+  /**
+   * THE YEAR THE TRADE BECOMES POSSIBLE (owner's ruling, 2026-08-13:
+   * "businesses should be able to populate over the years so if SaaS isn't
+   * in 1970 just make it available only after a certain year").
+   *
+   * A CALENDAR year, compared against `toDate(world, tick).year`, because a
+   * preset sets its own `startYear` and a hardcoded 1970 would be a lie in
+   * any other one. Absent means the trade has no era — somebody has always
+   * cut hair and somebody has always fixed things.
+   */
+  readonly availableFrom?: number
+  /**
+   * THE YEAR IT STOPS BEING A LIVING (the other half of the same ruling).
+   *
+   * Nothing is deleted: a retired kind can no longer be FOUNDED, and the
+   * ones already trading meet a market that is going away. A video rental
+   * shop opened in 1985 is a good business and the same shop in 2010 is a
+   * story, which is the entire reason to model this rather than quietly
+   * dropping the type from the list.
+   */
+  readonly retiredAfter?: number
 }
 
+/**
+ * Can this trade be started in this year? The founding screen and the verb
+ * both read it, so a greyed row and a refusal cannot disagree (the bar
+ * pattern).
+ */
+export function kindAvailableIn(kind: BusinessKind, year: number): boolean {
+  if (kind.availableFrom !== undefined && year < kind.availableFrom) return false
+  if (kind.retiredAfter !== undefined && year > kind.retiredAfter) return false
+  return true
+}
+
+/**
+ * HOW MUCH OF ITS MARKET IS LEFT, per-mille of normal.
+ *
+ * A trade in its own era trades at 1000. Past its retirement the floor
+ * falls away over a decade rather than at a stroke — the last video rental
+ * shop in town did not close the morning the world changed, it ground down
+ * while its owner decided what to do. Ten years after the end it is at a
+ * fifth, and it stays there: somebody, somewhere, still wants the thing.
+ */
+export function kindDemandPerMille(kind: BusinessKind, year: number): number {
+  if (kind.retiredAfter === undefined || year <= kind.retiredAfter) return 1000
+  const yearsPast = year - kind.retiredAfter
+  if (yearsPast >= 10) return 200
+  return 1000 - yearsPast * 80
+}
+
+/**
+ * THE TRADES, in capital order.
+ *
+ * TWO RULES HOLD ACROSS THE WHOLE TABLE and a test enforces both: capital
+ * strictly increases, and the return per-mille never increases with it. A
+ * small trade returns a lot on very little; a real firm returns less on far
+ * more, and the absolute money runs the other way. That is the engine's
+ * economic model and the fifteen trades added with the era ruling were
+ * fitted ONTO it rather than importing a second one — the supplied design
+ * had professional practices and software returning both the most AND
+ * costing the most, which would have made them strictly dominant.
+ *
+ * So what makes one trade different from another of the same size is
+ * `exposure` — how hard the cycle hits it. A dental practice is the safest
+ * money in the table (400) because people's teeth do not read the business
+ * pages; a software company is the wildest (1500). That is where the
+ * character lives, along with the era window.
+ *
+ * The original five keep their exact ids and numbers: saves reference
+ * `kindId`, and every one of these figures was measured into place.
+ */
 export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'freelance',
@@ -52,12 +121,40 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     maxEmployees: 0,
   },
   {
+    id: 'lessons',
+    title: 'lessons at the kitchen table',
+    capital: 12_000 as Money,
+    returnPerMille: 620,
+    exposure: 600,
+    maxEmployees: 1,
+  },
+  {
+    id: 'cleaning-round',
+    title: 'a cleaning round',
+    capital: 22_000 as Money,
+    returnPerMille: 480,
+    exposure: 700,
+    maxEmployees: 4,
+  },
+  {
     id: 'market-stall',
     title: 'a market stall',
     capital: 31_250 as Money,
     returnPerMille: 420,
     exposure: 700,
     maxEmployees: 1,
+  },
+  {
+    // A BUSINESS THAT ENDS. Word processors took the trade apart through
+    // the eighties; by 1990 the man who fixed typewriters was fixing
+    // something else or he was finished.
+    id: 'office-machines',
+    title: 'a typewriter and office machine shop',
+    capital: 90_000 as Money,
+    returnPerMille: 290,
+    exposure: 800,
+    maxEmployees: 2,
+    retiredAfter: 1990,
   },
   {
     id: 'workshop',
@@ -68,6 +165,63 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     maxEmployees: 3,
   },
   {
+    id: 'salon',
+    title: 'a hair salon',
+    capital: 140_000 as Money,
+    returnPerMille: 240,
+    exposure: 700,
+    maxEmployees: 5,
+  },
+  {
+    // Mail order first, then the same trade with a website in front of it.
+    id: 'mail-order',
+    title: 'a mail-order and internet shop',
+    capital: 150_000 as Money,
+    returnPerMille: 235,
+    exposure: 1400,
+    maxEmployees: 6,
+    availableFrom: 1996,
+  },
+  {
+    id: 'print-shop',
+    title: 'a print shop',
+    capital: 190_000 as Money,
+    returnPerMille: 215,
+    exposure: 900,
+    maxEmployees: 4,
+    retiredAfter: 2005,
+  },
+  {
+    // OPENED IN 1985 THIS IS A GOOD BUSINESS. Run to 2010 it is a story,
+    // which is the whole reason retirement is modelled rather than the
+    // type quietly disappearing from the list.
+    id: 'video-rental',
+    title: 'a video rental shop',
+    capital: 240_000 as Money,
+    returnPerMille: 200,
+    exposure: 1100,
+    maxEmployees: 4,
+    availableFrom: 1982,
+    retiredAfter: 2007,
+  },
+  {
+    id: 'feed-store',
+    title: 'a feed and hardware store',
+    capital: 260_000 as Money,
+    returnPerMille: 195,
+    exposure: 950,
+    maxEmployees: 3,
+  },
+  {
+    id: 'fitness-studio',
+    title: 'a fitness studio',
+    capital: 300_000 as Money,
+    returnPerMille: 185,
+    exposure: 1000,
+    maxEmployees: 5,
+    availableFrom: 1980,
+  },
+  {
     id: 'shop',
     title: 'a shop on the square',
     capital: 325_000 as Money,
@@ -76,12 +230,65 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     maxEmployees: 6,
   },
   {
+    id: 'computer-shop',
+    title: 'a computer shop',
+    capital: 360_000 as Money,
+    returnPerMille: 176,
+    exposure: 1300,
+    maxEmployees: 6,
+    availableFrom: 1980,
+  },
+  {
+    id: 'filling-station',
+    title: 'a filling station',
+    capital: 400_000 as Money,
+    returnPerMille: 172,
+    exposure: 1100,
+    maxEmployees: 4,
+  },
+  {
+    id: 'diner',
+    title: 'a diner',
+    capital: 520_000 as Money,
+    returnPerMille: 162,
+    exposure: 1150,
+    maxEmployees: 10,
+  },
+  {
+    id: 'haulage',
+    title: 'a haulage firm',
+    capital: 660_000 as Money,
+    returnPerMille: 155,
+    exposure: 1250,
+    maxEmployees: 8,
+  },
+  {
     id: 'contracting-firm',
     title: 'a contracting firm',
     capital: 812_500 as Money,
     returnPerMille: 150,
     exposure: 1200,
     maxEmployees: 14,
+  },
+  {
+    // THE SAFEST MONEY IN THE TABLE. A recession does not stop a tooth
+    // hurting, which is what an exposure of 400 means.
+    id: 'dental-practice',
+    title: 'a dental practice',
+    capital: 950_000 as Money,
+    returnPerMille: 145,
+    exposure: 400,
+    maxEmployees: 6,
+  },
+  {
+    // AND THE WILDEST. It rides the cycle harder than anything else here.
+    id: 'software-company',
+    title: 'a software company',
+    capital: 1_100_000 as Money,
+    returnPerMille: 140,
+    exposure: 1500,
+    maxEmployees: 20,
+    availableFrom: 2002,
   },
 ]
 
@@ -240,8 +447,19 @@ export function monthlyProfitFor(
   growthPerMille: number,
   diligence: number,
   swing: number,
+  /**
+   * THE YEAR, so a trade whose era has passed meets a market that is going
+   * away (the owner's retirement ruling). Optional: every caller written
+   * before there was an era keeps its exact arithmetic.
+   */
+  year?: number,
 ): Money {
-  const base = Math.floor((business.capital * kind.returnPerMille) / 1000 / 12)
+  // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
+  // over a decade rather than at a stroke, so the owner has years to sell,
+  // pivot or ride it down — Law 7's recovery path, not a cliff.
+  const demand = year === undefined ? 1000 : kindDemandPerMille(kind, year)
+  const earning = Math.floor((business.capital * demand) / 1000)
+  const base = Math.floor((earning * kind.returnPerMille) / 1000 / 12)
   // The cycle, through this trade's exposure to it.
   const weather = Math.floor((growthPerMille * kind.exposure) / 1000)
   const slump = phase === 'depression' ? -90 : phase === 'recession' ? -45 : 0
@@ -283,10 +501,22 @@ export function businessBar(
   capitalNow: Money,
   alreadyOwns: boolean,
   age: number,
+  /**
+   * THE YEAR, for the era gate. Optional so every existing caller keeps its
+   * exact meaning — a caller that does not care about the era (and the
+   * tests written before there was one) still gets the old four answers.
+   */
+  year?: number,
 ): string | null {
   if (!kind) return 'No such trade to go into.'
   if (age < 18) return 'Not yet eighteen.'
   if (alreadyOwns) return 'You already have one to run.'
+  if (year !== undefined && kind.availableFrom !== undefined && year < kind.availableFrom) {
+    return `Nobody has thought of that yet. Ask again after ${String(kind.availableFrom)}.`
+  }
+  if (year !== undefined && kind.retiredAfter !== undefined && year > kind.retiredAfter) {
+    return `That trade has had its day — the last of them closed around ${String(kind.retiredAfter)}.`
+  }
   if (cash < capitalNow) {
     return `${sentenceCase(kind.title)} takes ${String(Math.floor(capitalNow / 100))} dollars to open, and you have ${String(Math.floor(cash / 100))}.`
   }

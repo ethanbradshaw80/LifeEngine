@@ -1944,3 +1944,56 @@ variable name is a bug that cannot be seen by reading — it needs a value
 that differs between them to expose it, and the first five rungs of these
 two agree. The fix is not vigilance; it is one accessor that cannot be
 called wrongly.
+
+---
+
+## ADR-0044 — The calendar is an input now: trades have an era
+
+**Date:** 2026-08-13. **Status:** accepted. **Narrows:** ADR-0020 / W1's
+"the start year is a label on the ticks, not an input to them".
+
+**Owner's ruling.** *"Businesses should be able to populate over the years
+so if SaaS isn't in 1970 just make it available only after a certain
+year."* Asked whether the anachronistic business types should be trimmed
+from the supplied design, the owner chose the better answer: keep them and
+gate them by year, so the town's economy ages across generations.
+
+**What this costs.** W1 established that nothing in the tick path reads the
+calendar year, and a test asserted it: two worlds differing only in
+`startYear` lived identical lives. That property is why presets were cheap
+— it meant a start year could never change gameplay, only the dates
+printed on it.
+
+It is no longer true, and it should not be. Which trades exist is now read
+from `toDate(world, tick).year`. A town founded in 1885 must not have a
+computer shop on its high street at tick zero; a town founded in 2010 must
+not be offered a typewriter repair business. Technology has a date, and
+pretending otherwise to protect an invariant would be protecting the
+invariant instead of the world.
+
+**What still holds, and is what actually mattered.** The year is not a
+source of RANDOMNESS and never enters a seeded stream. Same seed and same
+start year produce a bit-identical world, every time — Law 11 is untouched.
+The narrowed test in `w1.test.ts` asserts exactly that, plus the one thing
+the year now decides, so the boundary is pinned rather than merely assumed.
+
+**Why the year and not elapsed ticks.** Gating on ticks-since-start was the
+alternative that would have preserved the old invariant. It is wrong: it
+would put software companies in a 1917 town that started in 1885, and
+typewriter repair in one that started in 2000. The era belongs to the
+world's calendar, not to the length of the save.
+
+**Retirement is the other half.** A trade past its era is not deleted from
+the table — it can no longer be FOUNDED, and the ones still trading meet a
+demand floor that falls over a decade to a fifth and stays there (Law 6:
+history persists; Law 7: failure has a path out). The last video rental in
+town grinds down while its owner decides what to do. That arc is the reason
+to model retirement rather than dropping the type from the list.
+
+**Also fixed under this change.** The wider NPC founding pool exposed a
+latent bug: `decide` in `government.ts` seated whoever polled highest
+without asking whether they already held another office. Candidacy is
+screened when a ballot OPENS, but two can be open at once — somebody
+holding nothing when both opened could win both. Seed-dependent, present
+from the start, surfaced when the draw order shifted. Screened now at the
+chokepoint every winner passes through.

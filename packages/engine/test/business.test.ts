@@ -20,6 +20,8 @@ import {
   businessHealthWords,
   businessKindById,
   businessNameFor,
+  kindAvailableIn,
+  kindDemandPerMille,
   monthlyProfitFor,
 } from '../src/business.js'
 import type { Business } from '../src/types.js'
@@ -60,6 +62,60 @@ describe('the trades you can go into', () => {
     expect(businessBar(kind, 999_999_999 as Money, 100 as Money, true, 40)).toContain('already')
     expect(businessBar(kind, 100 as Money, 500_000 as Money, false, 40)).toContain('dollars to open')
     expect(businessBar(kind, 999_999 as Money, 500_000 as Money, false, 40)).toBeNull()
+  })
+
+  it('only exist inside their own era, and the refusal says which', () => {
+    /**
+     * THE OWNER'S RULING (2026-08-13): "businesses should be able to
+     * populate over the years so if SaaS isn't in 1970 just make it
+     * available only after a certain year." Both ends of the window, and
+     * the refusal has to name the year or the player is guessing.
+     */
+    const software = businessKindById('software-company')
+    const video = businessKindById('video-rental')
+    const shop = businessKindById('shop')
+    expect(software).toBeDefined()
+    expect(video).toBeDefined()
+    if (!software || !video || !shop) return
+
+    // Not yet invented.
+    expect(kindAvailableIn(software, 1970)).toBe(false)
+    expect(kindAvailableIn(software, 2010)).toBe(true)
+    // Had its day.
+    expect(kindAvailableIn(video, 1980)).toBe(false)
+    expect(kindAvailableIn(video, 1990)).toBe(true)
+    expect(kindAvailableIn(video, 2015)).toBe(false)
+    // A trade with no era is always open.
+    expect(kindAvailableIn(shop, 1970)).toBe(true)
+    expect(kindAvailableIn(shop, 2120)).toBe(true)
+
+    // And the bar SAYS so, with the year in it.
+    const tooEarly = businessBar(software, 999_999_999 as Money, 100 as Money, false, 40, 1975)
+    expect(tooEarly).toContain('2002')
+    const tooLate = businessBar(video, 999_999_999 as Money, 100 as Money, false, 40, 2015)
+    expect(tooLate).toContain('2007')
+    // In its own year it opens like anything else.
+    expect(businessBar(video, 999_999_999 as Money, 100 as Money, false, 40, 1990)).toBeNull()
+    // A caller that passes no year keeps the old four answers exactly.
+    expect(businessBar(software, 999_999_999 as Money, 100 as Money, false, 40)).toBeNull()
+  })
+
+  it('lets a retiring trade fade over a decade rather than closing overnight', () => {
+    // Law 7: the last video shop in town grinds down while its owner
+    // decides what to do. It does not evaporate the morning the world
+    // changed, and it never quite reaches zero.
+    const video = businessKindById('video-rental')
+    if (!video) return
+    expect(kindDemandPerMille(video, 2000)).toBe(1000)
+    expect(kindDemandPerMille(video, 2007)).toBe(1000)
+    const oneYearOn = kindDemandPerMille(video, 2008)
+    const fiveYearsOn = kindDemandPerMille(video, 2012)
+    expect(oneYearOn).toBeLessThan(1000)
+    expect(fiveYearsOn).toBeLessThan(oneYearOn)
+    expect(kindDemandPerMille(video, 2030)).toBe(200)
+    // A trade with no end never fades.
+    const shop = businessKindById('shop')
+    if (shop) expect(kindDemandPerMille(shop, 2120)).toBe(1000)
   })
 
   it('are named for the family that owns them, and never for a real firm', () => {

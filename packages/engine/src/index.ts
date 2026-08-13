@@ -407,6 +407,8 @@ export {
   businessHealthWords,
   businessKindById,
   businessNameFor,
+  kindAvailableIn,
+  kindDemandPerMille,
   monthlyProfitFor,
 } from './business.js'
 export type { BusinessKind } from './business.js'

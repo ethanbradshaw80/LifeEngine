@@ -23,6 +23,8 @@ import {
   atTodaysPrices,
   annualRevenueOf,
   businessBar,
+  kindAvailableIn,
+  toDate,
   businessHealthWords,
   businessKindById,
   companyHeadcountOf,
@@ -496,7 +498,16 @@ export function Career({
                   slump — and it can pass to your children.
                 </p>
                 <ul className="openings">
-                  {BUSINESS_KINDS.map((kind) => {
+                  {/* ONLY THE TRADES THAT EXIST THIS YEAR (owner's era
+                      ruling). A trade whose time has not come is not listed
+                      at all rather than listed and greyed — "ask again after
+                      2002" on twenty rows would be noise. A trade whose time
+                      has PASSED is also gone from the list, and the engine's
+                      own bar refuses it either way, so the screen and the
+                      verb cannot disagree. */}
+                  {BUSINESS_KINDS.filter((kind) =>
+                    kindAvailableIn(kind, toDate(world, world.tick).year),
+                  ).map((kind) => {
                     const capital = atTodaysPrices(world, kind.capital) as Money
                     const shut = businessBar(
                       kind,
@@ -506,6 +517,7 @@ export function Career({
                       // The bar's own age check reads the person; this screen
                       // only ever draws for the played character.
                       99,
+                      toDate(world, world.tick).year,
                     )
                     return (
                       <li key={kind.id} className={shut === null ? undefined : 'is-shut'}>

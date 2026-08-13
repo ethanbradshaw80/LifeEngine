@@ -21,7 +21,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import { ageAt } from './clock.js'
+import { ageAt, toDate } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { isHigherEducation, OCCUPATIONS, occupationById } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
@@ -709,13 +709,23 @@ export function startBusiness(world: World, kindId: string): { done: boolean; re
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
   const kind = businessKindById(kindId)
-  const accounts = accountsOf(world, person.id)
+  // H0: the money comes out of the WALLET, so the bar must judge the
+  // wallet — a married founder was being told they could not afford a
+  // trade their joint balance covers twice over.
+  const accounts = walletAccountsOf(world, person.id)
   const cash = (accounts.savings + accounts.checking) as Money
   const capital = kind === undefined ? (0 as Money) : (atTodaysPrices(world, kind.capital) as Money)
   const owns = [...world.businesses.values()].some(
     (business) => business.ownerId === person.id && business.closedTick === null,
   )
-  const bar = businessBar(kind, cash, capital, owns, ageAt(person.birthTick, world.tick))
+  const bar = businessBar(
+    kind,
+    cash,
+    capital,
+    owns,
+    ageAt(person.birthTick, world.tick),
+    toDate(world, world.tick).year,
+  )
   if (bar !== null) return { done: false, reason: bar }
   if (!kind) return { done: false, reason: 'No such trade to go into.' }
 

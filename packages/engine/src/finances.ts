@@ -120,6 +120,7 @@ import {
   founderSalaryOf,
   businessKindById,
   businessNameFor,
+  kindAvailableIn,
   monthlyProfitFor,
 } from './business.js'
 
@@ -3631,13 +3632,43 @@ function runNpcVentures(world: World, tick: Tick): void {
     const accounts = accountsOf(world, person.id)
     const cash = (accounts.savings + accounts.checking) as Money
     const keepBy = livingCostAt(world, LIVING_COST_ADULT) * 12
-    // The biggest trade they could open and still have a year to live on.
-    const kind = [...BUSINESS_KINDS]
-      .sort((a, b) => b.capital - a.capital)
-      .find((entry) => cash - keepBy >= atTodaysPrices(world, entry.capital))
-    if (!kind) continue
+    // WHAT THEY COULD OPEN AND STILL HAVE A YEAR TO LIVE ON, and that
+    // EXISTS in this year. Nobody opens a computer shop in 1971, and
+    // nobody opens a video rental in 2015 (the owner's era ruling); the
+    // town's own founders obey the same calendar the player's founding
+    // screen shows.
+    const year = toDate(world, tick).year
+    const affordable = [...BUSINESS_KINDS]
+      .filter(
+        (entry) =>
+          kindAvailableIn(entry, year) && cash - keepBy >= atTodaysPrices(world, entry.capital),
+      )
+      .sort((a, b) => a.capital - b.capital)
+    if (affordable.length === 0) continue
 
     const rng = openStream(world.seed, Stream.Career, person.id, tick + 11_900)
+    /**
+     * AMBITION REACHES; IT DOES NOT MAXIMISE (Law 2 — people are not a
+     * strategy, they are themselves).
+     *
+     * This used to take the BIGGEST trade the money allowed. With five
+     * kinds that was a reasonable shorthand. With twenty it made a
+     * monoculture: MEASURED over 150 years at seed 12345, software
+     * companies were 28 of 47 businesses in the whole town — every
+     * moneyed founder after 2002 opened the same thing — and a video
+     * rental shop was never opened once, because something bigger was
+     * always affordable during its twenty-five years.
+     *
+     * So ambition sets where in the range they AIM, and a seeded jitter
+     * means two equally driven people in the same year do not open the
+     * same shop.
+     */
+    const top = affordable.length - 1
+    const reach = Math.max(0, Math.min(1000, person.traits.ambition - 600)) / 400
+    const aimed = Math.floor(top * Math.min(1, reach))
+    const jitter = rng.nextIntInclusive(-2, 2)
+    const kind = affordable[Math.max(0, Math.min(top, aimed + jitter))]
+    if (!kind) continue
     if (!rng.chance(35 + Math.floor(person.traits.ambition / 20), 1000)) continue
     openBusiness(world, tick, person.id, kind.id, atTodaysPrices(world, kind.capital) as Money)
   }
@@ -3673,6 +3704,7 @@ function runBusinesses(world: World, tick: Tick): void {
       world.economy.growthPerMille,
       owner.traits.diligence,
       swing,
+      toDate(world, tick).year,
     )
 
     if (profit >= 0) {

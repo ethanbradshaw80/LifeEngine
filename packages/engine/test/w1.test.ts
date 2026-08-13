@@ -13,7 +13,8 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import { ageAt, formatDate, formatYear } from '../src/clock.js'
+import { ageAt, formatDate, formatYear, toDate } from '../src/clock.js'
+import { BUSINESS_KINDS, kindAvailableIn } from '../src/business.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { CLASSIC_SPEC, specById } from '../src/worldspec.js'
 import type { WorldSpec } from '../src/types.js'
@@ -434,17 +435,41 @@ describe('the start year is the preset’s', () => {
     expect(formatDate(later, later.tick)).toBe('January 1987')
   })
 
-  it('is a label on the ticks, not an input to them', () => {
-    // The whole reason this was cheap: nothing in the tick path reads the
-    // calendar year. Two worlds that differ ONLY in start year must live
-    // identical lives — same people, same events, same everything but the
-    // dates printed on them.
+  it('is a label on the ticks, except where technology genuinely has a date', () => {
+    /**
+     * THIS INVARIANT WAS NARROWED, DELIBERATELY, BY THE OWNER'S ERA RULING
+     * (2026-08-13: "if SaaS isn't in 1970 just make it available only after
+     * a certain year"). It used to say the calendar year was a pure label —
+     * two worlds differing only in start year lived identical lives.
+     *
+     * That is no longer true and should not be: which trades exist is now
+     * read from the calendar. A town founded in 1885 must not have a
+     * computer shop on its high street at tick zero, and that is the whole
+     * point of the ruling. The year is an input to exactly one thing.
+     *
+     * What still holds — and is what actually protected presets — is that
+     * the year is not a source of RANDOMNESS. Same seed and same start
+     * year, identical world, every time.
+     */
     const a = createWorld(makeSeed(777), 60)
-    const b = createWorld(makeSeed(777), 60, { ...CLASSIC_SPEC, startYear: 1885 })
+    const again = createWorld(makeSeed(777), 60)
     advanceTicks(a, 360)
-    advanceTicks(b, 360)
-    expect(serialize(b)).toBe(serialize(a))
-    expect(formatYear(b, b.tick)).not.toBe(formatYear(a, a.tick))
+    advanceTicks(again, 360)
+    expect(serialize(again)).toBe(serialize(a))
+
+    // And the one thing the year DOES decide, it decides correctly.
+    const victorian = createWorld(makeSeed(777), 60, { ...CLASSIC_SPEC, startYear: 1885 })
+    const modern = createWorld(makeSeed(777), 60, { ...CLASSIC_SPEC, startYear: 2010 })
+    const offered = (world: typeof a): readonly string[] =>
+      BUSINESS_KINDS.filter((kind) => kindAvailableIn(kind, toDate(world, world.tick).year)).map(
+        (kind) => kind.id,
+      )
+    expect(offered(victorian)).not.toContain('computer-shop')
+    expect(offered(modern)).toContain('computer-shop')
+    // A trade with no era is on both high streets.
+    expect(offered(victorian)).toContain('shop')
+    expect(offered(modern)).toContain('shop')
+    expect(formatYear(victorian, victorian.tick)).not.toBe(formatYear(modern, modern.tick))
   })
 })
 

@@ -931,9 +931,37 @@ function decide(
   tick: Tick,
 ): Election['runners'][number] | undefined {
   const rng = openStream(world.seed, Stream.Politics, election.officeId.length * 977, tick)
+  /**
+   * NOBODY HOLDS TWO SEATS AT ONCE.
+   *
+   * Candidacy is screened when an election OPENS (`sitting`, above), but
+   * two ballots can be open at the same time: somebody holding no office
+   * when both opened could win both, and the seating call would put them
+   * in two chairs. A latent bug from the start, seed-dependent, surfaced
+   * when an unrelated change to who founds businesses shifted the draw
+   * order — person 959 took the sheriff's office and a council seat in the
+   * same life.
+   *
+   * Screened HERE because this is the chokepoint every winner passes
+   * through. An incumbent standing for their OWN seat is not holding
+   * another one, so re-election is untouched; a sitting councillor who
+   * also got onto the sheriff's ballot simply does not win it, and the
+   * next-best runner does. If nobody is eligible the chair stays empty,
+   * which the caller already handles.
+   */
+  const holdsAnother = (personId: EntityId): boolean => {
+    for (const [officeId, holder] of world.officials) {
+      if (officeId === election.officeId) continue
+      if (holder.personId !== personId) continue
+      if (world.people.get(personId)?.deathTick === null) return true
+    }
+    return false
+  }
+
   let best: Election['runners'][number] | undefined
   let bestScore = -1
   for (const runner of election.runners) {
+    if (holdsAnother(runner.personId)) continue
     const own = election.playerVote === runner.personId ? 1 : 0
     const score = runner.polling + rng.nextIntInclusive(-90, 90) + own
     if (score > bestScore) {
