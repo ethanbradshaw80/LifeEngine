@@ -81,6 +81,8 @@ export {
   heirsOf,
   investPlayer,
   lookForPlace,
+  moveBackInBar,
+  moveBackInWithParents,
   moveBar,
   motherCandidates,
   playerIsAlive,
@@ -238,6 +240,7 @@ export type { FamilyTree, LegacySummary } from './legacy.js'
 // Finances
 export {
   accountsOf,
+  arrearsOf,
   buyHome,
   homePurchaseBar,
   payOffPlan,

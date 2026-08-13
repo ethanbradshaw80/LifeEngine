@@ -15,9 +15,15 @@ import { useState } from 'react'
 import type { Property, World } from '@life-engine/engine'
 import { formatMoney } from '@life-engine/shared'
 import {
+  accountsOf,
+  creditOf,
+  creditWords,
   downPaymentFor,
+  equityOf,
   listingsFor,
   monthlyPaymentFor,
+  moveBackInBar,
+  offeredRatePerMille,
   ownershipCostOf,
   portfolioValueOf,
   propertiesOwnedBy,
@@ -25,6 +31,44 @@ import {
   valueOf,
 } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
+
+/**
+ * THE LISTING, WRITTEN OUT (Verdant layer, owner's screenshots): every home
+ * gets a sentence or two in the game's own voice — no DEAL! tags, no ad
+ * copy, just what an honest agent would say. Deterministic off the
+ * property's own attributes, so the same door always reads the same.
+ */
+function listingWords(property: Property, desirability: number): string {
+  const opener =
+    property.type === 'estate'
+      ? 'A serious house, and it knows it.'
+      : property.type === 'apartment' || property.type === 'condo'
+        ? 'A set of rooms that asks very little of you.'
+        : property.type === 'townhouse'
+          ? 'A tall, narrow house holding its neighbours up.'
+          : property.beds >= 4
+            ? 'A family house with room to grow into.'
+            : 'A modest house that keeps the rain out.'
+  const shape =
+    property.condition >= 820
+      ? 'Kept the way houses are supposed to be kept.'
+      : property.condition >= 640
+        ? 'Sound under the paint; nothing here will surprise you.'
+        : property.condition >= 440
+          ? 'Honest wear — a weekend here and there will hold it.'
+          : property.condition >= 240
+            ? 'It needs work, and the price already admits it.'
+            : 'A project. Walk it with somebody who knows joists.'
+  const street =
+    desirability >= 780
+      ? 'The street is the kind people aim for.'
+      : desirability >= 560
+        ? 'A good street that keeps to itself.'
+        : desirability >= 340
+          ? 'The street is a mix, like most streets.'
+          : 'The street has seen better decades — which is what the money buys.'
+  return `${opener} ${shape} ${street}`
+}
 
 /** Condition in words. "641" tells a buyer nothing; "good repair" does. */
 function conditionWords(condition: number): string {
@@ -134,8 +178,12 @@ export function RealEstate({
     const floor = Math.ceil(price / 5)
     const down = downPaymentFor(price as never, downPerMille, floor as never)
     const borrowed = Math.max(0, price - down)
-    // 30 years at the rate a mortgage carries. The engine owns the maths.
-    const monthly = monthlyPaymentFor(borrowed as never, 62, 360)
+    // THE RATE IS YOURS, NOT THE POSTCODE'S (Verdant layer): the same
+    // credit-gated number the engine writes on the loan, so the estimate
+    // and the mortgage that actually arrives cannot disagree.
+    const credit = creditOf(world, personId as never)
+    const rate = offeredRatePerMille(world, credit, 'mortgage')
+    const monthly = monthlyPaymentFor(borrowed as never, rate, 360)
     const cost = ownershipCostOf(world, property, monthly)
 
     return (
@@ -154,6 +202,7 @@ export function RealEstate({
           <div className="re-hood">
             {place?.name ?? 'town'} · {property.type} · built {property.yearBuilt}
           </div>
+          <p className="re-blurb">{listingWords(property, place?.desirability ?? 500)}</p>
           <div className="re-kfacts">
             <div><b>{property.beds}</b><span>Beds</span></div>
             <div><b>{property.baths}</b><span>Baths</span></div>
@@ -179,6 +228,10 @@ export function RealEstate({
               value={downPerMille}
               onChange={(e) => setDownPerMille(Number(e.target.value))}
             />
+            <div className="re-row">
+              <span>Mortgage rate · credit {credit} ({creditWords(credit)})</span>
+              <b>{(rate / 10).toFixed(1)}%/yr</b>
+            </div>
             <div className="re-row"><span>Mortgage (30-yr)</span><b>{formatMoney(cost.mortgage)}</b></div>
             <div className="re-row"><span>Property tax</span><b>{formatMoney(cost.propertyTax)}</b></div>
             <div className="re-row"><span>Insurance</span><b>{formatMoney(cost.insurance)}</b></div>
@@ -202,14 +255,31 @@ export function RealEstate({
 
         <div className="re-trade">
           {mode === 'buy' && detail.forSale && (
-            <button
-              type="button"
-              className="re-buy"
-              disabled={cash < floor}
-              onClick={() => onAct({ verb: 'buy-property', propertyId: property.id })}
-            >
-              {cash < floor ? `Needs ${formatMoney(floor as never)} down` : 'Make an offer'}
-            </button>
+            <>
+              {/* CASH OR A MORTGAGE, SIDE BY SIDE (Verdant layer): the two
+                  real ways to buy, each wearing its own price so the choice
+                  is a comparison rather than a discovery. */}
+              <button
+                type="button"
+                className="re-buy"
+                disabled={cash < floor}
+                onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'mortgage' })}
+              >
+                {cash < floor
+                  ? `Needs ${formatMoney(floor as never)} down`
+                  : `Buy with mortgage — ${formatMoney(floor as never)} down · ${(rate / 10).toFixed(1)}%`}
+              </button>
+              <button
+                type="button"
+                className="re-buy"
+                disabled={cash < price}
+                onClick={() => onAct({ verb: 'buy-property', propertyId: property.id, method: 'cash' })}
+              >
+                {cash < price
+                  ? `Cash needs ${formatMoney(price)}`
+                  : `Buy outright — ${formatMoney(price)} cash`}
+              </button>
+            </>
           )}
           {mode === 'rent' && detail.forRent && (
             <button
@@ -258,6 +328,16 @@ export function RealEstate({
                   [...world.households.values()].find((h) => h.propertyId === property.id)?.id ??
                     (-1 as never),
                 )
+                // THE EQUITY LINE (Verdant layer): what the house is worth
+                // to YOU — value less the mortgage still owed on it. The
+                // one mortgage a person can carry belongs to the home they
+                // live in; everything else is owned clear.
+                const mortgage =
+                  lived !== undefined
+                    ? (accountsOf(world, personId as never).loans.find((l) => l.kind === 'mortgage')
+                        ?.balance ?? 0)
+                    : 0
+                const equity = equityOf(world, property.id, mortgage as never)
                 return (
                   <article className="re-card" key={property.id}>
                     <div className="re-thumb">
@@ -277,6 +357,10 @@ export function RealEstate({
                         <span><b>{property.sqft.toLocaleString()}</b> sqft</span>
                         <span>{conditionWords(property.condition)}</span>
                       </div>
+                      <div className="re-row">
+                        <span>{mortgage > 0 ? `Equity (owing ${formatMoney(mortgage as never)})` : 'Equity — owned clear'}</span>
+                        <b>{formatMoney(equity as never)}</b>
+                      </div>
                       <div className="re-trade">
                         <button
                           type="button"
@@ -293,6 +377,21 @@ export function RealEstate({
             </>
           )}
         </>
+      )}
+
+      {/* THE WAY BACK (Verdant layer, owner confirmed): a grown child under
+          water on rent can fold the household back into a living parent's.
+          The wallet stays theirs — adult kids at home pay nothing (H0). */}
+      {mode === 'rent' && moveBackInBar(world, personId as never) === null && (
+        <div className="re-trade">
+          <button
+            type="button"
+            className="re-buy"
+            onClick={() => onAct({ verb: 'move-in-parents' })}
+          >
+            Move back in with your parents — rent free, wallet stays yours
+          </button>
+        </div>
       )}
 
       {mode !== 'own' && (
@@ -344,6 +443,12 @@ export function RealEstate({
                 <span><b>{listing.property.sqft.toLocaleString()}</b> sqft</span>
                 <span>{conditionWords(listing.property.condition)}</span>
               </div>
+              <p className="re-blurb">
+                {listingWords(
+                  listing.property,
+                  world.places.get(listing.property.neighbourhoodPlaceId)?.desirability ?? 500,
+                ).split('. ')[0]}.
+              </p>
             </div>
           </button>
         ))

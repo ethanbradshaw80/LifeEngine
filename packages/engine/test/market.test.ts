@@ -22,6 +22,7 @@ import {
   unitsFor,
 } from '../src/market.js'
 import { accountsOf, buyInvestment, sellInvestment } from '../src/finances.js'
+import { ageAt } from '../src/clock.js'
 import type { Tick } from '@life-engine/shared'
 
 /**
@@ -41,9 +42,13 @@ function fund(world: ReturnType<typeof createWorld>, personId: number, savings: 
 
 /** The first adult in the town, so a test has somebody to bank for. */
 function anAdult(world: ReturnType<typeof createWorld>) {
+  // The YOUNGEST adult, not the eldest: the retirement test grows a
+  // portfolio for thirty years, and an elder picked at sixty dies inside
+  // the window — the estate now settles on every death (H0), so a dead
+  // fixture's accounts are honestly empty rather than conveniently intact.
   const person = [...world.people.values()]
-    .filter((p) => p.deathTick === null)
-    .sort((a, b) => a.birthTick - b.birthTick)[0]
+    .filter((p) => p.deathTick === null && ageAt(p.birthTick, world.tick) >= 25)
+    .sort((a, b) => b.birthTick - a.birthTick || a.id - b.id)[0]
   expect(person).toBeDefined()
   return person!
 }
@@ -154,22 +159,32 @@ describe('a retirement account', () => {
     expect(held.holdings).toHaveLength(1)
     expect(held.holdings[0]!.units).toBe(held.retirementHoldings[0]!.units)
 
-    // Thirty years of prices, then sell both out.
+    // Thirty years of prices, then sell both out. Measured POSITION BY
+    // POSITION: a living person invests on their own over thirty years now,
+    // so the whole-portfolio number includes sectors this test never
+    // bought — the claim is about the agricultural fund and its twin.
     advanceTicks(world, 360)
     const grown = accountsOf(world, person.id)
-    const shelteredGross = portfolioValue(world, grown.retirementHoldings)
-    const taxableGross = portfolioValue(world, grown.holdings)
+    const agFund = (holdings: readonly (typeof grown.holdings)[number][]) =>
+      holdings.find((h) => h.stockId === undefined && h.sectorId === 'agricultural')
+    const shelteredPosition = agFund(grown.retirementHoldings)
+    const taxablePosition = agFund(grown.holdings)
+    expect(shelteredPosition).toBeDefined()
+    expect(taxablePosition).toBeDefined()
+    const shelteredGross = holdingValue(world, shelteredPosition!)
+    const taxableGross = holdingValue(world, taxablePosition!)
     expect(shelteredGross).toBeGreaterThan(500_000) // it grew, or the test proves nothing
 
+    const retirementBefore = accountsOf(world, person.id).retirement
     const sheltered = sellInvestment(world, world.tick, person.id, 'agricultural', true)
     const taxable = sellInvestment(world, world.tick, person.id, 'agricultural', false)
 
     // Retirement keeps every cent, and keeps it INSIDE the account.
     expect(sheltered).toBe(shelteredGross)
-    expect(accountsOf(world, person.id).retirement).toBeGreaterThanOrEqual(shelteredGross)
+    expect(accountsOf(world, person.id).retirement).toBe(retirementBefore + shelteredGross)
     // The brokerage pays the revenue service on the way out.
     expect(taxable).toBeLessThan(taxableGross)
-    expect(accountsOf(world, person.id).holdings).toHaveLength(0)
+    expect(agFund(accountsOf(world, person.id).holdings)).toBeUndefined()
   })
 })
 

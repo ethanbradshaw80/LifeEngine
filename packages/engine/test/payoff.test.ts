@@ -17,25 +17,41 @@ import {
   planPayoffBar,
   planPayoffFor,
 } from '../src/bankruptcy.js'
-import { accountsOf, fileBankruptcy, payOffPlan } from '../src/finances.js'
+import { accountsOf, fileBankruptcy, payOffPlan, walletOf } from '../src/finances.js'
 import { payOffBankruptcyPlayer, setPlayer } from '../src/player.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
 
-/** Somebody deep enough in debt that the court will take the filing. */
-function aFiler(seed: number, cash: number): { world: World; personId: EntityId } {
+/**
+ * Somebody deep enough in debt that the court will take the filing.
+ *
+ * H0: arrears are a NEGATIVE BALANCE on the household head's wallet now,
+ * not a number on the building — so the hole is dug on the head's wallet
+ * record, and the filer IS that record's holder so every read and write in
+ * the machinery lands on the same ledger. The `cash` for settling a plan
+ * is granted by `fund()` AFTER filing, because filing folds the negative
+ * into the plan and cash sitting in the same wallet beforehand would just
+ * cancel the arrears the fixture exists to create.
+ */
+function aFiler(seed: number, cash: number): { world: World; personId: EntityId; cash: number } {
   const world = createWorld(makeSeed(seed), 100)
-  const person = livingPeople(world)
+  const adult = livingPeople(world)
     .filter((p) => ageAt(p.birthTick, world.tick) >= 25 && ageAt(p.birthTick, world.tick) <= 50)
     .sort((a, b) => a.id - b.id)[0]
-  if (!person) throw new Error('no adult in town')
-  setPlayer(world, person.id)
-  const household = world.households.get(person.householdId!)
+  if (!adult) throw new Error('no adult in town')
+  const household = world.households.get(adult.householdId!)
   if (!household) throw new Error('no household')
+  const head = household.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p) => p !== undefined && p.deathTick === null)
+    .sort((a, b) => a!.birthTick - b!.birthTick || a!.id - b!.id)[0]
+  if (!head) throw new Error('an empty household')
+  const wallet = walletOf(world, head.id)
+  const person = world.people.get(wallet.personId)
+  if (!person) throw new Error('no wallet holder')
+  setPlayer(world, person.id)
   // A real hole to climb out of.
-  world.households.set(household.id, { ...household, savings: -4_000_000 as Money })
-  const accounts = accountsOf(world, person.id)
-  world.accounts.set(person.id, { ...accounts, checking: 0 as Money, savings: cash as Money })
+  world.accounts.set(person.id, { ...wallet, checking: -4_000_000 as Money, savings: 0 as Money })
   // AND A WAGE. Without one the plan payment floors at a penny a month and
   // the whole plan settles for 36 cents, which is not a test of anything.
   // In play this cannot happen: chaptersOpenTo only offers chapter 13 to
@@ -50,7 +66,14 @@ function aFiler(seed: number, cash: number): { world: World; personId: EntityId 
     trackId: null,
     rungSinceTick: 0,
   } as never)
-  return { world, personId: person.id }
+  return { world, personId: person.id, cash }
+}
+
+/** Grant the settle money — used AFTER filing, see aFiler's doc. */
+function fund(world: World, personId: EntityId, cash: number): void {
+  if (cash <= 0) return
+  const accounts = accountsOf(world, personId)
+  world.accounts.set(personId, { ...accounts, savings: (accounts.savings + cash) as Money })
 }
 
 describe('a plan you can see', () => {
@@ -89,8 +112,9 @@ describe('a plan you can see', () => {
 
 describe('a plan you can pay off', () => {
   it('takes the money, closes the filing, and stops the payments', () => {
-    const { world, personId } = aFiler(4141, 100_000_000)
+    const { world, personId, cash } = aFiler(4141, 100_000_000)
     fileBankruptcy(world, world.tick, personId, 13)
+    fund(world, personId, cash)
     const open = openFilingOf(world, personId)
     const due = planPayoffFor(open, world.tick)
     const before = accountsOf(world, personId)
@@ -107,8 +131,9 @@ describe('a plan you can pay off', () => {
   })
 
   it('leaves the filing on the record — money does not buy a clean history', () => {
-    const { world, personId } = aFiler(4141, 100_000_000)
+    const { world, personId, cash } = aFiler(4141, 100_000_000)
     fileBankruptcy(world, world.tick, personId, 13)
+    fund(world, personId, cash)
     payOffPlan(world, world.tick, personId)
     const filings = world.bankruptcies.get(personId) ?? []
     expect(filings.length).toBe(1)
@@ -116,8 +141,9 @@ describe('a plan you can pay off', () => {
   })
 
   it('refuses, in the bar’s own words, when the money is not there', () => {
-    const { world, personId } = aFiler(4141, 1_000)
+    const { world, personId, cash } = aFiler(4141, 1_000)
     fileBankruptcy(world, world.tick, personId, 13)
+    fund(world, personId, cash)
     const result = payOffBankruptcyPlayer(world)
     expect(result.done).toBe(false)
     expect(result.reason).toContain('dollars')
@@ -125,8 +151,9 @@ describe('a plan you can pay off', () => {
   })
 
   it('goes through the player verb too, and logs it', () => {
-    const { world, personId } = aFiler(4141, 100_000_000)
+    const { world, personId, cash } = aFiler(4141, 100_000_000)
     fileBankruptcy(world, world.tick, personId, 13)
+    fund(world, personId, cash)
     expect(payOffBankruptcyPlayer(world).done).toBe(true)
     expect(openFilingOf(world, personId)).toBeUndefined()
     expect(world.player.log.some((e) => e.kind === 'pay-off-plan')).toBe(true)
@@ -139,11 +166,12 @@ describe('what the plan actually wrote off', () => {
     // every plan, but a plan runs 36 to 60 months. A sixty-month plan
     // credited the filer with 36 months of payments they had made 60 of,
     // and the life story reported a bigger write-off than really happened.
-    const { world, personId } = aFiler(4141, 100_000_000)
+    const { world, personId, cash } = aFiler(4141, 100_000_000)
     const filing = fileBankruptcy(world, world.tick, personId, 13)
     if (!filing || filing.planEndsAtTick === null) throw new Error('no plan')
     const months = filing.planEndsAtTick - filing.filedAtTick
 
+    fund(world, personId, cash)
     payOffPlan(world, world.tick, personId)
     const settled = (world.bankruptcies.get(personId) ?? [])[0]
 

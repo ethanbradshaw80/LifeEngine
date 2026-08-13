@@ -22,7 +22,7 @@ import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt } from './clock.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { raisePending } from './player.js'
-import { isHomeless, inArrears } from './finances.js'
+import { isHomeless, inArrears, mergeWalletsOnMarriage, splitWalletOnDivorce } from './finances.js'
 import { looksOf } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
 import { openStream, Stream, type Rng } from './rng.js'
@@ -858,6 +858,9 @@ export function promoteToSpouse(
 
   const subjectId = subjectOf(world, relationship)
   const otherId = other(relationship, subjectId)
+  // H0: "if you get married y'all combine that." One pot from the wedding
+  // day — finances does the moving, this module only says when.
+  mergeWalletsOnMarriage(world, subjectId, otherId)
   recordEvent(world, tick, {
     type: 'married',
     subjectId,
@@ -965,6 +968,11 @@ export function performSeparation(
   const subjectId = subjectOf(world, relationship)
   const otherId = other(relationship, subjectId)
 
+  // H0: the split BEFORE the record changes — splitWalletOnDivorce reads
+  // the marriage to find the joint holder, so it must run while they are
+  // still married on paper. Fifty-fifty of the liquid; the deed-holder
+  // keeps the house and its mortgage, which never moved.
+  splitWalletOnDivorce(world, relationship.a, relationship.b)
   world.relationships.set(relationshipKey(relationship.a, relationship.b), {
     ...relationship,
     type: 'former-spouse',
@@ -1238,13 +1246,15 @@ function splitHousehold(world: World, tick: Tick, aId: EntityId, bId: EntityId):
   const destination = rng.pick(neighbourhoods)
 
   const newHouseholdId = allocate(world)
-  // The pot splits evenly on separation — debts too, so leaving a failing
-  // marriage does not leave one side holding the whole hole.
-  const half = Math.floor(household.savings / 2) as Money
+  // H0: the MONEY split already happened in splitWalletOnDivorce — the
+  // couple's liquid divided on their own records, debts included. The
+  // household pot is retired (frozen at zero), so there is nothing here to
+  // divide; the building was never supposed to have money of its own.
+  const half = 0 as Money
   world.households.set(household.id, {
     ...household,
     memberIds: household.memberIds.filter((id) => id !== leaverId),
-    savings: (household.savings - half) as Money,
+    savings: 0 as Money,
   })
   world.households.set(newHouseholdId, {
     id: newHouseholdId,

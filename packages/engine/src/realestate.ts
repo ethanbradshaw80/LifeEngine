@@ -22,7 +22,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { homePriceFor } from './credit.js'
 import { hash32 } from './rng.js'
-import type { Lease, Property, PropertyType, World } from './types.js'
+import type { Household, Person,Lease, Property, PropertyType, World } from './types.js'
 
 /**
  * How many homes a town builds, against how many households it has.
@@ -395,6 +395,50 @@ export function seatHouseholds(world: World): void {
 export const LEASE_MONTHS = 12
 /** The deposit, as months of rent. Returned if the place is left sound. */
 export const DEPOSIT_MONTHS = 1
+
+/**
+ * THE FOUNDING TENURE (H2, owner: "have a house if their parents own, some
+ * people just rent"). Roughly 62 percent of founding households own the
+ * home they were seated in — the real 1970 US owner-occupancy figure, so
+ * realism and the players' ask agree for once — assigned by MEANS, not by
+ * lot: the town's better-off own first (Law 10: unequal, but caused).
+ * Founding owners own outright; 1970 tenures were long and the mortgage
+ * era of this town starts with the lives the player watches, not before.
+ *
+ * No draws. Ranking by seeded founding savings keeps the whole pass
+ * deterministic without consuming a single stream value.
+ */
+export function foundOwnership(world: World): void {
+  const ranked: { household: Household; head: Person; means: number }[] = []
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick !== null || household.propertyId === undefined || household.propertyId === null) continue
+    const head = [...household.memberIds]
+      .map((id) => world.people.get(id))
+      .filter((p): p is Person => p !== undefined && p.deathTick === null)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (head === undefined) continue
+    const wallet = world.accounts.get(head.id) ?? world.accounts.get(Math.min(...household.memberIds) as EntityId)
+    const means = (wallet?.checking ?? 0) + (wallet?.savings ?? 0)
+    ranked.push({ household, head, means })
+  }
+  ranked.sort((a, b) => b.means - a.means || a.household.id - b.household.id)
+  const owners = Math.floor((ranked.length * 62) / 100)
+  for (let i = 0; i < owners; i += 1) {
+    const entry = ranked[i]
+    if (entry === undefined || entry.household.propertyId === undefined || entry.household.propertyId === null) continue
+    const property = world.properties.get(entry.household.propertyId)
+    if (property === undefined) continue
+    setOwner(world, property.id, entry.head.id)
+    const accounts = world.accounts.get(entry.head.id)
+    if (accounts !== undefined) {
+      world.accounts.set(entry.head.id, {
+        ...accounts,
+        homePlaceId: entry.household.placeId,
+        homePurchasePrice: valueOf(world, property),
+      })
+    }
+  }
+}
 
 export function leaseOf(world: World, householdId: EntityId): Lease | undefined {
   return world.leases.get(householdId)

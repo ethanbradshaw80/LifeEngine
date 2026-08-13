@@ -789,6 +789,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Took a seat at ${event.detail ?? 'the schoolhouse'}.`
     case 'released-from-jail':
       return `${year} — Released, at ${age}. The record came home too.`
+    case 'mounting-debts':
+      // The slide announces itself on the way down, so the −$500k
+      // paperwork never arrives out of nowhere (H1).
+      return event.detail === 'calls'
+        ? `${year} — The phone calls about the money have started.`
+        : `${year} — The letters about the money are piling up.`
     case 'fell-behind':
       return `${year} — Money ran short; the household fell behind.`
     case 'back-in-the-black':
@@ -831,6 +837,9 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Opened ${event.detail ?? 'a business'}.`
     case 'business-closed':
       return `${year} — ${event.detail ?? 'The business'} closed its doors.`
+    case 'inherited-home':
+      // Law 8 made physical: the deed outlives the hand that signed it.
+      return `${year} — The house passed down: ${event.detail ?? 'the family home'} is yours now.`
     case 'inherited-business':
       return `${year} — Took on ${event.detail ?? 'the family business'} from ${nameOf(world, event.otherId)}.`
     case 'promoted-at-work':

@@ -3844,6 +3844,7 @@ table.dd-data td { border: 1px solid #cdc6b3; padding: 4px 7px; vertical-align: 
 .re-cbody { padding: 0.6rem 0.7rem 0.7rem; }
 .re-addr-sm { font-size: 0.86rem; font-weight: 700; }
 .re-hood { font-size: 0.72rem; color: var(--muted); margin-top: 0.12rem; }
+.re-blurb { font-size: 0.78rem; color: var(--fg); opacity: 0.85; margin: 0.45rem 0 0; line-height: 1.45; font-style: italic; }
 .re-facts { display: flex; gap: 0.75rem; margin-top: 0.4rem; font-size: 0.72rem; color: var(--muted); }
 .re-facts b { color: var(--fg); }
 

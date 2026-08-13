@@ -201,6 +201,7 @@ import {
   buyInvestment,
   buyShares,
   grantShares,
+  arrearsOf,
   payDownBar,
   payDownLoan,
   sellShares,
@@ -3433,6 +3434,101 @@ export function lookForPlace(world: World, placeId: EntityId): { moved: boolean;
   return { moved: true, reason: '' }
 }
 
+/**
+ * Why moving back in with the parents is not on the table, or null.
+ *
+ * The housing revamp's recovery arc (spec §1b, owner confirmed): a grown
+ * child underwater on rent can fold their household back into a living
+ * parent's. The wallet stays theirs — H0's rule that adult children at home
+ * keep their own money and pay nothing is exactly what makes this a real
+ * way back rather than a menu curiosity.
+ */
+export function moveBackInBar(world: World, personId: EntityId): string | null {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 'There is nobody to move.'
+  if (person.householdId === null) return 'There is no household to fold.'
+  const household = world.households.get(person.householdId)
+  if (!household) return 'There is no household to fold.'
+  if (person.parentIds.some((id) => household.memberIds.includes(id))) {
+    return 'You already live with your parents.'
+  }
+  if (parentHouseholdFor(world, person.id) === undefined) {
+    return 'There is no parental door left to knock on.'
+  }
+  if (world.player.log.some((entry) => entry.kind === 'house-hunt' && world.tick - entry.tick < 6)) {
+    return 'The household moved house this half-year already. Let it settle.'
+  }
+  return null
+}
+
+/** The living parent's seated household, lowest parent id first — deterministic. */
+function parentHouseholdFor(world: World, personId: EntityId) {
+  const person = world.people.get(personId)
+  if (!person) return undefined
+  const parentIds = [...person.parentIds].sort((a, b) => a - b)
+  for (const parentId of parentIds) {
+    const parent = world.people.get(parentId)
+    if (!parent || parent.deathTick !== null || parent.householdId === null) continue
+    if (parent.householdId === person.householdId) continue
+    const home = world.households.get(parent.householdId)
+    if (home && home.dissolvedTick === null) return home
+  }
+  return undefined
+}
+
+/** Fold the player's household back into a living parent's. */
+export function moveBackInWithParents(world: World): { moved: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { moved: false, reason: guard.reason }
+  const { person } = guard
+
+  const bar = moveBackInBar(world, person.id)
+  if (bar !== null) return { moved: false, reason: bar }
+  const destination = parentHouseholdFor(world, person.id)
+  if (destination === undefined || person.householdId === null) {
+    return { moved: false, reason: 'There is no parental door left to knock on.' }
+  }
+  const old = world.households.get(person.householdId)
+  if (!old) return { moved: false, reason: 'There is no household to fold.' }
+
+  logVerb(world, 'house-hunt', `parents:${String(destination.id)}`)
+
+  // THE WHOLE HOUSEHOLD COMES — a spouse and children are not left on the
+  // old lease. Money moves with nobody: H0 keeps every wallet personal.
+  const movers = [...old.memberIds]
+  world.households.set(destination.id, {
+    ...destination,
+    memberIds: [...destination.memberIds, ...movers.filter((id) => !destination.memberIds.includes(id))],
+  })
+  world.households.set(old.id, {
+    ...old,
+    memberIds: [],
+    dissolvedTick: world.tick,
+    savings: 0 as Money,
+  })
+  world.leases.delete(old.id)
+  for (const id of movers) {
+    const mover = world.people.get(id)
+    if (mover) world.people.set(id, { ...mover, householdId: destination.id })
+  }
+
+  recordEvent(world, world.tick, {
+    type: 'moved-house',
+    subjectId: person.id,
+    placeId: destination.placeId,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'move',
+    significance: 'major',
+    inputs: [factor('own-choice', 1000)],
+    chosen: 'moved back in with the parents',
+    rejected: ['carrying the rent alone'],
+    streamId: Stream.LifeEventTiming,
+  })
+  return { moved: true, reason: '' }
+}
+
 /** Choose how to carry an ailment, month by month — the convalesce question,
  *  repeatable while anything ails. */
 export function setConvalescenceStance(
@@ -6388,8 +6484,8 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const household = person.householdId === null ? undefined : world.households.get(person.householdId)
       if (household) {
         const shortfall = householdCosts(world, household) - householdIncome(world, household)
-        if (household.savings < 0) {
-          lines.push(`The household is ${formatMoney(-household.savings as never)} behind.`)
+        if (arrearsOf(world, household) > 0) {
+          lines.push(`The household is ${formatMoney(arrearsOf(world, household))} behind.`)
         } else if (shortfall > 0) {
           lines.push(`The household runs ${formatMoney(shortfall as never)} short each month right now.`)
         }
@@ -6489,8 +6585,8 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
           lines.push(`Rent rises from ${formatMoney(rentNow)} to ${formatMoney(rentThen)} a month.`)
         } else {
           lines.push(`Rent falls from ${formatMoney(rentNow)} to ${formatMoney(rentThen)} a month.`)
-          if (household.savings < 0) {
-            lines.push(`The household is ${formatMoney(-household.savings as never)} behind; staying digs deeper.`)
+          if (arrearsOf(world, household) > 0) {
+            lines.push(`The household is ${formatMoney(arrearsOf(world, household))} behind; staying digs deeper.`)
           }
         }
         if (household.memberIds.length > 1) {
@@ -6509,15 +6605,16 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       }
       const household = person.householdId === null ? undefined : world.households.get(person.householdId)
       if (household) {
+        const putBy = walletOf(world, person.id)
         lines.push(
-          household.savings > 0
-            ? `The household has ${formatMoney(household.savings)} put by.`
+          putBy > 0
+            ? `The household has ${formatMoney(putBy)} put by.`
             : 'There is nothing put by.',
         )
         // The number that actually decides this: how long the money lasts.
         const annualBasics = householdCosts(world, household) * 12
-        if (household.savings > 0 && annualBasics > 0) {
-          const years = Math.floor(household.savings / annualBasics)
+        if (putBy > 0 && annualBasics > 0) {
+          const years = Math.floor(putBy / annualBasics)
           lines.push(
             years >= 1
               ? `At today's costs that carries the household about ${String(years)} year${years === 1 ? '' : 's'}.`

@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
+import { ageAt } from '../src/clock.js'
 import {
   downPaymentFor,
   equityOf,
@@ -276,10 +277,22 @@ describe('the down payment is a choice above the floor', () => {
 describe('a house is wealth, or a loss', () => {
   function aBuyer() {
     const w = createWorld(makeSeed(4141), 400)
+    // A renter, since H2's founding tenure — see aBuyerWithMoney. And a
+    // YOUNG one: these tests hold the house for ten simulated years, and
+    // the lowest-id renter turned out to be sixty-eight — dead at tick 94,
+    // house passed to the heir, and "pays off the mortgage out of the
+    // sale" was suddenly a test of probate.
     const person = livingPeople(w)
-      .filter((p) => p.householdId !== null)
+      .filter(
+        (p) =>
+          p.householdId !== null &&
+          ageAt(p.birthTick, w.tick) >= 25 &&
+          ageAt(p.birthTick, w.tick) <= 45 &&
+          accountsOf(w, p.id).homePlaceId === null &&
+          propertiesOwnedBy(w, p.id).length === 0,
+      )
       .sort((a, b) => a.id - b.id)[0]
-    if (!person) throw new Error('nobody')
+    if (!person) throw new Error('nobody rents')
     const listing = listingsFor(w)
       .filter((l) => l.forSale)
       .sort((a, b) => a.price - b.price)[0]
@@ -366,10 +379,19 @@ describe('a house is wealth, or a loss', () => {
 describe('a portfolio, not a single home', () => {
   function aBuyerWithMoney() {
     const w = createWorld(makeSeed(4141), 400)
+    // A RENTER, explicitly, since H2's founding tenure: sixty-two percent
+    // of the town now owns from day zero, and these tests' clean-slate
+    // premise was only ever true by accident. The premise is real for the
+    // renting third, so the buyer comes from there.
     const person = livingPeople(w)
-      .filter((p) => p.householdId !== null)
+      .filter(
+        (p) =>
+          p.householdId !== null &&
+          accountsOf(w, p.id).homePlaceId === null &&
+          propertiesOwnedBy(w, p.id).length === 0,
+      )
       .sort((a, b) => a.id - b.id)[0]
-    if (!person) throw new Error('nobody')
+    if (!person) throw new Error('nobody rents')
     const acc = accountsOf(w, person.id)
     w.accounts.set(person.id, { ...acc, savings: 500_000_000 as never })
     return { w, person }

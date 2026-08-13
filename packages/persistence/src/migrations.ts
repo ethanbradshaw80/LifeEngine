@@ -2233,7 +2233,119 @@ const V68_TO_V69: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47, V47_TO_V48, V48_TO_V49, V49_TO_V50, V50_TO_V51, V51_TO_V52, V52_TO_V53, V53_TO_V54, V54_TO_V55, V55_TO_V56, V56_TO_V57, V57_TO_V58, V58_TO_V59, V59_TO_V60, V60_TO_V61, V61_TO_V62, V62_TO_V63, V63_TO_V64, V64_TO_V65, V65_TO_V66, V66_TO_V67, V67_TO_V68, V68_TO_V69]
+const V69_TO_V70: Migration = {
+  from: 69,
+  to: 70,
+  describe: 'H0: money belongs to people — the household pot retires',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const households = Array.isArray(world['households']) ? world['households'] : []
+    const people = Array.isArray(world['people']) ? world['people'] : []
+    const relationships = Array.isArray(world['relationships']) ? world['relationships'] : []
+    const accounts = Array.isArray(world['accounts']) ? world['accounts'] : []
+
+    const accountByPerson = new Map<number, Record<string, unknown>>()
+    for (const entry of accounts) {
+      if (typeof entry !== 'object' || entry === null) continue
+      const record = entry as Record<string, unknown>
+      if (typeof record['personId'] === 'number') accountByPerson.set(record['personId'], record)
+    }
+    const personById = new Map<number, Record<string, unknown>>()
+    for (const entry of people) {
+      if (typeof entry !== 'object' || entry === null) continue
+      const record = entry as Record<string, unknown>
+      if (typeof record['id'] === 'number') personById.set(record['id'], record)
+    }
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+    const ensureAccount = (personId: number): Record<string, unknown> => {
+      const found = accountByPerson.get(personId)
+      if (found) return found
+      const fresh: Record<string, unknown> = {
+        personId, checking: 0, savings: 0, brokerage: 0, retirement: 0,
+        taxableYtd: 0, withheldYtd: 0, holdings: [], retirementHoldings: [],
+        loans: [], defaults: 0, monthsWorked: 0, monthsPaid: 0,
+        lastMonthlyPay: 0, homePlaceId: null, homePurchasePrice: 0,
+        unemploymentUntilTick: null,
+      }
+      accounts.push(fresh)
+      accountByPerson.set(personId, fresh)
+      return fresh
+    }
+
+    /**
+     * ONE: married couples merge, exactly as worldgen and the wedding now
+     * do — liquid onto the lower-id spouse. Cent-conserving by
+     * construction: two adds, two zeroes.
+     */
+    for (const entry of relationships) {
+      if (typeof entry !== 'object' || entry === null) continue
+      const record = entry as Record<string, unknown>
+      if (record['type'] !== 'spouse' || record['endedAtTick'] !== null) continue
+      const a = typeof record['a'] === 'number' ? record['a'] : null
+      const b = typeof record['b'] === 'number' ? record['b'] : null
+      if (a === null || b === null) continue
+      const holder = ensureAccount(Math.min(a, b))
+      const other = ensureAccount(Math.max(a, b))
+      holder['checking'] = num(holder['checking']) + num(other['checking'])
+      holder['savings'] = num(holder['savings']) + num(other['savings'])
+      other['checking'] = 0
+      other['savings'] = 0
+    }
+
+    /**
+     * TWO: each household pot moves to the head couple's wallet — positive
+     * balances into savings, arrears as negative checking — and the pot
+     * freezes at zero. The head is the eldest living member, the same rule
+     * the engine uses. THREE: the street retires — every homeless
+     * household is housed again where it stands, debts intact (the H1
+     * rule, applied retroactively so no live player is left outside).
+     */
+    const migratedHouseholds = households.map((entry) => {
+      if (typeof entry !== 'object' || entry === null) return entry
+      const record = entry as Record<string, unknown>
+      const pot = num(record['savings'])
+      const memberIds = Array.isArray(record['memberIds']) ? record['memberIds'] : []
+      if (pot !== 0 && memberIds.length > 0) {
+        let head: { id: number; birthTick: number } | null = null
+        for (const id of memberIds) {
+          if (typeof id !== 'number') continue
+          const person = personById.get(id)
+          if (!person || person['deathTick'] !== null) continue
+          const birthTick = num(person['birthTick'])
+          if (head === null || birthTick < head.birthTick || (birthTick === head.birthTick && id < head.id)) {
+            head = { id, birthTick }
+          }
+        }
+        if (head !== null) {
+          // The head's WALLET: married heads route to the lower-id spouse,
+          // whose record just absorbed the merge above.
+          let holderId = head.id
+          for (const rel of relationships) {
+            if (typeof rel !== 'object' || rel === null) continue
+            const r = rel as Record<string, unknown>
+            if (r['type'] !== 'spouse' || r['endedAtTick'] !== null) continue
+            if (r['a'] === head.id && typeof r['b'] === 'number') holderId = Math.min(holderId, r['b'])
+            if (r['b'] === head.id && typeof r['a'] === 'number') holderId = Math.min(holderId, r['a'])
+          }
+          const wallet = ensureAccount(holderId)
+          if (pot > 0) wallet['savings'] = num(wallet['savings']) + pot
+          else wallet['checking'] = num(wallet['checking']) + pot
+        }
+      }
+      return { ...record, savings: 0, homelessSinceTick: null }
+    })
+
+    const nextWorld = { ...world, households: migratedHouseholds, accounts }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 70, checksum: checksumOf(nextWorld) },
+      world: nextWorld,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47, V47_TO_V48, V48_TO_V49, V49_TO_V50, V50_TO_V51, V51_TO_V52, V52_TO_V53, V53_TO_V54, V54_TO_V55, V55_TO_V56, V56_TO_V57, V57_TO_V58, V58_TO_V59, V59_TO_V60, V60_TO_V61, V61_TO_V62, V62_TO_V63, V63_TO_V64, V64_TO_V65, V65_TO_V66, V66_TO_V67, V67_TO_V68, V68_TO_V69, V69_TO_V70]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

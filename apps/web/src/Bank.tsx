@@ -17,6 +17,7 @@ import {
   LOAN_TERMS,
   SECTORS,
   accountsOf,
+  arrearsOf,
   atTodaysPrices,
   annualPay,
   creditOf,
@@ -192,10 +193,10 @@ export function Bank({
                       value={formatMoney(left)}
                       tone={left < 0 ? 'bad' : 'good'}
                     />
-                    {household && household.savings < 0 && (
+                    {household && arrearsOf(world, household) > 0 && (
                       <Row
                         label="The roof is behind"
-                        value={formatMoney(-household.savings as Money)}
+                        value={formatMoney(arrearsOf(world, household))}
                         tone="bad"
                       />
                     )}

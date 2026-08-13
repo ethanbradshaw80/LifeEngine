@@ -78,6 +78,7 @@ import {
 } from '@life-engine/engine'
 import {
   atTodaysPrices,
+  arrearsOf,
   boardStandingFor,
   eventsFor,
   netWorthOf,
@@ -891,7 +892,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               worth. A chip reading $300,000 to somebody who cannot make
               rent is a lie; the house and the portfolio are on the Bank,
               where there is room to say what they are. */}
-          <span className={household && household.savings < 0 ? 'stat-value bad' : 'stat-value'}>
+          <span className={household && arrearsOf(world, household) > 0 ? 'stat-value bad' : 'stat-value'}>
             {formatMoney(moneyOnHand(world, person.id))}
           </span>
           {household && (

@@ -71,7 +71,7 @@ import {
 } from './schoolmoments.js'
 import type { SchoolChoice, SchoolStage } from './schoolmoments.js'
 import { nudgeWellbeing } from './wellbeing.js'
-import { endRelationshipsOnDeath, partnerOf, relationshipBetween, stopFamilyEarly } from './relationships.js'
+import { endRelationshipsOnDeath, partnerOf, relationshipBetween, spouseOf, stopFamilyEarly } from './relationships.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isTrustSensitive } from './content.js'
 import type { CausalFactor, EducationRecord, Occupation } from './types.js'
@@ -84,6 +84,8 @@ import {
   inArrears,
   passOnBusinesses,
   startUnemployment,
+  passOnHomes,
+  passWalletToSurvivor,
 } from './finances.js'
 import { householdIncome as schoolIncomeOf } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
@@ -2890,15 +2892,36 @@ export function performDeath(
   // empty a household — that is where the estate is settled, and a business
   // owner usually dies with somebody still in the house.
   passOnBusinesses(world, tick, person.id)
+  passOnHomes(world, tick, person.id)
 
   if (person.householdId !== null) {
-    const householdId = person.householdId
-    removeFromHousehold(world, householdId, person.id)
-    // If the death emptied the household, the pot passes to the deceased's
-    // living children (finances owns how). Grief first, then the will.
-    const household = world.households.get(householdId)
-    if (household && household.memberIds.length === 0) {
-      distributeEstate(world, tick, person, household)
+    removeFromHousehold(world, person.householdId, person.id)
+  }
+
+  /**
+   * SURVIVORSHIP BEFORE WIDOWHOOD (H0). The joint wallet lives on the
+   * lower-id spouse's record — if that spouse is the one dying, the
+   * couple's whole liquid balance is sitting on a dead person's ledger.
+   * It passes to the survivor HERE, while the marriage still exists on
+   * paper, because one line down the marriage ends and the wallet routing
+   * with it. Ordering is the entire correctness of this: after
+   * endRelationshipsOnDeath the survivor's wallet is their own empty
+   * record, and the money would be stranded with the estate.
+   *
+   * AND WHEN NOBODY SURVIVES THE MARRIAGE, THE WILL IS READ — on EVERY
+   * death, not only the ones that empty a household. Money is personal now
+   * (H0), so a widowed parent dying with grown children still in the house
+   * used to leave their whole savings stranded on a dead ledger: the old
+   * gate waited for the building to empty, which is a rule about a POT
+   * that no longer exists.
+   */
+  {
+    const widow = spouseOf(world, person.id)
+    const survivor = widow === null ? undefined : world.people.get(widow)
+    if (widow !== null && survivor !== undefined && survivor.deathTick === null) {
+      passWalletToSurvivor(world, person.id, widow)
+    } else {
+      distributeEstate(world, tick, person)
     }
   }
 

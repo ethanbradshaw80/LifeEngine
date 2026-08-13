@@ -143,7 +143,7 @@ describe('migration from a real v1 save', () => {
   it('loads a v1 save without losing data', () => {
     const loaded = fromSaveFile(rawV1, SIMULATION_VERSION)
 
-    expect(loaded.migrationsApplied.length).toBe(68) // v1 through v69, applied in sequence
+    expect(loaded.migrationsApplied.length).toBe(69) // v1 through v70, applied in sequence
     expect(loaded.world.people.size).toBeGreaterThan(0)
     expect(loaded.world.events.length).toBeGreaterThan(0)
     // v18: nobody's chosen posture is invented — every migrated household
@@ -312,7 +312,15 @@ describe('the pot becomes people (M-ECON §1, schema v28)', () => {
     expect(households[0]?.savings).toBe(0)
   })
 
-  it('leaves arrears on the household, because that is whose they are', () => {
+  it('moves arrears to the head, because a building cannot owe (H0)', () => {
+    /**
+     * THE RULING THIS TEST GUARDED WAS OVERTURNED by the owner's H0 design
+     * ("what's your money is yours... we don't need to be accounting for
+     * money that isn't actually yours"). Through the FULL chain — v28 kept
+     * the debt on the roof, v70 retires the roof's ledger — a pre-v28
+     * household's arrears must arrive as the head's own negative balance,
+     * to the cent, with the pot frozen at zero.
+     */
     const world = {
       tick: 240,
       people: [{ id: 1, birthTick: 0, deathTick: null }],
@@ -322,11 +330,12 @@ describe('the pot becomes people (M-ECON §1, schema v28)', () => {
 
     const out = migrate(save).save as { world: Record<string, unknown> }
     const households = out.world['households'] as { savings: number }[]
-    const accounts = out.world['accounts'] as unknown[]
+    const accounts = out.world['accounts'] as { personId: number; checking: number; savings: number }[]
 
-    // A debt is the roof's, and every consequence that reads it keeps working.
-    expect(households[0]?.savings).toBe(-45_000)
-    expect(accounts.length).toBe(0)
+    expect(households[0]?.savings).toBe(0)
+    const wallet = accounts.find((a) => a.personId === 1)
+    expect(wallet).toBeDefined()
+    expect((wallet?.checking ?? 0) + (wallet?.savings ?? 0)).toBe(-45_000)
   })
 })
 

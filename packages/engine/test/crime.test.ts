@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { criminalRecordOf, hasRecentConviction, isJailed, gateStrengthOf } from '../src/crime.js'
-import { householdWealth, transferBetweenHouseholds } from '../src/finances.js'
+import { accountsOf, householdWealth, transferBetweenHouseholds } from '../src/finances.js'
 import { advanceTicks, createWorld, enlistmentBar } from '../src/index.js'
 import { worldHashHex } from '../src/snapshot.js'
 import { livingPeople } from '../src/systems.js'
@@ -40,11 +40,21 @@ describe('the money', () => {
     expect(moved).toBe(30_000)
     expect(householdWealth(world, a) + householdWealth(world, b)).toBe(totalBefore)
 
-    // Clamped to what the source actually holds: no negative theft.
-    const left = householdWealth(world, a)
+    // Clamped to what the source actually HOLDS IN CASH: no negative theft.
+    // Since H2 a founding household usually owns its home, and the house is
+    // in `householdWealth` — a burglar does not carry off the deed, so the
+    // ceiling is the people's liquid money, not their net worth.
+    const liquidOf = (h: typeof a): number =>
+      h.memberIds.reduce((total, id) => {
+        const member = world.people.get(id)
+        if (!member || member.deathTick !== null) return total
+        const accounts = accountsOf(world, id)
+        return total + Math.max(0, accounts.savings) + Math.max(0, accounts.checking)
+      }, 0)
+    const left = liquidOf(a)
     const drained = transferBetweenHouseholds(world, world.tick, a.id, b.id, 99_999_999)
     expect(drained).toBe(left)
-    expect(householdWealth(world, a)).toBe(0)
+    expect(liquidOf(a)).toBe(0)
   })
 })
 

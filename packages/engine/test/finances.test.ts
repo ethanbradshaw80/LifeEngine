@@ -33,6 +33,12 @@ import {
 } from '../src/index.js'
 import {
   accountsOf,
+  arrearsOf,
+  discretionaryForUnit,
+  unitCosts,
+  unitIncome,
+  unitsUnder,
+  walletOf,
   buyHome,
   distributeEstate,
   homePurchaseBar,
@@ -95,7 +101,7 @@ describe('the ledger', () => {
   it('spends most of the surplus and saves the rest', () => {
     const world = build(12345, 60)
     for (const household of world.households.values()) {
-      if (household.dissolvedTick !== null || household.savings < 0) continue
+      if (household.dissolvedTick !== null || arrearsOf(world, household) > 0) continue
       // A HOUSEHOLD UNDER A COURT-SUPERVISED PLAN IS NOT SPENDING, and
       // that is deliberate (M-SAFETY §2): discretionary spending switching
       // back on after a filing ate the very surplus the plan was computed
@@ -109,12 +115,20 @@ describe('the ledger', () => {
       // member under a stay, and not one of them has a unit whose own
       // surplus is negative — so it is the stay, not the unit split.
       if (household.memberIds.some((id) => underStay(world, id, world.tick))) continue
-      const surplus = householdIncome(world, household) - householdCosts(world, household)
-      if (surplus <= 0) continue
-      const spent = discretionaryFor(world, household)
-      // Saves between 8% and 17% of the surplus — never all, never nothing.
-      expect(spent).toBeGreaterThan(Math.floor(surplus * 0.82))
-      expect(spent).toBeLessThan(Math.floor(surplus * 0.93))
+      /**
+       * PER UNIT SINCE H0: the head carries the roof and the junior adults
+       * do not, so the household-pooled surplus arithmetic this test used
+       * to check no longer describes anybody's decision. The claim that
+       * still must hold is the original one at the right altitude — each
+       * UNIT spends most of ITS OWN surplus and saves the rest.
+       */
+      for (const unit of unitsUnder(world, household)) {
+        const surplus = unitIncome(world, unit) - unitCosts(world, household, unit)
+        if (surplus <= 0) continue
+        const spent = discretionaryForUnit(world, household, unit)
+        expect(spent).toBeGreaterThan(Math.floor(surplus * 0.82))
+        expect(spent).toBeLessThan(Math.floor(surplus * 0.93))
+      }
     }
   })
 
@@ -123,7 +137,15 @@ describe('the ledger', () => {
     const household = [...world.households.values()][0]
     expect(household).toBeDefined()
     if (!household) return
-    world.households.set(household.id, { ...household, savings: -10_000 as Money })
+    {
+      // H0: arrears are constructed where they now live — the head's wallet.
+      const head = [...household.memberIds]
+        .map((id) => world.people.get(id)!)
+        .filter((person) => person.deathTick === null)
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]!
+      const accounts = walletOf(world, head.id)
+      world.accounts.set(accounts.personId, { ...accounts, checking: -10_000 as Money, savings: 0 as Money })
+    }
     expect(discretionaryFor(world, world.households.get(household.id)!)).toBe(0)
   })
 
@@ -156,7 +178,14 @@ describe('arrears', () => {
       .sort((a, b) => a.id - b.id)
       .find((h) => h.memberIds.length >= 2)
     if (!household) throw new Error('no household')
-    world.households.set(household.id, { ...household, savings: -500_000 as Money })
+    {
+      const head = [...household.memberIds]
+        .map((id) => world.people.get(id)!)
+        .filter((person) => person.deathTick === null)
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]!
+      const accounts = walletOf(world, head.id)
+      world.accounts.set(accounts.personId, { ...accounts, checking: -500_000 as Money, savings: 0 as Money })
+    }
     return world.households.get(household.id)
   }
 
@@ -286,7 +315,7 @@ describe('inheritance', () => {
     const relocated = children.map((c) => world.people.get(c.id)!)
     const before = relocated.map((c) => netWorthOf(world, c.id))
 
-    distributeEstate(world, world.tick, parent, world.households.get(household.id)!)
+    distributeEstate(world, world.tick, parent)
 
     const after = relocated.map((c) => netWorthOf(world, c.id))
     const eldest = after[0]! - before[0]!
@@ -312,7 +341,7 @@ describe('inheritance', () => {
     world.households.set(household.id, { ...household, memberIds: [], savings: -75_000 as Money })
     const balances = [...world.households.values()].map((h) => h.savings)
 
-    distributeEstate(world, world.tick, parent, world.households.get(household.id)!)
+    distributeEstate(world, world.tick, parent)
 
     // Nothing anywhere changed except nothing: a negative estate distributes no cents.
     const after = [...world.households.values()].map((h) => h.savings)
@@ -369,7 +398,7 @@ describe('the town stays solvent', () => {
     )
     expect(active.length).toBeGreaterThan(5)
 
-    const behind = active.filter((h) => h.savings < 0).length
+    const behind = active.filter((h) => arrearsOf(world, h) > 0).length
     const share = behind / active.length
     // Some households struggle — that is Law 10. ALL of them struggling means
     // prices are wrong; none of them ever struggling means money is decoration.
@@ -449,8 +478,8 @@ describe('the itemized ledger (P3)', () => {
       expect(ledger.net).toBe(
         ledger.income - ledger.costs - ledger.lifestyle - ledger.salesTax,
       )
-      expect(ledger.savings).toBe(household.savings)
-      expect(ledger.inArrears).toBe(household.savings < 0)
+      expect(ledger.savings).toBe(arrearsOf(world, household) > 0 ? -arrearsOf(world, household) : 0)
+      expect(ledger.inArrears).toBe(arrearsOf(world, household) > 0)
     }
   })
 
@@ -573,17 +602,26 @@ describe("one person's own month", () => {
     const world = build(12345, 240)
     for (const household of world.households.values()) {
       if (household.dissolvedTick !== null) continue
-      const earners = household.memberIds.filter(
-        (id) => world.people.get(id)?.deathTick === null && personalIncome(world, id) > 0,
-      )
-      if (earners.length < 2) continue
-      const shares = earners.map((id) => personalMonthlyNet(world, id))
-      const total = shares.reduce((sum, share) => sum + share, 0)
-      // The shares are each smaller than the whole, and together they are
-      // the whole (to within the integer remainder the settle also carries).
-      for (const share of shares) expect(share).toBeLessThanOrEqual(monthlyNetOf(world, household))
-      expect(Math.abs(total - monthlyNetOf(world, household))).toBeLessThanOrEqual(earners.length)
-      return
+      /**
+       * WITHIN THE UNIT SINCE H0 — the unit is where money pools, so the
+       * unit is where shares must reconcile. Cross-unit reconciliation
+       * against the household total died with the pot.
+       */
+      for (const unit of unitsUnder(world, household)) {
+        const earners = unit.filter(
+          (id) => world.people.get(id)?.deathTick === null && personalIncome(world, id) > 0,
+        )
+        if (earners.length < 2) continue
+        const shares = earners.map((id) => personalMonthlyNet(world, id))
+        const total = shares.reduce((sum, share) => sum + share, 0)
+        const spending = discretionaryForUnit(world, household, unit)
+        const unitNet =
+          unitIncome(world, unit) - unitCosts(world, household, unit) - spending - salesTaxOn(spending)
+        for (const share of shares) expect(share).toBeLessThanOrEqual(unitNet + earners.length)
+        expect(Math.abs(total - unitNet)).toBeLessThanOrEqual(earners.length)
+        return
+      }
+      continue
     }
   })
 

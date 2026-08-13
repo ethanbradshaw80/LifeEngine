@@ -392,13 +392,30 @@ describe('tuition and student loans', () => {
     // A four-year course billing from month one is a bill somebody with no
     // wages cannot meet, and would put every student in the town into
     // default in their first year. Interest still accrues; payments wait.
-    for (const person of livingPeople(world)) {
-      const record = world.education.get(person.id)
+    //
+    // H1 made re-enrolling while ALREADY behind possible (a broke adult
+    // can go back to school now that nobody is evicted for it), so an
+    // enrolled person may carry missed months from before the enrolment.
+    // The claim is therefore the true one: the count never GROWS while
+    // they study.
+    const own = createWorld(makeSeed(4141), 200)
+    advanceTicks(own, 30 * 12)
+    const before = new Map<number, number>()
+    for (const person of livingPeople(own)) {
+      const record = own.education.get(person.id)
       if (record?.enrolledIn === null || record?.enrolledIn === undefined) continue
-      const loan = accountsOf(world, person.id).loans.find((l) => l.kind === 'student')
+      const loan = accountsOf(own, person.id).loans.find((l) => l.kind === 'student')
       if (loan === undefined) continue
-      // Nobody enrolled is in default on a student loan.
-      expect(loan.missedMonths).toBe(0)
+      before.set(person.id, loan.missedMonths)
+    }
+    expect(before.size).toBeGreaterThan(0)
+    advanceTicks(own, 2)
+    for (const [personId, missed] of before) {
+      const record = own.education.get(personId)
+      if (record?.enrolledIn === null || record?.enrolledIn === undefined) continue
+      const loan = accountsOf(own, personId).loans.find((l) => l.kind === 'student')
+      if (loan === undefined) continue
+      expect(loan.missedMonths).toBeLessThanOrEqual(missed)
     }
   })
 
@@ -419,7 +436,11 @@ describe('tuition and student loans', () => {
     const debtor = livingPeople(own).find((person) => {
       const age = ageAt(person.birthTick, own.tick)
       const record = own.education.get(person.id)
-      return age > 30 && age < 55 && record?.enrolledIn === null
+      // No existing student loan — takeLoan refuses a second of a kind,
+      // and funded degrees are common enough now that the first eligible
+      // adult often carries one.
+      const hasOne = accountsOf(own, person.id).loans.some((l) => l.kind === 'student')
+      return age > 30 && age < 55 && record?.enrolledIn === null && !hasOne
     })
     expect(debtor).toBeDefined()
     if (debtor === undefined) return

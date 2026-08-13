@@ -2449,6 +2449,8 @@ export type EventType =
   | 'joined-war'
   | 'declined-call'
   | 'fell-behind'
+  /** The debt slide's warnings: detail 'letters' at −$50k, 'calls' at −$250k. */
+  | 'mounting-debts'
   /** Savings recovered above zero after arrears. */
   | 'back-in-the-black'
   | 'debt-written-off'
@@ -2465,6 +2467,8 @@ export type EventType =
   | 'opened-business'
   | 'business-closed'
   | 'inherited-business'
+  /** The family home passed to the eldest living child (H2). */
+  | 'inherited-home'
   | 'commissioned'
   | 'promoted-at-work'
   | 'passed-over'

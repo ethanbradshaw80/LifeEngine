@@ -20,6 +20,7 @@ import {
   personalIncome,
   unitCosts,
   unitsUnder,
+  walletHolderOf,
 } from '../src/finances.js'
 import type { World } from '../src/types.js'
 
@@ -76,20 +77,24 @@ describe('people hold the money', () => {
     expect(earnersWithMoney, 'nobody who earns has any money of their own').toBeGreaterThan(0)
   })
 
-  it('takes the household from earners in proportion to what they earn', () => {
-    // A household where one person earns and another does not: the earner
-    // carries it, and the non-earner is not overdrawn to pay for a roof
-    // they cannot fund.
+  it('bills the roof to the head and overdraws nobody else for it (H0)', () => {
+    // The roof is the head couple's bill and a bad month drives THEIR
+    // wallet negative — that is where arrears live now. Everybody else
+    // under the roof keeps their own money and is never overdrawn for a
+    // house that was not theirs to fund.
     const world = grown(4141, 120)
     for (const household of world.households.values()) {
       if (household.dissolvedTick !== null) continue
       if (householdCosts(world, household) <= 0) continue
+      const head = [...household.memberIds]
+        .map((id) => world.people.get(id))
+        .filter((p) => p !== undefined && p.deathTick === null)
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+      const headWallet = head === undefined ? -1 : walletHolderOf(world, head.id)
       for (const memberId of household.memberIds) {
         const member = world.people.get(memberId)
         if (!member || member.deathTick !== null) continue
-        if (personalIncome(world, memberId) > 0) continue
-        // Nobody's own accounts are driven negative by the household: a
-        // shortfall is the HOUSEHOLD's arrears, which is what that is for.
+        if (walletHolderOf(world, memberId) === headWallet) continue
         expect(accountsOf(world, memberId).checking).toBeGreaterThanOrEqual(0)
         expect(accountsOf(world, memberId).savings).toBeGreaterThanOrEqual(0)
       }
@@ -102,6 +107,10 @@ describe('people hold the money', () => {
       const a = accountsOf(world, person.id)
       for (const value of [a.checking, a.savings, a.brokerage, a.retirement]) {
         expect(Number.isInteger(value)).toBe(true)
+      }
+      // H1: debt is a NEGATIVE CHECKING balance — that is the design, not a
+      // leak. Every other bucket still never goes below zero.
+      for (const value of [a.savings, a.brokerage, a.retirement]) {
         expect(value).toBeGreaterThanOrEqual(0)
       }
     }

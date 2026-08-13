@@ -82,7 +82,10 @@ describe('how often money goes wrong', () => {
     advanceTicks(world, 600)
     for (const [personId] of world.accounts) {
       const accounts = accountsOf(world, personId)
-      expect(accounts.checking).toBeGreaterThanOrEqual(0)
+      // H1: CHECKING may legitimately sit below zero — arrears ride there
+      // as a negative balance by design. A shock still never digs into
+      // savings past zero, and every value stays an honest integer.
+      expect(Number.isInteger(accounts.checking)).toBe(true)
       expect(accounts.savings).toBeGreaterThanOrEqual(0)
     }
   })

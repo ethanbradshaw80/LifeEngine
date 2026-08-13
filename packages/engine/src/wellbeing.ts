@@ -110,7 +110,21 @@ export function wellbeingBaselineFor(world: World, person: Person, tick: Tick): 
   const household = person.householdId === null ? undefined : world.households.get(person.householdId)
   if (household !== undefined) {
     if (household.homelessSinceTick !== null) base -= 180
-    else if (household.savings < 0) base -= 60
+    else {
+      // H0: arrears live on the head couple's wallet now, and only the
+      // head's can go negative — so "anybody under this roof is in the
+      // red" is exactly the old household test, read as plain data (this
+      // module deliberately imports nothing from finances).
+      let behind = false
+      for (const memberId of household.memberIds) {
+        const accounts = world.accounts.get(memberId)
+        if (accounts !== undefined && accounts.checking + accounts.savings < 0) {
+          behind = true
+          break
+        }
+      }
+      if (behind) base -= 60
+    }
   }
 
   // THE BODY. A permanent disability is carried for life; an ailment is

@@ -19,6 +19,7 @@ import {
   specialtyTitleFor,
   householdIncome,
   annualPay,
+  arrearsOf,
   netWorthOf,
   occupationById,
   other,
@@ -213,7 +214,7 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             <dt>{age < 18 ? 'Family money' : 'Money'}</dt>
             <dd>
               {formatMoney(netWorthOf(world, person.id))}
-              {household.savings < 0 && <span className="muted"> (household behind)</span>}
+              {arrearsOf(world, household) > 0 && <span className="muted"> (household behind)</span>}
               <span className="muted small">
                 {' '}· {formatMoney(householdIncome(world, household))} in ·{' '}
                 {formatMoney(householdCosts(world, household))} out ·{' '}

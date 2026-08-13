@@ -28,6 +28,7 @@ import type { Household, Person, World } from './types.js'
 import { rollTraits, startingEducation } from './worldgen.js'
 import { freshHealth } from './health.js'
 import { hireIntoStartingWork } from './systems.js'
+import { valueOf as propertyValueOf } from './realestate.js'
 
 /** What the player actually chooses. Everything else is settled at birth. */
 export interface BirthRequest {
@@ -472,12 +473,63 @@ export function registerBirth(
     formedTick: plan.birthTick,
     dissolvedTick: null,
     homelessSinceTick: null,
-    // THE STATION IS REAL MONEY. A silver-spoon birth that started with the
-    // same balance as a hard-up one would make the dial a label.
-    savings: (plan.station * 400) as Money,
+    // H0: the pot is retired — the station's money lands on the parents'
+    // wallet below, where it is real. A balance written here would be
+    // silently zeroed by the first monthly pass.
+    savings: 0 as Money,
     spendStance: null,
   }
   world.households.set(householdId, household)
+
+  /**
+   * THE STATION IS REAL MONEY, ON REAL PEOPLE (H0), AND SOMETIMES A REAL
+   * DEED (H2, owner: "I spawn in bitlife... their parents have a house").
+   * The head parent's wallet gets the station's cash. Then the tenure
+   * roll: station-weighted, seeded off the same registry number that
+   * shaped everything else about this family — a silver-spoon child is
+   * born into a paid-off house almost surely, a hard-up one almost surely
+   * rents, and neither is a guarantee (owner-confirmed: a roll, not a
+   * rule).
+   */
+  {
+    const head = memberIds
+      .map((id) => world.people.get(id))
+      .filter((p): p is Person => p !== undefined)
+      .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
+    if (head !== undefined) {
+      const accounts = world.accounts.get(head.id)
+      const stationMoney = (plan.station * 400) as Money
+      if (accounts !== undefined) {
+        world.accounts.set(head.id, { ...accounts, checking: (accounts.checking + stationMoney) as Money })
+      } else {
+        world.accounts.set(head.id, {
+          personId: head.id, checking: stationMoney, savings: 0 as Money,
+          brokerage: 0 as Money, retirement: 0 as Money, taxableYtd: 0 as Money,
+          withheldYtd: 0 as Money, holdings: [], retirementHoldings: [], loans: [],
+          defaults: 0, monthsWorked: 0, monthsPaid: 0, lastMonthlyPay: 0 as Money,
+          homePlaceId: null, homePurchasePrice: 0 as Money, unemploymentUntilTick: null,
+        } as never)
+      }
+      const tenureRoll = openStream(world.seed, Stream.PersonTraits, head.id, plan.birthTick + 616_161)
+      const free = [...world.properties.values()].find(
+        (prop) => prop.neighbourhoodPlaceId === place.id && (prop.ownerId ?? null) === null,
+      )
+      if (free !== undefined) {
+        world.households.set(householdId, { ...household, propertyId: free.id })
+        if (tenureRoll.chance(Math.max(100, Math.min(900, plan.station)), 1_000)) {
+          world.properties.set(free.id, { ...free, ownerId: head.id })
+          const headAccounts = world.accounts.get(head.id)
+          if (headAccounts !== undefined) {
+            world.accounts.set(head.id, {
+              ...headAccounts,
+              homePlaceId: place.id,
+              homePurchasePrice: propertyValueOf(world, free),
+            })
+          }
+        }
+      }
+    }
+  }
 
   return childId
 }

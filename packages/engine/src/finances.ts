@@ -27,7 +27,7 @@ import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor }
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
-import { eventsFor } from './eventindex.js'
+import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
@@ -123,6 +123,8 @@ import {
 
 /** Months of arrears before a household is pushed toward cheaper rent. */
 const ARREARS_PATIENCE_MONTHS = 4
+// Referenced only by the retired eviction machinery; kept for the record.
+void ARREARS_PATIENCE_MONTHS
 
 /** An adult is a full mouth to feed from this age. */
 const ADULT_COST_AGE = 16
@@ -135,6 +137,158 @@ const ADULT_COST_AGE = 16
  * ONE PERSON'S ACCOUNTS. Absent means zero — reading is total, so nothing
  * has to create an account before somebody is paid.
  */
+/**
+ * THE WEDDING MERGE (H0). Two wallets become one on the day: the liquid
+ * money of the higher-id spouse moves onto the joint record, one recorded
+ * transfer, to the cent. Everything else stays where it was.
+ */
+export function mergeWalletsOnMarriage(world: World, a: EntityId, b: EntityId): void {
+  const holder = a < b ? a : b
+  const other = a < b ? b : a
+  const from = accountsOf(world, other)
+  const into = accountsOf(world, holder)
+  if (from.checking === 0 && from.savings === 0) return
+  setAccounts(world, {
+    ...into,
+    checking: (into.checking + from.checking) as Money,
+    savings: (into.savings + from.savings) as Money,
+  })
+  setAccounts(world, { ...from, checking: 0 as Money, savings: 0 as Money })
+}
+
+/**
+ * THE DIVORCE SPLIT (H0, owner-confirmed): liquid money 50/50, the odd
+ * cent to the one who keeps the deed — somebody has to get it, and the
+ * house is the bigger half of most settlements anyway. Deeds, loans and
+ * pensions never moved, so there is nothing else to divide.
+ */
+export function splitWalletOnDivorce(world: World, a: EntityId, b: EntityId): void {
+  const holder = a < b ? a : b
+  const other = a < b ? b : a
+  const joint = accountsOf(world, holder)
+  const otherRecord = accountsOf(world, other)
+  /**
+   * POOL BOTH SIDES FIRST. A couple married before the merge existed — a
+   * founding couple, or a live save — can still carry liquid on the
+   * non-holder record; a split that only read the joint record stranded
+   * that half (a conservation test caught exactly this). Every cent on
+   * either record goes into the pool, and the pool splits.
+   */
+  const liquid = joint.checking + joint.savings + otherRecord.checking + otherRecord.savings
+  const half = Math.floor(liquid / 2)
+  setAccounts(world, {
+    ...joint,
+    checking: (liquid - half) as Money,
+    savings: 0 as Money,
+  })
+  setAccounts(world, { ...otherRecord, checking: half as Money, savings: 0 as Money })
+}
+
+/**
+ * SURVIVORSHIP (H0). When the wallet HOLDER dies married, the joint pot
+ * passes whole to the survivor before the estate does anything else — the
+ * money was already both of theirs. When the non-holder dies, the pot is
+ * already where it belongs.
+ */
+export function passWalletToSurvivor(world: World, deceased: EntityId, survivor: EntityId): void {
+  // THE SURVIVOR INHERITS THE ACCOUNT WHOLE (H0 §1) — not just the joint
+  // liquid. A higher-id spouse's raw record still carries their personal
+  // brokerage and retirement, and moving only checking and savings left
+  // those stranded on a dead person's ledger forever.
+  const from = accountsOf(world, deceased)
+  const into = accountsOf(world, survivor)
+  if (
+    from.checking === 0 && from.savings === 0 && from.brokerage === 0 &&
+    from.retirement === 0 && from.holdings.length === 0 && from.retirementHoldings.length === 0
+  ) {
+    return
+  }
+  // POSITIONS MERGE BY KEY, never concatenate: the sell path finds ONE fund
+  // position per sector, so a widow holding her own agricultural fund and
+  // her late husband's as two rows could only ever sell the first of them.
+  const mergeHoldings = (mine: readonly Holding[], theirs: readonly Holding[]): Holding[] => {
+    const merged = [...mine]
+    for (const holding of theirs) {
+      const at = merged.findIndex(
+        (h) => h.sectorId === holding.sectorId && h.stockId === holding.stockId,
+      )
+      if (at === -1) {
+        merged.push(holding)
+      } else {
+        const existing = merged[at]
+        if (existing !== undefined) {
+          merged[at] = {
+            ...existing,
+            units: existing.units + holding.units,
+            costBasis: (existing.costBasis + holding.costBasis) as Money,
+          }
+        }
+      }
+    }
+    return merged.sort((a, b) =>
+      holdingKeyOf(a) < holdingKeyOf(b) ? -1 : holdingKeyOf(a) > holdingKeyOf(b) ? 1 : 0,
+    )
+  }
+  setAccounts(world, {
+    ...into,
+    checking: (into.checking + from.checking) as Money,
+    savings: (into.savings + from.savings) as Money,
+    brokerage: (into.brokerage + from.brokerage) as Money,
+    retirement: (into.retirement + from.retirement) as Money,
+    holdings: mergeHoldings(into.holdings, from.holdings),
+    retirementHoldings: mergeHoldings(into.retirementHoldings, from.retirementHoldings),
+  })
+  setAccounts(world, {
+    ...from,
+    checking: 0 as Money,
+    savings: 0 as Money,
+    brokerage: 0 as Money,
+    retirement: 0 as Money,
+    holdings: [],
+    retirementHoldings: [],
+  })
+}
+
+/**
+ * HOW FAR BEHIND THIS HOUSEHOLD IS (H0). Arrears are a negative balance on
+ * the HEAD COUPLE'S wallet now — visible on the player's own Money tab —
+ * not a number on a building. Positive return = cents behind; zero = square.
+ */
+export function arrearsOf(world: World, household: Household): Money {
+  const head = eldestMember(world, household)
+  if (head === undefined) return 0 as Money
+  const wallet = walletOf(world, head.id)
+  const liquid = wallet.checking + wallet.savings
+  return (liquid < 0 ? -liquid : 0) as Money
+}
+
+/**
+ * THE WALLET — where this person's LIQUID money actually lives (H0, the
+ * owner's rule: "what's your money is yours and if you get married y'all
+ * combine that").
+ *
+ * A married couple is one wallet: both spouses resolve to the LOWER
+ * personId's account record for checking and savings, derived from the
+ * marriage itself — no stored link to drift, no second entity to migrate.
+ * Everything that is not liquid money stays on the person's own record:
+ * pension months, tax year, the home deed, loans. The rule is about money,
+ * and blanket-routing the whole record would hand one spouse the other's
+ * seniority.
+ *
+ * Every liquid movement (creditPerson / debitPerson) and every liquid read
+ * must go through here. Reading accountsOf directly for a balance is now a
+ * bug by definition.
+ */
+export function walletHolderOf(world: World, personId: EntityId): EntityId {
+  const spouse = spouseOf(world, personId)
+  if (spouse === null) return personId
+  return (spouse < personId ? spouse : personId) as EntityId
+}
+
+export function walletOf(world: World, personId: EntityId): Accounts {
+  return accountsOf(world, walletHolderOf(world, personId))
+}
+
 export function accountsOf(world: World, personId: EntityId): Accounts {
   return (
     world.accounts.get(personId) ?? {
@@ -184,7 +338,11 @@ export function householdWealth(world: World, household: Household): Money {
  * lives on the Bank, where there is room to explain what it is made of.
  */
 export function moneyOnHand(world: World, personId: EntityId): Money {
-  const a = accountsOf(world, personId)
+  // H0: a married couple's liquid money is ONE balance, and either of them
+  // can spend it this afternoon — so this reads the WALLET, not the raw
+  // record. Reading the raw record made a higher-id spouse look penniless
+  // while every credit routed to the joint account.
+  const a = walletOf(world, personId)
   return (a.checking + a.savings) as Money
 }
 
@@ -946,7 +1104,8 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
  */
 export function debitPerson(world: World, personId: EntityId, amount: Money): Money {
   if (amount <= 0) return 0 as Money
-  const accounts = accountsOf(world, personId)
+  // H0: the couple's money is one pot. The debit lands on the wallet.
+  const accounts = walletOf(world, personId)
   const fromChecking = Math.max(0, Math.min(amount, accounts.checking))
   const fromSavings = Math.max(0, Math.min(amount - fromChecking, accounts.savings))
   if (fromChecking + fromSavings <= 0) return 0 as Money
@@ -960,8 +1119,25 @@ export function debitPerson(world: World, personId: EntityId, amount: Money): Mo
 
 export function creditPerson(world: World, personId: EntityId, amount: Money): number {
   if (amount <= 0) return 0
-  const accounts = accountsOf(world, personId)
+  // H0: earnings land in the couple's one pot.
+  const accounts = walletOf(world, personId)
+  const beforeLiquid = accounts.checking + accounts.savings
   setAccounts(world, { ...accounts, checking: (accounts.checking + amount) as Money })
+  // Digging out is an event, the same as falling in was. The wallet dug
+  // out the honest way — money arrived — and the record says so once, at
+  // the crossing, not every month it stays dry.
+  if (beforeLiquid < 0 && beforeLiquid + amount >= 0) {
+    const holder = world.people.get(accounts.personId)
+    recordEvent(world, world.tick, {
+      type: 'back-in-the-black',
+      subjectId: accounts.personId,
+      // The household key, so the spell reader can pair this recovery with
+      // the fall that opened it.
+      ...(holder?.householdId !== null && holder !== undefined
+        ? { detail: String(holder.householdId) }
+        : {}),
+    })
+  }
   return amount
 }
 
@@ -1081,8 +1257,15 @@ export function chargeHousehold(world: World, tick: Tick, householdId: EntityId,
   }
   if (owing <= 0) return
 
-  world.households.set(household.id, { ...household, savings: (household.savings - owing) as Money })
-  noteArrearsCrossing(world, tick, household.id, household.savings)
+  // H0: what nobody could cover goes on the head couple's wallet, below
+  // zero if it must — the same place every other unmet obligation lands.
+  const head = eldestMember(world, household)
+  if (head !== undefined) {
+    const wallet = walletOf(world, head.id)
+    const beforeLiquid = (wallet.checking + wallet.savings) as Money
+    setAccounts(world, { ...wallet, checking: (wallet.checking - owing) as Money })
+    noteWalletArrearsCrossing(world, tick, household.id, beforeLiquid, (beforeLiquid - owing) as Money)
+  }
 }
 
 /**
@@ -1104,11 +1287,14 @@ export function creditHousehold(
   const household = world.households.get(householdId)
   if (!household || !Number.isFinite(cents) || cents <= 0) return 0
   const amount = Math.floor(cents)
-  world.households.set(household.id, {
-    ...household,
-    savings: (household.savings + amount) as Money,
-  })
-  noteArrearsCrossing(world, tick, household.id, household.savings)
+// H0: money coming into "the household" is money coming to the head
+  // couple's wallet — a building cannot be paid.
+  const head = eldestMember(world, household)
+  if (head === undefined) return 0
+  const wallet = walletOf(world, head.id)
+  const beforeLiquid = (wallet.checking + wallet.savings) as Money
+  setAccounts(world, { ...wallet, checking: (wallet.checking + amount) as Money })
+  noteWalletArrearsCrossing(world, tick, household.id, beforeLiquid, (beforeLiquid + amount) as Money)
   return amount
 }
 
@@ -1120,6 +1306,34 @@ export function creditHousehold(
  * separation split in relationships.ts predates this helper and does not —
  * a known corner, not a rule.)
  */
+/** The fell-behind / dug-out events, keyed to the WALLET's zero crossing. */
+function noteWalletArrearsCrossing(
+  world: World,
+  tick: Tick,
+  householdId: EntityId,
+  before: Money,
+  after: Money,
+): void {
+  const household = world.households.get(householdId)
+  if (!household) return
+  const head = eldestMember(world, household)
+  if (!head) return
+  /**
+   * SUBJECT IS THE WALLET HOLDER; DETAIL IS THE HOUSEHOLD KEY. The spell
+   * reader (`arrearsHistoryOf`) pairs falls with recoveries by
+   * `detail === String(household.id)` — an event without the key is
+   * invisible to it, and a fall keyed to one spouse with a recovery keyed
+   * to the other never pairs. Both lessons were bought with failing
+   * pairing tests during H0.
+   */
+  const holder = walletOf(world, head.id)
+  if (before >= 0 && after < 0) {
+    recordEvent(world, tick, { type: 'fell-behind', subjectId: holder.personId, detail: String(householdId) })
+  } else if (before < 0 && after >= 0) {
+    recordEvent(world, tick, { type: 'back-in-the-black', subjectId: holder.personId, detail: String(householdId) })
+  }
+}
+
 function noteArrearsCrossing(world: World, tick: Tick, householdId: EntityId, before: Money): void {
   const household = world.households.get(householdId)
   if (!household) return
@@ -1477,6 +1691,11 @@ export function unitCosts(
     return shelter as Money
   }
 
+  // A HOUSEHOLD OF NOTHING BUT STUDENTS IN HALLS PAYS NOTHING, and
+  // `householdCosts` says so with an early return — so this must too, or
+  // the head unit would carry a rent the household is not being charged.
+  if (everybodyInHalls(world, household)) return 0 as Money
+
   let mouths = 0
   for (const id of unit) {
     const member = world.people.get(id)
@@ -1499,8 +1718,12 @@ export function unitCosts(
     mouths += tuitionFor(world, id)
   }
 
-  const place = world.places.get(household.placeId)
-  const rent = place ? rentAt(world, place.desirability) : 0
+  // THE SAME ROOF NUMBER `householdCosts` CHARGES — lease rent for a
+  // tenancy, nothing for an owner, the going rate for the untracked. The
+  // postcode rate that used to sit here is what pulled the trio apart the
+  // sixth time: a household on a lease (or in a house it OWNS) was being
+  // split a bill nobody was sending.
+  const rent = roofCostFor(world, household)
   /**
    * THE HOUSEHOLD'S SHAPE, COMPUTED ONCE WHEN THE CALLER ALREADY KNOWS IT
    * (owner, playing: "when you age up it takes pretty long to load now...
@@ -1529,13 +1752,16 @@ export function unitCosts(
    */
   const shape = precomputed ?? unitShapeFor(world, household, unit)
   if (shape.unitCount === 0) return mouths as Money
-  const { totalIncome, mine } = shape
-  const units = { length: shape.unitCount }
-  // Nobody earning: the rent splits evenly rather than falling on one head.
-  const share =
-    totalIncome > 0
-      ? Math.floor((rent * mine) / totalIncome)
-      : Math.floor(rent / units.length)
+  /**
+   * THE ROOF IS THE HEAD COUPLE'S BILL (H0, owner's rule #3: grown kids
+   * keep their own wallets and live free — which is what makes moving out
+   * a real decision with a real price). The income-proportional split is
+   * retired: the unit containing the household's eldest member carries
+   * the whole rent; every other unit under the roof carries none.
+   */
+  const head = eldestMember(world, household)
+  const isHeadUnit = head !== undefined && unit.includes(head.id)
+  const share = isHeadUnit ? rent : 0
   return (mouths + share) as Money
 }
 
@@ -1592,7 +1818,7 @@ export function discretionaryForUnit(
   unit: readonly EntityId[],
   precomputed?: UnitShape,
 ): Money {
-  if (household.savings < 0) return 0 as Money
+  if (arrearsOf(world, household) > 0) return 0 as Money
   // M-SAFETY §2. A HOUSEHOLD UNDER A PLAN IS ON A COURT-SUPERVISED BUDGET.
   //
   // MEASURED, and it is what made plans unkeepable: a filing set the
@@ -1853,8 +2079,8 @@ export function householdLedger(world: World, household: Household): HouseholdLe
     lifestyle: discretionaryFor(world, household),
     salesTax: salesTaxOn(discretionaryFor(world, household)),
     net: monthlyNetOf(world, household),
-    savings: household.savings,
-    inArrears: household.savings < 0,
+    savings: (arrearsOf(world, household) > 0 ? -arrearsOf(world, household) : 0) as Money,
+    inArrears: arrearsOf(world, household) > 0,
   }
 }
 
@@ -1987,7 +2213,7 @@ export function isHomeless(world: World, personId: EntityId): boolean {
 export function inArrears(world: World, householdId: EntityId | null): boolean {
   if (householdId === null) return false
   const household = world.households.get(householdId)
-  return household !== undefined && household.savings < 0
+  return household !== undefined && arrearsOf(world, household) > 0
 }
 
 /**
@@ -2022,7 +2248,11 @@ export function runFinances(world: World, tick: Tick): void {
     if (household.dissolvedTick !== null) continue
     if (household.memberIds.length === 0) continue
 
-    const before = household.savings
+    // H0: no carried `before` term — the wallet itself carries the past.
+    // The old pot needed the monthly loop to claw arrears back through the
+    // collection; the wallet digs out the honest way, by wages landing in
+    // the negative. Keeping the term double-charged every behind household
+    // (the surplus test caught it as discretionary spending hitting zero).
 
     // M-ECON §1. THE MONTH, IN THE ORDER IT ACTUALLY HAPPENS.
     //
@@ -2134,7 +2364,7 @@ export function runFinances(world: World, tick: Tick): void {
     // actually absorbs a bad month is what the people in the house have put
     // by, so that is what is drawn on: checking first, then savings, eldest
     // first, before any of it becomes arrears.
-    let shortfall = owed - collected + Math.max(0, -before)
+    let shortfall = owed - collected
     if (shortfall > 0) {
       const members = [...household.memberIds]
         .map((id) => world.people.get(id))
@@ -2156,17 +2386,44 @@ export function runFinances(world: World, tick: Tick): void {
       }
     }
 
-    // What could not be met is arrears, and what could is square. A surplus
-    // never accumulates here — it is already sitting in people's checking.
-    const after = Math.min(0, before + collected - owed) as Money
-    world.households.set(household.id, { ...household, savings: after })
-
-    // The month it tips over is worth an event; every month it stays down is
-    // not. Same on the way back up. Events mark changes, not states.
-    noteArrearsCrossing(world, tick, household.id, before)
+    /**
+     * WHAT COULD NOT BE MET GOES ON THE HEAD COUPLE'S WALLET (H0 stage 2,
+     * owner: "you go into the negatives"). The building's ledger is
+     * retired: the unmet remainder pushes the head's own balance negative,
+     * where the player can SEE it, pay it down, and — at −$500k — meet the
+     * bankruptcy paperwork. household.savings freezes at zero forever;
+     * the migration moves any live balances.
+     */
+    const unmet = Math.max(0, owed - collected) as Money
+    if (unmet > 0) {
+      const head = eldestMember(world, household)
+      if (head !== undefined) {
+        const wallet = walletOf(world, head.id)
+        const beforeLiquid = wallet.checking + wallet.savings
+        const afterLiquid = beforeLiquid - unmet
+        setAccounts(world, { ...wallet, checking: (wallet.checking - unmet) as Money })
+        noteWalletArrearsCrossing(world, tick, household.id, beforeLiquid as Money, afterLiquid as Money)
+        // THE SLIDE'S TWO WARNINGS (H1): the letters at −$50k, the calls at
+        // −$250k — each once, at its crossing, so the −$500k paperwork is
+        // the third knock and not the first.
+        if (beforeLiquid > -5_000_000 && afterLiquid <= -5_000_000) {
+          recordEvent(world, tick, { type: 'mounting-debts', subjectId: wallet.personId, detail: 'letters' })
+        }
+        if (beforeLiquid > -25_000_000 && afterLiquid <= -25_000_000) {
+          recordEvent(world, tick, { type: 'mounting-debts', subjectId: wallet.personId, detail: 'calls' })
+        }
+      }
+    } else {
+      // Dug out this month? The crossing event fires off the wallet's own
+      // movement inside the collection above; nothing to do here.
+    }
+    if (household.savings !== 0) {
+      world.households.set(household.id, { ...household, savings: 0 as Money })
+    }
   }
 
   runNpcVentures(world, tick)
+  runNpcHomeBuying(world, tick)
   runBusinesses(world, tick)
   runPlans(world, tick)
   runInsolvency(world, tick)
@@ -2232,7 +2489,7 @@ function runInsolvency(world: World, tick: Tick): void {
     // who a repayment plan is for — measured, the first version looked only
     // at arrears, and so chapter 13 never once fired in four centuries
     // while chapter 7 fired 195 times. Both roads have to be real.
-    const arrears = Math.max(0, -household.savings)
+    const arrears = arrearsOf(world, household)
     const debtors = [...household.memberIds]
       .map((id) => world.people.get(id))
       .filter((member): member is Person => member !== undefined && member.deathTick === null)
@@ -2270,19 +2527,29 @@ function runInsolvency(world: World, tick: Tick): void {
     // WHAT THEY CANNOT SERVICE, not what they owe. A mortgage in good
     // standing is not insolvency (owner, playing) — the missed payments on
     // it are, and those are counted.
-    const owed = distressDebtOf(accounts, household.savings)
+    const owed = distressDebtOf(accounts, (-arrearsOf(world, household)) as Money)
     const income = householdIncome(world, household)
     const costs = householdCosts(world, household)
-    if (!isInsolvent(owed, income, costs)) continue
+    /**
+     * THE −$500,000 FENCE (H1, owner: "you go into the negatives until
+     * you hit 500k where then it'll trigger the bankruptcy paperwork").
+     * The ordinary insolvency test keeps asking in loan crises as it
+     * always has; the fence guarantees the ask fires whatever the ratios
+     * say once the wallet itself is half a million down.
+     */
+    const deepUnder = arrearsOf(world, household) >= 50_000_000
+    if (!deepUnder && !isInsolvent(owed, income, costs)) continue
 
     const open = chaptersOpenTo(world, head.id, income - costs, townMedian, tick)
     if (open.length === 0) {
-      // THE COURTHOUSE IS SHUT TO THEM - they filed too recently. That
-      // cannot mean the debt free-falls instead: measured, it took a run to
-      // -$680,582 with the bankruptcy system already in. What actually
-      // happens to somebody who cannot file and cannot pay is that they
-      // lose the housing, which stops the rent that was compounding.
-      if (household.homelessSinceTick === null) loseHousing(world, tick, household, head)
+      /**
+       * THE COURTHOUSE IS SHUT AND THE ROOF STAYS ANYWAY (H1, owner: "get
+       * rid of the streets idea... you go into the negatives"). This used
+       * to evict — the measured alternative was a free-fall to -$680,582 —
+       * but that measurement predates the −$500k filing fence. The debt
+       * rides the wallet until the court reopens; nobody sleeps outside
+       * over money.
+       */
       continue
     }
 
@@ -2355,8 +2622,8 @@ export function fileBankruptcy(
   if (!household) return undefined
 
   const accounts = accountsOf(world, personId)
-  const arrears = Math.max(0, -household.savings)
-  const owed = totalOwedBy(accounts, household.savings)
+  const arrears = arrearsOf(world, household)
+  const owed = totalOwedBy(accounts, (-arrears) as Money)
   if (owed <= 0) return undefined
   // THE PLAN IS SIZED ON THE FILER'S OWN SPARE MONEY, not the household's.
   //
@@ -2383,13 +2650,27 @@ export function fileBankruptcy(
     }
     // THE STAY GOES UP AND THE ARREARS STOP RUNNING. The debt is not gone -
     // it is on a schedule, which is the whole difference from the write-off.
+    // H0: the arrears ARE the wallet's negative; the filing folds them into
+    // the plan's `owed`, so the wallet comes back to zero here — the same
+    // money, moved from a hole into a schedule.
+    {
+      const wallet = walletOf(world, personId)
+      const liquid = wallet.checking + wallet.savings
+      if (liquid < 0) {
+        setAccounts(world, { ...wallet, checking: (wallet.checking - liquid) as Money })
+      }
+    }
     world.households.set(household.id, { ...household, savings: 0 as Money })
-    noteArrearsCrossing(world, tick, household.id, household.savings)
   } else {
     // Chapter 7. What is not exempt is sold; the homestead allowance and
     // essential property come through, so nobody is stripped to nothing.
     const liquid = (accounts.checking + accounts.savings) as Money
-    const exempt = Math.min(liquid, PROPERTY_EXEMPTION)
+    // H1 filers arrive with NEGATIVE liquid — arrears are the reason they
+    // are here. Unclamped, that negative flowed through `exempt` straight
+    // into the savings bucket, and the wallet-hole discharge below then
+    // mirrored it into conjured positive checking. Nothing is exempt from
+    // a hole; the floor is zero.
+    const exempt = Math.max(0, Math.min(liquid, PROPERTY_EXEMPTION))
     const sold = Math.max(0, liquid - exempt)
     const homeValue = homeValueOf(world, personId)
     const keepsHome = homeValue <= HOMESTEAD_EXEMPTION
@@ -2418,8 +2699,16 @@ export function fileBankruptcy(
       homePlaceId: keepsHome ? accounts.homePlaceId : null,
       homePurchasePrice: keepsHome ? accounts.homePurchasePrice : (0 as Money),
     })
+    // H0: the liquidation discharges the wallet's hole along with the
+    // loans — the fresh start is a zero, not a negative.
+    {
+      const wallet = walletOf(world, personId)
+      const liquid = wallet.checking + wallet.savings
+      if (liquid < 0) {
+        setAccounts(world, { ...wallet, checking: (wallet.checking - liquid) as Money })
+      }
+    }
     world.households.set(household.id, { ...household, savings: 0 as Money })
-    noteArrearsCrossing(world, tick, household.id, household.savings)
     filing = {
       personId,
       chapter: 7,
@@ -2518,7 +2807,7 @@ function runPlans(world: World, tick: Tick): void {
     const household =
       person.householdId === null ? undefined : world.households.get(person.householdId)
     if (household !== undefined) {
-      const behind = Math.max(0, -household.savings)
+      const behind = arrearsOf(world, household)
       if (behind > householdCosts(world, household) * PLAN_FAILURE_MONTHS) {
         const dismissed = { ...filing, dischargedAtTick: tick, discharged: 0 as Money }
         world.bankruptcies.set(
@@ -2704,33 +2993,11 @@ export function payOffPlan(world: World, tick: Tick, personId: EntityId): boolea
  * state. What it is NOT is a dead end - `rehouseIfAble` below is checked
  * every month, and income buys a room back.
  */
-function loseHousing(world: World, tick: Tick, household: Household, head: Person): void {
-  if (household.homelessSinceTick !== null) return
-  world.households.set(household.id, {
-    ...household,
-    homelessSinceTick: tick,
-    // The arrears stop here. There is no longer a rent to be behind on, and
-    // carrying the old balance forward would be billing them for a house
-    // they were put out of.
-    savings: 0 as Money,
-  })
-  noteArrearsCrossing(world, tick, household.id, household.savings)
-  recordEvent(world, tick, {
-    type: 'lost-housing',
-    subjectId: head.id,
-    placeId: household.placeId,
-    detail: String(household.id),
-  })
-  recordDecision(world, tick, {
-    subjectId: head.id,
-    decision: 'move',
-    significance: 'defining',
-    inputs: [factor('in-arrears', 1000), factor('cheaper-rent', 0)],
-    chosen: 'lost the housing',
-    rejected: ['somewhere cheaper to go'],
-    streamId: Stream.Economy,
-  })
-}
+/**
+ * RETIRED (H1). Nobody loses housing over money anymore — arrears ride the
+ * wallet to the bankruptcy paperwork. The function is gone rather than
+ * dormant so no future pass can quietly call it back into service.
+ */
 
 /**
  * M-SAFETY §3. THE WAY BACK IN.
@@ -2863,6 +3130,53 @@ export function openBusiness(
  * person leaves is handed on — and if there is no heir it simply closes,
  * which is what happens to most of them.
  */
+/**
+ * THE HOUSE PASSES (H2 — "the house your grandfather bought" is now a
+ * sentence the game can truthfully say). The eldest living child takes the
+ * deed, the same heir rule the businesses use; with no heir the home goes
+ * back to the town's stock. The mortgage does NOT follow the house — the
+ * estate's cash settled what it settled, and burdening an heir with a dead
+ * man's loan would make every inheritance a trap.
+ */
+export function passOnHomes(world: World, tick: Tick, deceasedId: EntityId): void {
+  const deceased = accountsOf(world, deceasedId)
+  if (deceased.homePlaceId === null) return
+  // THE WIDOW KEEPS THE HOUSE. A surviving spouse inherits the home before
+  // any child does — this must run before relationships turns the marriage
+  // to widowhood, which performDeath's ordering guarantees. Only when no
+  // spouse survives does it pass down a generation, eldest child first.
+  const spouse = spouseOf(world, deceasedId)
+  const survivor = spouse === null ? undefined : world.people.get(spouse)
+  const heirId =
+    survivor !== undefined && survivor.deathTick === null
+      ? survivor.id
+      : ([...world.people.values()]
+          .filter((person) => person.deathTick === null && person.parentIds.includes(deceasedId))
+          .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]?.id ?? null)
+
+  for (const property of world.properties.values()) {
+    if (property.ownerId !== deceasedId) continue
+    setOwner(world, property.id, heirId)
+    if (heirId !== null) {
+      recordEvent(world, tick, {
+        type: 'inherited-home',
+        subjectId: heirId,
+        otherId: deceasedId,
+        detail: property.address,
+      })
+    }
+  }
+  if (heirId !== null) {
+    const heir = accountsOf(world, heirId)
+    setAccounts(world, {
+      ...heir,
+      homePlaceId: deceased.homePlaceId,
+      homePurchasePrice: deceased.homePurchasePrice,
+    })
+  }
+  setAccounts(world, { ...deceased, homePlaceId: null, homePurchasePrice: 0 as Money })
+}
+
 export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId): void {
   // The eldest living child, or nobody. Worked out here rather than passed
   // in, because this is called on EVERY death — not only the ones that
@@ -2909,6 +3223,33 @@ export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId)
  * player's, which would make "business owners both succeed and fail" a
  * claim about a sample of one.
  */
+/**
+ * NPCS BUY HOMES (H2). The founding sixty-two percent decays without this:
+ * every death and every new household pulls the town back toward renting,
+ * and thirty years in, "most families own" quietly stops being true. A
+ * renting household whose head has sustained surplus and the price in hand
+ * considers the house they already live in — seeded, character-shaped,
+ * never universal. Law 2: they are buying homes for their own lives, not
+ * to keep a statistic company.
+ */
+function runNpcHomeBuying(world: World, tick: Tick): void {
+  for (const household of [...world.households.values()]) {
+    if (household.dissolvedTick !== null || household.propertyId === undefined || household.propertyId === null) continue
+    const property = world.properties.get(household.propertyId)
+    if (property === undefined || (property.ownerId ?? null) !== null) continue
+    const head = eldestMember(world, household)
+    if (head === undefined || head.id === world.player.personId) continue
+    const wallet = walletOf(world, head.id)
+    const price = propertyValueOf(world, property)
+    // The whole price in hand plus a season's cushion — an NPC pays cash,
+    // and one that would be broke the day after does not sign.
+    if (wallet.checking + wallet.savings < price + Math.floor(price / 4)) continue
+    const rng = openStream(world.seed, Stream.Career, head.id, tick + 77_100)
+    if (!rng.chance(Math.max(20, Math.floor(head.traits.diligence / 8)), 1_000)) continue
+    buyHome(world, tick, head.id, household.placeId, 'cash', property.id)
+  }
+}
+
 function runNpcVentures(world: World, tick: Tick): void {
   if (tick % 6 !== 3) return // twice a year, on a fixed month
   for (const person of [...world.people.values()]) {
@@ -3617,111 +3958,21 @@ function eldestMember(world: World, household: Household): Person | undefined {
  * allowed; the arrears, and this question, will keep coming.
  */
 function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
-  const neighbourhoods = placesOfKind(world, 'neighbourhood')
-  if (neighbourhoods.length === 0) return
-
-  const households = [...world.households.values()]
-  for (const household of households) {
-    if (household.dissolvedTick !== null || household.savings >= 0) continue
-    /**
-     * ONE MOVE, THEN TIME TO LIVE IN IT (owner, on itch, live: "still
-     * getting caught up in the lost the housing, nowhere cheaper to go,
-     * and switching new roofs"). This pass gated on debt size and monthly
-     * shortfall but never on WHEN the household last moved — so a family
-     * still underwater after moving down was moved again the next month,
-     * and the next, a cascade of roofs that read as churn because it was.
-     * A move is a chance to dig out, and a chance takes seasons: no
-     * household is pushed twice within a year.
-     */
-    const head0 = eldestMember(world, household)
-    if (head0 !== undefined) {
-      const events = eventsFor(world, head0.id)
-      let movedRecently = false
-      for (let i = events.length - 1; i >= 0; i -= 1) {
-        const event = events[i]
-        if (event === undefined || tick - event.tick >= 12) break
-        if (event.type === 'moved-house' || event.type === 'rehoused') {
-          movedRecently = true
-          break
-        }
-      }
-      if (movedRecently) continue
-    }
-
-    const income = householdIncome(world, household)
-    const costs = householdCosts(world, household)
-    const monthlyShortfall = costs - income
-    if (monthlyShortfall <= 0) continue // income now covers the month; digging out
-    if (-household.savings < monthlyShortfall * ARREARS_PATIENCE_MONTHS) continue
-
-    const current = world.places.get(household.placeId)
-    if (!current) continue
-    const cheaper = neighbourhoods
-      .filter((p) => p.desirability < current.desirability - 60)
-      .sort((a, b) => a.desirability - b.desirability)
-    const head = eldestMember(world, household)
-    if (!head) continue
-
-    // M-SAFETY §2. THE AUTOMATIC STAY. Nobody is moved out over money while
-    // a filing is running - that is what a stay is for.
-    if (underStay(world, head.id, tick)) continue
-
-    const target = cheaper[0]
-    if (!target) {
-      // M-SAFETY §3. ALREADY AT THE BOTTOM OF TOWN. This used to be where
-      // the model gave up - "nothing to sell but time" - and the arrears
-      // simply went on compounding on a rent nobody could pay. They lose
-      // the housing instead, which is a real state with real consequences
-      // and, unlike an infinite debt, a way back out of it.
-      loseHousing(world, tick, household, head)
-      continue
-    }
-
-    const playerId = world.player.personId
-    if (playerId !== null && household.memberIds.includes(playerId)) {
-      // ONLY IF IT LANDED. raisePending refuses while another question is up
-      // — and, since the captivity guard, every month a played character is
-      // held. Continuing regardless meant the household never downsized for
-      // the whole captivity while rent and debt kept running. The prisoner
-      // cannot be asked; the family can still act, so an unasked month falls
-      // through to the automatic move below.
-      const asked = raisePending(world, {
-        tick,
-        kind: 'move-house',
-        personId: playerId,
-        otherId: null,
-        occupationId: null,
-        workplaceId: null,
-        monthlyPay: null,
-        placeId: target.id,
-        options: [
-          'accept',
-          'decline',
-          // P2: every cheaper street is on the table, not only the cheapest.
-          ...cheaper
-            .filter((p) => p.id !== target.id)
-            .sort((x, y) => x.id - y.id)
-            .map((p) => `to-${String(p.id)}`),
-        ],
-      })
-      if (asked) continue
-    }
-
-    world.households.set(household.id, { ...household, placeId: target.id })
-    recordEvent(world, tick, { type: 'moved-house', subjectId: head.id, placeId: target.id })
-    recordDecision(world, tick, {
-      subjectId: head.id,
-      decision: 'move',
-      significance: 'major',
-      inputs: [
-        factor('in-arrears', Math.min(1000, Math.floor(-household.savings / 1000))),
-        factor('cheaper-rent', current.desirability - target.desirability),
-      ],
-      chosen: `moved to ${target.name} to make ends meet`,
-      rejected: [`to stay in ${current.name}`],
-      streamId: Stream.Economy,
-    })
-  }
+  /**
+   * RETIRED AS AN AUTOMATIC PASS (H1, owner: "get rid of the streets
+   * idea... we are still getting caught up in the lost the housing,
+   * nowhere cheaper to go, and switching new roofs"). The forced march
+   * down the rent ladder — even at one move a year — was the churn the
+   * players kept reporting, and under H0/H1 it defends nothing: arrears
+   * ride the wallet to the −$500k paperwork instead of compounding on a
+   * building. Moving somewhere cheaper is the PLAYER'S choice from the
+   * housing screen now; an NPC household's only forced move is one a
+   * court orders.
+   *
+   * The husk stays so the call site reads as a decision, not an accident.
+   */
+  void world
+  void tick
 }
 
 // ---------------------------------------------------------------------------
@@ -3729,20 +3980,29 @@ function pushArrearsHouseholdsToCheaperRent(world: World, tick: Tick): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Called by mortality when a death empties a household. Whatever the pot held
- * passes to the deceased's living children, split equally, eldest taking the
- * remainder cent. Debts die with the household: a negative estate passes
- * nothing rather than billing the children — grief is not a ledger.
+ * Called by mortality on every death without a surviving spouse (H0 — money
+ * is personal, so the will no longer waits for the building to empty). The
+ * deceased's money passes to their living children, split equally, eldest
+ * taking the remainder cent. Debts die with the person: a negative estate
+ * passes nothing rather than billing the children — grief is not a ledger.
  *
  * This is the first piece of generational legacy: a family that saved leaves
  * its children genuinely better off, and the record says where it came from.
  */
-export function distributeEstate(world: World, tick: Tick, deceased: Person, household: Household): void {
+export function distributeEstate(world: World, tick: Tick, deceased: Person): void {
   // M-ECON §1. AN ESTATE IS A PERSON'S MONEY, not a building's. It used to
   // be whatever the roof happened to hold, which meant a widow's savings
   // passed as "the household's" and a lodger's did not exist at all.
   const estate = accountsOf(world, deceased.id)
-  const gross = (estate.checking + estate.savings + estate.brokerage + estate.retirement) as Money
+  // The portfolio is liquidated into the estate — the closing block below
+  // empties the holdings arrays, and deleting positions UNVALUED would be
+  // burning real money at every funeral.
+  const gross = (estate.checking +
+    estate.savings +
+    estate.brokerage +
+    estate.retirement +
+    portfolioValue(world, estate.holdings) +
+    portfolioValue(world, estate.retirementHoldings)) as Money
   if (gross <= 0) return
   // M-ECON §3. THE ESTATE IS TAXED before it is divided — an exemption
   // large enough that an ordinary life passes whole, so this is felt by a
@@ -3798,8 +4058,6 @@ export function distributeEstate(world: World, tick: Tick, deceased: Person, hou
     lastMonthlyPay: 0 as Money,
     unemploymentUntilTick: null,
   })
-  // The household itself keeps only what it owes, which death does not clear.
-  void household
 }
 
 /** Deterministic starting savings for a founding household: some months of

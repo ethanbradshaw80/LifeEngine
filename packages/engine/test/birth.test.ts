@@ -22,6 +22,7 @@ import {
   registerBirth,
 } from '../src/birth.js'
 import type { BirthRequest } from '../src/birth.js'
+import { accountsOf } from '../src/finances.js'
 
 const REQUEST: BirthRequest = {
   givenName: 'Gary',
@@ -279,8 +280,19 @@ describe('the family is real, not set dressing', () => {
     expect(poorHome).toBeDefined()
     expect(richHome).toBeDefined()
     // A silver-spoon birth that started with the same balance as a
-    // hard-up one would make the dial a label.
-    expect(richHome?.savings ?? 0).toBeGreaterThan(poorHome?.savings ?? 0)
+    // hard-up one would make the dial a label. H0: the station money lives
+    // on the HEAD PARENT'S WALLET now — the household pot is retired and
+    // frozen at zero, so comparing pots would compare two zeros.
+    expect(richHome?.savings ?? -1).toBe(0)
+    expect(poorHome?.savings ?? -1).toBe(0)
+    const liquidOf = (home: typeof poorHome): number =>
+      (home?.memberIds ?? []).reduce((total, id) => {
+        const member = world.people.get(id)
+        if (!member || member.deathTick !== null) return total
+        const a = accountsOf(world, id)
+        return total + a.checking + a.savings
+      }, 0)
+    expect(liquidOf(richHome)).toBeGreaterThan(liquidOf(poorHome))
   })
 
   it('the same seed registers the same family twice over', () => {

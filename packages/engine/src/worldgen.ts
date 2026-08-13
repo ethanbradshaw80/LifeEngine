@@ -28,6 +28,8 @@ import { freshPolicy } from './government.js'
 import { generateProperties, seatHouseholds } from './realestate.js'
 import { generateNations } from './geopolitics.js'
 import { freshHealth } from './health.js'
+import { mergeWalletsOnMarriage } from './finances.js'
+import { foundOwnership } from './realestate.js'
 import { CLASSIC_SPEC } from './worldspec.js'
 import type { WorldSpec } from './types.js'
 
@@ -317,6 +319,23 @@ export function createWorld(
   // this the whole stock reads as empty and the market has no scarcity in
   // it at all.
   seatHouseholds(world)
+
+  /**
+   * FOUNDING COUPLES SHARE A WALLET FROM DAY ZERO (H0). Every married
+   * couple in a fresh town was married before any wedding ran, so nothing
+   * ever merged their balances — and the wallet routing reads only the
+   * joint holder's record, which left the other half's money stranded and
+   * invisible (a conservation test found it during the divorce work). One
+   * pass, no draws: the same merge the wedding performs, at creation.
+   */
+  for (const relationship of world.relationships.values()) {
+    if (relationship.type !== 'spouse' || relationship.endedAtTick !== null) continue
+    mergeWalletsOnMarriage(world, relationship.a, relationship.b)
+  }
+
+  // AND MOST OF THEM OWN THE DOOR THEY WERE SEATED BEHIND (H2). After the
+  // wallets merge, so the means-ranking reads real couple money.
+  foundOwnership(world)
 
   return world
 }

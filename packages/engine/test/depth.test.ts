@@ -86,10 +86,22 @@ describe('having a child is the couple\'s decision', () => {
     const earliest = scout.events.find((e) => {
       if (e.type !== 'born') return false
       const child = scout.people.get(e.subjectId)
-      return child !== undefined && child.parentIds.some((id) => {
-        const parent = scout.people.get(id)
-        return parent !== undefined && parent.sex === 'female' && parent.birthTick < 0
-      })
+      if (child === undefined) return false
+      const mother = child.parentIds
+        .map((id) => scout.people.get(id))
+        .find((parent) => parent !== undefined && parent.sex === 'female' && parent.birthTick < 0)
+      if (mother === undefined) return false
+      // AND A SOLVENT HOUSE (H0/H1). A family in arrears lives differently
+      // when played: an NPC auto-takes a job and auto-commits a desperate
+      // theft, a player is ASKED — so a broke household's played twin
+      // diverges from the auto world before the child roll ever fires.
+      // The parity claim needs a couple whose life stays on the rails.
+      return !scout.events.some(
+        (fell) =>
+          fell.type === 'fell-behind' &&
+          fell.tick <= e.tick &&
+          fell.detail === String(mother.householdId ?? -1),
+      )
     })
     if (!earliest) throw new Error('no founding-mother birth in 20 years — tuning collapsed?')
     const scoutChild = scout.people.get(earliest.subjectId)

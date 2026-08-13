@@ -53,6 +53,28 @@ import {
   unemploymentOf,
 } from '../src/safetynet.js'
 import type { World } from '../src/types.js'
+import { walletOf } from '../src/finances.js'
+import type { Household } from '../src/types.js'
+
+/**
+ * H0: arrears are a negative balance on the household HEAD'S WALLET, not a
+ * number on the building. Digs the hole where the machinery reads it and
+ * returns the wallet holder — the right person to file as.
+ */
+function digArrears(world: World, household: Household, cents: number): number {
+  const head = household.memberIds
+    .map((id) => world.people.get(id))
+    .filter((p) => p !== undefined && p.deathTick === null)
+    .sort((a, b) => a!.birthTick - b!.birthTick || a!.id - b!.id)[0]
+  if (!head) throw new Error('an empty household')
+  const wallet = walletOf(world, head.id)
+  world.accounts.set(wallet.personId, {
+    ...wallet,
+    checking: -cents as Money,
+    savings: 0 as Money,
+  })
+  return wallet.personId
+}
 
 function build(seedValue = 12345, ticks = 0): World {
   const world = createWorld(makeSeed(seedValue), 100)
@@ -272,20 +294,14 @@ describe('the courthouse', () => {
     const household = [...world.households.values()].find((h) => h.memberIds.length > 0)
     expect(household).toBeDefined()
     if (!household) return
-    const head = world.people.get(household.memberIds[0] as never)
-    expect(head).toBeDefined()
-    if (!head) return
-
     // A chapter 7 discharge is what is left AFTER the non-exempt assets are
     // sold, so the fixture has to be somebody who genuinely cannot cover it
     // — otherwise a well-off filer legitimately discharges nothing, which
     // is what happened once businesses started paying people.
-    world.accounts.set(head.id, {
-      ...accountsOf(world, head.id),
-      checking: 0 as Money,
-      savings: 0 as Money,
-    })
-    world.households.set(household.id, { ...household, savings: -4_000_000 as Money })
+    const filerId = digArrears(world, household, 4_000_000)
+    const head = world.people.get(filerId as never)
+    expect(head).toBeDefined()
+    if (!head) return
     const filing = fileBankruptcy(world, world.tick as Tick, head.id, 7)
     expect(filing).toBeDefined()
     expect(filing?.chapter).toBe(7)
@@ -308,10 +324,8 @@ describe('the courthouse', () => {
     )
     expect(household).toBeDefined()
     if (!household) return
-    const head = world.people.get(household.memberIds[0] as never)
+    const head = world.people.get(digArrears(world, household, 3_000_000) as never)
     if (!head) return
-
-    world.households.set(household.id, { ...household, savings: -3_000_000 as Money })
     const filing = fileBankruptcy(world, world.tick as Tick, head.id, 13)
     expect(filing?.chapter).toBe(13)
     expect(filing?.planEndsAtTick).not.toBeNull()
@@ -330,9 +344,8 @@ describe('the courthouse', () => {
     const world = build(12345, 120)
     const household = [...world.households.values()].find((h) => h.memberIds.length > 0)
     if (!household) return
-    const head = world.people.get(household.memberIds[0] as never)
+    const head = world.people.get(digArrears(world, household, 4_000_000) as never)
     if (!head) return
-    world.households.set(household.id, { ...household, savings: -4_000_000 as Money })
     const filedAt = world.tick as Tick
     fileBankruptcy(world, filedAt, head.id, 7)
 
@@ -348,9 +361,8 @@ describe('the courthouse', () => {
     const world = build(12345, 120)
     const household = [...world.households.values()].find((h) => h.memberIds.length > 0)
     if (!household) return
-    const head = world.people.get(household.memberIds[0] as never)
+    const head = world.people.get(digArrears(world, household, 4_000_000) as never)
     if (!head) return
-    world.households.set(household.id, { ...household, savings: -4_000_000 as Money })
     fileBankruptcy(world, world.tick as Tick, head.id, 7)
     expect(chaptersOpenTo(world, head.id, 0 as Money, 1_000_000, world.tick as Tick)).toEqual([])
   })
@@ -402,7 +414,9 @@ describe('it is all still deterministic', () => {
       const support = supportOf(world, person.id, world.tick as Tick)
       expect(Number.isInteger(support)).toBe(true)
       expect(support).toBeGreaterThanOrEqual(0)
-      expect(moneyOnHand(world, person.id)).toBeGreaterThanOrEqual(0)
+      // H1: a wallet may legitimately sit below zero — arrears ride as a
+      // negative balance now. The floor claim is about the SUPPORT payment
+      // being integer and non-negative, which still holds above.
     }
   })
 })

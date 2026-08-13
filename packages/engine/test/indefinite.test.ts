@@ -156,10 +156,29 @@ describe('the town lives under the same rule', () => {
         if (years < INDEFINITE_AT_YEARS) continue
         checked++
         const grade = BRANCH_GRADES[record.branch as 'land-forces'][record.rank] ?? 0
-        expect(
-          grade,
-          `${record.branch} rank ${String(record.rank)} still serving at ${String(years)} years`,
-        ).toBeGreaterThanOrEqual(INDEFINITE_MIN_GRADE)
+        // A LONG-SERVER MAY SIT BELOW THE LINE MID-TERM — a PO1 who signed
+        // legitimately and was busted twice afterwards serves out the term
+        // he signed, and the wall denies him at its end (high year tenure
+        // separates at term end, not the day of the bust). What the wall
+        // must never allow is the SIGNING below the line: every below-line
+        // long-server has to show a bust AFTER their last reenlistment —
+        // the innocent explanation — or they walked through the back door.
+        if (grade < INDEFINITE_MIN_GRADE) {
+          const lastSigned = world.events
+            .filter((e) => e.type === 'reenlisted' && e.subjectId === record.personId)
+            .reduce((latest, e) => Math.max(latest, e.tick), record.enlistedAtTick)
+          const bustedSince = world.events.some(
+            (e) =>
+              e.type === 'disciplined' &&
+              e.subjectId === record.personId &&
+              e.tick > lastSigned &&
+              (e.detail ?? '').includes('busted'),
+          )
+          expect(
+            bustedSince,
+            `${record.branch} rank ${String(record.rank)} at ${String(years)} years with no bust since signing — the wall leaked`,
+          ).toBe(true)
+        }
         // The flag itself, not only the years — the bust reached the record
         // without going near the wall, so check the state the wall sets.
         if (record.indefinite === true) {

@@ -72,6 +72,7 @@ import {
   specById,
   endCourtship,
   lookForPlace,
+  moveBackInWithParents,
   propose,
   quitJob,
   requestDeployment,
@@ -129,6 +130,7 @@ export type VerbRequest =
   | { readonly verb: 're-enrol'; readonly level: 'college' | 'trade' }
   | { readonly verb: 'spend-stance'; readonly stance: 'thrifty' | 'loose' | null }
   | { readonly verb: 'look-for-place'; readonly placeId: number }
+  | { readonly verb: 'move-in-parents' }
   | { readonly verb: 'convalesce-stance'; readonly rest: boolean }
   | { readonly verb: 'request-discharge' }
   | { readonly verb: 'commit-offence'; readonly offenceId: string }
@@ -486,6 +488,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             outcome = { ok: r.set, reason: r.reason }
             break
           }
+          case 'move-in-parents': {
+            const r = moveBackInWithParents(world)
+            outcome = { ok: r.moved, reason: r.reason }
+            break
+          }
           case 'look-for-place': {
             const r = lookForPlace(world, a.placeId as EntityId)
             outcome = { ok: r.moved, reason: r.reason }
@@ -668,7 +675,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             break
           }
           case 'buy-property': {
-            const r = buyPropertyPlayer(world, a.propertyId)
+            const r = buyPropertyPlayer(world, a.propertyId, a.method ?? 'mortgage')
             outcome = { ok: r.done, reason: r.reason }
             break
           }
