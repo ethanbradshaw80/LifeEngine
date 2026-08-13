@@ -75,6 +75,7 @@ import { endRelationshipsOnDeath, partnerOf, relationshipBetween, spouseOf } fro
 import { hasAnswered, raisePending } from './player.js'
 import { isTrustSensitive } from './content.js'
 import type { CausalFactor, EducationRecord, Occupation } from './types.js'
+import { businessKindById } from './business.js'
 import {
   canAfford,
   chargeTuition,
@@ -1505,9 +1506,132 @@ export function hireIntoStartingWork(
   return true
 }
 
+/**
+ * WHO ACTUALLY WORKS THERE.
+ *
+ * Employment records point at a `workplaceId`, and business ids come from
+ * the same entity counter as places — so a job can name a business with no
+ * ambiguity and no new field. Derived rather than stored: `Business.employees`
+ * would be a second source of truth for the same fact, and Law 12 says one.
+ */
+export function employeesOf(world: World, businessId: EntityId): readonly EntityId[] {
+  const found: EntityId[] = []
+  for (const [personId, job] of world.employment) {
+    if (job.workplaceId !== businessId) continue
+    if (world.people.get(personId)?.deathTick !== null) continue
+    found.push(personId)
+  }
+  return found.sort((a, b) => a - b)
+}
+
+/**
+ * A BUSINESS TAKES SOMEBODY ON — and from now on a shop on the square is
+ * somewhere a named person goes to work, not a capital figure that returns
+ * a percentage.
+ *
+ * NO SECOND WAGE BILL. `monthlyProfitFor` already returns what the month
+ * cleared AFTER costs, labour included; charging payroll again on top would
+ * double-count it and wreck a balance that was measured into place (58 per
+ * cent of businesses surviving, failures clustering in the downturns). What
+ * changes here is WHO the work belongs to, which is the part the town could
+ * not see.
+ *
+ * Slow and seeded: a trading business with room, capital above its founding
+ * stake and a good run behind it looks for somebody roughly once a year.
+ */
+function runBusinessHiring(world: World, tick: Tick): void {
+  if (tick % 6 !== 1) return
+  for (const business of [...world.businesses.values()].sort((a, b) => a.id - b.id)) {
+    if (business.closedTick !== null) continue
+    const kind = businessKindById(business.kindId)
+    if (kind === undefined || kind.maxEmployees <= 0) continue
+    if (business.badMonths > 0) continue
+    const staff = employeesOf(world, business.id)
+    if (staff.length >= kind.maxEmployees) continue
+    if (business.capital < atTodaysPrices(world, kind.capital)) continue
+
+    const rng = openStream(world.seed, Stream.Employment, business.id, tick + 12_700)
+    if (!rng.chance(620, 1000)) continue
+
+    // Somebody in town who needs the work: of age, not in uniform, not
+    // already employed, and not the owner.
+    const looking = livingPeople(world)
+      .filter((person) => {
+        if (person.id === business.ownerId) return false
+        const age = ageAt(person.birthTick, tick)
+        if (age < 18 || age > 66) return false
+        if (world.employment.has(person.id)) return false
+        if (isServing(world, person.id)) return false
+        if (world.education.get(person.id)?.enrolledIn != null) return false
+        return true
+      })
+      .sort((a, b) => a.id - b.id)
+    if (looking.length === 0) continue
+    const hired = rng.pick(looking)
+
+    const education = world.education.get(hired.id)
+    const eligible = eligibleStartingWork(world, hired.id, education?.level ?? 'none')
+    if (eligible.length === 0) continue
+    /**
+     * THE SAME WEIGHTING THE TOWN'S OWN HIRING USES — better-paid roles
+     * likelier, never always-the-best. This took `eligible[0]` at first,
+     * which is an arbitrary role and in practice close to the worst one:
+     * MEASURED, it dragged the median performance of an ordinary career
+     * from above the promotion bar to just under it (559 against a floor
+     * of 560), because a shop was quietly parking people on the bottom
+     * rung that the ordinary pass would have started higher.
+     */
+    const occupation = rng.pickWeighted(
+      eligible,
+      eligible.map((o) => 1 + Math.floor(typicalPay(o) / 10_000)),
+    )
+    const pay = atTodaysPrices(
+      world,
+      rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay),
+    ) as Money
+
+    hirePerson(world, tick, hired, occupation, business.id, pay, [
+      factor('own-choice', 400),
+      factor('local-employer', 800),
+    ])
+  }
+}
+
+/**
+ * A CLOSURE PUTS REAL PEOPLE OUT OF WORK.
+ *
+ * finances closes a business; employment is this domain's to write, so the
+ * two are reconciled here rather than finances reaching across the seam.
+ * Anybody whose workplace has shut is laid off — with the insurance a
+ * layoff qualifies for, because losing your job when the shop folds is
+ * exactly the thing that floor exists for.
+ */
+function runClosureLayoffs(world: World, tick: Tick): void {
+  for (const [personId, job] of [...world.employment].sort((a, b) => a[0] - b[0])) {
+    const business = world.businesses.get(job.workplaceId)
+    if (business === undefined || business.closedTick === null) continue
+    if (world.people.get(personId)?.deathTick !== null) continue
+    world.employment.delete(personId)
+    startUnemployment(world, personId, tick)
+    recordEvent(world, tick, { type: 'laid-off', subjectId: personId, detail: business.name })
+    recordEvent(world, tick, { type: 'left-job', subjectId: personId, detail: 'the firm closed' })
+    recordDecision(world, tick, {
+      subjectId: personId,
+      decision: 'employment-change',
+      significance: 'major',
+      inputs: [factor('employer-closed', 1000)],
+      chosen: `lost the job when ${business.name} closed`,
+      rejected: ['to keep the job'],
+      streamId: Stream.Economy,
+    })
+  }
+}
+
 export function runEmployment(world: World, tick: Tick): void {
   runReviews(world, tick)
   runWorkMoments(world, tick)
+  runBusinessHiring(world, tick)
+  runClosureLayoffs(world, tick)
 
   const workplaces = placesOfKind(world, 'workplace')
   if (workplaces.length === 0) return

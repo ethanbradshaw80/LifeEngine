@@ -25,6 +25,7 @@ import {
   monthlyProfitFor,
 } from '../src/business.js'
 import type { Business } from '../src/types.js'
+import { employeesOf } from '../src/systems.js'
 
 function aBusiness(capital: number): Business {
   return {
@@ -207,6 +208,71 @@ describe('opening one', () => {
       checking: 0 as Money,
     })
     expect(openBusiness(world, world.tick as Tick, person.id, 'shop', 9_999_999 as Money)).toBe(false)
+  })
+})
+
+describe('a business is somewhere people work', () => {
+  it('takes townspeople on, and they are named people with real jobs', () => {
+    /**
+     * BEFORE THIS, `employees` was written once as zero and never touched
+     * again: `maxEmployees` was read by nothing, `employeeCostFor` had no
+     * callers, and a shop on the square was a capital figure that returned
+     * a percentage. Nobody in the town worked at any of it.
+     *
+     * MEASURED at seed 12345: by year 60, five of eleven trading
+     * businesses employ somebody and eight people in the town work for
+     * one. Most trades are one-person livings, so most of them employing
+     * nobody is the right answer, not a gap.
+     */
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 60 * 12)
+
+    let employing = 0
+    let staff = 0
+    for (const business of world.businesses.values()) {
+      if (business.closedTick !== null) continue
+      const people = employeesOf(world, business.id)
+      if (people.length > 0) employing += 1
+      staff += people.length
+      const kind = businessKindById(business.kindId)
+      // Never more than the trade can carry, and never the owner.
+      expect(people.length).toBeLessThanOrEqual(kind?.maxEmployees ?? 0)
+      expect(people).not.toContain(business.ownerId)
+      // Every one of them is a living person whose job points back here.
+      for (const personId of people) {
+        expect(world.people.get(personId)?.deathTick).toBeNull()
+        expect(world.employment.get(personId)?.workplaceId).toBe(business.id)
+      }
+    }
+    expect(employing, 'no business in the town employs anybody').toBeGreaterThan(0)
+    expect(staff, 'nobody in the town works for a local business').toBeGreaterThan(0)
+  })
+
+  it('puts real people out of work when it closes', () => {
+    // The consequence that makes the rest of it matter: a firm folding is
+    // not a line in a ledger, it is somebody's job. They get the layoff
+    // insurance, because this is exactly what that floor is for.
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 100 * 12)
+
+    const closures = world.events.filter(
+      (event) => event.type === 'left-job' && event.detail === 'the firm closed',
+    )
+    expect(closures.length, 'no closure ever cost anybody their job').toBeGreaterThan(0)
+
+    for (const event of closures) {
+      // Nobody is left holding a job at a business that has shut.
+      const job = world.employment.get(event.subjectId)
+      if (job !== undefined) {
+        expect(world.businesses.get(job.workplaceId)?.closedTick ?? null).toBeNull()
+      }
+      // And it was recorded as a layoff, naming the firm.
+      const laid = world.events.some(
+        (other) =>
+          other.type === 'laid-off' && other.subjectId === event.subjectId && other.tick === event.tick,
+      )
+      expect(laid).toBe(true)
+    }
   })
 })
 

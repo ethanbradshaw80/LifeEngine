@@ -2763,6 +2763,10 @@ export type FactorId =
   | 'own-choice'
   | 'in-arrears'
   | 'economy-turned'
+  /** Hired by a business in the town rather than by the abstract job market. */
+  | 'local-employer'
+  /** The firm you worked for shut its doors. */
+  | 'employer-closed'
   | 'cheaper-rent'
   | 'bloc-rivalry'
   | 'resource-competition'

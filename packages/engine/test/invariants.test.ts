@@ -118,8 +118,20 @@ describe('a job points at a real workplace', () => {
     sweep((world, _seed, bad) => {
       for (const job of world.employment.values()) {
         if (world.people.get(job.personId)?.deathTick !== null) continue
-        if (!world.places.has(job.workplaceId)) {
-          bad(`${String(job.personId)} works at absent place ${String(job.workplaceId)}`)
+        /**
+         * A WORKPLACE IS A PLACE OR A BUSINESS. Since businesses became
+         * somewhere people actually work, a job may name either — ids come
+         * from the one entity counter, so there is no ambiguity. The
+         * invariant got STRONGER rather than looser: a job at a business
+         * that has SHUT is now caught too, which is the failure the
+         * closure-layoff pass exists to prevent.
+         */
+        const business = world.businesses.get(job.workplaceId)
+        if (!world.places.has(job.workplaceId) && business === undefined) {
+          bad(`${String(job.personId)} works at absent workplace ${String(job.workplaceId)}`)
+        }
+        if (business !== undefined && business.closedTick !== null) {
+          bad(`${String(job.personId)} still works at closed business ${business.name}`)
         }
         if (job.monthlyPay < 0) {
           bad(`${String(job.personId)} is paid ${String(job.monthlyPay)}`)

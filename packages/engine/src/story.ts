@@ -898,6 +898,8 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'own-choice': 'they chose it themselves',
   'in-arrears': 'the household had fallen behind',
   'economy-turned': 'the economy had turned',
+  'local-employer': 'a firm in the town was taking people on',
+  'employer-closed': 'the firm they worked for closed',
   'cheaper-rent': 'the rent was cheaper there',
   'bloc-rivalry': 'of rivalry between the powers',
   'resource-competition': 'of competition over resources',
