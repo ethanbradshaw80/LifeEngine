@@ -23,7 +23,7 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { isHigherEducation, OCCUPATIONS, occupationById } from './content.js'
+import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './content.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
@@ -35,6 +35,7 @@ import {
   householdIncome,
   inArrears,
   monthlyNetOf,
+  raiseRound,
   setSpendStance,
   walletOf as walletAccountsOf,
 } from './finances.js'
@@ -264,6 +265,8 @@ import {
 import { openBusiness } from './finances.js'
 import { baCompensationFor, inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
+import { foundingCapTable, investmentFor, nextRoundFor, privateValuationOf } from './equity.js'
+import type { RoundTerms } from './equity.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -306,6 +309,10 @@ import {
   educationForkPending,
   dropOut,
   dropOutBar,
+  livingPeople,
+  eligibleStartingWork,
+  employeesOf,
+  dismissFromBusiness,
 } from './systems.js'
 import { decodeSchoolMoment, schoolMomentById, schoolSituationOf } from './schoolmoments.js'
 import { majorsFor } from './content.js'
@@ -733,6 +740,211 @@ export function startBusiness(world: World, kindId: string): { done: boolean; re
   return opened
     ? { done: true, reason: '' }
     : { done: false, reason: 'It did not come together this month.' }
+}
+
+/**
+ * WHO YOU COULD TAKE ON, and what they would cost.
+ *
+ * OWNER'S RULING (2026-08-13): "expanding like adding employees and stuff
+ * should 100% be user controlled." The town's own businesses staff
+ * themselves in the background; yours does not. So this is the shortlist,
+ * with a NAME and a WAGE against each — a decision with a face on it
+ * rather than a headcount going up while you were looking elsewhere.
+ *
+ * Seeded off the month, so the list is stable while you think about it and
+ * turns over as the months pass. The wage shown is the wage you will pay:
+ * it is drawn here and drawn the same way when you hire.
+ */
+export interface JobCandidate {
+  readonly personId: EntityId
+  readonly occupationId: string
+  readonly monthlyPay: Money
+}
+
+export function candidatesForBusiness(world: World, businessId: EntityId): readonly JobCandidate[] {
+  const business = world.businesses.get(businessId)
+  if (business === undefined || business.closedTick !== null) return []
+  const kind = businessKindById(business.kindId)
+  if (kind === undefined || kind.maxEmployees <= 0) return []
+
+  const looking = livingPeople(world)
+    .filter((person) => {
+      if (person.id === business.ownerId) return false
+      if (person.id === world.player.personId) return false
+      const age = ageAt(person.birthTick, world.tick)
+      if (age < 18 || age > 66) return false
+      if (world.employment.has(person.id)) return false
+      if (isServing(world, person.id)) return false
+      if (world.education.get(person.id)?.enrolledIn != null) return false
+      return true
+    })
+    .sort((a, b) => a.id - b.id)
+
+  const out: JobCandidate[] = []
+  for (const person of looking) {
+    const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 13_400)
+    const education = world.education.get(person.id)
+    const eligible = eligibleStartingWork(world, person.id, education?.level ?? 'none')
+    if (eligible.length === 0) continue
+    const occupation = rng.pickWeighted(
+      eligible,
+      eligible.map((o) => 1 + Math.floor(typicalPay(o) / 10_000)),
+    )
+    out.push({
+      personId: person.id,
+      occupationId: occupation.id,
+      monthlyPay: atTodaysPrices(
+        world,
+        rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay),
+      ) as Money,
+    })
+    if (out.length >= 5) break
+  }
+  return out
+}
+
+/**
+ * WHY YOU CANNOT RAISE MONEY AGAINST THE BUSINESS, or null.
+ *
+ * Raising is never forced and never automatic — a trade that takes nobody's
+ * money stays wholly yours forever, and that is a legitimate way to play.
+ */
+export function raiseBar(world: World): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const business = businessOf(world, person.id)
+  if (business === undefined) return 'You have no business to raise against.'
+  if (business.closedTick !== null) return 'It has closed.'
+  const table = world.capTables.get(business.id) ?? foundingCapTable()
+  const terms = nextRoundFor(table)
+  if (terms === undefined) return 'There is nothing further to sell.'
+  if (privateValuationOf(world, business) <= 0) {
+    return 'It has to be earning before anybody will price it.'
+  }
+  // TWO YEARS OF TRADING before anybody writes a cheque: nobody backs a
+  // shop that opened last month, and it stops the round being free money
+  // on day one.
+  if (world.tick - business.foundedTick < TICKS_PER_YEAR * 2) {
+    return 'Too new. Nobody backs a business with no trading behind it.'
+  }
+  return null
+}
+
+/** What the next round would cost and buy, for the screen. */
+export function nextRoundOffer(
+  world: World,
+): { readonly terms: RoundTerms; readonly valuation: Money; readonly amount: Money } | undefined {
+  const person = playerPerson(world)
+  if (!person) return undefined
+  const business = businessOf(world, person.id)
+  if (business === undefined) return undefined
+  const table = world.capTables.get(business.id) ?? foundingCapTable()
+  const terms = nextRoundFor(table)
+  if (terms === undefined) return undefined
+  const valuation = privateValuationOf(world, business)
+  return { terms, valuation, amount: investmentFor(valuation, terms) }
+}
+
+/** Sell a slice of the business. */
+export function raiseCapitalPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = raiseBar(world)
+  if (bar !== null) return { done: false, reason: bar }
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have no business.' }
+  const table = world.capTables.get(business.id) ?? foundingCapTable()
+  const terms = nextRoundFor(table)
+  if (terms === undefined) return { done: false, reason: 'There is nothing further to sell.' }
+
+  logVerb(world, 'raise-capital', terms.round)
+  const holder = raiseRound(world, world.tick, business.id, terms.round)
+  if (holder === undefined) {
+    return {
+      done: false,
+      reason:
+        terms.round === 'seed'
+          ? 'Nobody in town has the money to back you just now.'
+          : 'No firm would take it on at that price.',
+    }
+  }
+  return { done: true, reason: '' }
+}
+
+/** Why you cannot take this person on, or null. The screen and the verb read it. */
+export function hireBar(world: World, candidateId: EntityId): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const business = businessOf(world, person.id)
+  if (business === undefined) return 'You have no business to staff.'
+  const kind = businessKindById(business.kindId)
+  if (kind === undefined) return 'No such trade.'
+  if (kind.maxEmployees <= 0) return `${sentenceCase(kind.title)} is a one-person living.`
+  const staff = employeesOf(world, business.id)
+  if (staff.length >= kind.maxEmployees) {
+    return `${sentenceCase(kind.title)} cannot carry more than ${String(kind.maxEmployees)}.`
+  }
+  const candidate = candidatesForBusiness(world, business.id).find((c) => c.personId === candidateId)
+  if (candidate === undefined) return 'They are not looking for work.'
+  /**
+   * A WAGE IS A PROMISE, so the bar asks whether the business can plausibly
+   * keep it: a month's trading has to cover the whole bill, this wage
+   * included. Hiring somebody you cannot pay is not a bold decision, it is
+   * three bad months and a closed shop.
+   */
+  const clears = Math.floor((business.capital * kind.returnPerMille) / 1000 / 12)
+  const already = staff.reduce((sum, id) => sum + (world.employment.get(id)?.monthlyPay ?? 0), 0)
+  if (already + candidate.monthlyPay > clears) {
+    return `The month clears ${formatMoney(clears as Money)} and the wages would come to ${formatMoney((already + candidate.monthlyPay) as Money)}.`
+  }
+  return null
+}
+
+/** Take somebody on. */
+export function hireIntoBusiness(
+  world: World,
+  candidateId: EntityId,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = hireBar(world, candidateId)
+  if (bar !== null) return { done: false, reason: bar }
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have no business to staff.' }
+  const candidate = candidatesForBusiness(world, business.id).find((c) => c.personId === candidateId)
+  const hired = world.people.get(candidateId)
+  if (candidate === undefined || hired === undefined) {
+    return { done: false, reason: 'They are not looking for work.' }
+  }
+
+  logVerb(world, 'hire-staff', String(candidateId))
+  hirePerson(world, world.tick, hired, occupationById(candidate.occupationId), business.id, candidate.monthlyPay, [
+    factor('own-choice', 1000),
+    factor('local-employer', 800),
+  ])
+  return { done: true, reason: '' }
+}
+
+/** Let somebody go. Their job ends; the insurance a layoff earns follows. */
+export function letGoFromBusiness(
+  world: World,
+  employeeId: EntityId,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have no business.' }
+  const job = world.employment.get(employeeId)
+  if (job === undefined || job.workplaceId !== business.id) {
+    return { done: false, reason: 'They do not work for you.' }
+  }
+
+  logVerb(world, 'let-go', String(employeeId))
+  dismissFromBusiness(world, world.tick, employeeId, business.name)
+  return { done: true, reason: '' }
 }
 
 /**
@@ -4837,6 +5049,9 @@ export function resolvePending(world: World, choice: string): void {
     case 're-enrolment':
     case 'spend-stance':
     case 'house-hunt':
+    case 'raise-capital':
+    case 'hire-staff':
+    case 'let-go':
     case 'convalesce-stance': {
       // Log-only, like custom-birth: the tab verbs write these themselves.
       throw new Error(`${pending.kind} is a log entry, not a live decision`)
@@ -6388,6 +6603,12 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Settled how the money is carried.' // log-only
     case 'house-hunt':
       return 'Went looking for a place.' // log-only
+    case 'raise-capital':
+      return 'Sold a slice of the business.' // log-only
+    case 'hire-staff':
+      return 'Took somebody on.' // log-only
+    case 'let-go':
+      return 'Let somebody go.' // log-only
     case 'convalesce-stance':
       return 'Chose how to carry the ailment.' // log-only
     case 'reenlist': {

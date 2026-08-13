@@ -115,32 +115,32 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'freelance',
     title: 'freelance work',
-    capital: 5_000 as Money,
-    returnPerMille: 900,
+    capital: 268_000 as Money,
+    returnPerMille: 2250,
     exposure: 500,
     maxEmployees: 0,
   },
   {
     id: 'lessons',
     title: 'lessons at the kitchen table',
-    capital: 12_000 as Money,
-    returnPerMille: 620,
+    capital: 456_000 as Money,
+    returnPerMille: 1550,
     exposure: 600,
     maxEmployees: 1,
   },
   {
     id: 'cleaning-round',
     title: 'a cleaning round',
-    capital: 22_000 as Money,
-    returnPerMille: 480,
+    capital: 680_000 as Money,
+    returnPerMille: 1200,
     exposure: 700,
     maxEmployees: 4,
   },
   {
     id: 'market-stall',
     title: 'a market stall',
-    capital: 31_250 as Money,
-    returnPerMille: 420,
+    capital: 828_000 as Money,
+    returnPerMille: 1050,
     exposure: 700,
     maxEmployees: 1,
   },
@@ -150,8 +150,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     // something else or he was finished.
     id: 'office-machines',
     title: 'a typewriter and office machine shop',
-    capital: 90_000 as Money,
-    returnPerMille: 290,
+    capital: 1_424_000 as Money,
+    returnPerMille: 725,
     exposure: 800,
     maxEmployees: 2,
     retiredAfter: 1990,
@@ -159,16 +159,16 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'workshop',
     title: 'a workshop',
-    capital: 112_500 as Money,
-    returnPerMille: 260,
+    capital: 1_754_000 as Money,
+    returnPerMille: 650,
     exposure: 850,
     maxEmployees: 3,
   },
   {
     id: 'salon',
     title: 'a hair salon',
-    capital: 140_000 as Money,
-    returnPerMille: 240,
+    capital: 2_080_000 as Money,
+    returnPerMille: 600,
     exposure: 700,
     maxEmployees: 5,
   },
@@ -176,8 +176,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     // Mail order first, then the same trade with a website in front of it.
     id: 'mail-order',
     title: 'a mail-order and internet shop',
-    capital: 150_000 as Money,
-    returnPerMille: 235,
+    capital: 2_228_000 as Money,
+    returnPerMille: 588,
     exposure: 1400,
     maxEmployees: 6,
     availableFrom: 1996,
@@ -185,8 +185,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'print-shop',
     title: 'a print shop',
-    capital: 190_000 as Money,
-    returnPerMille: 215,
+    capital: 2_636_000 as Money,
+    returnPerMille: 538,
     exposure: 900,
     maxEmployees: 4,
     retiredAfter: 2005,
@@ -197,8 +197,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     // type quietly disappearing from the list.
     id: 'video-rental',
     title: 'a video rental shop',
-    capital: 240_000 as Money,
-    returnPerMille: 200,
+    capital: 2_928_000 as Money,
+    returnPerMille: 500,
     exposure: 1100,
     maxEmployees: 4,
     availableFrom: 1982,
@@ -207,16 +207,16 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'feed-store',
     title: 'a feed and hardware store',
-    capital: 260_000 as Money,
-    returnPerMille: 195,
+    capital: 3_224_000 as Money,
+    returnPerMille: 488,
     exposure: 950,
     maxEmployees: 3,
   },
   {
     id: 'fitness-studio',
     title: 'a fitness studio',
-    capital: 300_000 as Money,
-    returnPerMille: 185,
+    capital: 3_632_000 as Money,
+    returnPerMille: 463,
     exposure: 1000,
     maxEmployees: 5,
     availableFrom: 1980,
@@ -224,16 +224,16 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'shop',
     title: 'a shop on the square',
-    capital: 325_000 as Money,
-    returnPerMille: 180,
+    capital: 4_000_000 as Money,
+    returnPerMille: 450,
     exposure: 1000,
     maxEmployees: 6,
   },
   {
     id: 'computer-shop',
     title: 'a computer shop',
-    capital: 360_000 as Money,
-    returnPerMille: 176,
+    capital: 4_336_000 as Money,
+    returnPerMille: 440,
     exposure: 1300,
     maxEmployees: 6,
     availableFrom: 1980,
@@ -241,32 +241,32 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
   {
     id: 'filling-station',
     title: 'a filling station',
-    capital: 400_000 as Money,
-    returnPerMille: 172,
+    capital: 4_688_000 as Money,
+    returnPerMille: 430,
     exposure: 1100,
     maxEmployees: 4,
   },
   {
     id: 'diner',
     title: 'a diner',
-    capital: 520_000 as Money,
-    returnPerMille: 162,
+    capital: 5_364_000 as Money,
+    returnPerMille: 405,
     exposure: 1150,
     maxEmployees: 10,
   },
   {
     id: 'haulage',
     title: 'a haulage firm',
-    capital: 660_000 as Money,
-    returnPerMille: 155,
+    capital: 6_040_000 as Money,
+    returnPerMille: 388,
     exposure: 1250,
     maxEmployees: 8,
   },
   {
     id: 'contracting-firm',
     title: 'a contracting firm',
-    capital: 812_500 as Money,
-    returnPerMille: 150,
+    capital: 6_816_000 as Money,
+    returnPerMille: 375,
     exposure: 1200,
     maxEmployees: 14,
   },
@@ -275,8 +275,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     // hurting, which is what an exposure of 400 means.
     id: 'dental-practice',
     title: 'a dental practice',
-    capital: 950_000 as Money,
-    returnPerMille: 145,
+    capital: 7_812_000 as Money,
+    returnPerMille: 363,
     exposure: 400,
     maxEmployees: 6,
   },
@@ -284,8 +284,8 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     // AND THE WILDEST. It rides the cycle harder than anything else here.
     id: 'software-company',
     title: 'a software company',
-    capital: 1_100_000 as Money,
-    returnPerMille: 140,
+    capital: 9_016_000 as Money,
+    returnPerMille: 350,
     exposure: 1500,
     maxEmployees: 20,
     availableFrom: 2002,
@@ -297,6 +297,14 @@ export function businessKindById(id: string): BusinessKind | undefined {
 }
 
 /** Months in the red before the doors shut. */
+/**
+ * WHAT A WAGE BUYS, per-mille of itself. At 1650 a member of staff brings
+ * in 1.65 times their pay before the cycle touches it, so in an ordinary
+ * month the owner clears roughly a quarter of the wage bill and in a bad
+ * one pays it out of their own pocket.
+ */
+export const STAFF_EARNS_PER_MILLE = 1650
+
 export const BUSINESS_FAILS_AFTER = 3
 
 /**
@@ -453,6 +461,8 @@ export function monthlyProfitFor(
    * before there was an era keeps its exact arithmetic.
    */
   year?: number,
+  /** What the staff cost this month, in cents. Zero for a one-person trade. */
+  payroll = 0,
 ): Money {
   // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
   // over a decade rather than at a stroke, so the owner has years to sell,
@@ -460,6 +470,9 @@ export function monthlyProfitFor(
   const demand = year === undefined ? 1000 : kindDemandPerMille(kind, year)
   const earning = Math.floor((business.capital * demand) / 1000)
   const base = Math.floor((earning * kind.returnPerMille) / 1000 / 12)
+  // What the staff bring in, derived FROM the wage rather than a per-head
+  // constant, so it scales with whoever was actually hired.
+  const staffBase = Math.floor((payroll * STAFF_EARNS_PER_MILLE) / 1000)
   // The cycle, through this trade's exposure to it.
   const weather = Math.floor((growthPerMille * kind.exposure) / 1000)
   const slump = phase === 'depression' ? -90 : phase === 'recession' ? -45 : 0
@@ -486,7 +499,21 @@ export function monthlyProfitFor(
   // winter. The slump term still doubles, so failures cluster in the
   // downturns rather than falling on people at random.
   const perMille = Math.max(-1500, 880 + weather * 10 + slump * 2 + hand + swing)
-  return Math.floor((base * perMille) / 1000) as Money
+  /**
+   * THE WAGES GO OUT WHATEVER THE MONTH DID — operating leverage, and the
+   * whole reason employing somebody is a decision rather than a free
+   * upgrade. A good month clears about a quarter of the wage bill on top;
+   * a bad one loses the trading loss AND the wage bill.
+   *
+   * STAFF NEVER PRODUCE LESS THAN NOTHING. MEASURED: letting their
+   * earnings ride the full cycle — which swings ±980 on a base of 880 —
+   * had them generating deeply negative revenue in a slump on top of
+   * their wages, at worst three times the payroll. A shop assistant still
+   * serves customers in a recession; the shop's MARGIN compresses, the
+   * assistant does not start destroying stock.
+   */
+  const fromStaff = Math.max(0, Math.floor((staffBase * perMille) / 1000))
+  return (Math.floor((base * perMille) / 1000) + fromStaff - payroll) as Money
 }
 
 /** What an owner would clear a month, for a screen, before any of it is spent. */

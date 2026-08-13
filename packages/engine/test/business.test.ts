@@ -25,7 +25,9 @@ import {
   monthlyProfitFor,
 } from '../src/business.js'
 import type { Business } from '../src/types.js'
-import { employeesOf } from '../src/systems.js'
+import { employeesOf, livingPeople } from '../src/systems.js'
+import { setPlayer } from '../src/player.js'
+import { ageAt } from '../src/clock.js'
 
 function aBusiness(capital: number): Business {
   return {
@@ -211,6 +213,63 @@ describe('opening one', () => {
   })
 })
 
+describe('a business earns on the same scale as a wage', () => {
+  it('clears enough in a month to carry the people it is allowed to employ', () => {
+    /**
+     * THE RESCALE, PINNED (owner: "yes rescale", 2026-08-13).
+     *
+     * MEASURED BEFORE IT MOVED, and this is why it had to: the median wage
+     * in the town was $907 a month in base-year money and the LARGEST
+     * trade in the table cleared $101. Every business in the game earned
+     * one to four per cent of a single wage, which is why `employees` had
+     * sat at zero since the day it was added — no business could pay
+     * anybody. Making payroll real at that scale killed them outright:
+     * survival fell from 58 per cent to 19 and the town ended with one
+     * employed person in it.
+     *
+     * The claim now is the one that makes the rest of the module possible:
+     * a trade allowed to employ N people must clear enough to be a living
+     * for the owner AND plausibly carry them.
+     */
+    const ENTRY_WAGE = 37_500 // a shop clerk, base-year cents
+    for (const kind of BUSINESS_KINDS) {
+      const monthly = Math.floor((kind.capital * kind.returnPerMille) / 1000 / 12)
+      // Even the smallest trade is a living, not pocket money.
+      expect(monthly, `${kind.id} does not pay its owner`).toBeGreaterThan(ENTRY_WAGE)
+      if (kind.maxEmployees > 0) {
+        // And a trade that may employ people out-earns one that may not.
+        expect(monthly).toBeGreaterThan(ENTRY_WAGE)
+      }
+    }
+    // The ceiling of the table is a real firm, not a market stall.
+    const biggest = [...BUSINESS_KINDS].sort((a, b) => b.capital - a.capital)[0]!
+    const topMonthly = Math.floor((biggest.capital * biggest.returnPerMille) / 1000 / 12)
+    expect(topMonthly).toBeGreaterThan(ENTRY_WAGE * 5)
+  })
+
+  it('makes the wage bill a real cost that a bad month cannot dodge', () => {
+    // Operating leverage: staff earn their keep and more when trade is
+    // good, and cost the whole bill when it is not. That asymmetry is what
+    // makes hiring a decision.
+    const kind = businessKindById('shop')
+    if (!kind) return
+    const business = { ...aBusiness(kind.capital), kindId: 'shop' }
+    const payroll = 60_000
+
+    // A good month with staff beats the same month without them.
+    const goodAlone = monthlyProfitFor(business, kind, 'expansion', 60, 700, 400, 1990, 0)
+    const goodStaffed = monthlyProfitFor(business, kind, 'expansion', 60, 700, 400, 1990, payroll)
+    expect(goodStaffed).toBeGreaterThan(goodAlone)
+
+    // A ruinous month costs the wage bill on top of the trading loss.
+    const badAlone = monthlyProfitFor(business, kind, 'depression', -80, 200, -900, 1990, 0)
+    const badStaffed = monthlyProfitFor(business, kind, 'depression', -80, 200, -900, 1990, payroll)
+    expect(badStaffed).toBeLessThan(badAlone)
+    // But the staff never destroy value — the loss is bounded by the bill.
+    expect(badAlone - badStaffed).toBeLessThanOrEqual(payroll)
+  })
+})
+
 describe('a business is somewhere people work', () => {
   it('takes townspeople on, and they are named people with real jobs', () => {
     /**
@@ -246,6 +305,35 @@ describe('a business is somewhere people work', () => {
     }
     expect(employing, 'no business in the town employs anybody').toBeGreaterThan(0)
     expect(staff, 'nobody in the town works for a local business').toBeGreaterThan(0)
+  })
+
+  it('never quietly makes the player somebody else’s employee', () => {
+    /**
+     * THE RULE THE ORDINARY HIRING PASS ALREADY OBEYED, and this pass did
+     * not until it was caught: work must never arrive unasked. The live
+     * complaint behind it was a job appearing in a popup on leaving the
+     * army. A shop taking somebody on must not silently become the
+     * player's employer while they were doing something else.
+     */
+    const world = createWorld(makeSeed(12345), 100)
+    const grown = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 40)
+      .sort((a, b) => a.id - b.id)[0]
+    expect(grown).toBeDefined()
+    if (!grown) return
+    setPlayer(world, grown.id)
+    world.employment.delete(grown.id)
+
+    advanceTicks(world, 40 * 12)
+
+    const job = world.employment.get(grown.id)
+    if (job !== undefined) {
+      // Whatever they ended up doing, no BUSINESS hired them behind their back.
+      expect(
+        world.businesses.has(job.workplaceId),
+        'a business hired the player without being asked',
+      ).toBe(false)
+    }
   })
 
   it('puts real people out of work when it closes', () => {

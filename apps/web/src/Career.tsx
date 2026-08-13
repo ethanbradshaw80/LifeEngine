@@ -23,6 +23,13 @@ import {
   atTodaysPrices,
   annualRevenueOf,
   businessBar,
+  candidatesForBusiness,
+  employeesOf,
+  nextRoundOffer,
+  privateValuationOf,
+  raiseBar,
+  fullName,
+  hireBar,
   kindAvailableIn,
   toDate,
   businessHealthWords,
@@ -371,6 +378,176 @@ export function Career({
                 </p>
               </section>
             ) : null}
+
+            {/* WHO OWNS IT (owner's ruling: real townspeople AND generated
+                firms). A trade nobody has backed shows the register at a
+                thousand per-mille and an offer; once somebody buys in, they
+                own a piece of every month the business ever has. */}
+            {business !== undefined && (() => {
+              const table = world.capTables.get(business.id)
+              const offer = nextRoundOffer(world)
+              const shut = raiseBar(world)
+              const founder = table?.founderPerMille ?? 1000
+              return (
+                <section className="career-card">
+                  <h4>Who owns it</h4>
+                  <Row label="Your share" value={`${(founder / 10).toFixed(1)}%`} />
+                  <Row
+                    label="What it is worth"
+                    value={formatMoney(privateValuationOf(world, business))}
+                  />
+                  {table !== undefined && table.shareholders.length > 0 && (
+                    <ul className="openings">
+                      {table.shareholders.map((holder) => (
+                        <li key={holder.id}>
+                          <span className="o-title">
+                            {holder.name}
+                            <span className="s">
+                              {(holder.perMille / 10).toFixed(1)}% ·{' '}
+                              {holder.personId === null ? 'a firm' : 'in the town'}
+                              {holder.boardSeat ? ' · board seat' : ''} · put in{' '}
+                              {formatMoney(holder.investedCents)}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {offer === undefined ? (
+                    <p className="career-note">
+                      There is nothing further to sell. What it earns is yours and your backers&apos;.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="career-note">
+                        {offer.terms.round === 'seed'
+                          ? 'A backer in the town would put money in for a slice of it — somebody you know, whose children will own their share after them.'
+                          : 'A firm from outside would put money in for a slice, and take a seat at the table with it.'}
+                      </p>
+                      <Row
+                        label={`Raise · ${offer.terms.title}`}
+                        value={`${formatMoney(offer.amount)} for ${(offer.terms.perMille / 10).toFixed(1)}%`}
+                      />
+                      {shut !== null && <p className="career-note">{shut}</p>}
+                      <button
+                        type="button"
+                        className="apply"
+                        disabled={busy || shut !== null}
+                        onClick={() => onAct({ verb: 'raise-capital' })}
+                      >
+                        Sell {(offer.terms.perMille / 10).toFixed(1)}% for {formatMoney(offer.amount)}
+                      </button>
+                    </>
+                  )}
+                </section>
+              )
+            })()}
+
+            {/* THE PEOPLE WHO WORK FOR YOU (owner: "expanding like adding
+                employees and stuff should 100% be user controlled").
+
+                The town's own businesses staff themselves in the background.
+                Yours does not — taking somebody on is a decision with a name
+                and a wage against it, so it belongs here. The wage shown is
+                the wage you pay: the engine draws it once and the button
+                spends exactly that. */}
+            {business !== undefined && (businessKindById(business.kindId)?.maxEmployees ?? 0) > 0 && (
+              <section className="career-card">
+                <h4>Who works for you</h4>
+                {(() => {
+                  const kind = businessKindById(business.kindId)
+                  const staff = employeesOf(world, business.id)
+                  const wages = staff.reduce(
+                    (sum, id) => sum + (world.employment.get(id)?.monthlyPay ?? 0),
+                    0,
+                  )
+                  const clears = Math.floor(
+                    (business.capital * (kind?.returnPerMille ?? 0)) / 1000 / 12,
+                  )
+                  return (
+                    <>
+                      <Row
+                        label="On the books"
+                        value={`${String(staff.length)} of ${String(kind?.maxEmployees ?? 0)}`}
+                      />
+                      <Row label="Wages a month" value={formatMoney(wages as Money)} />
+                      <Row label="The month clears" value={formatMoney(clears as Money)} />
+                      {staff.length === 0 ? (
+                        <p className="career-note">
+                          You run it alone. Somebody on the books earns more than they cost in a
+                          good month — and is paid just the same in a bad one.
+                        </p>
+                      ) : (
+                        <ul className="openings">
+                          {staff.map((id) => {
+                            const job = world.employment.get(id)
+                            return (
+                              <li key={id}>
+                                <span className="o-title">
+                                  {(() => { const p = world.people.get(id); return p ? fullName(p) : 'somebody' })()}
+                                  <span className="s">
+                                    {occupationById(job?.occupationId ?? '').title} ·{' '}
+                                    {formatMoney((job?.monthlyPay ?? 0) as Money)}/mo
+                                  </span>
+                                </span>
+                                <button
+                                  type="button"
+                                  className="apply"
+                                  disabled={busy}
+                                  onClick={() => onAct({ verb: 'let-go', employeeId: id })}
+                                >
+                                  Let go
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+
+                      <h4 style={{ marginTop: '0.9rem' }}>Looking for work</h4>
+                      {(() => {
+                        const candidates = candidatesForBusiness(world, business.id)
+                        if (candidates.length === 0) {
+                          return <p className="career-note">Nobody in town is looking just now.</p>
+                        }
+                        return (
+                          <ul className="openings">
+                            {candidates.map((candidate) => {
+                              const shut = hireBar(world, candidate.personId)
+                              return (
+                                <li
+                                  key={candidate.personId}
+                                  className={shut === null ? undefined : 'is-shut'}
+                                >
+                                  <span className="o-title">
+                                    {(() => { const p = world.people.get(candidate.personId); return p ? fullName(p) : 'somebody' })()}
+                                    <span className="s">
+                                      {occupationById(candidate.occupationId).title} · asks{' '}
+                                      {formatMoney(candidate.monthlyPay)}/mo
+                                    </span>
+                                    {shut !== null && <span className="s bar">{shut}</span>}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="apply"
+                                    disabled={busy || shut !== null}
+                                    onClick={() =>
+                                      onAct({ verb: 'hire-staff', candidateId: candidate.personId })
+                                    }
+                                  >
+                                    Take on
+                                  </button>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        )
+                      })()}
+                    </>
+                  )
+                })()}
+              </section>
+            )}
 
             {/* THE COMPANY AND THE IPO, built from the owner's careers.html
                 third screen: a valuation hero, four figures in a grid, and

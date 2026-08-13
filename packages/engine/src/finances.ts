@@ -23,6 +23,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
+import type { InvestmentRound, Shareholder } from './types.js'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
@@ -30,6 +31,7 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
+import { foundingCapTable, investmentFor, issueShares, privateValuationOf, shareOf, termsFor } from './equity.js'
 import {
   creditScoreOf,
   depositFor,
@@ -3546,6 +3548,144 @@ export function passOnHomes(world: World, tick: Tick, deceasedId: EntityId): voi
   setAccounts(world, { ...deceased, homePlaceId: null, homePurchasePrice: 0 as Money })
 }
 
+/**
+ * SELL A PIECE OF THE BUSINESS.
+ *
+ * finances owns this because it moves money: a seed backer's cash comes
+ * OUT OF THEIR WALLET, to the cent, and lands in the business as capital.
+ * An institutional round is money from outside the town — it arrives as
+ * capital and nobody local is poorer for it, which is exactly what
+ * outside money is.
+ *
+ * Returns the shareholder created, or undefined when the round could not
+ * be filled. A seed round with nobody in town rich enough to back you is a
+ * real outcome, not an error.
+ */
+export function raiseRound(
+  world: World,
+  tick: Tick,
+  businessId: EntityId,
+  round: InvestmentRound,
+): Shareholder | undefined {
+  const business = world.businesses.get(businessId)
+  const terms = termsFor(round)
+  if (business === undefined || business.closedTick !== null || terms === undefined) return undefined
+  const table = world.capTables.get(businessId) ?? foundingCapTable()
+  if (table.shareholders.some((holder) => holder.round === round)) return undefined
+
+  const valuation = privateValuationOf(world, business)
+  if (valuation <= 0) return undefined
+  const amount = investmentFor(valuation, terms)
+
+  let holder: Shareholder
+  if (round === 'seed') {
+    /**
+     * A REAL PERSON, WITH REAL MONEY (owner's ruling). The wealthiest
+     * townsperson who can cover it without emptying themselves, is of age,
+     * is not the founder, and is not already on the register. Deterministic
+     * by wealth then id — no roll needed, because who in a small town has
+     * money to put into a shop is not a matter of chance.
+     */
+    const candidates = [...world.people.values()]
+      .filter((person) => {
+        if (person.deathTick !== null) return false
+        if (person.id === business.ownerId) return false
+        if (ageAt(person.birthTick, tick) < 25) return false
+        if (table.shareholders.some((entry) => entry.personId === person.id)) return false
+        const wallet = walletOf(world, person.id)
+        return wallet.checking + wallet.savings >= amount * 2
+      })
+      .sort((a, b) => {
+        const wa = walletOf(world, a.id)
+        const wb = walletOf(world, b.id)
+        return wb.checking + wb.savings - (wa.checking + wa.savings) || a.id - b.id
+      })
+    const backer = candidates[0]
+    if (backer === undefined) return undefined
+    const taken = debitPerson(world, backer.id, amount)
+    if (taken < amount) return undefined
+    holder = {
+      id: `sh-${String(businessId)}-${round}`,
+      personId: backer.id,
+      name: `${backer.givenName} ${backer.familyName}`,
+      perMille: terms.perMille,
+      investedCents: amount,
+      round,
+      sinceTick: tick,
+      boardSeat: terms.boardSeat,
+      preferencePerMille: terms.preferencePerMille,
+    }
+  } else {
+    // AN INSTITUTION. Fictional always (charter §3), named off the
+    // business id so the same firm keeps its name across a save.
+    const rng = openStream(world.seed, Stream.Economy, businessId, tick + 14_200)
+    const first = ['Beacon', 'Cardinal', 'Meridian', 'Halloway', 'Stonebridge', 'Kestrel']
+    const second = ['Ventures', 'Partners', 'Capital', 'Holdings', 'Associates']
+    holder = {
+      id: `sh-${String(businessId)}-${round}`,
+      personId: null,
+      name: `${rng.pick(first)} ${rng.pick(second)}`,
+      perMille: terms.perMille,
+      investedCents: amount,
+      round,
+      sinceTick: tick,
+      boardSeat: terms.boardSeat,
+      preferencePerMille: terms.preferencePerMille,
+    }
+  }
+
+  world.capTables.set(businessId, issueShares(table, holder))
+  world.businesses.set(businessId, {
+    ...business,
+    capital: (business.capital + amount) as Money,
+  })
+  recordEvent(world, tick, {
+    type: 'raised-capital',
+    subjectId: business.ownerId,
+    detail: `${round}:${holder.name}:${String(amount)}`,
+  })
+  return holder
+}
+
+/**
+ * A SHAREHOLDER DIES AND THEIR CHILDREN OWN IT.
+ *
+ * The stake is a real asset, so it passes like one — eldest living child,
+ * the same rule the house and the business itself follow. With no heir it
+ * reverts to the founder, which is the cleanest honest answer: nobody is
+ * left holding a piece of a shop on behalf of a dead man.
+ */
+export function passOnStakes(world: World, tick: Tick, deceasedId: EntityId): void {
+  for (const [businessId, table] of [...world.capTables.entries()].sort((a, b) => a[0] - b[0])) {
+    if (!table.shareholders.some((holder) => holder.personId === deceasedId)) continue
+    const heir =
+      [...world.people.values()]
+        .filter((person) => person.deathTick === null && person.parentIds.includes(deceasedId))
+        .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0] ?? null
+    let revertedToFounder = 0
+    const next = table.shareholders.flatMap((holder) => {
+      if (holder.personId !== deceasedId) return [holder]
+      if (heir === null) {
+        revertedToFounder += holder.perMille
+        return []
+      }
+      return [{ ...holder, personId: heir.id, name: `${heir.givenName} ${heir.familyName}` }]
+    })
+    world.capTables.set(businessId, {
+      founderPerMille: table.founderPerMille + revertedToFounder,
+      shareholders: next,
+    })
+    if (heir !== null) {
+      recordEvent(world, tick, {
+        type: 'inherited-stake',
+        subjectId: heir.id,
+        otherId: deceasedId,
+        detail: world.businesses.get(businessId)?.name ?? 'a business',
+      })
+    }
+  }
+}
+
 export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId): void {
   // The eldest living child, or nobody. Worked out here rather than passed
   // in, because this is called on EVERY death — not only the ones that
@@ -3697,6 +3837,19 @@ function runBusinesses(world: World, tick: Tick): void {
 
     const rng = openStream(world.seed, Stream.Career, business.id, tick + 11_000)
     const swing = rng.nextIntInclusive(-980, 980)
+    /**
+     * THE WAGE BILL IS REAL MONEY, and it is conserved: it leaves the
+     * business through the profit line, and the same people are credited
+     * it in the earner loop. A place-based job still conjures its wage —
+     * the town's abstract employers always did — but a job at a business
+     * in this town is paid for by that business.
+     */
+    let payroll = 0
+    for (const [personId, job] of world.employment) {
+      if (job.workplaceId !== business.id) continue
+      if (world.people.get(personId)?.deathTick !== null) continue
+      payroll += job.monthlyPay
+    }
     const profit = monthlyProfitFor(
       business,
       kind,
@@ -3705,6 +3858,7 @@ function runBusinesses(world: World, tick: Tick): void {
       owner.traits.diligence,
       swing,
       toDate(world, tick).year,
+      payroll,
     )
 
     if (profit >= 0) {
@@ -3736,7 +3890,33 @@ function runBusinesses(world: World, tick: Tick): void {
         ? Math.min(Math.max(0, profit - founderSalaryOf(business, kind)), room)
         : Math.min(Math.floor((profit * 300) / 1000), room)
       const drawn = (profit - retained) as Money
-      creditPerson(world, business.ownerId, drawn)
+      /**
+       * THE DRAW IS SPLIT BY THE REGISTER (the business revamp).
+       *
+       * A business nobody has raised against has no register and the whole
+       * draw is the owner's, exactly as before. Once somebody has bought a
+       * piece, they own a piece of every month: a townsperson's share is
+       * REAL money into their wallet, and a firm's share leaves the town —
+       * institutional money went out of the world when it arrived.
+       *
+       * The founder takes the remainder rather than a computed slice, so
+       * the odd cent never goes missing and the month always balances.
+       */
+      const table = world.capTables.get(business.id)
+      if (table === undefined) {
+        creditPerson(world, business.ownerId, drawn)
+      } else {
+        let paidOut = 0
+        for (const holder of table.shareholders) {
+          const cut = shareOf(drawn, holder.perMille)
+          if (cut <= 0) continue
+          paidOut += cut
+          if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
+            creditPerson(world, holder.personId, cut as Money)
+          }
+        }
+        creditPerson(world, business.ownerId, Math.max(0, drawn - paidOut) as Money)
+      }
       world.businesses.set(business.id, {
         ...business,
         capital: (business.capital + retained) as Money,

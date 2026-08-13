@@ -38,6 +38,7 @@ export {
 export { advanceTick, advanceTicks } from './tick.js'
 export {
   birthBar,
+  employeesOf,
   DISMISSAL_PERFORMANCE,
   enrolmentBar,
   livingPeople,
@@ -98,6 +99,13 @@ export {
   isStretchFor,
   jobBar,
   startBusiness,
+  candidatesForBusiness,
+  raiseBar,
+  raiseCapitalPlayer,
+  nextRoundOffer,
+  hireBar,
+  hireIntoBusiness,
+  letGoFromBusiness,
   requestEnlistment,
   requestEnrolment,
   requestSchool,
@@ -113,7 +121,7 @@ export {
   tryOutForUnit,
   walkOut,
 } from './player.js'
-export type { CustomLifeSpec } from './player.js'
+export type { CustomLifeSpec, JobCandidate } from './player.js'
 
 // Geopolitics (L4-M1)
 export {
@@ -395,7 +403,20 @@ export {
   totalDebtOf,
 } from './credit.js'
 export type { Loan, LoanKind } from './types.js'
-export type { Bankruptcy, BankruptcyChapter, Business } from './types.js'
+export type { Bankruptcy, BankruptcyChapter, Business, CapTable, Shareholder, InvestmentRound } from './types.js'
+export {
+  ROUNDS,
+  boardWeightFor,
+  capTableSums,
+  foundingCapTable,
+  investmentFor,
+  issueShares,
+  nextRoundFor,
+  privateValuationOf,
+  shareOf,
+  termsFor,
+} from './equity.js'
+export type { RoundTerms } from './equity.js'
 export {
   BUSINESS_KINDS,
   annualRevenueOf,

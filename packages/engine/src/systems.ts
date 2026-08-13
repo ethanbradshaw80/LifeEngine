@@ -83,6 +83,7 @@ import {
   householdIncome,
   arrearsOf,
   passOnBusinesses,
+  passOnStakes,
   startUnemployment,
   passOnHomes,
   passWalletToSurvivor,
@@ -1543,6 +1544,17 @@ function runBusinessHiring(world: World, tick: Tick): void {
   if (tick % 6 !== 1) return
   for (const business of [...world.businesses.values()].sort((a, b) => a.id - b.id)) {
     if (business.closedTick !== null) continue
+    /**
+     * YOUR SHOP IS YOURS TO RUN (owner, 2026-08-13: "expanding like adding
+     * employees and stuff should 100% be user controlled").
+     *
+     * The town goes on staffing ITSELF — an NPC's business hires without
+     * anybody clicking, which is what keeps the market alive. But taking
+     * somebody on at the player's own business is a decision with a wage
+     * attached and a name attached, and it belongs on the screen, not in
+     * a background pass that happens while they are looking elsewhere.
+     */
+    if (business.ownerId === world.player.personId) continue
     const kind = businessKindById(business.kindId)
     if (kind === undefined || kind.maxEmployees <= 0) continue
     if (business.badMonths > 0) continue
@@ -1558,6 +1570,16 @@ function runBusinessHiring(world: World, tick: Tick): void {
     const looking = livingPeople(world)
       .filter((person) => {
         if (person.id === business.ownerId) return false
+        /**
+         * THE TOWN DOES NOT HAND THE PLAYER A JOB — the same rule the
+         * ordinary hiring pass obeys, and for the same reason it was
+         * written: work arriving unasked in a popup was a live complaint
+         * ("offered doctor at $200k leaving the army"). A shop taking
+         * somebody on must not quietly become the player's employer while
+         * they were doing something else. The player applies, from the
+         * job board, and the interview decides it.
+         */
+        if (person.id === world.player.personId) return false
         const age = ageAt(person.birthTick, tick)
         if (age < 18 || age > 66) return false
         if (world.employment.has(person.id)) return false
@@ -1625,6 +1647,34 @@ function runClosureLayoffs(world: World, tick: Tick): void {
       streamId: Stream.Economy,
     })
   }
+}
+
+/**
+ * LET SOMEBODY GO. The owner's decision, so it carries the owner's reason —
+ * but the person still gets the insurance a layoff earns, because being
+ * dismissed by a shop that could not carry you is the same loss as being
+ * dismissed by one that closed.
+ */
+export function dismissFromBusiness(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  firmName: string,
+): void {
+  if (!world.employment.has(personId)) return
+  world.employment.delete(personId)
+  startUnemployment(world, personId, tick)
+  recordEvent(world, tick, { type: 'laid-off', subjectId: personId, detail: firmName })
+  recordEvent(world, tick, { type: 'left-job', subjectId: personId, detail: 'let go' })
+  recordDecision(world, tick, {
+    subjectId: personId,
+    decision: 'employment-change',
+    significance: 'major',
+    inputs: [factor('employer-closed', 700)],
+    chosen: `was let go by ${firmName}`,
+    rejected: ['to keep the job'],
+    streamId: Stream.Economy,
+  })
 }
 
 export function runEmployment(world: World, tick: Tick): void {
@@ -3029,6 +3079,7 @@ export function performDeath(
   // empty a household — that is where the estate is settled, and a business
   // owner usually dies with somebody still in the house.
   passOnBusinesses(world, tick, person.id)
+  passOnStakes(world, tick, person.id)
   passOnHomes(world, tick, person.id)
 
   if (person.householdId !== null) {

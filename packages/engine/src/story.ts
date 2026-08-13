@@ -247,6 +247,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — At ${age}, moved out to ${placeName(world, event.placeId)}.`
     case 'moved-in-together':
       return `${year} — Moved in with ${nameOf(world, event.otherId)}.`
+    case 'raised-capital': {
+      const [, name, amount] = (event.detail ?? '').split(':')
+      return `${name ?? 'a backer'} put ${formatMoney(Number(amount ?? 0) as never)} into the business.`
+    }
+    case 'inherited-stake':
+      return `A share of ${event.detail ?? 'a business'} passed down.`
     case 'moved-house':
       return `${year} — Moved to ${placeName(world, event.placeId)}.`
     case 'started-courting':

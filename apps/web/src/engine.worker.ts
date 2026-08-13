@@ -49,6 +49,9 @@ import {
   turnProPlayer,
   seekHelpPlayer,
   scaleUpPlayer,
+  hireIntoBusiness,
+  raiseCapitalPlayer,
+  letGoFromBusiness,
   takePublicPlayer,
   rentPropertyPlayer,
   seeADoctor,
@@ -157,6 +160,9 @@ export type VerbRequest =
   | { readonly verb: 'buy-property'; readonly propertyId: string; readonly method?: 'cash' | 'mortgage' }
   | { readonly verb: 'pay-down'; readonly kind: 'personal' | 'auto' | 'mortgage' | 'student'; readonly cents: number }
   | { readonly verb: 'scale-up' }
+  | { readonly verb: 'raise-capital' }
+  | { readonly verb: 'hire-staff'; readonly candidateId: number }
+  | { readonly verb: 'let-go'; readonly employeeId: number }
   | { readonly verb: 'buy-chips'; readonly cents: number }
   | { readonly verb: 'cash-out' }
   | { readonly verb: 'deal-blackjack'; readonly wager: number }
@@ -684,6 +690,21 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           }
           case 'retire-sport': {
             const r = retirePlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'raise-capital': {
+            const r = raiseCapitalPlayer(world)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'hire-staff': {
+            const r = hireIntoBusiness(world, a.candidateId as never)
+            outcome = { ok: r.done, reason: r.reason }
+            break
+          }
+          case 'let-go': {
+            const r = letGoFromBusiness(world, a.employeeId as never)
             outcome = { ok: r.done, reason: r.reason }
             break
           }

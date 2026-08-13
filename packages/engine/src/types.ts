@@ -2155,7 +2155,44 @@ export interface GeoRelation {
 // (docs/DETERMINISM.md §8 — a save is recoverable from seed + decisions).
 // ---------------------------------------------------------------------------
 
+/** Which round a stake was bought in. */
+export type InvestmentRound = 'seed' | 'series-a' | 'series-b' | 'series-c'
+
+/**
+ * SOMEBODY WHO OWNS A PIECE OF SOMEBODY ELSE'S BUSINESS.
+ *
+ * Two kinds, by the owner's ruling: a real townsperson (seed money, whose
+ * wallet actually paid and whose children inherit the stake) or a
+ * generated firm (institutional, out of town, fictional).
+ */
+export interface Shareholder {
+  readonly id: string
+  /** A person in this town, or null for a firm. */
+  readonly personId: EntityId | null
+  /** The firm's name, or the person's name at the time they bought in. */
+  readonly name: string
+  readonly perMille: number
+  readonly investedCents: Money
+  readonly round: InvestmentRound
+  readonly sinceTick: Tick
+  readonly boardSeat: boolean
+  /** What they take out before anybody else, per-mille of what they put in. */
+  readonly preferencePerMille: number
+}
+
+/** The register of who owns what. Absent for a business nobody has raised against. */
+export interface CapTable {
+  readonly founderPerMille: number
+  readonly shareholders: readonly Shareholder[]
+}
+
 export type PendingKind =
+  /** Sold a slice of your own business. */
+  | 'raise-capital'
+  /** Took somebody on at your own business. */
+  | 'hire-staff'
+  /** Let somebody go from your own business. */
+  | 'let-go'
   /** At 18: college, trade school, or straight to work. */
   | 'education'
   /** A job offer — accept or decline. */
@@ -2445,6 +2482,8 @@ export type EventType =
   | 'left-home'
   | 'moved-in-together'
   | 'moved-house'
+  | 'raised-capital'
+  | 'inherited-stake'
   | 'had-child'
   /** The household could not cover the month; savings went negative. */
   | 'took-a-seat'
@@ -2950,6 +2989,8 @@ export interface World {
   readonly properties: Map<string, Property>
   /** Live tenancies, keyed by household. Owned by `realestate.ts`. */
   readonly leases: Map<EntityId, Lease>
+  /** Who owns a piece of which business. Keyed by business id. */
+  readonly capTables: Map<EntityId, CapTable>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

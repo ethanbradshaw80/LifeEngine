@@ -651,10 +651,27 @@ describe('leaving, and coming back', () => {
     // real cost of the decision and the reason it is a decision.
     const own = createWorld(makeSeed(4141), 200)
     advanceTicks(own, 30 * 12)
-    const student = livingPeople(own).find(
+    /**
+     * LOOK FOR THE SUBJECT RATHER THAN DEMAND ONE AT AN EXACT INSTANT.
+     *
+     * This took whoever was in college at tick 360 exactly. MEASURED, a
+     * 200-person town has 25 to 35 people enrolled in SOMETHING at any
+     * moment but only nought to one in college — so the sample was a coin
+     * flip that any unrelated change to the draw order could turn over,
+     * and eventually did. The claim here is what walking away from a
+     * course COSTS; it is not a claim about who happens to be enrolled in
+     * one particular month.
+     */
+    let student = livingPeople(own).find(
       (person) => own.education.get(person.id)?.enrolledIn === 'college',
     )
-    expect(student).toBeDefined()
+    for (let waited = 0; student === undefined && waited < 60; waited += 1) {
+      advanceTicks(own, 6)
+      student = livingPeople(own).find(
+        (person) => own.education.get(person.id)?.enrolledIn === 'college',
+      )
+    }
+    expect(student, 'nobody in this town went to college in thirty years').toBeDefined()
     if (student === undefined) return
 
     const before = own.education.get(student.id)

@@ -174,6 +174,7 @@ export function createWorld(
     habits: new Map(),
     properties: new Map(),
     leases: new Map(),
+    capTables: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],

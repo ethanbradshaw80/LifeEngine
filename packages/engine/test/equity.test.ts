@@ -1,0 +1,186 @@
+/**
+ * WHO OWNS THE BUSINESS (the business revamp, owner's ruling 2026-08-13:
+ * *"we can do real townspeople but I also wanted to do generated firms"*).
+ *
+ * THE CLAIMS: the register always accounts for the whole business, however
+ * many rounds are sold; a seed backer is a REAL person whose wallet really
+ * pays; an institution is a firm from outside the town; every shareholder
+ * owns a piece of every month afterwards; a dead backer's stake passes to
+ * their children; and a business nobody has backed is untouched by any of
+ * it.
+ */
+
+import { describe, expect, it } from 'vitest'
+import { seed as makeSeed } from '@life-engine/shared'
+import type { Money } from '@life-engine/shared'
+import { advanceTicks, createWorld } from '../src/index.js'
+import { ageAt } from '../src/clock.js'
+import { livingPeople } from '../src/systems.js'
+import { walletOf } from '../src/finances.js'
+import {
+  capTableSums,
+  foundingCapTable,
+  investmentFor,
+  issueShares,
+  nextRoundFor,
+  privateValuationOf,
+  ROUNDS,
+  termsFor,
+} from '../src/equity.js'
+import { businessOf, raiseBar, raiseCapitalPlayer, setPlayer, startBusiness } from '../src/player.js'
+import type { Shareholder } from '../src/types.js'
+
+function aHolder(perMille: number, id = 'x'): Shareholder {
+  return {
+    id,
+    personId: null,
+    name: 'Somebody',
+    perMille,
+    investedCents: 1000 as Money,
+    round: 'seed',
+    sinceTick: 0 as never,
+    boardSeat: false,
+    preferencePerMille: 1000,
+  }
+}
+
+/** A player with a shop, two years of trading behind it, and money. */
+function aFounder(seed = 12345) {
+  const world = createWorld(makeSeed(seed), 100)
+  advanceTicks(world, 30 * 12)
+  const person = livingPeople(world)
+    .filter((p) => ageAt(p.birthTick, world.tick) >= 30 && ageAt(p.birthTick, world.tick) <= 45)
+    .sort((a, b) => a.id - b.id)[0]
+  if (!person) throw new Error('nobody of working age')
+  setPlayer(world, person.id)
+  const wallet = walletOf(world, person.id)
+  world.accounts.set(wallet.personId, { ...wallet, savings: 900_000_000 as Money })
+  startBusiness(world, 'shop')
+  advanceTicks(world, 24)
+  return { world, person }
+}
+
+describe('the share register', () => {
+  it('always accounts for the whole business, however many rounds are sold', () => {
+    // Dilution that does not sum to a thousand is dilution that quietly
+    // creates or destroys ownership. Every round, every time.
+    let table = foundingCapTable()
+    expect(table.founderPerMille).toBe(1000)
+    expect(capTableSums(table)).toBe(true)
+
+    for (const [index, terms] of ROUNDS.entries()) {
+      table = issueShares(table, aHolder(terms.perMille, `r${String(index)}`))
+      expect(capTableSums(table), `after ${terms.round} the register does not sum`).toBe(true)
+      expect(table.founderPerMille).toBeGreaterThanOrEqual(0)
+    }
+    // And the founder has genuinely been diluted by all of it.
+    expect(table.founderPerMille).toBeLessThan(1000)
+    expect(table.shareholders).toHaveLength(ROUNDS.length)
+  })
+
+  it('dilutes everybody already on it, not just the founder', () => {
+    // The first backer's slice shrinks when a second one buys in — that is
+    // what dilution is, and sparing them would rob whoever came later.
+    const first = aHolder(100, 'first')
+    let table = issueShares(foundingCapTable(), first)
+    expect(table.shareholders[0]?.perMille).toBe(100)
+
+    table = issueShares(table, aHolder(200, 'second'))
+    expect(table.shareholders[0]?.perMille).toBeLessThan(100)
+    expect(table.shareholders[1]?.perMille).toBe(200)
+    expect(capTableSums(table)).toBe(true)
+  })
+
+  it('prices a slice off what the business is actually worth', () => {
+    const seed = termsFor('seed')
+    expect(seed).toBeDefined()
+    if (!seed) return
+    expect(investmentFor(1_000_000 as Money, seed)).toBe(100_000)
+    // Nothing earning is worth nothing, and cannot be sold.
+    expect(investmentFor(0 as Money, seed)).toBe(1)
+  })
+
+  it('offers the rounds in order and then stops', () => {
+    let table = foundingCapTable()
+    const seen: string[] = []
+    for (let i = 0; i < ROUNDS.length; i += 1) {
+      const next = nextRoundFor(table)
+      expect(next).toBeDefined()
+      if (!next) break
+      seen.push(next.round)
+      table = issueShares(table, { ...aHolder(next.perMille, next.round), round: next.round })
+    }
+    expect(seen).toEqual(ROUNDS.map((r) => r.round))
+    expect(nextRoundFor(table)).toBeUndefined()
+  })
+})
+
+describe('raising money against a real business', () => {
+  it('takes a seed backer’s money out of their own wallet, to the cent', () => {
+    /**
+     * THE OWNER'S RULING, AS A TEST. A seed round is a person in this town
+     * — not a faceless fund — and the money is really theirs. If the
+     * business gains capital nobody paid for, the round is a cheat.
+     */
+    const { world } = aFounder()
+    expect(raiseBar(world)).toBeNull()
+    const business = businessOf(world, world.player.personId as never)
+    expect(business).toBeDefined()
+    if (!business) return
+
+    const capitalBefore = business.capital
+    const before = new Map(
+      [...world.people.values()].map((p) => {
+        const w = walletOf(world, p.id)
+        return [p.id, w.checking + w.savings]
+      }),
+    )
+
+    expect(raiseCapitalPlayer(world).done).toBe(true)
+
+    const table = world.capTables.get(business.id)
+    expect(table).toBeDefined()
+    if (!table) return
+    expect(capTableSums(table)).toBe(true)
+
+    const backer = table.shareholders[0]
+    expect(backer).toBeDefined()
+    if (!backer) return
+    // A REAL PERSON, and their money moved.
+    expect(backer.personId).not.toBeNull()
+    if (backer.personId === null) return
+    const after = walletOf(world, backer.personId)
+    const paid = (before.get(backer.personId) ?? 0) - (after.checking + after.savings)
+    expect(paid).toBe(backer.investedCents)
+    // And the business is richer by exactly what they put in.
+    expect((world.businesses.get(business.id)?.capital ?? 0) - capitalBefore).toBe(
+      backer.investedCents,
+    )
+  })
+
+  it('will not price a business with no trading behind it', () => {
+    const world = createWorld(makeSeed(12345), 100)
+    advanceTicks(world, 30 * 12)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 30)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) return
+    setPlayer(world, person.id)
+    const wallet = walletOf(world, person.id)
+    world.accounts.set(wallet.personId, { ...wallet, savings: 900_000_000 as Money })
+    startBusiness(world, 'shop')
+    // Opened this month: nobody backs that.
+    expect(raiseBar(world)).toContain('Too new')
+  })
+
+  it('leaves a business nobody backed wholly its founder’s', () => {
+    // The whole system is opt-in. A trade that never sells a share never
+    // acquires a register, and the monthly draw is untouched by any of it.
+    const { world, person } = aFounder()
+    const business = businessOf(world, person.id)
+    expect(business).toBeDefined()
+    if (!business) return
+    expect(world.capTables.has(business.id)).toBe(false)
+    expect(privateValuationOf(world, business)).toBeGreaterThan(0)
+  })
+})
