@@ -99,6 +99,7 @@ export {
   isStretchFor,
   jobBar,
   startBusiness,
+  businessOf,
   candidatesForBusiness,
   raiseBar,
   raiseCapitalPlayer,

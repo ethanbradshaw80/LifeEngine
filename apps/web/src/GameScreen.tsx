@@ -20,6 +20,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactElement } from 'react'
 import {
+  businessOf,
   disciplineOf,
   fitnessOf,
   habitMaturity,
@@ -35,6 +36,7 @@ import {
 } from '@life-engine/engine'
 import { FrontPage } from './FrontPage.js'
 import { RealEstate } from './RealEstate.js'
+import { BusinessTab } from './BusinessTab.js'
 import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
@@ -269,6 +271,7 @@ type Tab =
   | 'family'
   | 'people'
   | 'career'
+  | 'business'
   | 'jobs'
   | 'news'
   | 'stats'
@@ -312,7 +315,7 @@ const GROUPS: readonly { id: string; icon: string; label: string; tabs: readonly
   { id: 'g-story', icon: '📖', label: 'Story', tabs: ['story'] },
   { id: 'g-you', icon: '📊', label: 'You', tabs: ['home', 'health', 'school'] },
   { id: 'g-money', icon: '💰', label: 'Money', tabs: ['money', 'market', 'casino', 'property'] },
-  { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career'] },
+  { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career', 'business'] },
   { id: 'g-people', icon: '👪', label: 'People', tabs: ['family', 'people'] },
   { id: 'g-service', icon: '🪖', label: 'Service', tabs: ['service'] },
   { id: 'g-news', icon: '📰', label: 'News', tabs: ['news'] },
@@ -330,6 +333,7 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
   { id: 'school', icon: '🎓', label: 'School' },
   { id: 'jobs', icon: '💼', label: 'Jobs' },
   { id: 'career', icon: '📈', label: 'Career' },
+  { id: 'business', icon: '🏪', label: 'Business' },
   { id: 'family', icon: '👪', label: 'Family' },
   { id: 'people', icon: '💞', label: 'People' },
   { id: 'health', icon: '🩺', label: 'Health' },
@@ -1493,6 +1497,24 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
             person={person}
             busy={busy}
             age={ageAt(person.birthTick, world.tick)}
+            onAct={onAct}
+          />
+        </div>
+      )}
+
+      {tab === 'business' && (
+        <div className="panel" aria-label="Business">
+          {/* ITS OWN DOOR (owner: "business is supposed to be its own tab
+              now we discussed this"). The staff, the share register, the
+              rivals and the ways to grow were living inside Career's
+              business sub-tab; the owner's own business-tab-main.html puts
+              them behind a tab of their own with a dashboard on top, and
+              running a firm is not a chapter of an employment history. */}
+          <BusinessTab
+            world={world}
+            person={person}
+            business={businessOf(world, person.id)}
+            busy={busy}
             onAct={onAct}
           />
         </div>
