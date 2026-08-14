@@ -261,6 +261,19 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       const [name] = (event.detail ?? '').split(':')
       return `Bought out ${name ?? 'a rival'}.`
     }
+    case 'board-voted': {
+      const [, ticker, how] = (event.detail ?? '').split(':')
+      if (how === 'sold') return `${ticker ?? 'A company'} was bought out. The shares became money.`
+      return how === 'carried'
+        ? `Voted at ${ticker ?? 'the board'}, and the meeting went the same way.`
+        : `Voted at ${ticker ?? 'the board'} and was outvoted.`
+    }
+    case 'left-the-board': {
+      const [ticker, share, why] = (event.detail ?? '').split(':')
+      return why === 'control'
+        ? `Sold down to ${(Number(share ?? 0) / 10).toFixed(1)}% of ${ticker ?? 'the company'} — no longer in control of it.`
+        : `Sold down to ${(Number(share ?? 0) / 10).toFixed(1)}% of ${ticker ?? 'the company'}, and off its board.`
+    }
     case 'took-control': {
       const [ticker, share] = (event.detail ?? '').split(':')
       return `Took control of ${ticker ?? 'a listed company'} — ${(Number(share ?? 0) / 10).toFixed(1)}% of it.`

@@ -2303,6 +2303,8 @@ export type PendingKind =
   | 'buy-rival'
   /** Bought up shares of a listed company to reach a stake. */
   | 'take-stake'
+  /** A company you hold a seat in has put something to its shareholders. */
+  | 'board-vote'
   /** Took somebody on at your own business. */
   | 'hire-staff'
   /** Let somebody go from your own business. */
@@ -2603,6 +2605,10 @@ export type EventType =
   | 'sold-business'
   /** Bought past half of a listed company. detail 'TICKER:perMille'. */
   | 'took-control'
+  /** Voted on a matter at a company you hold a seat in. detail 'matter:ticker:how'. */
+  | 'board-voted'
+  /** Sold down below a seat in the company you founded. detail 'TICKER:perMille'. */
+  | 'left-the-board'
   /** Somebody else did it to a company this person floated. detail 'TICKER:perMille'. */
   | 'lost-control'
   | 'inherited-stake'

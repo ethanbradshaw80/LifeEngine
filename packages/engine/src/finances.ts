@@ -141,6 +141,7 @@ import {
   underStay,
 } from './bankruptcy.js'
 import { placesOfKind } from './worldgen.js'
+import { BOARD_MATTERS, hasBoardSeat } from './board.js'
 import {
   BUSINESS_FAILS_AFTER,
   BUSINESS_KINDS,
@@ -2594,6 +2595,7 @@ export function runFinances(world: World, tick: Tick): void {
   payDividends(world)
   runNpcInvesting(world, tick)
   runRaiders(world, tick)
+  runBoardMoments(world, tick)
   runTaxSeason(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
@@ -5279,6 +5281,63 @@ function runRaiders(world: World, tick: Tick): void {
       detail: `${ticker}:${String(after)}`,
     })
   }
+}
+
+/**
+ * THE BOARD SENDS FOR YOU (owner, playing: "Never got any board memeber
+ * moments eithers wild having any percentage of stock in a company").
+ *
+ * Once a year, the largest listed holding that clears a blocking stake puts
+ * a matter to its shareholders. Below that threshold nothing arrives, which
+ * is the point of the threshold: a seat has to be earned by owning enough
+ * of something that it cannot ignore you.
+ *
+ * Player-only, deliberately. An NPC does not need to be asked — the town's
+ * companies are run by the market maths either way, and raising a question
+ * nobody answers would be a pending decision that never clears.
+ */
+function runBoardMoments(world: World, tick: Tick): void {
+  if (tick % 12 !== 3) return // once a year, in a month nothing else uses
+  const playerId = world.player.personId
+  if (playerId === null || world.player.pending !== null) return
+  const person = world.people.get(playerId)
+  if (!person || person.deathTick !== null) return
+
+  const accounts = accountsOf(world, playerId)
+  let best: { stockId: string; perMille: number } | null = null
+  for (const holding of accounts.holdings) {
+    if (holding.stockId === undefined) continue
+    const perMille = stakePerMilleOf(world, accounts.holdings, holding.stockId)
+    if (!hasBoardSeat(perMille)) continue
+    if (best === null || perMille > best.perMille) best = { stockId: holding.stockId, perMille }
+  }
+  if (best === null) return
+  const stock = stockById(world, best.stockId)
+  if (stock === undefined) return
+
+  /**
+   * WHICH MATTER, AND HOW THE REST OF THE ROOM LEANS — both seeded off the
+   * company and the year, so the same board in the same year always puts
+   * the same thing to the same vote (Law 11).
+   */
+  const rng = openStream(world.seed, Stream.Economy, world.nextEventId, tick + 83_100)
+  const matter = BOARD_MATTERS[rng.nextIntInclusive(0, BOARD_MATTERS.length - 1)]
+  if (matter === undefined) return
+  const mood = rng.nextIntInclusive(150, 850)
+
+  raisePending(world, {
+    tick,
+    kind: 'board-vote',
+    personId: playerId,
+    otherId: null,
+    // The screen needs the company, the matter and the room, and a pending
+    // decision carries strings — so they travel in the fields that exist.
+    occupationId: `${matter.id}:${best.stockId}:${String(mood)}`,
+    workplaceId: null,
+    monthlyPay: best.perMille as Money,
+    placeId: null,
+    options: [...matter.options],
+  })
 }
 
 /**

@@ -162,6 +162,15 @@ export {
   tradingLiftPerMille,
 } from './operations.js'
 export type { VendorOffer } from './operations.js'
+export {
+  BOARD_MATTERS,
+  boardMatterById,
+  hasBoardSeat,
+  offerFor,
+  priceAfter,
+  voteCarries,
+} from './board.js'
+export type { BoardMatter, BoardMatterId } from './board.js'
 export type { BusinessOps } from './types.js'
 
 // Geopolitics (L4-M1)

@@ -276,6 +276,17 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'move-out': { accept: 'Move out', decline: 'Stay home' },
   // The business is a month from shutting. Every answer is a real lever.
+  // A company you hold a seat in has put something to its shareholders.
+  // Both labels of every matter live here, because a vote is only a
+  // decision if the player can read what each way means.
+  'board-vote': {
+    'back-it': '🗳️ Back the board',
+    'vote-against': '✋ Vote it down',
+    'take-the-offer': '🤝 Take the offer',
+    'stay-independent': '🛡️ Stay independent',
+    'approve-it': '🗳️ Approve the package',
+    'refuse-it': '✋ Refuse it',
+  },
   'business-trouble': {
     'put-money-in': '💷 Put your own money in',
     'let-staff-go': '📉 Let the dearest wage go',

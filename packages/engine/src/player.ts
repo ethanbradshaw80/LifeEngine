@@ -375,12 +375,14 @@ import {
   IPO_MIN_VALUATION,
   costToReachPerMille,
   floatProceedsFor,
+  holdingValue,
   listCompany,
   stakePerMilleOf,
   stakeWords,
   stockById,
 } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
+import { boardMatterById, offerFor, priceAfter, voteCarries } from './board.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
 /**
@@ -2529,10 +2531,45 @@ export function sellSharesPlayer(
 ): { done: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { done: false, reason: 'Nobody is being played.' }
+  /**
+   * WHAT YOU HELD BEFORE YOU SOLD (owner: "never got board member moments
+   * when we sold off our own stake in the company either").
+   *
+   * Selling down through a threshold is a moment in a life — the founder
+   * who no longer controls what they built, or who has just left the board
+   * of it — and it passed in complete silence because nothing was watching
+   * the stake as it fell.
+   */
+  const before = stakePerMilleOf(world, accountsOf(world, person.id).holdings, stockId)
+  const founded = [...world.businesses.values()].some(
+    (business) => business.ownerId === person.id && business.listedStockId === stockId,
+  )
+
   const got = sellShares(world, world.tick, person.id, stockId, retirement)
   if (got <= 0) return { done: false, reason: 'You hold no shares in that.' }
   logVerb(world, 'divest', stockId)
-  return { done: true, reason: '' }
+
+  const after = stakePerMilleOf(world, accountsOf(world, person.id).holdings, stockId)
+  const stock = stockById(world, stockId)
+  let note = ''
+  if (before >= CONTROL_STAKE_PER_MILLE && after < CONTROL_STAKE_PER_MILLE) {
+    note = founded
+      ? ` You no longer control ${stock?.name ?? 'the company'} you built.`
+      : ` You no longer control ${stock?.name ?? 'the company'}.`
+    recordEvent(world, world.tick, {
+      type: 'left-the-board',
+      subjectId: person.id,
+      detail: `${stock?.ticker ?? stockId}:${String(after)}:control`,
+    })
+  } else if (before >= BLOCKING_STAKE_PER_MILLE && after < BLOCKING_STAKE_PER_MILLE) {
+    note = ` That is your seat on the board of ${stock?.name ?? 'the company'} gone.`
+    recordEvent(world, world.tick, {
+      type: 'left-the-board',
+      subjectId: person.id,
+      detail: `${stock?.ticker ?? stockId}:${String(after)}:seat`,
+    })
+  }
+  return { done: true, reason: `${formatMoney(got)} back.${note}` }
 }
 
 export function investPlayer(
@@ -5663,6 +5700,66 @@ export function resolvePending(world: World, choice: string): void {
      * question because a year-long age-up runs twelve of these months in
      * one press, and a shop can go from healthy to closed inside it.
      */
+    /**
+     * THE VOTE IS TAKEN (owner: "Never got any board memeber moments").
+     *
+     * Your stake decides how much your answer is worth: past control it is
+     * simply yours, and a blocking stake tips a close room without being
+     * able to force it. The price moves on what the MEETING decided, not on
+     * what you wanted — which is the difference between a seat and a wish.
+     */
+    case 'board-vote': {
+      const [matterId, stockId, moodText] = (pending.occupationId ?? '').split(':')
+      const matter = matterId === undefined ? undefined : boardMatterById(matterId)
+      const stock = stockId === undefined ? undefined : stockById(world, stockId)
+      if (matter === undefined || stock === undefined || stockId === undefined) break
+      const mine = (pending.monthlyPay ?? 0) as number
+      const backing = choice === matter.options[0]
+      const carried = voteCarries(mine, backing, Number(moodText ?? 500))
+      const wentThrough = backing === carried ? backing : !backing
+
+      const price = world.stockPrices[stockId] ?? 10_000
+      if (matter.paysOut === true && wentThrough) {
+        /**
+         * THE COMPANY IS BOUGHT AND EVERY SHARE BECOMES MONEY. Sold at the
+         * offer, not the market, because that is what a bid IS — and it
+         * goes through the ordinary sale path so the gain is taxed like any
+         * other gain rather than arriving as a windfall nobody declared.
+         */
+        const accounts = accountsOf(world, person.id)
+        const held = accounts.holdings.find((h) => h.stockId === stockId)
+        if (held !== undefined) {
+          const worth = holdingValue(world, held)
+          const paid = offerFor(worth, matter.offerPremiumPerMille ?? 0)
+          ;(world as { stockPrices: Record<string, number> }).stockPrices = {
+            ...world.stockPrices,
+            [stockId]: priceAfter(price, matter.offerPremiumPerMille ?? 0),
+          }
+          sellShares(world, world.tick, person.id, stockId, false)
+          recordEvent(world, world.tick, {
+            type: 'board-voted',
+            subjectId: person.id,
+            detail: `${matter.id}:${stock.ticker}:sold`,
+          })
+          // The bid was above the market; the difference is real money.
+          void paid
+        }
+        break
+      }
+
+      const move = wentThrough ? matter.backedPerMille : matter.refusedPerMille
+      ;(world as { stockPrices: Record<string, number> }).stockPrices = {
+        ...world.stockPrices,
+        [stockId]: priceAfter(price, move),
+      }
+      recordEvent(world, world.tick, {
+        type: 'board-voted',
+        subjectId: person.id,
+        detail: `${matter.id}:${stock.ticker}:${wentThrough ? 'carried' : 'lost'}`,
+      })
+      break
+    }
+
     case 'business-trouble': {
       const business =
         pending.workplaceId === null ? undefined : world.businesses.get(pending.workplaceId)
@@ -6943,6 +7040,18 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chased what was owed.' // log-only
     case 'refit':
       return 'Smartened the place up.' // log-only
+    case 'board-vote': {
+      const [matterId, stockId] = (pending.occupationId ?? '').split(':')
+      const matter = matterId === undefined ? undefined : boardMatterById(matterId)
+      const stock = stockId === undefined ? undefined : stockById(world, stockId)
+      const mine = (pending.monthlyPay ?? 0) as number
+      const seat =
+        mine >= CONTROL_STAKE_PER_MILLE
+          ? 'You control the company; the vote is yours.'
+          : 'You hold enough to block it, and the rest of the register will decide the rest.'
+      return `${stock?.name ?? 'A company you hold'} — ${(mine / 10).toFixed(1)}% yours. ${matter?.question ?? 'The board has put something to its shareholders.'} ${seat}`
+    }
+
     case 'business-trouble': {
       const name = pending.occupationId ?? 'The business'
       return `${name} has lost money two months running. One more and the doors shut.`

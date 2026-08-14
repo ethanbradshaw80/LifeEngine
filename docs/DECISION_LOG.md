@@ -2211,3 +2211,45 @@ more capacity — next to it.
 Money screen (it is deliberately not inside `personalIncome`, which would
 pay it twice — see ADR-0046), and Business has its own place on the main
 rail directly under Work rather than being a sub-tab of having a job.
+
+---
+
+## ADR-0049 — A stake that asks you something
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 176
+
+**Context.** Owner, playing: *"Never got any board memeber moments eithers
+wild having any percentage of stock in a company, never got board member
+moments when we sold off our own stake in the company either"*.
+
+Right on both counts, and the gap was not that the parts were missing. The
+cap table has marked which investors take a SEAT since it was built,
+`boardViewFor` has asked whether a board would back a decision, and the
+pending-decision system has been raising questions to the player for
+months. Nothing connected a shareholding to a question. Owning a quarter of
+a listed company changed a valuation and nothing else, and selling down the
+company you founded changed a number in silence.
+
+**Decision.** A blocking stake (250 per-mille) is a seat. Once a year the
+largest holding that clears it puts a matter to its shareholders — a
+buyback, a dividend cut to fund a plant, a bid for the whole company, a
+chief executive's package, a debt-funded expansion.
+
+**What makes it a decision rather than a click.** Every matter is a trade
+with money on both sides; none has a right answer. And your stake decides
+what your answer is WORTH: past control the vote is simply yours, while a
+blocking stake is added to whichever side you took and tips a close room
+without being able to force a hostile one (`voteCarries`). The price then
+moves on what the MEETING decided, not on what you wanted — which is the
+difference between holding a seat and holding an opinion.
+
+**Selling down is a moment.** Crossing back below control or below a seat
+now says so, names the company, and goes on the record as `left-the-board`
+— with a different sentence for a company you FOUNDED, because losing
+control of what you built is not the same event as trimming a position.
+
+**Why the threshold, and why player-only.** Below a blocking stake a
+company does not have to care what a holder thinks, and sending a passive
+investor an annual vote would be noise wearing a feature's clothes. NPCs
+are not asked because the market maths already runs their companies; a
+question nobody answers is a pending decision that never clears.
