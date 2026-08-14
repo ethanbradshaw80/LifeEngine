@@ -192,3 +192,20 @@ ninety per cent of Vantek Semiconductor today and the game will not notice.
 **What it must not become.** A button that converts money into a bigger
 number. The cost of control has to rise as you take it — that is what makes
 "do I want this badly enough" a question rather than arithmetic.
+
+### What was built (2026-08-13)
+
+| Piece | Where | Note |
+|---|---|---|
+| Stake readout | `stakePerMilleOf`, `stakeWords` in `market.ts` | Units over shares outstanding, per-mille. The division that never existed. |
+| Thresholds | `BLOCKING_STAKE_PER_MILLE` 250, `CONTROL_STAKE_PER_MILLE` 500 | Named constants, read by both the screen and the verb. |
+| Price impact | `controlPremiumPerMille`, `priceToBuyerOf`, `costToReachPerMille` | Nil below a tenth, then quadratic. Taking a whole company costs MORE than its market capitalisation — measured in `takeover.test.ts`. |
+| The verb | `takeStakePlayer` in `player.ts` | Walks the climb in small purchases so the premium is recharged on every step. Money leaves the WALLET (H0). |
+| The screen | "How much of it is yours" in `StockDetail.tsx` | Figure, bar with marks at 25% and 50%, and buttons priced all-in. |
+| The reverse | `runRaiders` in `finances.ts` | Once a year the richest person in town who is not the player buys into a company the player floated. Both sides go on the record. |
+
+**Dividends already follow control** and needed no change: `dividendOn` pays
+on the VALUE of the holding, which is units times price, so a man holding
+sixty per cent receives sixty per cent. Writing a separate "control
+dividend" would have been a second source of truth for the same fact.
+

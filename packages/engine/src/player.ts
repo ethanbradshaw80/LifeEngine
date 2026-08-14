@@ -39,7 +39,9 @@ import {
   acquireRival,
   buyExpansion,
   buyGrowth,
+  businessDemandsAllHours,
   intoCapital,
+  firmNameFor,
   spendFromCapital,
   priceOfRival,
   raiseRound,
@@ -367,10 +369,15 @@ import {
 } from './government.js'
 import type { CampaignAction, DebateChoice } from './government.js'
 import {
+  BLOCKING_STAKE_PER_MILLE,
+  CONTROL_STAKE_PER_MILLE,
   IPO_FLOAT_PER_MILLE,
   IPO_MIN_VALUATION,
+  costToReachPerMille,
   floatProceedsFor,
   listCompany,
+  stakePerMilleOf,
+  stakeWords,
   stockById,
 } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
@@ -536,6 +543,9 @@ export function jobBar(world: World, occupationId: string): string | null {
   const education = world.education.get(person.id)
   if (education !== undefined && isHigherEducation(education.enrolledIn)) {
     return 'Full-time study fills the days.'
+  }
+  if (businessDemandsAllHours(world, person.id)) {
+    return 'The business is the job now — it takes every hour there is.'
   }
   if (isSeverelyAiling(world, person.id)) return 'Too ill or hurt to take new work this month.'
   if (isJailed(world, person.id)) return 'Nobody is hiring out of a cell.'
@@ -5309,6 +5319,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'sell-business':
     case 'wind-down':
     case 'buy-rival':
+    case 'take-stake':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -6948,6 +6959,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Wound the business down.' // log-only
     case 'buy-rival':
       return 'Bought out a rival.' // log-only
+    case 'take-stake':
+      return 'Bought up shares.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':
@@ -7916,14 +7929,26 @@ export function vendorOffersFor(world: World): readonly VendorOffer[] {
   if (mine === undefined) return []
   const rng = openStream(world.seed, Stream.Economy, mine.business.id, world.tick + 15_500)
   const offers: VendorOffer[] = []
-  for (let i = 0; i < 3; i += 1) {
-    offers.push(
-      vendorOfferFrom(
-        rng.nextIntInclusive(0, 999),
-        rng.nextIntInclusive(0, 300),
-        rng.nextIntInclusive(0, 120),
-      ),
+  /**
+   * THE NAMES HAVE TO BE DISTINCT, because the name is the HANDLE.
+   *
+   * `switchVendorPlayer` finds an offer by name, so two suppliers called
+   * the same thing means clicking the cheap one silently switches you to
+   * the dear one — the first match wins and the player is never told.
+   * Found in the browser console, which was shouting about two React rows
+   * keyed 'Prentice Brothers'; the duplicated key was the symptom and this
+   * was the disease. Bounded so it can never spin.
+   */
+  const taken = new Set<string>([mine.ops.vendorName])
+  for (let attempt = 0; attempt < 24 && offers.length < 3; attempt += 1) {
+    const offer = vendorOfferFrom(
+      rng.nextIntInclusive(0, 999),
+      rng.nextIntInclusive(0, 300),
+      rng.nextIntInclusive(0, 120),
     )
+    if (taken.has(offer.name)) continue
+    taken.add(offer.name)
+    offers.push(offer)
   }
   return offers
 }
@@ -8030,8 +8055,36 @@ export function investInBusinessPlayer(
   if (mine === undefined) return { done: false, reason: 'You have no business.' }
   const amount = Math.max(0, Math.trunc(cents))
   if (amount <= 0) return { done: false, reason: 'Nothing to put in.' }
-  const taken = debitPerson(world, mine.business.ownerId, amount as Money)
-  if (taken < amount) return { done: false, reason: 'You do not have that to put in.' }
+  /**
+   * A DEPOSIT CANNOT CLIMB THE CEILING THE LADDER IS FOR.
+   *
+   * Retained profit has always been capped at the trade's ceiling, and
+   * this path wrote straight to `capital` with nothing checked — so a
+   * player with outside money could pour in as much as they liked and a
+   * corner shop could hold ninety-five million. Found in a live save
+   * doing exactly that. It made the capacity ladder decorative: why buy
+   * room when you can ignore the wall? The rule is now the same rule for
+   * both roads in, which is the only way it stays a rule.
+   */
+  const room = ceilingReport(world)
+  if (room !== undefined && room.ceiling - mine.business.capital <= 0) {
+    return {
+      done: false,
+      reason: `${mine.business.name} is full at ${formatMoney(room.ceiling)}. Buy more capacity before you put more in.`,
+    }
+  }
+  /**
+   * CLAMPED RATHER THAN REFUSED, for the same reason the draw dial clamps:
+   * a refusal here would soft-lock the ladder. Climbing costs money OUT of
+   * the till, so a business at its ceiling drops below it the moment you
+   * buy a step and can be topped up again — but only if putting in "too
+   * much" fills the room instead of bouncing.
+   */
+  const space =
+    room === undefined ? amount : Math.max(0, room.ceiling - mine.business.capital)
+  const wanted = Math.min(amount, space)
+  const taken = debitPerson(world, mine.business.ownerId, wanted as Money)
+  if (taken <= 0) return { done: false, reason: 'You do not have that to put in.' }
   logVerb(world, 'invest-business', String(amount))
   world.businesses.set(mine.business.id, {
     ...mine.business,
@@ -8039,7 +8092,10 @@ export function investInBusinessPlayer(
   })
   return {
     done: true,
-    reason: `${formatMoney(taken)} of your own money into ${mine.business.name}. It has ${formatMoney((mine.business.capital + taken) as Money)} in it now.`,
+    reason:
+      taken < amount
+        ? `${formatMoney(taken)} of your own money into ${mine.business.name} — all the room it had. It has ${formatMoney((mine.business.capital + taken) as Money)} in it now.`
+        : `${formatMoney(taken)} of your own money into ${mine.business.name}. It has ${formatMoney((mine.business.capital + taken) as Money)} in it now.`,
   }
 }
 
@@ -8272,7 +8328,14 @@ export const RIVAL_PREMIUM_PER_MILLE = 1150
 
 export function buyersForBusiness(
   world: World,
-): readonly { readonly personId: EntityId; readonly name: string; readonly offer: Money; readonly rival: boolean }[] {
+): readonly {
+  readonly personId: EntityId
+  readonly name: string
+  readonly offer: Money
+  readonly rival: boolean
+  /** Set where an outside firm is paying, and this is the local they install. */
+  readonly firm?: string
+}[] {
   const person = playerPerson(world)
   if (!person) return []
   const business = businessOf(world, person.id)
@@ -8287,7 +8350,13 @@ export function buyersForBusiness(
    * hands for nothing. Selling to yourself is not a sale.
    */
   const mine = walletHolderOf(world, person.id)
-  const out: { personId: EntityId; name: string; offer: Money; rival: boolean }[] = []
+  const out: {
+    personId: EntityId
+    name: string
+    offer: Money
+    rival: boolean
+    firm?: string
+  }[] = []
   for (const other of world.businesses.values()) {
     if (other.closedTick !== null || other.id === business.id) continue
     if (other.kindId !== business.kindId) continue
@@ -8325,8 +8394,45 @@ export function buyersForBusiness(
       rival: false,
     })
   }
+  /**
+   * AND SOMEBODY FROM AWAY, who can always write the cheque.
+   *
+   * Owner, playing: "I also have a company right now worth 75 million that
+   * is in the freelance cannot IPO or sell because nobody has the money to
+   * afford it". Exactly right, and it was a dead end by construction: the
+   * list above only ever contained townspeople with the cash IN HAND, and
+   * a town of a few hundred does not hold seventy-five million between
+   * them. Grow past the town's own wealth and you could not get out.
+   *
+   * An outside acquirer pays LESS than a local rival — a rival is buying
+   * the competition and pays for that; a firm is buying the numbers. But
+   * it is always there, so building something too big for the town is an
+   * achievement rather than a trap.
+   */
+  const local = [...world.people.values()]
+    .filter(
+      (other) =>
+        other.deathTick === null &&
+        other.id !== person.id &&
+        walletHolderOf(world, other.id) !== mine &&
+        ageAt(other.birthTick, world.tick) >= 25 &&
+        !out.some((entry) => entry.personId === other.id),
+    )
+    .sort((a, b) => a.id - b.id)[0]
+  if (local !== undefined) {
+    out.push({
+      personId: local.id,
+      name: `${local.givenName} ${local.familyName}`,
+      offer: Math.floor((valuation * OUTSIDE_SALE_PER_MILLE) / 1000) as Money,
+      rival: false,
+      firm: firmNameFor(world, business.id, 21_700),
+    })
+  }
   return out.sort((a, b) => b.offer - a.offer || a.personId - b.personId)
 }
+
+/** What an acquirer from away pays: the numbers, and not a penny for the rivalry. */
+export const OUTSIDE_SALE_PER_MILLE = 700
 
 /** Sell it, and be free to start again. */
 export function sellBusinessPlayer(
@@ -8344,7 +8450,9 @@ export function sellBusinessPlayer(
   const before = walletAccountsOf(world, person.id)
   const cashBefore = before.checking + before.savings
   logVerb(world, 'sell-business', String(buyerId))
-  if (!sellBusiness(world, world.tick, business.id, buyerId, buyer.offer)) {
+  if (
+    !sellBusiness(world, world.tick, business.id, buyerId, buyer.offer, buyer.firm !== undefined)
+  ) {
     return { done: false, reason: 'The sale did not go through.' }
   }
   const after = walletAccountsOf(world, person.id)
@@ -8353,8 +8461,8 @@ export function sellBusinessPlayer(
     done: true,
     reason:
       kept <= 0
-        ? `${business.name} sold to ${buyer.name} for ${formatMoney(buyer.offer)} — and the backers took all of it.`
-        : `${business.name} sold to ${buyer.name} for ${formatMoney(buyer.offer)}. ${formatMoney(kept as Money)} of it is yours.`,
+        ? `${business.name} sold to ${buyer.firm ?? buyer.name} for ${formatMoney(buyer.offer)} — and the backers took all of it.`
+        : `${business.name} sold to ${buyer.firm ?? buyer.name} for ${formatMoney(buyer.offer)}. ${formatMoney(kept as Money)} of it is yours.`,
   }
 }
 
@@ -8374,5 +8482,142 @@ export function windDownPlayer(world: World): { done: boolean; reason: string } 
   return {
     done: true,
     reason: `${business.name} is shut. ${formatMoney((after.checking + after.savings - cashBefore) as Money)} came back to you.`,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Control of a listed company
+// ---------------------------------------------------------------------------
+
+/** What the player holds of one listed company, and what more would cost. */
+export interface StakeView {
+  readonly stockId: string
+  readonly ticker: string
+  readonly name: string
+  readonly perMille: number
+  readonly words: string
+  readonly blocking: boolean
+  readonly controlling: boolean
+  /** What it would cost to reach a blocking stake, or null where already past it. */
+  readonly toBlocking: Money | null
+  /** What it would cost to reach control, or null where already past it. */
+  readonly toControl: Money | null
+  /** True where this is a company the player floated themselves. */
+  readonly wasYours: boolean
+}
+
+/**
+ * EVERY LISTED COMPANY THE PLAYER HOLDS A PIECE OF.
+ *
+ * The stake was invisible before this: the market has always known how many
+ * shares exist and the portfolio has always known how many are held, and
+ * nothing divided one by the other.
+ */
+export function stakesOf(world: World): readonly StakeView[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const accounts = accountsOf(world, person.id)
+  const floated = new Set(
+    [...world.businesses.values()]
+      .filter((b) => b.ownerId === person.id && b.listedStockId != null)
+      .map((b) => b.listedStockId as string),
+  )
+  const seen = new Set<string>()
+  const out: StakeView[] = []
+  for (const holding of accounts.holdings) {
+    if (holding.stockId === undefined || seen.has(holding.stockId)) continue
+    seen.add(holding.stockId)
+    const stock = stockById(world, holding.stockId)
+    if (stock === undefined) continue
+    const perMille = stakePerMilleOf(world, accounts.holdings, holding.stockId)
+    if (perMille <= 0) continue
+    out.push({
+      stockId: stock.id,
+      ticker: stock.ticker,
+      name: stock.name,
+      perMille,
+      words: stakeWords(perMille),
+      blocking: perMille >= BLOCKING_STAKE_PER_MILLE,
+      controlling: perMille >= CONTROL_STAKE_PER_MILLE,
+      toBlocking:
+        perMille >= BLOCKING_STAKE_PER_MILLE
+          ? null
+          : costToReachPerMille(world, stock.id, perMille, BLOCKING_STAKE_PER_MILLE),
+      toControl:
+        perMille >= CONTROL_STAKE_PER_MILLE
+          ? null
+          : costToReachPerMille(world, stock.id, perMille, CONTROL_STAKE_PER_MILLE),
+      wasYours: floated.has(stock.id),
+    })
+  }
+  return out.sort((a, b) => b.perMille - a.perMille || (a.ticker < b.ticker ? -1 : 1))
+}
+
+/** Why you cannot buy your way to that stake, or null. */
+export function takeoverBar(world: World, stockId: string, targetPerMille: number): string | null {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const stock = stockById(world, stockId)
+  if (stock === undefined) return 'No such listing.'
+  const accounts = accountsOf(world, person.id)
+  const held = stakePerMilleOf(world, accounts.holdings, stockId)
+  if (held >= targetPerMille) return 'You are already past that.'
+  const cost = costToReachPerMille(world, stockId, held, targetPerMille)
+  const wallet = walletAccountsOf(world, person.id)
+  if (wallet.savings < cost) {
+    return `It would take ${formatMoney(cost)} out of savings, and you have ${formatMoney(wallet.savings)}.`
+  }
+  return null
+}
+
+/**
+ * BUY YOUR WAY TO A STAKE.
+ *
+ * Walked in small purchases rather than one, because the price runs away as
+ * the holding grows — the premium is recomputed on every step, so the last
+ * tenth genuinely costs more than the first.
+ */
+export function takeStakePlayer(
+  world: World,
+  stockId: string,
+  targetPerMille: number,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = takeoverBar(world, stockId, targetPerMille)
+  if (bar !== null) return { done: false, reason: bar }
+  const stock = stockById(world, stockId)
+  if (stock === undefined) return { done: false, reason: 'No such listing.' }
+
+  logVerb(world, 'take-stake', `${stockId}:${String(targetPerMille)}`)
+  const before = stakePerMilleOf(world, accountsOf(world, person.id).holdings, stockId)
+  let spent = 0
+  for (let step = 0; step < 60; step += 1) {
+    const at = stakePerMilleOf(world, accountsOf(world, person.id).holdings, stockId)
+    if (at >= targetPerMille) break
+    const slice = Math.min(20, targetPerMille - at)
+    const cost = costToReachPerMille(world, stockId, at, at + slice)
+    if (cost <= 0) break
+    const paid = buyShares(world, world.tick, person.id, stockId, cost, false, true)
+    if (paid <= 0) break
+    spent += paid
+  }
+  const after = stakePerMilleOf(world, accountsOf(world, person.id).holdings, stockId)
+  if (after <= before) return { done: false, reason: 'The shares were not there to be had.' }
+
+  const gained = after >= CONTROL_STAKE_PER_MILLE && before < CONTROL_STAKE_PER_MILLE
+  if (gained) {
+    recordEvent(world, world.tick, {
+      type: 'took-control',
+      subjectId: person.id,
+      detail: `${stock.ticker}:${String(after)}`,
+    })
+  }
+  return {
+    done: true,
+    reason: gained
+      ? `${formatMoney(spent as Money)} for ${(after / 10).toFixed(1)}% of ${stock.name}. It is yours now.`
+      : `${formatMoney(spent as Money)} spent. You hold ${(after / 10).toFixed(1)}% of ${stock.name} — ${stakeWords(after)}.`,
   }
 }

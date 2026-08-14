@@ -65,6 +65,8 @@ import {
   householdLedger,
   livingPeople,
   monthlyNetOf,
+  businessDrawOf,
+  walletAccountsOf,
   personalMonthlyNet,
   partnerOf,
   newsSince,
@@ -315,7 +317,17 @@ const GROUPS: readonly { id: string; icon: string; label: string; tabs: readonly
   { id: 'g-story', icon: '📖', label: 'Story', tabs: ['story'] },
   { id: 'g-you', icon: '📊', label: 'You', tabs: ['home', 'health', 'school'] },
   { id: 'g-money', icon: '💰', label: 'Money', tabs: ['money', 'market', 'casino', 'property'] },
-  { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career', 'business'] },
+  { id: 'g-work', icon: '💼', label: 'Work', tabs: ['jobs', 'career'] },
+  /**
+   * BUSINESS STANDS ON THE RAIL IN ITS OWN RIGHT (owner, playing:
+   * "put the business tab on the main Rail under work").
+   *
+   * It was a sub-tab of Work, which made it a footnote to having a job —
+   * and the whole point of the module is that past a certain size the
+   * business IS the job (ADR-0046). Directly under Work, because that is
+   * where he asked for it and because the two belong next to each other.
+   */
+  { id: 'g-business', icon: '🏪', label: 'Business', tabs: ['business'] },
   { id: 'g-people', icon: '👪', label: 'People', tabs: ['family', 'people'] },
   { id: 'g-service', icon: '🪖', label: 'Service', tabs: ['service'] },
   { id: 'g-news', icon: '📰', label: 'News', tabs: ['news'] },
@@ -1472,7 +1484,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           <Market
             world={world}
             holdings={accountsOf(world, person.id).holdings}
-            cash={accountsOf(world, person.id).savings}
+            /**
+             * THE WALLET, NOT THE PERSONAL FILE (H0). Same disagreement the
+             * Bank had: `buyShares` spends from the wallet, so a screen that
+             * sizes the button off the raw record tells a married spouse
+             * they have nothing to invest while the family has millions.
+             */
+            cash={walletAccountsOf(world, person.id).savings}
             onAct={onAct}
           />
         </div>
@@ -1631,7 +1649,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         const partner = partnerId === null ? undefined : world.people.get(partnerId)
                         const theirs =
                           partner === undefined ? null : moneyOnHand(world, partner.id)
-                        const mine = personalMonthlyNet(world, person.id)
+                        /**
+                         * WHAT THE BUSINESS PAYS THEM IS INCOME (owner:
+                         * "You still need to count the income we draw from
+                         * the company as income").
+                         *
+                         * Added here rather than inside `personalMonthlyNet`
+                         * on purpose: that function feeds the household
+                         * pass, which CREDITS what it reports, and the draw
+                         * has already been paid. Counting it there would
+                         * pay it twice.
+                         */
+                        const draw = businessDrawOf(world, person.id)
+                        const mine = (personalMonthlyNet(world, person.id) + draw) as Money
                         return (
                           <>
                             {partner !== undefined && theirs !== null && (
@@ -1643,6 +1673,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             {mine < 0
                               ? `${formatMoney(-mine as Money)} a month more goes out than comes in`
                               : `${formatMoney(mine)} a month is staying put`}
+                            {draw > 0 && (
+                              <>
+                                <br />
+                                {formatMoney(draw)} of that is drawn from the business
+                              </>
+                            )}
                             {ledger.inArrears && (
                               <>
                                 <br />

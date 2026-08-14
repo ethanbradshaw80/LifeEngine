@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { ageAt } from '../src/clock.js'
 import { chooseSpendStance, setPlayer } from '../src/player.js'
 import { seed as makeSeed } from '@life-engine/shared'
+import type { Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
   accountsOf,
@@ -20,9 +21,12 @@ import {
   personalIncome,
   unitCosts,
   unitsUnder,
+  moneyOnHand,
   walletHolderOf,
+  walletOf,
 } from '../src/finances.js'
 import type { World } from '../src/types.js'
+import { partnerOf } from '../src/relationships.js'
 
 function grown(seedValue = 12345, ticks = 240): World {
   const world = createWorld(makeSeed(seedValue), 100)
@@ -238,5 +242,45 @@ describe('a household is a building, not a purse (M-MONEY2)', () => {
     // And it did NOT change their parents'.
     const parent = grown.parentIds.map((id) => world.people.get(id)).find((p) => p !== undefined)
     if (parent) expect(world.people.get(parent.id)?.spendStance).not.toBe('thrifty')
+  })
+})
+
+/**
+ * THE SCREENS MUST AGREE ABOUT WHAT SOMEBODY HAS (owner, playing,
+ * 2026-08-14: "now my 'you have' and 'the bank' disagree, it shows I have
+ * zero money to put into the account but my money is 1.9 million").
+ *
+ * H0 keeps a married couple's liquid money as ONE balance on the lower-id
+ * spouse's record. Every screen and every verb must read it from the same
+ * place, or the half of a couple who does not hold the wallet is shown as
+ * penniless while the family is not — and, worse, the buttons grey out
+ * against a balance they were never going to spend.
+ */
+describe('one purse, one number', () => {
+  it('reports the same liquid money to both spouses', () => {
+    const world = createWorld(makeSeed(24680), 120)
+    advanceTicks(world, 30 * 12)
+    const married = [...world.people.values()].find(
+      (person) => person.deathTick === null && partnerOf(world, person.id) !== null,
+    )
+    expect(married, 'nobody married in this world').toBeDefined()
+    if (!married) return
+    const spouse = partnerOf(world, married.id)
+    expect(spouse).not.toBeNull()
+    if (spouse === null) return
+
+    // Put a known sum in the shared purse.
+    const purse = walletOf(world, married.id)
+    world.accounts.set(purse.personId, { ...purse, savings: 190_000_000 as Money, checking: 0 as Money })
+
+    // BOTH of them see it, whichever record it physically lives on.
+    expect(moneyOnHand(world, married.id)).toBe(190_000_000)
+    expect(moneyOnHand(world, spouse)).toBe(190_000_000)
+
+    // And the accounts a screen would render are the SAME accounts for both,
+    // which is what the Bank screen got wrong: it read the raw record.
+    expect(walletOf(world, married.id).savings).toBe(190_000_000)
+    expect(walletOf(world, spouse).savings).toBe(190_000_000)
+    expect(walletOf(world, married.id).personId).toBe(walletOf(world, spouse).personId)
   })
 })

@@ -285,6 +285,30 @@ These have each cost real time more than once:
 6. **Import cycles are caught by `imports.test.ts` and are usually avoidable
    by reading state inline** rather than importing the module that owns it.
 
+### WHERE IT ACTUALLY IS (2026-08-14, SIMULATION_VERSION 174, SCHEMA_VERSION 75)
+
+The queue below was assessed on 2026-08-04 and predates the housing revamp
+and the whole business module. What has shipped since:
+
+- **Housing** (v163/v164): buying outright, the portfolio, renting out, and
+  the H0 wallet repair that killed six money-duplication paths.
+- **The business module** (v168-v174), built from the owner's thirteen design
+  files: era-gated trades, the cap table with real townsfolk as angels,
+  player-controlled hiring, the operations loop (stock, vendors, price, the
+  draw dial), the growth ladder to a 25x ceiling, selling and winding down,
+  the IPO gate at $10M inside eight years, and **takeovers** — a stake
+  readout, a blocking stake at 25%, control past 50%, a premium that makes
+  the last tenth hurt, and an NPC who can come for what the player floated.
+- **Business lives in its own tab**, per the owner's mockups. The panels that
+  were wrongly built inside Career are gone.
+
+**The recurring failure shape this module added to the list:** a test that
+hand-rolls the same arithmetic as the code it is testing will pass beside the
+bug. `costToReachPerMille` priced a whole company at a HUNDREDTH of its worth
+and the test agreed with it, because both divided by 10,000 where cents needs
+100. A five-line probe printing real numbers caught it in one run. **Print the
+figures and look at them; do not only assert relations between them.**
+
 ### THE QUEUE
 
 **The owner's standing preference is that he writes the design doc.** It

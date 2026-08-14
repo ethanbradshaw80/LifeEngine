@@ -399,8 +399,11 @@ export function BusinessTab({
             </div>
             {vendors.length > 0 && (
               <ul className="openings">
-                {vendors.map((vendor) => (
-                  <li key={vendor.name}>
+                {vendors.map((vendor, at) => (
+                  // Keyed by position as well as name: the engine now hands
+                  // back distinct names, and a belt as well as braces costs
+                  // nothing.
+                  <li key={`${vendor.name}-${String(at)}`}>
                     <span className="o-title">
                       {vendor.name}
                       <span className="s">
@@ -467,6 +470,40 @@ export function BusinessTab({
               {String(100 - Math.round(ops.retainPerMille / 10))}% comes to you as income. What
               stays in is what the business grows on.
             </p>
+            {(() => {
+              /**
+               * WHAT THE DIAL ASKED FOR, AND WHAT ACTUALLY HAPPENED (owner,
+               * playing: "The 'what you take out' option and the actual
+               * books numbers are off way off, figure out why they dont read
+               * the read numbers").
+               *
+               * They were not lying to each other — they were both right
+               * about different things, which is worse, because nothing on
+               * the screen said so. The dial sets what the business TRIES to
+               * keep; the CEILING caps what it can hold. A business already
+               * full keeps nothing however the dial is set, and every cent
+               * is drawn instead. Measured: below the ceiling the two agree
+               * exactly (80% asked, 80% retained); at it they diverge
+               * completely.
+               */
+              const months = booksFor(world)?.months ?? []
+              const last = months[months.length - 1]
+              if (last === undefined || last.profit <= 0) return null
+              const reallyKept = Math.round((last.retained * 100) / last.profit)
+              const asked = Math.round(ops.retainPerMille / 10)
+              if (Math.abs(reallyKept - asked) <= 2) return null
+              const report = ceilingReport(world)
+              return (
+                <p className="career-note bad">
+                  Last month it actually kept {String(reallyKept)}%, not {String(asked)}%.
+                  {report !== undefined && report.capital >= report.ceiling
+                    ? ` The business is full at ${formatMoney(report.ceiling)} — there is nowhere
+                       to put the rest, so it comes to you instead. Buy more capacity under
+                       “Growing it” to make room.`
+                    : ' There was not room in the business for all of it.'}
+                </p>
+              )
+            })()}
             <p className="career-note">
               The money in the business is what the business spends: stock, advertising, a
               refit, another set of rooms. Your own savings only reach it if you put them in.
@@ -801,18 +838,20 @@ export function BusinessTab({
       <h4>Getting out</h4>
       {buyers.length === 0 ? (
         <p className="career-note">
-          Nobody in town has the money for it just now. You can always shut it yourself.
+          Nobody is buying just now. You can always shut it yourself.
         </p>
       ) : (
         <ul className="openings">
           {buyers.map((buyer) => (
             <li key={buyer.personId}>
               <span className="o-title">
-                {buyer.name}
+                {buyer.firm ?? buyer.name}
                 <span className="s">
-                  {buyer.rival
-                    ? 'a rival in your trade — worth more to them than to anybody else'
-                    : 'money in the town, looking for something to put it in'}
+                  {buyer.firm !== undefined
+                    ? `an acquirer from away — they would put ${buyer.name} in to run it`
+                    : buyer.rival
+                      ? 'a rival in your trade — worth more to them than to anybody else'
+                      : 'money in the town, looking for something to put it in'}
                 </span>
               </span>
               <button

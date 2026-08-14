@@ -362,15 +362,24 @@ export const CAPITAL_CEILING_MULTIPLE = 4
  * comment on it has always said what is on the other side: "beyond it you
  * are running a different kind of business." This is the door.
  *
- * Three gates, and each is doing a different job. The KIND gate means you
- * cannot scale a market stall into a corporation — you grow through the
- * kinds first, which is the ladder this module already had. The CAPITAL
- * gate means the business must actually have hit its own ceiling rather
- * than merely be doing well. The YEARS gate means it survived, because
- * almost half of these close and a company built out of a two-year-old
- * venture would be a company built out of luck.
+ * Two gates now, and each is doing a different job. The CAPITAL gate means
+ * the business must actually have hit its own ceiling rather than merely be
+ * doing well. The YEARS gate means it survived, because almost half of
+ * these close and a company built out of a two-year-old venture would be a
+ * company built out of luck.
+ *
+ * THE KIND GATE IS GONE (owner, playing, 2026-08-14: "I also have a company
+ * right now worth 75 million that is in the freelance cannot IPO or sell...
+ * all companies should be able to IPO and stuff").
+ *
+ * It was a whitelist of two — a shop and a contracting firm — and it was
+ * wrong in the way whitelists usually are. A freelance consultancy that has
+ * traded eight years and filled its ceiling IS a firm; refusing to let it
+ * incorporate while the exchange also refuses to list a trade left a
+ * seventy-five-million-dollar business with no road out in either
+ * direction. The capital gate already says "big enough" and says it for
+ * every trade, which is what the kind gate was clumsily approximating.
  */
-export const SCALE_UP_FROM_KINDS: readonly string[] = ['shop', 'contracting-firm']
 export const SCALE_UP_YEARS = 8
 
 /**
@@ -392,9 +401,6 @@ export function scaleUpBar(
   if (!business || !kind) return 'There is no business to grow.'
   if (business.closedTick !== null) return 'It closed.'
   if (business.scaledAtTick != null) return 'It is already a company.'
-  if (!SCALE_UP_FROM_KINDS.includes(business.kindId)) {
-    return 'A trade this size does not become a company. Grow it into something bigger first.'
-  }
   const years = Math.floor((tick - business.foundedTick) / 12)
   if (years < SCALE_UP_YEARS) {
     return `It has traded ${String(years)} year${years === 1 ? '' : 's'}. A company is built on ${String(SCALE_UP_YEARS)}.`
@@ -471,6 +477,41 @@ export function companyHeadcountOf(business: Business, kind: BusinessKind): numb
 }
 
 /**
+ * HOW MUCH OF THE CAPITAL IS ACTUALLY EARNING (owner, playing, 2026-08-14:
+ * "it feels so easy to scale a business. Run a test on your own and find
+ * ways for it to be more challenging").
+ *
+ * MEASURED FIRST, as he asked. An active player founding a shop and
+ * climbing the capacity ladder every year reached a valuation of **$23.7M
+ * and $34.6M** at two seeds inside ten years, against a ten-million IPO
+ * gate — so the gate was a formality rather than a target. A passive owner
+ * reached $1.2M, so the ladder was doing its job; the RATE was the problem.
+ *
+ * The cause was one line: earnings were LINEAR in capital, for ever. Ten
+ * times the money in the till made ten times the profit, which is why the
+ * loop "pour money in, buy capacity, repeat" had no ceiling worth the name.
+ * It also implied something plainly untrue about a small town — that a
+ * corner shop with a million dollars behind it can find a million dollars
+ * of customers on the same square.
+ *
+ * So capital earns at full rate up to four times what the trade costs to
+ * open — its natural size — then at three fifths, then at a third. The
+ * money is not wasted and growing is still worth doing; it just stops
+ * being multiplication. Every other lever the player has (price, staff,
+ * expansions, the vendor, advertising) works on a per-mille basis and is
+ * therefore UNTOUCHED by this — which is deliberate. It makes running the
+ * business well matter MORE, relative to simply feeding it.
+ */
+export function earningBaseOf(capital: number, foundingCapital: number): number {
+  const founding = Math.max(1, foundingCapital)
+  const natural = founding * 4
+  if (capital <= natural) return capital
+  const wide = founding * 10
+  if (capital <= wide) return natural + Math.floor(((capital - natural) * 6) / 10)
+  return natural + Math.floor(((wide - natural) * 6) / 10) + Math.floor(((capital - wide) * 35) / 100)
+}
+
+/**
  * WHAT THE MONTH RETURNED, in cents. Can be negative, which is the point.
  *
  * The kind's own return on the capital in it, moved by the cycle through
@@ -510,12 +551,26 @@ export function monthlyProfitFor(
    * of having some.
    */
   floorLiftPerMille = 0,
+  /**
+   * WHAT THIS TRADE COSTS TO OPEN, in TODAY'S cents.
+   *
+   * Passed in rather than read off the kind because the kind's figure is
+   * in base-year money and this file cannot see the price level — the
+   * engine is a pure function and inflation is the world's business.
+   * Defaulting to the kind's own number keeps every caller written before
+   * the taper existed arithmetically identical.
+   */
+  foundingCapital = 0,
 ): Money {
   // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
   // over a decade rather than at a stroke, so the owner has years to sell,
   // pivot or ride it down — Law 7's recovery path, not a cliff.
   const demand = year === undefined ? 1000 : kindDemandPerMille(kind, year)
-  const earning = Math.floor((business.capital * demand) / 1000)
+  const earning = Math.floor(
+    (earningBaseOf(business.capital, foundingCapital > 0 ? foundingCapital : kind.capital) *
+      demand) /
+      1000,
+  )
   // WHAT IT HAS GROWN INTO. A second set of doors trades like most of
   // another shop; a supplier you own stops charging you their margin.
   // Additive, not compounding — three ways of growing make a business
@@ -634,3 +689,16 @@ export function businessHealthWords(business: Business): string {
   if (business.badMonths === 1) return 'a bad month'
   return 'trading'
 }
+
+/**
+ * WHEN A BUSINESS IS THE JOB (owner, playing, 2026-08-14: "when someone
+ * starts to have a big company say like worth 2 million they shouldnt be
+ * able to work a full time job too, businesses take time. Limit this").
+ *
+ * He is right, and the omission was making a business strictly better than
+ * a career: a player could draw a fortune out of a company they never had
+ * to attend and collect a salary on top for hours that do not exist in the
+ * week. Two million is his number, in base-year cents so it means the same
+ * thing in 1970 and 2030.
+ */
+export const BUSINESS_IS_FULL_TIME_AT = 200_000_000

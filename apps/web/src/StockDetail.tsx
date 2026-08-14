@@ -15,12 +15,18 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import {
+  BLOCKING_STAKE_PER_MILLE,
+  CONTROL_STAKE_PER_MILLE,
   betaOf,
   dividendYieldOf,
   holdingValue,
   marketCapOf,
   peRatioOf,
   ratingOf,
+  costToReachPerMille,
+  stakePerMilleOf,
+  stakeWords,
+  takeoverBar,
   upsidePerMille,
   yearRangeOf,
 } from '@life-engine/engine'
@@ -229,6 +235,108 @@ export function StockDetail({
               </div>
             </div>
           </div>
+        </section>
+      )}
+
+      {/*
+        HOW MUCH OF THE COMPANY YOU HOLD (owner: "is there a thing where If
+        someone has so much money that they can just buy up all the shares
+        of a stock and do a takeover? or own a certain percentage?").
+
+        The engine has always known `sharesOutstanding` and always known
+        your units, and nothing anywhere divided one by the other. This is
+        that division, and the two thresholds it crosses.
+      */}
+      {holding !== undefined && stakePerMilleOf(world, [holding], stock.id) > 0 && (
+        <section className="stock-sec">
+          <h3>How much of it is yours</h3>
+          {(() => {
+            const mine = stakePerMilleOf(world, [holding], stock.id)
+            const toBlock = costToReachPerMille(world, stock.id, mine, BLOCKING_STAKE_PER_MILLE)
+            const toControl = costToReachPerMille(world, stock.id, mine, CONTROL_STAKE_PER_MILLE)
+            const blockBar = takeoverBar(world, stock.id, BLOCKING_STAKE_PER_MILLE)
+            const controlBar = takeoverBar(world, stock.id, CONTROL_STAKE_PER_MILLE)
+            return (
+              <>
+                <div className="stock-stake">
+                  <div className="stock-stake-figure tabular">{(mine / 10).toFixed(1)}%</div>
+                  <div className="muted small">{stakeWords(mine)}</div>
+                </div>
+                <div className="stock-stake-bar" aria-hidden="true">
+                  <i style={{ width: `${String(Math.min(100, mine / 10))}%` }} />
+                  <span className="stock-stake-mark" style={{ left: '25%' }} />
+                  <span className="stock-stake-mark" style={{ left: '50%' }} />
+                </div>
+                <p className="muted small">
+                  A quarter of a company is enough to block what the board wants; past half it
+                  is yours.
+                </p>
+                <p className="muted small">
+                  {/* SAID BEFORE THE BUTTON IS PRESSED, not discovered after
+                      (owner: "when you buy stock and it says total return it
+                      goes negative instantly"). Taking control costs above
+                      the market, so the position shows a loss the moment it
+                      is bought. That is what a premium IS — but nobody
+                      should meet it as a surprise. */}
+                  Buying control costs more than the market price, so the position will show a
+                  loss straight away. Ordinary buying is unaffected.
+                </p>
+                <div className="stock-trade">
+                  {mine < BLOCKING_STAKE_PER_MILLE && (
+                    <button
+                      type="button"
+                      className="stock-buy"
+                      disabled={blockBar !== null}
+                      title={blockBar ?? undefined}
+                      onClick={() =>
+                        onAct({
+                          verb: 'take-stake',
+                          stockId: stock.id,
+                          perMille: BLOCKING_STAKE_PER_MILLE,
+                        })
+                      }
+                    >
+                      Buy to 25% · {formatMoney(toBlock)}
+                    </button>
+                  )}
+                  {mine < CONTROL_STAKE_PER_MILLE && (
+                    <button
+                      type="button"
+                      className="stock-buy"
+                      disabled={controlBar !== null}
+                      title={controlBar ?? undefined}
+                      onClick={() =>
+                        onAct({
+                          verb: 'take-stake',
+                          stockId: stock.id,
+                          perMille: CONTROL_STAKE_PER_MILLE,
+                        })
+                      }
+                    >
+                      Take control · {formatMoney(toControl)}
+                    </button>
+                  )}
+                  {mine >= CONTROL_STAKE_PER_MILLE && mine < 1000 && (
+                    <button
+                      type="button"
+                      className="stock-buy"
+                      disabled={takeoverBar(world, stock.id, 1000) !== null}
+                      title={takeoverBar(world, stock.id, 1000) ?? undefined}
+                      onClick={() => onAct({ verb: 'take-stake', stockId: stock.id, perMille: 1000 })}
+                    >
+                      Buy the rest · {formatMoney(costToReachPerMille(world, stock.id, mine, 1000))}
+                    </button>
+                  )}
+                </div>
+                {/* Only ever explain a refusal for a step still ahead of you.
+                    Showing "You are already past that" under a button that
+                    is not on the screen is noise. */}
+                {mine < CONTROL_STAKE_PER_MILLE && controlBar !== null && (
+                  <p className="muted small">{controlBar}</p>
+                )}
+              </>
+            )
+          })()}
         </section>
       )}
 

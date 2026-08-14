@@ -151,7 +151,7 @@ export {
   tryOutForUnit,
   walkOut,
 } from './player.js'
-export type { CustomLifeSpec, JobCandidate, StockReport } from './player.js'
+export type { CustomLifeSpec, JobCandidate, StakeView, StockReport } from './player.js'
 export {
   ADVERT_MONTHS,
   PRICE_STEPS,
@@ -325,6 +325,12 @@ export {
   arrearsHistoryOf,
   canAfford,
   householdWealth,
+  businessDrawOf,
+  businessWorthOf,
+  // The ACCOUNTS a person actually spends from (H0) — distinct from
+  // player.ts's `walletOf`, which answers with a single figure.
+  walletOf as walletAccountsOf,
+  businessDemandsAllHours,
   netWorthOf,
   personalIncome,
   personalMonthlyNet,
@@ -570,6 +576,13 @@ export {
   floatProceedsFor,
   stockById,
   stocksInSector,
+  BLOCKING_STAKE_PER_MILLE,
+  CONTROL_STAKE_PER_MILLE,
+  controlPremiumPerMille,
+  costToReachPerMille,
+  priceToBuyerOf,
+  stakePerMilleOf,
+  stakeWords,
 } from './market.js'
 export type { AnalystView, Stock } from './types.js'
 export type { CompanyNews } from './market.js'
@@ -607,6 +620,9 @@ export type { Election, Office, Officeholder, Party, PolicyState } from './types
 export type { CampaignAction, DebateChoice } from './government.js'
 export {
   buySharesPlayer,
+  stakesOf,
+  takeoverBar,
+  takeStakePlayer,
   campaignPlayer,
   dropOutPlayer,
   sellSharesPlayer,

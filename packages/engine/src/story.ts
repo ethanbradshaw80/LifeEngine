@@ -210,6 +210,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       if (event.detail === 'laid off') return `${year} — Laid off; the work dried up.`
       if (event.detail === 'jailed') return `${year} — The job did not wait out the sentence.`
       if (event.detail === 'quit') return `${year} — Quit the job.`
+      // The business grew into the whole working week (ADR-0046).
+      if (event.detail === 'the-business') {
+        return `${year} — Left the job. The business takes every hour there is now.`
+      }
       return null // job-change departures read better as the arrival line alone
     case 'was-introduced':
       return `${year} — Introduced to ${nameOf(world, event.otherId)} at ${event.detail ?? 'a town social'}.`
@@ -257,12 +261,23 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       const [name] = (event.detail ?? '').split(':')
       return `Bought out ${name ?? 'a rival'}.`
     }
+    case 'took-control': {
+      const [ticker, share] = (event.detail ?? '').split(':')
+      return `Took control of ${ticker ?? 'a listed company'} — ${(Number(share ?? 0) / 10).toFixed(1)}% of it.`
+    }
+    case 'lost-control': {
+      const [ticker, share] = (event.detail ?? '').split(':')
+      return `Somebody bought ${(Number(share ?? 0) / 10).toFixed(1)}% of ${ticker ?? 'the company'}. It is not yours any more.`
+    }
     case 'sold-business': {
       const [name, price] = (event.detail ?? '').split(':')
       return `Sold ${name ?? 'the business'} for ${formatMoney(Number(price ?? 0) as never)}.`
     }
     case 'business-struggling': {
       const [name, months] = (event.detail ?? '').split(':')
+      if (months === 'year') {
+        return `${name ?? 'The business'} has lost money over the year just gone.`
+      }
       if (months === 'final') {
         return `${name ?? 'The business'} cannot cover what it lost. One month to save it.`
       }

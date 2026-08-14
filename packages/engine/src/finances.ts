@@ -71,10 +71,12 @@ import {
 import {
   SECTORS,
   dividendOn,
+  CONTROL_STAKE_PER_MILLE,
   holdingKeyOf,
   holdingValue,
   portfolioValue,
-  sharesFor,
+  priceToBuyerOf,
+  stakePerMilleOf,
   stockById,
   unitsFor,
 } from './market.js'
@@ -142,6 +144,7 @@ import { placesOfKind } from './worldgen.js'
 import {
   BUSINESS_FAILS_AFTER,
   BUSINESS_KINDS,
+  BUSINESS_IS_FULL_TIME_AT,
   CAPITAL_CEILING_MULTIPLE,
   COMPANY_CEILING_MULTIPLE,
   founderSalaryOf,
@@ -409,8 +412,96 @@ export function netWorthOf(world: World, personId: EntityId): Money {
     a.retirement +
     portfolioValue(world, a.holdings) +
     portfolioValue(world, a.retirementHoldings) +
-    homeValueOf(world, personId) -
+    homeValueOf(world, personId) +
+    businessWorthOf(world, personId) -
     totalDebtOf(a.loans)) as Money
+}
+
+/**
+ * WHAT THEIR SHARE OF THE BUSINESSES THEY OWN IS WORTH (owner, playing,
+ * 2026-08-14: "net worth included this is an asset").
+ *
+ * He is right and the omission was glaring: a player could run a business
+ * worth seventy-five million and have it appear NOWHERE in what they were
+ * worth. A house counted, a fund counted, a share of a listed company
+ * counted — the thing they actually built did not.
+ *
+ * ONLY THEIR SLICE. Once backers are on the register, part of that value
+ * is somebody else's, and the cap table already knows exactly how much.
+ */
+export function businessWorthOf(world: World, personId: EntityId): Money {
+  let total = 0
+  for (const business of world.businesses.values()) {
+    if (business.closedTick !== null || business.ownerId !== personId) continue
+    const worth = privateValuationOf(world, business)
+    if (worth <= 0) continue
+    const table = world.capTables.get(business.id)
+    if (table === undefined) {
+      total += worth
+      continue
+    }
+    // The founder's share is what is left after everybody else's.
+    let others = 0
+    for (const holder of table.shareholders) {
+      if (holder.personId === personId) continue
+      others += holder.perMille
+    }
+    total += Math.floor((worth * Math.max(0, 1000 - others)) / 1000)
+  }
+  return total as Money
+}
+
+/**
+ * IS THEIR BUSINESS BIG ENOUGH TO BE THE WHOLE OF THEIR WORKING WEEK?
+ *
+ * One function, read by the bar on the job list, by the refusal under it,
+ * and by the monthly pass that walks people out of jobs they can no longer
+ * hold — so the greyed row, the sentence and the consequence can never
+ * disagree about what the rule is.
+ */
+export function businessDemandsAllHours(world: World, personId: EntityId): boolean {
+  const threshold = atTodaysPrices(world, BUSINESS_IS_FULL_TIME_AT as Money)
+  for (const business of world.businesses.values()) {
+    if (business.closedTick !== null || business.ownerId !== personId) continue
+    if (privateValuationOf(world, business) >= threshold) return true
+  }
+  return false
+}
+
+/**
+ * WHAT THE BUSINESS PAID THEM LAST MONTH (owner: "You still need to count
+ * the income we draw from the company as income").
+ *
+ * Read off the books rather than recomputed, so the figure on the screen is
+ * the figure the month actually produced.
+ *
+ * DELIBERATELY NOT PART OF `personalIncome`. That function feeds the
+ * household pass, which CREDITS what it reports — and `runBusinesses` has
+ * already put this money in the wallet. Adding it there would pay the draw
+ * twice, which is the exact shape of the shadow-ledger bugs this codebase
+ * has now had seven times. It is income for the purpose of being SEEN and
+ * being TAXED; the crediting stays where it is, with one writer.
+ */
+export function businessDrawOf(world: World, personId: EntityId): Money {
+  let total = 0
+  for (const business of world.businesses.values()) {
+    if (business.closedTick !== null || business.ownerId !== personId) continue
+    const books = world.businessBooks.get(business.id) ?? []
+    const last = books[books.length - 1]
+    if (last === undefined) continue
+    const table = world.capTables.get(business.id)
+    if (table === undefined) {
+      total += last.drawn
+      continue
+    }
+    let others = 0
+    for (const holder of table.shareholders) {
+      if (holder.personId === personId) continue
+      others += holder.perMille
+    }
+    total += Math.floor((last.drawn * Math.max(0, 1000 - others)) / 1000)
+  }
+  return total as Money
 }
 
 /**
@@ -2502,6 +2593,7 @@ export function runFinances(world: World, tick: Tick): void {
   serviceDebts(world, tick)
   payDividends(world)
   runNpcInvesting(world, tick)
+  runRaiders(world, tick)
   runTaxSeason(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
@@ -3643,13 +3735,10 @@ export function raiseRound(
   } else {
     // AN INSTITUTION. Fictional always (charter §3), named off the
     // business id so the same firm keeps its name across a save.
-    const rng = openStream(world.seed, Stream.Economy, businessId, tick + 14_200)
-    const first = ['Beacon', 'Cardinal', 'Meridian', 'Halloway', 'Stonebridge', 'Kestrel']
-    const second = ['Ventures', 'Partners', 'Capital', 'Holdings', 'Associates']
     holder = {
       id: `sh-${String(businessId)}-${round}`,
       personId: null,
-      name: `${rng.pick(first)} ${rng.pick(second)}`,
+      name: firmNameFor(world, businessId, tick + 14_200),
       perMille: terms.perMille,
       investedCents: amount,
       round,
@@ -3740,19 +3829,49 @@ export function buyGrowth(
  * possibly as a rival to whatever you start next, which is what a
  * persistent town is for.
  */
+/**
+ * A FICTIONAL FIRM'S NAME, steady across a save (charter §3).
+ *
+ * Shared by the investors who buy into a company and the outside buyers who
+ * buy one outright, because they are the same fiction: money from beyond
+ * the town, with a letterhead and no face.
+ */
+export function firmNameFor(world: World, businessId: EntityId, salt: number): string {
+  const rng = openStream(world.seed, Stream.Economy, businessId, salt)
+  const first = ['Beacon', 'Cardinal', 'Meridian', 'Halloway', 'Stonebridge', 'Kestrel']
+  const second = ['Ventures', 'Partners', 'Capital', 'Holdings', 'Associates']
+  return `${rng.pick(first)} ${rng.pick(second)}`
+}
+
 export function sellBusiness(
   world: World,
   tick: Tick,
   businessId: EntityId,
   buyerId: EntityId,
   price: Money,
+  /**
+   * TRUE WHERE AN OUTSIDE FIRM IS PAYING (owner, playing: "all companies
+   * should be able to IPO and stuff and be able to be sold to an NPC").
+   *
+   * A town of a few hundred people does not contain anybody who can write
+   * a seventy-five-million-dollar cheque, so a business that grew past the
+   * town's own wealth could not be sold at all — the list came back empty
+   * and there was no road out. An acquirer from outside always can, and
+   * the money is institutional exactly as a Series B is: it arrives from
+   * beyond the world rather than out of a neighbour's wallet.
+   *
+   * `buyerId` is still a real person: the local the firm installs to run
+   * it. That keeps employment, inheritance and the rival market working on
+   * the same machinery they already use — only the CHEQUE comes from away.
+   */
+  fromOutside = false,
 ): boolean {
   const business = world.businesses.get(businessId)
   const buyer = world.people.get(buyerId)
   if (business === undefined || business.closedTick !== null) return false
   if (buyer === undefined || buyer.deathTick !== null) return false
   if (price <= 0) return false
-  if (debitPerson(world, buyerId, price) < price) return false
+  if (!fromOutside && debitPerson(world, buyerId, price) < price) return false
 
   const seller = business.ownerId
   const table = world.capTables.get(businessId)
@@ -4282,6 +4401,8 @@ function runBusinesses(world: World, tick: Tick): void {
         (ops === undefined ? 0 : tradingLiftPerMille(ops, tick, TICKS_PER_YEAR)),
       competition,
       floorLiftPerMilleOf(world.expansions.get(business.id)),
+      // Today's money, so the taper means the same thing in every decade.
+      atTodaysPrices(world, kind.capital),
     )
 
     /**
@@ -4419,8 +4540,26 @@ function runBusinesses(world: World, tick: Tick): void {
         retained: retained as Money,
       })
       const table = world.capTables.get(business.id)
+      /**
+       * A DRAW IS INCOME, AND INCOME IS TAXED (owner: "You still need to
+       * count the income we draw from the company as income").
+       *
+       * It was credited and nothing else: no tax year, no return, no
+       * record that it had ever been earned. A business owner therefore
+       * paid tax on nothing at all while a wage earner paid on every cent,
+       * which is both unfair and — more to the point — makes a business
+       * strictly better than a job for reasons nobody chose. Recorded on
+       * the PERSONAL file, where tax years live, while the money itself
+       * goes to the wallet (H0).
+       */
+      const taxDraw = (personId: EntityId, cents: number): void => {
+        if (cents <= 0) return
+        const own = accountsOf(world, personId)
+        setAccounts(world, { ...own, taxableYtd: (own.taxableYtd + cents) as Money })
+      }
       if (table === undefined) {
         creditPerson(world, business.ownerId, drawn)
+        taxDraw(business.ownerId, drawn)
       } else {
         let paidOut = 0
         for (const holder of table.shareholders) {
@@ -4429,9 +4568,12 @@ function runBusinesses(world: World, tick: Tick): void {
           paidOut += cut
           if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
             creditPerson(world, holder.personId, cut as Money)
+            taxDraw(holder.personId, cut)
           }
         }
-        creditPerson(world, business.ownerId, Math.max(0, drawn - paidOut) as Money)
+        const founders = Math.max(0, drawn - paidOut)
+        creditPerson(world, business.ownerId, founders as Money)
+        taxDraw(business.ownerId, founders)
       }
       world.businesses.set(business.id, {
         ...business,
@@ -4470,35 +4612,34 @@ function runBusinesses(world: World, tick: Tick): void {
      * already up, which is right: the arrears question and this one cannot
      * both be shouting, and the tick pauses on whichever landed first.
      */
-    if (business.ownerId === world.player.personId && badMonths < BUSINESS_FAILS_AFTER) {
-      if (badMonths === 1) {
+    /**
+     * A BAD MONTH IS NOT NEWS (owner, playing, 2026-08-14: "the 1 month 2
+     * month thing is a little much, we should get like an alert only when
+     * we lost on like a yearly amount or literally have no capital and go
+     * into the red and stuff like that not just because we loss money one
+     * month").
+     *
+     * Right, and the first version overcorrected. It was written against
+     * the opposite complaint — losing a business with no warning at all —
+     * and answered it by shouting at every red month, which turns the
+     * warning into wallpaper. Two things are worth interrupting a life
+     * for, and one bad month is neither of them:
+     *
+     *   A LOSING YEAR. Twelve months of books that add up to less than
+     *     nothing is a business in trouble rather than a business having a
+     *     quarter, and it is said once a year, not once a month.
+     *   NO CAPITAL LEFT. Handled below, where the doors are actually at
+     *     risk — that one stops the clock, because it should.
+     */
+    if (business.ownerId === world.player.personId) {
+      const year = (world.businessBooks.get(business.id) ?? []).slice(-12)
+      const earnedInYear = year.reduce((sum, month) => sum + month.profit, 0)
+      const anniversary = (tick - business.foundedTick) % 12 === 0
+      if (year.length >= 12 && earnedInYear < 0 && anniversary) {
         recordEvent(world, tick, {
           type: 'business-struggling',
           subjectId: business.ownerId,
-          detail: `${business.name}:1`,
-        })
-      } else {
-        recordEvent(world, tick, {
-          type: 'business-struggling',
-          subjectId: business.ownerId,
-          detail: `${business.name}:${String(badMonths)}`,
-        })
-        raisePending(world, {
-          tick,
-          kind: 'business-trouble',
-          personId: business.ownerId,
-          otherId: null,
-          occupationId: business.name,
-          workplaceId: business.id,
-          monthlyPay: loss as Money,
-          placeId: null,
-          /**
-           * FOUR ANSWERS, and each is a real lever the player already has:
-           * money in, wages off, the stockroom emptied, or nothing. Riding
-           * it out is a legitimate choice — a bad quarter is not always the
-           * end, and the game does not get to insist otherwise.
-           */
-          options: ['put-money-in', 'let-staff-go', 'sell-the-stock', 'ride-it-out'],
+          detail: `${business.name}:year`,
         })
       }
     }
@@ -4519,11 +4660,27 @@ function runBusinesses(world: World, tick: Tick): void {
      * the chance to put money in, cut a wage or sell the stock off before
      * the end. Ignore it and next month it shuts for good.
      */
-    if (wouldClose && business.ownerId === world.player.personId && badMonths < BUSINESS_FAILS_AFTER) {
+    /**
+     * THE QUESTION FIRES ONCE, WHENEVER THE DOORS ARE ACTUALLY AT RISK.
+     *
+     * A REGRESSION I CAUSED AND A TEST CAUGHT ("the business closed without
+     * ever asking"). Quietening the monthly warnings removed the month-two
+     * question, and this branch only ran while `badMonths` was still BELOW
+     * the closing count — so a business that simply lost three months in a
+     * row now sailed past every warning and shut with nothing asked. That
+     * is the exact report this whole path exists to answer.
+     *
+     * The gate is now "has it already had its final warning" rather than
+     * "how many bad months", which is the thing actually being asked.
+     * `badMonths` is set to the closing count on the way out, so the next
+     * bad month steps past it and shuts for good.
+     */
+    const warnedBefore = business.badMonths >= BUSINESS_FAILS_AFTER
+    if (wouldClose && business.ownerId === world.player.personId && !warnedBefore) {
       world.businesses.set(business.id, {
         ...business,
         capital: 0 as Money,
-        badMonths: BUSINESS_FAILS_AFTER - 1,
+        badMonths: BUSINESS_FAILS_AFTER,
       })
       recordEvent(world, tick, {
         type: 'business-struggling',
@@ -4747,6 +4904,26 @@ export function buyShares(
   stockId: string,
   cents: Money,
   intoRetirement = false,
+  /**
+   * TRUE ONLY WHEN SOMEBODY IS DELIBERATELY TAKING A COMPANY.
+   *
+   * OWNER, PLAYING (2026-08-14): "when you buy stock and it says total
+   * return it goes negative instantly". Exactly right, and I caused it.
+   * The control premium was charged on EVERY purchase, so the moment a
+   * buyer held more than a tenth of a company each ordinary order paid
+   * above the market — and a position is marked at the market, so it was
+   * underwater the second it was bought. Measured on a probe: basis
+   * $98.06M against a value of $92.40M, an instant paper loss of $5.66M.
+   *
+   * Ordinary buying is an ordinary market order and transacts at the
+   * market price, as it did before takeovers existed. The premium is what
+   * a CAMPAIGN to own a company costs, and it is charged where that
+   * decision is actually made — in `takeStakePlayer` and against the
+   * raider who comes for what the player floated. The paper loss there is
+   * not a bug: it is what paying over the odds for control means, and the
+   * screen says so before the button is pressed.
+   */
+  atControlPrice = false,
 ): Money {
   const stock = stockById(world, stockId)
   if (stock === undefined) return 0 as Money
@@ -4755,9 +4932,26 @@ export function buyShares(
   const wallet = walletOf(world, personId)
   const affordable = Math.min(cents, Math.max(0, wallet.savings)) as Money
   if (affordable <= 0) return 0 as Money
-  const shares = sharesFor(world, stockId, affordable)
+  /**
+   * THE PRICE RUNS AWAY FROM A BUYER WHO IS TAKING CONTROL.
+   *
+   * Somebody nibbling at a company pays the market price like anybody else.
+   * Somebody working their way towards owning it does not: the sellers who
+   * wanted out are gone and the rest have noticed. Without this a takeover
+   * would cost exactly the market capitalisation, which makes it arithmetic
+   * rather than a decision — anybody with the money would simply do it.
+   *
+   * The premium is nil below a tenth of the company, so ordinary investing
+   * is completely untouched by any of this.
+   */
+  const already = stakePerMilleOf(world, accounts.holdings, stockId)
+  const unitPrice = atControlPrice
+    ? priceToBuyerOf(world, stockId, already)
+    : (world.stockPrices[stockId] ?? 10_000)
+  if (unitPrice <= 0) return 0 as Money
+  const shares = Math.floor((affordable * 10_000) / unitPrice)
   if (shares <= 0) return 0 as Money
-  const spent = Math.floor((shares * (world.stockPrices[stockId] ?? 10_000)) / 10_000) as Money
+  const spent = Math.floor((shares * unitPrice) / 10_000) as Money
 
   const which = intoRetirement ? accounts.retirementHoldings : accounts.holdings
   const existing = which.find((h) => h.stockId === stockId)
@@ -4985,6 +5179,105 @@ function runNpcInvesting(world: World, tick: Tick): void {
     // A third of it into the retirement account, which is what it is for.
     buyInvestment(world, tick, person.id, sector.id, Math.floor(stake / 3) as Money, true)
     buyInvestment(world, tick, person.id, sector.id, Math.floor((stake * 2) / 3) as Money, false)
+  }
+}
+
+/**
+ * SOMEBODY COMES FOR A COMPANY THE PLAYER FLOATED (owner: "is there a thing
+ * where If someone has so much money that they can just buy up all the
+ * shares of a stock and do a takeover?").
+ *
+ * The same arc pointed the other way, and it is the reason to keep a
+ * holding after the bell rather than selling the lot. Once a year the
+ * richest person in town who is not the player looks at what the player
+ * put on the exchange, and if they can afford a real slice of it they take
+ * one — paying the same rising premium the player pays, out of the same
+ * wallet everybody else spends from.
+ *
+ * Deterministic by construction: no roll, just who has the money.
+ */
+function runRaiders(world: World, tick: Tick): void {
+  if (tick % 12 !== 9) return // once a year, and not the month the town invests
+  const playerId = world.player.personId
+  if (playerId === null) return
+  const floated = [...world.businesses.values()].filter(
+    (business) =>
+      business.closedTick === null &&
+      business.ownerId === playerId &&
+      business.listedStockId != null,
+  )
+  if (floated.length === 0) return
+
+  for (const business of floated) {
+    const stockId = business.listedStockId as string
+    if (stockById(world, stockId) === undefined) continue
+    /**
+     * THE RICHEST PERSON IN TOWN WHO IS NOT THE PLAYER. Read off the
+     * WALLET, not the personal record, because a married couple raid
+     * together out of one purse (H0).
+     */
+    let raider: Person | undefined
+    let deepest = 0
+    for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
+      if (person.deathTick !== null || person.id === playerId) continue
+      if (ageAt(person.birthTick, tick) < 25) continue
+      const purse = walletOf(world, person.id).savings
+      if (purse > deepest) {
+        deepest = purse
+        raider = person
+      }
+    }
+    if (raider === undefined) continue
+
+    const accounts = accountsOf(world, raider.id)
+    const held = stakePerMilleOf(world, accounts.holdings, stockId)
+    if (held >= 1000) continue
+    /**
+     * WHAT THEY ARE WILLING TO SPEND. A share of the spare purse, scaled by
+     * how bold they are — a cautious rich man does not corner a company.
+     * The year's living stays put, as it does for every other buyer.
+     */
+    const spare = (deepest - LIVING_COST_ADULT * 12) as Money
+    if (spare <= 0) continue
+    const appetite = 100 + Math.floor(raider.traits.ambition / 4)
+    const budget = Math.floor((spare * appetite) / 1000) as Money
+    if (budget <= 0) continue
+    /**
+     * WALKED IN TRANCHES, exactly as the player's own verb walks.
+     *
+     * Spending the whole budget in one call would quote the premium off
+     * the stake they held BEFORE they started, so an NPC would corner a
+     * company more cheaply than the player can — the same purchase at two
+     * different prices depending on who is making it. Ten tranches, each
+     * re-reading the stake, and both sides climb the same ladder.
+     */
+    let spent = 0
+    const tranche = Math.floor(budget / 10) as Money
+    for (let slice = 0; slice < 10 && tranche > 0; slice += 1) {
+      const paid = buyShares(world, tick, raider.id, stockId, tranche, false, true)
+      if (paid <= 0) break
+      spent += paid
+    }
+    if (spent <= 0) continue
+
+    const after = stakePerMilleOf(world, accountsOf(world, raider.id).holdings, stockId)
+    if (after < CONTROL_STAKE_PER_MILLE || held >= CONTROL_STAKE_PER_MILLE) continue
+    /**
+     * BOTH SIDES OF IT GO ON THE RECORD, because it happened to two people
+     * and each of them remembers it differently.
+     */
+    const ticker = stockById(world, stockId)?.ticker ?? business.name
+    recordEvent(world, tick, {
+      type: 'took-control',
+      subjectId: raider.id,
+      detail: `${ticker}:${String(after)}`,
+    })
+    recordEvent(world, tick, {
+      type: 'lost-control',
+      subjectId: playerId,
+      otherId: raider.id,
+      detail: `${ticker}:${String(after)}`,
+    })
   }
 }
 

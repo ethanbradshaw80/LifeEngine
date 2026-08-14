@@ -955,3 +955,107 @@ export function runDelistings(world: World, tick: Tick): readonly Stock[] {
   return gone
 }
 
+// ---------------------------------------------------------------------------
+// Control: owning enough of a company to matter
+// ---------------------------------------------------------------------------
+
+/**
+ * WHO OWNS ENOUGH OF THIS TO MATTER (owner: "is there a thing where if
+ * someone has so much money that they can just buy up all the shares of a
+ * stock and do a takeover? or own a certain percentage? isnt that a thing
+ * in real life").
+ *
+ * It is, and every piece needed for it has been sitting in this file doing
+ * nothing: a `Stock` has carried `sharesOutstanding` since the market was
+ * built and a `Holding` has carried `units`, and no line of code has ever
+ * divided one by the other. A player could own nine tenths of a company and
+ * the game would not notice.
+ */
+
+/** Enough to block what the board wants. */
+export const BLOCKING_STAKE_PER_MILLE = 250
+/** Enough to have it your way. */
+export const CONTROL_STAKE_PER_MILLE = 500
+
+/** How much of a company somebody holds, per-mille of every share issued. */
+export function stakePerMilleOf(
+  world: World,
+  holdings: readonly Holding[],
+  stockId: string,
+): number {
+  const stock = stockById(world, stockId)
+  if (stock === undefined || stock.sharesOutstanding <= 0) return 0
+  const held = holdings
+    .filter((holding) => holding.stockId === stockId)
+    .reduce((sum, holding) => sum + holding.units, 0)
+  /**
+   * UNITS ARE HUNDREDTHS OF A SHARE, and forgetting it here overstated
+   * every stake by a factor of a hundred — one per cent of a company read
+   * as a controlling one. The same cents-as-units disease that inflated
+   * the shares display and the blackjack table; it is always this.
+   */
+  return Math.min(1000, Math.floor((held * 10) / stock.sharesOutstanding))
+}
+
+/** What a stake of this size IS, in words the screen can use. */
+export function stakeWords(perMille: number): string {
+  if (perMille >= CONTROL_STAKE_PER_MILLE) return 'a controlling stake'
+  if (perMille >= BLOCKING_STAKE_PER_MILLE) return 'a blocking stake'
+  if (perMille >= 100) return 'a significant holding'
+  if (perMille > 0) return 'a small holding'
+  return 'nothing'
+}
+
+/**
+ * WHAT IT COSTS TO KEEP BUYING, per-mille on top of the market price.
+ *
+ * A takeover that cost exactly the market capitalisation would be
+ * arithmetic, not a decision: anybody with the money would simply do it.
+ * In life the price runs away from you as you buy — the sellers who wanted
+ * out are gone and the rest have noticed — and the last tenth costs far
+ * more than the first.
+ *
+ * So the premium rises with the stake already held. Nothing at all below a
+ * tenth, and past control it is expensive enough that hoovering up the
+ * remainder is a genuine decision rather than tidying up.
+ */
+export function controlPremiumPerMille(stakePerMille: number): number {
+  if (stakePerMille < 100) return 0
+  // 100 -> ~30, 500 -> ~350, 900 -> ~910
+  const over = stakePerMille - 100
+  return Math.floor((over * over) / 800) + Math.floor(over / 8)
+}
+
+/** What one share costs somebody who already holds this much of it. */
+export function priceToBuyerOf(world: World, stockId: string, stakePerMille: number): number {
+  const price = world.stockPrices[stockId] ?? 10_000
+  return Math.floor((price * (1000 + controlPremiumPerMille(stakePerMille))) / 1000)
+}
+
+/** What a further slice of a company would cost, all in. */
+export function costToReachPerMille(
+  world: World,
+  stockId: string,
+  fromPerMille: number,
+  toPerMille: number,
+): Money {
+  const stock = stockById(world, stockId)
+  if (stock === undefined || toPerMille <= fromPerMille) return 0 as Money
+  /**
+   * WALKED IN TENTHS-OF-A-PER-CENT STEPS rather than solved, because the
+   * premium changes as the stake grows and a single multiplication would
+   * quietly undercharge for the whole climb. Bounded and cheap: at most a
+   * thousand steps, and only ever run for a screen or a verb.
+   */
+  let total = 0
+  for (let at = fromPerMille; at < toPerMille; at += 1) {
+    const shares = Math.floor(stock.sharesOutstanding / 1000)
+    // CENTS IS SHARES x PRICE / 100, the same conversion `marketCapOf`
+    // makes. Dividing by 10,000 priced a whole company at a hundredth of
+    // its market capitalisation, which a probe caught and the first
+    // version of the test did not — because the test hand-rolled the same
+    // wrong arithmetic to compare against.
+    total += Math.floor((shares * priceToBuyerOf(world, stockId, at)) / 100)
+  }
+  return total as Money
+}

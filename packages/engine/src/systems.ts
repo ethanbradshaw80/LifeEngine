@@ -77,6 +77,7 @@ import { isTrustSensitive } from './content.js'
 import type { CausalFactor, EducationRecord, Occupation } from './types.js'
 import { businessKindById } from './business.js'
 import {
+  businessDemandsAllHours,
   canAfford,
   chargeTuition,
   distributeEstate,
@@ -1698,6 +1699,26 @@ export function runEmployment(world: World, tick: Tick): void {
     if (!education) continue
 
     const job = world.employment.get(person.id)
+
+    /**
+     * A BUSINESS THIS BIG IS THE JOB (owner: "businesses take time. Limit
+     * this").
+     *
+     * Not a question, and deliberately not a pending one — he asked for
+     * FEWER interruptions in the same breath. It is a consequence with a
+     * record: the hours stopped being available and the feed says so. The
+     * same rule for the player and the town, because a rule that only
+     * binds the player is a penalty rather than a rule.
+     */
+    if (job && businessDemandsAllHours(world, person.id)) {
+      world.employment.delete(person.id)
+      recordEvent(world, tick, {
+        type: 'left-job',
+        subjectId: person.id,
+        detail: 'the-business',
+      })
+      continue
+    }
 
     // Retirement.
     if (job && age >= RETIREMENT_AGE) {

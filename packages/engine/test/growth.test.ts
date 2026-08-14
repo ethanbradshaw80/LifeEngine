@@ -230,6 +230,34 @@ describe('ten million before year eight', () => {
   })
 })
 
+describe('the ceiling holds against outside money', () => {
+  it('will not let a deposit carry a trade past its wall', () => {
+    /**
+     * FOUND IN A LIVE SAVE: a software company holding $95.5 MILLION of
+     * capital, against a trade ceiling three orders of magnitude below it.
+     * Retained profit had always been capped; `investInBusinessPlayer`
+     * wrote straight to the record with nothing checked, so anybody with
+     * outside money could ignore the wall entirely — and the capacity
+     * ladder the owner asked for became decoration.
+     */
+    const { world } = aShopkeeper()
+    const report = ceilingReport(world)
+    expect(report).toBeDefined()
+    if (!report) return
+
+    // Far more than the ceiling could ever hold.
+    investInBusinessPlayer(world, report.ceiling * 100)
+    clearPending(world)
+    const after = ceilingReport(world)
+    expect(after?.capital ?? 0).toBeLessThanOrEqual(report.ceiling)
+
+    // And once it is full it says so rather than silently doing nothing.
+    const again = investInBusinessPlayer(world, 1_000_000)
+    expect(again.done).toBe(false)
+    expect(again.reason).toContain('full')
+  })
+})
+
 describe('getting out', () => {
   it('pays the backers what they were promised before the founder', () => {
     /**

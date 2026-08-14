@@ -17,6 +17,7 @@ import {
   LOAN_TERMS,
   SECTORS,
   accountsOf,
+  walletAccountsOf,
   arrearsOf,
   atTodaysPrices,
   annualPay,
@@ -31,6 +32,7 @@ import {
   homeEquityOf,
   homeValueOf,
   householdCosts,
+  businessDrawOf,
   incomeTaxFor,
   openFilingOf,
   planMonthsLeft,
@@ -104,6 +106,26 @@ export function Bank({
   const [sector] = useState<string>(SECTORS[0]?.id ?? 'industrial')
 
   const accounts = accountsOf(world, person.id)
+  /**
+   * THE LIQUID MONEY IS THE WALLET'S, THE REST IS THIS PERSON'S (H0).
+   *
+   * OWNER, PLAYING (2026-08-14): "now my 'you have' and 'the bank' disagree,
+   * it shows I have zero money to put into the account but my money is 1.9
+   * million". Both screens were reading honestly and reading DIFFERENT
+   * records. A married couple share one liquid balance, kept on the
+   * lower-id spouse's record: the header asks `moneyOnHand`, which reads
+   * the wallet, while this screen asked `accountsOf`, which reads the raw
+   * personal file — so the spouse who does not hold the wallet looked
+   * penniless while the family had nearly two million.
+   *
+   * Worse, the VERBS on this screen already move the wallet's money
+   * (`moveBetweenOwnAccounts` reads `walletOf`), so the buttons were greyed
+   * out against a balance they were not going to spend.
+   *
+   * Loans, retirement, holdings and the tax year stay personal, because
+   * they genuinely are.
+   */
+  const wallet = walletAccountsOf(world, person.id)
   const worth = netWorthOf(world, person.id)
   const household = person.householdId === null ? null : world.households.get(person.householdId)
   const portfolio = portfolioValue(world, accounts.holdings)
@@ -115,7 +137,7 @@ export function Bank({
 
   // A quarter of savings is the unit a player actually trades in — small
   // enough to be a decision, big enough to matter.
-  const stake = Math.max(0, Math.floor(accounts.savings / 4)) as Money
+  const stake = Math.max(0, Math.floor(wallet.savings / 4)) as Money
 
   return (
     <div className="bank">
@@ -136,8 +158,8 @@ export function Bank({
           <>
             <section className="bank-card">
               <h4>Accounts at a glance</h4>
-              <Row label="Checking" value={formatMoney(accounts.checking)} />
-              <Row label="Savings" value={formatMoney(accounts.savings)} />
+              <Row label="Checking" value={formatMoney(wallet.checking)} />
+              <Row label="Savings" value={formatMoney(wallet.savings)} />
               <Row label="Investments" value={formatMoney((portfolio + retirement) as Money)} />
               <Row
                 label="Home equity"
@@ -155,6 +177,7 @@ export function Bank({
                 // disagree about it. The gross is personal; the outgoings
                 // are the roof's, because rent genuinely is.
                 const gross = personalIncome(world, person.id)
+                const draw = businessDrawOf(world, person.id)
                 const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
                 const costs = household ? householdCosts(world, household) : (0 as Money)
                 const lifestyle = household ? discretionaryFor(world, household) : (0 as Money)
@@ -186,6 +209,24 @@ export function Bank({
                       value={gross > 0 ? `−${formatMoney(withheld)} / mo` : '—'}
                       tone="muted"
                     />
+                    {/*
+                      WHAT THE BUSINESS PAYS YOU, ON THE MONEY SCREEN (owner,
+                      playing: "I am still not seeing the yearly draw as
+                      income anywhere in the money section").
+
+                      It is not part of `personalIncome` on purpose — that
+                      function feeds the household pass, which CREDITS what
+                      it reports, and the draw is already in the wallet.
+                      Counting it there would pay it twice. So it is its own
+                      line, from its own function, reading the books.
+                    */}
+                    {draw > 0 && (
+                      <Row
+                        label="Drawn from the business"
+                        value={`${formatMoney(annualPay(draw))} / yr`}
+                        tone="good"
+                      />
+                    )}
                     <Row label="Rent + living" value={`−${formatMoney(costs)}`} />
                     <Row label="Lifestyle + sales tax" value={`−${formatMoney(lifestyle)}`} />
                     <Row
@@ -211,12 +252,12 @@ export function Bank({
           <>
             <section className="bank-card">
               <h4>Checking</h4>
-              <Row label="Balance" value={formatMoney(accounts.checking)} />
+              <Row label="Balance" value={formatMoney(wallet.checking)} />
               <div className="bank-actions">
                 <button
                   type="button"
-                  disabled={accounts.checking <= 0}
-                  onClick={() => onAct({ verb: 'bank-deposit', cents: accounts.checking })}
+                  disabled={wallet.checking <= 0}
+                  onClick={() => onAct({ verb: 'bank-deposit', cents: wallet.checking })}
                 >
                   Move all to savings
                 </button>
@@ -224,12 +265,12 @@ export function Bank({
             </section>
             <section className="bank-card">
               <h4>Savings</h4>
-              <Row label="Balance" value={formatMoney(accounts.savings)} />
+              <Row label="Balance" value={formatMoney(wallet.savings)} />
               <Row label="Interest" value={`${(economy.ratePerMille / 10).toFixed(1)}% APY`} tone="muted" />
               <div className="bank-actions">
                 <button
                   type="button"
-                  disabled={accounts.savings <= 0}
+                  disabled={wallet.savings <= 0}
                   onClick={() => onAct({ verb: 'bank-withdraw', cents: stake })}
                 >
                   Withdraw {formatMoney(stake)}
@@ -299,7 +340,7 @@ export function Bank({
               if (!filing || filing.dischargedAtTick !== null) return null
               const monthsLeft = planMonthsLeft(filing, world.tick)
               const payoff = planPayoffFor(filing, world.tick)
-              const bar = planPayoffBar(filing, (accounts.checking + accounts.savings) as Money, world.tick)
+              const bar = planPayoffBar(filing, (wallet.checking + wallet.savings) as Money, world.tick)
               return (
                 <section className="bank-card">
                   <h4>Under the court</h4>
@@ -359,7 +400,7 @@ export function Bank({
                    * accounts hold — the button names an intent, the
                    * ledger decides the cents.
                    */
-                  const liquid = accounts.checking + accounts.savings
+                  const liquid = wallet.checking + wallet.savings
                   const chunk = Math.max(50_000, Math.floor(loan.balance / 10))
                   const canPay = liquid > 0
                   return (

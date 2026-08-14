@@ -4277,6 +4277,41 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
 .stock-cons i {
   height: 100%;
 }
+.stock-stake {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+.stock-stake-figure {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* THE TWO MARKS ARE THE POINT: a quarter blocks, a half controls, and the
+   bar shows how far off each of them you are without a word of text. */
+.stock-stake-bar {
+  position: relative;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+.stock-stake-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+.stock-stake-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--bg);
+  opacity: 0.85;
+}
 .stock-sectag {
   display: inline-block;
   font-size: 0.7rem;

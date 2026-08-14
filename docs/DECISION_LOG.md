@@ -1997,3 +1997,217 @@ screened when a ballot OPENS, but two can be open at once — somebody
 holding nothing when both opened could win both. Seed-dependent, present
 from the start, surfaced when the draw order shifted. Screened now at the
 chokepoint every winner passes through.
+
+---
+
+## ADR-0045 — Control of a listed company costs more than the company
+
+**Date:** 2026-08-13 · **Status:** accepted · **Version:** SIMULATION_VERSION 174
+
+**Context.** The owner asked: *"is there a thing where If someone has so much
+money that they can just buy up all the shares of a stock and do a takeover?
+or own a certain percentage? isnt that a thing in real life"*. The pieces
+were already in the engine and inert. Every `Stock` has carried
+`sharesOutstanding` since the market was built and every `Holding` its
+`units`, and no code anywhere divided one by the other. A player could hold
+nine tenths of a company and the game would not notice.
+
+**Decision.** A stake is `units / sharesOutstanding` in per-mille, computed
+in one place (`stakePerMilleOf`) that the screen and the verb both read.
+Two thresholds mean something: 250 blocks, 500 controls.
+
+**The part that matters: the price rises as you take it.**
+`controlPremiumPerMille` is nil below a tenth and then quadratic, and
+`costToReachPerMille` walks the climb in per-mille steps rather than solving
+it, because a single multiplication would quietly charge the opening price
+for the whole ascent. The consequence is measured rather than asserted:
+buying an entire company costs strictly MORE than its market capitalisation
+(`takeover.test.ts`).
+
+**Why that is the whole design.** A takeover priced at exactly market cap is
+arithmetic, not a decision — anybody holding the money would simply do it,
+and there is no question anywhere in it. Making the last tenth hurt is what
+turns it into "do I want this badly enough", which is the only reason to
+model it at all.
+
+**Dividends were already right and were left alone.** `dividendOn` pays on
+the value of the holding, so control already receives in proportion. A
+separate "control dividend" would have been a second source of truth for a
+fact the ledger already knows — the exact disease the housing trio caught
+six times.
+
+**The reverse case is the story half.** `runRaiders` gives the richest person
+in town who is not the player one look a year at whatever the player floated,
+and the money to act on it. It pays the same rising premium out of the same
+wallet everyone else spends from, and both sides of the moment go on the
+record: `took-control` for them, `lost-control` for the player. That is the
+reason to keep a holding after the bell instead of selling the lot.
+
+**Found while verifying this change, and fixed with it.** A live save had a
+software company holding **$95.5 million** of capital against a trade ceiling
+three orders of magnitude below it. `runBusinesses` had always capped
+RETAINED profit at the ceiling; `investInBusinessPlayer` wrote straight to
+`business.capital` with nothing checked. Any player with outside money could
+therefore ignore the wall completely, and since a month's takings scale with
+capital, the business earned without bound — which made the capacity ladder
+the owner asked for purely decorative. Deposits now fill only the room that
+is actually there, CLAMPED rather than refused: climbing the ladder spends
+the till, so a business at its ceiling drops below it the moment a step is
+bought and can be topped up again. A refusal would have soft-locked it.
+
+This is the same shape as the housing ledger and the shadow-wallet bugs: one
+road into a value enforces the rule and a second road writes the raw record.
+The rule has to live where both roads meet, or it is not a rule.
+
+---
+
+## ADR-0046 — A business is an asset, a job, and not a money printer
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 175
+
+Five reports from one session of play, all of them about a business that had
+outgrown the systems around it.
+
+### 1. A business could outgrow the town and become unsellable and unlistable
+
+> *"I also have a company right now worth 75 million that is in the freelance
+> cannot IPO or sell because nobody has the money to afford it, all companies
+> should be able to IPO and stuff and be able to be sold to an NPC"*
+
+Two independent gates, both shut on the same business.
+
+`scaleUpBar` refused on a **whitelist of two trades** — `shop` and
+`contracting-firm`. Everything else was permanently a "trade", and a trade
+does not list on an exchange. So a freelance consultancy worth seventy-five
+million could neither incorporate nor float. **The kind gate is deleted.**
+The capital gate already says "big enough" and says it for every trade,
+which is what the whitelist was clumsily approximating.
+
+`buyersForBusiness` only ever offered **townspeople with the cash in hand**,
+and a town of a few hundred does not hold seventy-five million between them.
+An **outside acquirer** now always bids: institutional money from beyond the
+world, the same fiction the Series A investors already use, paying 700
+per-mille of valuation against a local rival's 1150 — a rival buys the
+competition and pays for it, a firm buys the numbers. `buyerId` is still a
+real person, the local the firm installs to run it, so employment,
+inheritance and the rival market keep working on the machinery they have.
+
+### 2. The business was invisible in the money
+
+> *"You still need to count the income we draw from the company as income
+> net worth included this is an asset"*
+
+`netWorthOf` counted a house, a fund and a share of a listed company, and
+counted the thing the player actually built at **zero**. It now includes
+their slice of every business they own — their slice, because once backers
+are on the register part of that value is somebody else's, and the cap table
+knows exactly how much.
+
+The draw is now **taxed**. It was credited and nothing else: no tax year, no
+return, no record it had ever been earned, so a business owner paid tax on
+nothing while a wage earner paid on every cent.
+
+**`businessDrawOf` is deliberately NOT part of `personalIncome`.** That
+function feeds the household pass, which CREDITS what it reports, and
+`runBusinesses` has already paid the draw. Counting it there would pay it
+twice — the exact shape of the shadow-ledger family of bugs. It is income
+for the purpose of being seen and being taxed; the crediting keeps one
+writer.
+
+### 3. A big business is a full-time job
+
+> *"when someone starts to have a big company say like worth 2 million they
+> shouldnt be able to work a full time job too, businesses take time"*
+
+Past two million (base-year cents, so it means the same in 1970 and 2030) a
+business takes every hour there is: no new work, and anybody already holding
+a job leaves it. **Not a pending question** — he asked for fewer
+interruptions in the same message — but a consequence with a line in the
+feed. The same rule binds the town, because a rule that only binds the
+player is a penalty.
+
+### 4. Scaling was multiplication
+
+> *"it feels so easy to scale a business. Run a test on your own and find
+> ways for it to be more challenging"*
+
+**Measured first.** An active player founding a shop and climbing the
+capacity ladder every year reached **$23.7M and $34.6M** inside ten years
+against a ten-million IPO gate; a passive owner reached $1.2M. So the ladder
+was doing its job and the RATE was wrong — the gate was a formality.
+
+One line caused it: earnings were **linear in capital, for ever**. Ten times
+the money in the till made ten times the profit, which also implied
+something plainly untrue about a small town. Capital now earns at full rate
+to four times what the trade costs to open, then three fifths, then a third
+(`earningBaseOf`). Re-measured: **$13.8M and $19.3M** — still reachable,
+no longer inevitable. Every per-mille lever (price, staff, expansions,
+vendor, advertising) is untouched, so running the business WELL matters more
+relative to simply feeding it.
+
+### 5. A bad month is not news
+
+> *"the 1 month 2 month thing is a little much, we should get like an alert
+> only when we lost on like a yearly amount or literally have no capital and
+> go into the red"*
+
+The first version of the warning was written against the opposite complaint
+— losing a business with no warning at all — and overcorrected into shouting
+every red month, which turns a warning into wallpaper. Two things now
+interrupt: a **losing year** (twelve months of books adding to less than
+nothing, said once a year), and **no capital left**, which still stops the
+clock because the doors are genuinely at risk.
+
+---
+
+## ADR-0047 — A premium is what a takeover costs, not what investing costs
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 175
+
+> *"Another bug is when you buy stock it automatically puts you in the red...
+> when you buy stock and it says total return it goes negative instantly"*
+
+**Mine, and a clean own-goal.** ADR-0045 put the control premium inside
+`buyShares`, which every purchase in the game runs through. So once a buyer
+held more than a tenth of a company, every ordinary order paid above the
+market — and a position is marked AT the market, so it was underwater the
+instant it was bought. Measured on a probe: a cost basis of $98.06M against
+a value of $92.40M, an immediate paper loss of $5.66M, with nothing on the
+screen to explain it.
+
+**Ordinary buying transacts at the market price**, exactly as before
+takeovers existed. The premium is charged where the decision that justifies
+it is actually made — `takeStakePlayer` and `runRaiders` pass
+`atControlPrice`. There, the paper loss is not a bug but the meaning of the
+mechanic, and the screen now says so BEFORE the button is pressed.
+
+**The lesson, which is the same one as the units bug two ADRs ago:** a
+change made inside a shared chokepoint reaches everything that passes
+through it. `buyShares` is the single writer for buying, which is exactly
+why a rule that only applies to *some* buying must not live in it.
+
+## ADR-0048 — Two numbers that were both right, which is worse than one wrong
+
+**Date:** 2026-08-14 · **Status:** accepted
+
+> *"The 'what you take out' option and the actual books numbers are off way
+> off, figure out why they dont read the read numbers"*
+
+They were not disagreeing about a fact; they were answering different
+questions, and nothing on the screen said which. The draw dial sets what the
+business TRIES to keep. The capital ceiling caps what it CAN hold. Below the
+ceiling the two agree exactly — measured at 80% asked and 80% retained. At
+the ceiling there is nowhere to put the money, so retention is clamped to
+the remaining room and everything else is drawn, which is how a dial reading
+"leave it in" produces books showing 93% taken out.
+
+The arithmetic was right and the screen was silent, which is the worst
+combination: nothing looks broken, so the player concludes the numbers are
+lying. The screen now shows what was actually kept whenever it differs from
+what was asked, and names the ceiling as the reason with the remedy — buy
+more capacity — next to it.
+
+**Also in this round.** `businessDrawOf` now has a line of its own on the
+Money screen (it is deliberately not inside `personalIncome`, which would
+pay it twice — see ADR-0046), and Business has its own place on the main
+rail directly under Work rather than being a sub-tab of having a job.

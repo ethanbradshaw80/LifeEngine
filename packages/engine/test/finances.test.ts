@@ -167,7 +167,16 @@ describe('the ledger', () => {
       .filter((p) => p.deathTick === null)
       .map((p) => netWorthOf(world, p.id))
     const richest = Math.max(...worths)
-    expect(richest).toBeLessThan(3_000_000_00)
+    /**
+     * THE MEASURE GOT WIDER, SO THE CEILING DID (ADR-0046). `netWorthOf`
+     * now counts the owner's share of the businesses they own, which it
+     * never did — a player could run something worth seventy-five million
+     * and be worth nothing on paper. Measured after the change: the richest
+     * townsman is $4.19m, of which $1.79m IS the business and $2.40m is
+     * everything else, so the part this test has always watched has not
+     * moved. Raised to $6m, which still catches the runaway it exists for.
+     */
+    expect(richest).toBeLessThan(6_000_000_00)
     expect(richest).toBeGreaterThan(5_000_00)
   })
 })
@@ -409,7 +418,9 @@ describe('the town stays solvent', () => {
     const richest = Math.max(
       ...[...world.people.values()].filter((p) => p.deathTick === null).map((p) => netWorthOf(world, p.id)),
     )
-    expect(richest).toBeLessThan(3_000_000_00) // measured $540k-$1.62m across five seeds; see above
+    // $6m, not $3m: net worth counts the business now (ADR-0046), and the
+    // business is most of the difference. See the note in the ledger test.
+    expect(richest).toBeLessThan(6_000_000_00)
     expect(richest).toBeGreaterThan(0)
   })
 })
