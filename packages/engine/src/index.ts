@@ -171,6 +171,14 @@ export {
   voteCarries,
 } from './board.js'
 export type { BoardMatter, BoardMatterId } from './board.js'
+export {
+  BUSINESS_MOMENTS,
+  businessMomentById,
+  businessMomentsFor,
+} from './moments.js'
+export type { BusinessMoment, MomentId } from './moments.js'
+export { PLAIN_WORDS, inTradeWords, wordsFor } from './tradewords.js'
+export type { TradeWords } from './tradewords.js'
 export type { BusinessOps } from './types.js'
 
 // Geopolitics (L4-M1)
@@ -339,6 +347,10 @@ export {
   // The ACCOUNTS a person actually spends from (H0) — distinct from
   // player.ts's `walletOf`, which answers with a single figure.
   walletOf as walletAccountsOf,
+  // A person's own share of the joint purse — what net worth counts for
+  // them, so a screen itemising it uses the same figure.
+  liquidShareOf,
+  bricksAndMortarOf,
   businessDemandsAllHours,
   netWorthOf,
   personalIncome,

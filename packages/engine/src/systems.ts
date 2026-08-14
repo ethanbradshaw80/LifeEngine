@@ -1711,6 +1711,35 @@ export function runEmployment(world: World, tick: Tick): void {
      * binds the player is a penalty rather than a rule.
      */
     if (job && businessDemandsAllHours(world, person.id)) {
+      /**
+       * THE PLAYER IS ASKED, ONCE (owner, ruling: "they should have to leave
+       * their job or get a popup that is letting them decide to quit or
+       * focus on the business").
+       *
+       * It used to walk everybody out silently, which was right when the
+       * threshold was two million and almost never fired. At five hundred
+       * thousand it lands in an ordinary life, and a job disappearing
+       * without a word is the shape of complaint this codebase keeps
+       * getting. The town still resolves it without a question, because a
+       * question nobody answers is a decision that never clears.
+       */
+      if (person.id === world.player.personId) {
+        const asked = world.player.log.some((entry) => entry.kind === 'business-or-job')
+        if (!asked) {
+          raisePending(world, {
+            tick,
+            kind: 'business-or-job',
+            personId: person.id,
+            otherId: null,
+            occupationId: job.occupationId,
+            workplaceId: null,
+            monthlyPay: job.monthlyPay,
+            placeId: null,
+            options: ['the-business', 'the-job'],
+          })
+        }
+        continue
+      }
       world.employment.delete(person.id)
       recordEvent(world, tick, {
         type: 'left-job',

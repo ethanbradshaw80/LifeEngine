@@ -698,7 +698,13 @@ export function businessHealthWords(business: Business): string {
  * He is right, and the omission was making a business strictly better than
  * a career: a player could draw a fortune out of a company they never had
  * to attend and collect a salary on top for hours that do not exist in the
- * week. Two million is his number, in base-year cents so it means the same
- * thing in 1970 and 2030.
+ * week.
+ *
+ * FIVE HUNDRED THOUSAND (owner, ruling, 2026-08-14: "whenever a players
+ * company is worth over 500k they should have to leave their job or get a
+ * popup that is letting them decide to quit or focus on the business"). Two
+ * million was the first number and it almost never bit; this one lands in
+ * an ordinary playthrough, which is the point of having it. In base-year
+ * cents, so it means the same thing in 1970 and 2030.
  */
-export const BUSINESS_IS_FULL_TIME_AT = 200_000_000
+export const BUSINESS_IS_FULL_TIME_AT = 50_000_000

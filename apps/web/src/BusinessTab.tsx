@@ -53,6 +53,7 @@ import {
   raiseBar,
   rivalsForSale,
   upliftPerMilleOf,
+  wordsFor,
 } from '@life-engine/engine'
 import type { Business, Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
@@ -90,6 +91,12 @@ export function BusinessTab({
   readonly busy: boolean
   readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
+  /**
+   * HOW IT IS BEING RUN, read once at the top because the dashboard needs
+   * the shelf as well as the till: stock is money the business owns, and
+   * showing the till alone made ordering look like a loss.
+   */
+  const ops = opsFor(world)
   /**
    * NOTHING OF YOUR OWN YET — so this is where you start one (owner: "we
    * should remove the business UI in the Careers tab and move it over to
@@ -179,7 +186,11 @@ export function BusinessTab({
             <span>On the books</span>
           </div>
           <div className="re-tile hot">
-            <b>{formatMoney(business.capital)}</b>
+            {/* CAPITAL PLUS WHAT IS ON THE SHELF. Stock is money the business
+                owns, not money it has lost — showing the till alone made
+                ordering look like a loss (owner: "when I would stock the
+                shelfs I would have losing months"). */}
+            <b>{formatMoney((business.capital + (ops?.stockCents ?? 0)) as Money)}</b>
             <span>In the business</span>
           </div>
         </div>
@@ -191,7 +202,13 @@ export function BusinessTab({
             label="Trade"
             value={businessKindById(business.kindId)?.title ?? business.kindId}
           />
-          <Row label="Capital in it" value={formatMoney(business.capital)} />
+          <Row label="Money in the till" value={formatMoney(business.capital)} />
+          {(ops?.stockCents ?? 0) > 0 && (
+            <Row
+              label={`In ${wordsFor(business.kindId).store}`}
+              value={formatMoney(ops?.stockCents ?? (0 as Money))}
+            />
+          )}
           <Row label="How it is going" value={businessHealthWords(business)} />
           {business.generations > 0 && (
             <Row
@@ -327,21 +344,28 @@ export function BusinessTab({
         if (ops === undefined) return null
         const vendors = vendorOffersFor(world)
         const priceLift = demandFromPricePerMille(ops.markupPerMille)
+        /**
+         * EACH TRADE IN ITS OWN WORDS (owner: "how can a software company
+         * 'stock the shelfs' you know what I mean?"). Same mechanic, same
+         * numbers — a filling station fills tanks, a dentist orders
+         * supplies, a software company takes on capacity.
+         */
+        const words = wordsFor(business.kindId)
         return (
           <section className="career-card">
             <h4>Running it</h4>
 
             {stock !== undefined && stock.monthly > 0 && (
               <>
-                <Row label="On the shelf" value={formatMoney(stock.held)} />
+                <Row label={`In ${words.store}`} value={formatMoney(stock.held)} />
                 <Row
                   label="That covers"
                   value={`${stock.monthsCovered.toFixed(1)} months of trading`}
                 />
                 {stock.held < stock.monthly && (
                   <p className="career-note bad">
-                    Short of stock. You cannot serve the whole month, and the custom you turn
-                    away goes to somebody else.
+                    Short of {words.stock}. You cannot serve the whole month, and the{' '}
+                    {words.customers} you turn away go to somebody else.
                   </p>
                 )}
                 <div className="biz-actions">
@@ -353,8 +377,8 @@ export function BusinessTab({
                       disabled={busy}
                       onClick={() => onAct({ verb: 'order-stock', months: quote.months })}
                     >
-                      Order {String(quote.months)} month{quote.months === 1 ? '' : 's'} ·{' '}
-                      {formatMoney(quote.cost)}
+                      {words.order} · {String(quote.months)} month
+                      {quote.months === 1 ? '' : 's'} · {formatMoney(quote.cost)}
                     </button>
                   ))}
                   <button
@@ -363,13 +387,13 @@ export function BusinessTab({
                     disabled={busy || stock.held <= 0}
                     onClick={() => onAct({ verb: 'clear-stock' })}
                   >
-                    Clear the stockroom
+                    {words.clear}
                   </button>
                 </div>
               </>
             )}
 
-            <h4 style={{ marginTop: '0.9rem' }}>Your supplier</h4>
+            <h4 style={{ marginTop: '0.9rem' }}>Your {words.supplier}</h4>
             <Row label="Who" value={ops.vendorName} />
             <Row
               label="Their rate"
@@ -602,10 +626,18 @@ export function BusinessTab({
             </section>
           )
         }
-        const { year, growthPerMille } = books
+        const { year, growthPerMille, lastYear } = books
         return (
           <section className="career-card">
-            <h4>The books · last {String(year.months)} months</h4>
+            {/* THE FINANCIAL YEAR, named (owner: "'the books last 12 months'
+                changes every single month. this should be the yearly view
+                and it all accumlates and restarts at the end of the year").
+                It runs January to December and starts again; the year just
+                gone sits underneath so there is something to compare to. */}
+            <h4>
+              The books · {String(books.yearNumber)}
+              {year.months < 12 ? ` so far · ${String(year.months)} month${year.months === 1 ? '' : 's'}` : ''}
+            </h4>
             <div className="re-tiles">
               <div className="re-tile">
                 <span>Takings</span>
@@ -614,6 +646,14 @@ export function BusinessTab({
               <div className="re-tile">
                 <span>Wages</span>
                 <b>{formatMoney(year.wages)}</b>
+              </div>
+              <div className="re-tile">
+                {/* DERIVED, never stored: takings less profit IS what the
+                    year cost. Owner: "my business was showing 0 expenses the
+                    entire time" — it was, because takings were recorded net
+                    of the goods and there was nothing left to subtract. */}
+                <span>Expenses</span>
+                <b>{formatMoney((year.takings - year.profit) as Money)}</b>
               </div>
               <div className={year.profit >= 0 ? 're-tile hot' : 're-tile'}>
                 <span>Profit</span>
@@ -632,6 +672,12 @@ export function BusinessTab({
                 <b>{formatMoney(year.retained)}</b>
               </div>
             </div>
+            {lastYear !== undefined && (
+              <Row
+                label={`All of ${String(books.lastYearNumber)}`}
+                value={`${formatMoney(lastYear.takings)} in, ${formatMoney(lastYear.profit)} profit`}
+              />
+            )}
             <Row
               label="Year on year"
               value={

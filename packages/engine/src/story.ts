@@ -261,6 +261,26 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       const [name] = (event.detail ?? '').split(':')
       return `Bought out ${name ?? 'a rival'}.`
     }
+    case 'business-moment': {
+      const [what, how] = (event.detail ?? '').split(':')
+      const told: Record<string, string> = {
+        'match-them': 'cut prices to meet a rival',
+        'hold-your-price': 'held the price and let the rival have the cheap trade',
+        'put-the-word-out': 'spent on advertising to answer a rival',
+        'pay-them-more': 'gave the best hand a rise to keep them',
+        'let-them-walk': 'let the best hand walk',
+        'find-another': 'found a new supplier after the old one went under',
+        'pay-the-premium': 'paid over the odds to keep the shelves full',
+        'take-it': 'took a contract that cleared the shelf',
+        'turn-it-down': 'turned down a contract that was too big',
+        'repair-it': 'patched up what the place runs on',
+        'replace-it': 'replaced what the place runs on',
+        'nurse-it-along': 'nursed failing equipment along',
+        'have-it-out': 'caught somebody with a hand in the till',
+        'let-it-go': 'knew about the missing takings and said nothing',
+      }
+      return `At the business: ${told[how ?? ''] ?? (what ?? 'something happened')}.`
+    }
     case 'board-voted': {
       const [, ticker, how] = (event.detail ?? '').split(':')
       if (how === 'sold') return `${ticker ?? 'A company'} was bought out. The shares became money.`

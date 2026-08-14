@@ -2253,3 +2253,138 @@ company does not have to care what a holder thinks, and sending a passive
 investor an annual vote would be noise wearing a feature's clothes. NPCs
 are not asked because the market maths already runs their companies; a
 question nobody answers is a pending decision that never clears.
+
+---
+
+## ADR-0050 — A business that happens to you
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 177
+
+**Context.** Owner: *"It feels like every business is dull and nothing to do
+until you IPO we need to add things to make it better"*. The operations loop
+answered half of that — a shelf, a supplier, a price — but every one of
+those is something the OWNER decides to touch. Board votes (ADR-0049) gave
+things that arrive on their own to a LISTED company, and a listed company is
+a sliver of the time anybody spends owning something.
+
+**Decision.** Six moments that arrive at a private business roughly every
+other year: a rival undercutting you, your best hand asking for more, a
+supplier going under, a contract too big to be comfortable, the thing the
+place runs on failing, and a hand in the till.
+
+**The rule the content had to pass.** No option is free and none is
+obviously right. Where one answer is plainly best it is not a decision, it
+is a toll gate with extra steps. Standing still — holding your price,
+turning the contract down — does nothing on purpose, because refusing to
+act is a real answer and the game does not get to punish it twice.
+
+**Every cost comes out of the TILL**, never the owner's pocket, per the
+earlier ruling that business money is separate. A moment you cannot afford
+is a moment that hurts, which is what makes the draw dial a decision.
+
+**Pacing was the hard part.** He had already told me the monthly warnings
+were too much ("the 1 month 2 month thing is a little much"), so this fires
+at most once a year on a one-in-two roll, and never while the business is
+already in a bad run — stacking a moment on top of a closure warning is how
+a question gets lost.
+
+**A bug this turned up.** A business nobody has fiddled with has no ops
+record at all, so the first version of "match their price" silently did
+nothing. Every other verb reaches ops through `myBusiness`, which falls back
+to `freshOps()`; this did not. Caught by a test, not by reading.
+
+**Scope, plainly stated:** six hand-written moments, like the five board
+matters. It is a content table, not simulation, and a long game will see
+them repeat.
+
+---
+
+## ADR-0051 — The dial is literal; the business has a natural size
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 177
+
+**Context.** Owner's ruling: *"if I choose the 70/30 option I would take
+whatever is 70% of the profit and reinvest 30% into the company, like if I
+choose the other splits and so on."* He hit the old behaviour twice while
+playing. Retention was clamped by the capital ceiling, so an owner at the
+ceiling had the whole profit pushed into their hand whatever the dial said —
+and the screen reported a split that was not happening.
+
+**Decision.** The dial is honoured exactly. 30% left in is 30% left in.
+
+**What the clamp was really doing, measured.** Removing it and nothing else
+was catastrophic and it was caught by a probe rather than by reasoning: a
+century produced a richest townsperson worth **$476 trillion** and a corner
+business holding **$4.8 billion**. Capital compounds into profit into capital,
+and the ceiling was the only thing breaking that loop. The taper on the
+earning base does not hold it alone.
+
+**So the loop is broken at the other end.** A business only EARNS on what it
+can put to work — capped at the same ceiling the retention clamp used to
+enforce. You may leave in whatever share you like, and past that point the
+money simply sits in the till. Re-measured: richest $13.4M, biggest business
+$2.5M over the same century.
+
+This is the better place for the limit because it is a statement about the
+BUSINESS rather than about the owner's choice. A shop with fifty million in
+the till does not trade like a fifty-million business; it is a shop with money
+in the till. The player's decision stays their own and the screen stops lying.
+
+---
+
+## ADR-0052 — Half a million is a full week, and the player is asked
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 177
+
+**Context.** Owner's ruling: *"whenever a players company is worth over 500k
+they should have to leave their job or get a popup that is letting them decide
+to quit or focus on the business."*
+
+**Decision.** `BUSINESS_IS_FULL_TIME_AT` drops from two million to five
+hundred thousand, and the player is asked rather than walked out.
+
+**Why the question, when the last ruling asked for FEWER interruptions.** At
+two million the rule almost never fired, so deleting the job silently was
+defensible. At five hundred thousand it lands in an ordinary life, and a job
+disappearing without a word is the exact shape of complaint this project keeps
+collecting. The town still resolves it automatically: a question nobody
+answers is a pending decision that never clears.
+
+**Both answers cost something.** Keeping the wage keeps the business running
+in the evenings, and it earns like it — half the owner's attention, for as
+long as they hold both. Derived from the two facts rather than stored, so it
+cannot fall out of step with them. A choice where both options are free is not
+a choice.
+
+---
+
+## ADR-0053 — Taking a seat is not finishing the course
+
+**Date:** 2026-08-14 · **Status:** accepted · **Version:** SIMULATION_VERSION 177
+
+**Context.** Owner, playing: *"when we get the popup in the military thats
+like 'a school slot has opened' we take it and then it says we complete it but
+we never actually did complete it, not on the record, can still attend the
+school etc."*
+
+**The bug.** Accepting wrote a `completed-training` event immediately — so the
+feed announced a graduation — then granted the TRADE's qualification and
+stopped. It never recorded the attempt, never granted the SCHOOL's badge, and
+never sent anybody to the schoolhouse. Eligibility is decided by whether the
+soldier holds `school.badge`, so the same course stayed on offer for ever and
+could be "completed" repeatedly, each time announcing a graduation that was
+nowhere on the record.
+
+**Decision.** The offer grants a SEAT. `runSchools` owns everything after
+that, exactly as it does for the reenlistment option and for every soldier in
+the town: the class starts, the course runs its months, it can injure or wash
+somebody out, and graduating grants the badge, the ribbon and the attempt.
+
+One door, one story. The instant-completion path existed because a short
+course "fits inside the month" — but a path that skips the machinery skips
+the record too, which is how a graduation with no graduate got shipped.
+
+**Found but NOT fixed here:** the reenlistment `school` option picks the best
+open school and silently does nothing when none is open, so a soldier can
+spend their reenlistment choice on a reward that never arrives. Left for its
+own change rather than bundled into a release.

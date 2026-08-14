@@ -181,11 +181,29 @@ export function portfolioValueOf(world: World, personId: EntityId): Money {
   return total as Money
 }
 
-/** Set or clear a deed. The single writer for who owns what. */
-export function setOwner(world: World, propertyId: string, ownerId: EntityId | null): void {
+/**
+ * Set or clear a deed. The single writer for who owns what.
+ *
+ * `bought` records what changed hands and when, so the screen can say
+ * whether a house made its owner money rather than only what it is worth
+ * today. Left alone on an inheritance or a repossession, where there was no
+ * price — the detail panel reports those as unknown rather than as zero.
+ */
+export function setOwner(
+  world: World,
+  propertyId: string,
+  ownerId: EntityId | null,
+  bought?: { readonly price: Money; readonly tick: Tick },
+): void {
   const property = world.properties.get(propertyId)
   if (!property) return
-  world.properties.set(propertyId, { ...property, ownerId })
+  world.properties.set(propertyId, {
+    ...property,
+    ownerId,
+    ...(bought === undefined
+      ? {}
+      : { boughtForCents: bought.price, boughtAtTick: bought.tick }),
+  })
 }
 
 /** Everything in a neighbourhood, oldest id first — a stable order. */

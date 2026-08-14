@@ -276,6 +276,30 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
   },
   'move-out': { accept: 'Move out', decline: 'Stay home' },
   // The business is a month from shutting. Every answer is a real lever.
+  // The business is the whole week now. Both answers cost something.
+  'business-or-job': {
+    'the-business': '🏪 Give it the whole week',
+    'the-job': '💼 Keep the wage, run it evenings',
+  },
+  // Something happened at the business. Every label says what it COSTS as
+  // well as what it does, because a moment where one answer is obviously
+  // right is a toll gate rather than a decision.
+  'business-moment': {
+    'match-them': '✂️ Match their price',
+    'hold-your-price': '🧍 Hold your price',
+    'put-the-word-out': '📣 Put the word out',
+    'pay-them-more': '💷 Pay them more',
+    'let-them-walk': '🚪 Let them walk',
+    'find-another': '🔍 Find another supplier',
+    'pay-the-premium': '💸 Pay the premium',
+    'take-it': '📦 Take the contract',
+    'turn-it-down': '🙅 Turn it down',
+    'repair-it': '🔧 Patch it up',
+    'replace-it': '🆕 Replace it properly',
+    'nurse-it-along': '🤞 Nurse it along',
+    'have-it-out': '⚖️ Have it out with them',
+    'let-it-go': '🤐 Let it go',
+  },
   // A company you hold a seat in has put something to its shareholders.
   // Both labels of every matter live here, because a vote is only a
   // decision if the player can read what each way means.

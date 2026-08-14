@@ -18,8 +18,10 @@ import {
   refinanceMortgage,
   rentalIncomeOf,
   walletOf,
+  bricksAndMortarOf,
+  netWorthOf,
 } from '../src/finances.js'
-import { listingsFor, propertiesOwnedBy, trendOf } from '../src/realestate.js'
+import { listingsFor, portfolioValueOf, propertiesOwnedBy, trendOf } from '../src/realestate.js'
 import { livingPeople } from '../src/systems.js'
 import { ageAt } from '../src/clock.js'
 
@@ -258,5 +260,66 @@ describe('the town rents on its own', () => {
       if (owner !== undefined && owner.deathTick === null) withLandlord++
     }
     expect(withLandlord).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * WHAT A LANDLORD IS WORTH (owner, playing, 2026-08-14: "only counts my home
+ * I live in on net worth not property total").
+ *
+ * Ownership used to be one pointer — `accounts.homePlaceId`, the
+ * NEIGHBOURHOOD somebody lived in — and net worth still read it long after
+ * property became real records with an owner. A landlord with a portfolio
+ * had exactly one door counted.
+ */
+describe('every door they own', () => {
+  it('counts the whole portfolio towards what they are worth', () => {
+    const world = createWorld(makeSeed(4242), 200)
+    const owner = livingPeople(world).find(
+      (p) =>
+        ageAt(p.birthTick, world.tick) >= 25 &&
+        ageAt(p.birthTick, world.tick) <= 40 &&
+        propertiesOwnedBy(world, p.id).length === 0,
+    )
+    expect(owner).toBeDefined()
+    if (!owner) return
+
+    const forSale = listingsFor(world)
+      .filter((l) => l.forSale)
+      .sort((a, b) => a.price - b.price)
+    const first = forSale[0]
+    const second = forSale[1]
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    if (!first || !second) return
+
+    const accounts = accountsOf(world, owner.id)
+    world.accounts.set(owner.id, {
+      ...accounts,
+      savings: ((first.price + second.price) * 3) as Money,
+    })
+
+    const before = netWorthOf(world, owner.id)
+    expect(
+      buyHome(world, world.tick as Tick, owner.id, first.property.neighbourhoodPlaceId, 'cash', first.property.id),
+    ).toBe(true)
+    const withOne = netWorthOf(world, owner.id)
+    expect(propertiesOwnedBy(world, owner.id).length).toBe(1)
+
+    // THE SECOND DOOR. This is the one that used to vanish: buying it moved
+    // cash out and put nothing back on the balance sheet.
+    expect(
+      buyHome(world, world.tick as Tick, owner.id, second.property.neighbourhoodPlaceId, 'cash', second.property.id),
+    ).toBe(true)
+    expect(propertiesOwnedBy(world, owner.id).length).toBe(2)
+    const withTwo = netWorthOf(world, owner.id)
+
+    // Buying with cash is a swap, so worth should hold up rather than fall
+    // by the price of the house.
+    expect(withOne).toBeGreaterThan(before - first.price)
+    expect(withTwo).toBeGreaterThan(withOne - second.price)
+    // And the bricks themselves are both in there.
+    expect(bricksAndMortarOf(world, owner.id)).toBeGreaterThan(0)
+    expect(bricksAndMortarOf(world, owner.id)).toBe(portfolioValueOf(world, owner.id))
   })
 })

@@ -88,7 +88,21 @@ function aFounder(seed = 12345) {
   const wallet = walletOf(world, person.id)
   world.accounts.set(wallet.personId, { ...wallet, savings: 900_000_000 as Money })
   startBusiness(world, 'shop')
-  advanceTicks(world, 24)
+  /**
+   * MONTH BY MONTH, CLEARING THE QUESTIONS (the same helper `growth.test.ts`
+   * uses, and for the same reason).
+   *
+   * `advanceTicks` STOPS the moment the world raises a decision, which is
+   * correct — and it means asking for twenty-four months in one call can
+   * land far fewer. Business moments made that visible: this fixture was
+   * quietly getting one year of trading where it asked for two, and three
+   * tests failed on gates that were reading the truth.
+   */
+  for (let month = 0; month < 24; month += 1) {
+    ;(world.player as { pending: unknown }).pending = null
+    advanceTicks(world, 1)
+  }
+  ;(world.player as { pending: unknown }).pending = null
   return { world, person }
 }
 

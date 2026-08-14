@@ -1175,6 +1175,19 @@ export interface Property {
    * question "what do I own?" is a filter rather than a field.
    */
   readonly ownerId?: EntityId | null
+  /**
+   * WHAT IT COST AND WHEN (owner, playing, 2026-08-14: "when you click on
+   * details on the property it should show things like how much the value
+   * has changed over time... like bought price stuff like that").
+   *
+   * The deed recorded who owns it and nothing about the transaction, so
+   * there was no way to say whether a house had made its owner money —
+   * only what it is worth today. Undefined on anything bought before this
+   * existed, and on the inherited or gifted, which the screen reports as
+   * unknown rather than guessing at zero.
+   */
+  readonly boughtForCents?: Money
+  readonly boughtAtTick?: Tick
 }
 
 /**
@@ -2305,6 +2318,10 @@ export type PendingKind =
   | 'take-stake'
   /** A company you hold a seat in has put something to its shareholders. */
   | 'board-vote'
+  /** Something happened to the business you run, and it wants an answer. */
+  | 'business-moment'
+  /** The business is big enough to be the whole week. The job or the firm. */
+  | 'business-or-job'
   /** Took somebody on at your own business. */
   | 'hire-staff'
   /** Let somebody go from your own business. */
@@ -2607,6 +2624,8 @@ export type EventType =
   | 'took-control'
   /** Voted on a matter at a company you hold a seat in. detail 'matter:ticker:how'. */
   | 'board-voted'
+  /** Something happened at the business and was dealt with. detail 'moment:choice'. */
+  | 'business-moment'
   /** Sold down below a seat in the company you founded. detail 'TICKER:perMille'. */
   | 'left-the-board'
   /** Somebody else did it to a company this person floated. detail 'TICKER:perMille'. */

@@ -15,6 +15,7 @@ import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { recordEvent } from '../src/records.js'
 import { flagStatus, schoolOptionsFor } from '../src/service.js'
+import { resolvePending, setPlayer } from '../src/player.js'
 import { setFitness } from '../src/stats.js'
 import { livingPeople } from '../src/systems.js'
 import { BRANCH_GRADES, SERVICE_SCHOOLS } from '../src/content.js'
@@ -432,5 +433,64 @@ describe('the flag says when it lifts', () => {
     expect(second).not.toBeNull()
     expect(first).not.toBeNull()
     expect(Number(second)).toBeGreaterThan(Number(first))
+  })
+})
+
+/**
+ * TAKING A SEAT IS NOT FINISHING THE COURSE (owner, playing, 2026-08-14:
+ * "when we get the popup in the military thats like 'a school slot has
+ * opened' we take it and then it says we complete it but we never actually
+ * did complete it, not on the record, can still attend the school etc").
+ *
+ * Accepting the offer used to write a `completed-training` event on the
+ * spot, grant the TRADE's qualification, and stop. It never recorded the
+ * attempt, never granted the SCHOOL's badge, and never sent anybody to the
+ * schoolhouse — and eligibility is decided by whether you hold that badge,
+ * so the course stayed on offer and could be "completed" again and again.
+ */
+describe('a slot taken from the offer', () => {
+  it('sends you to the school instead of announcing a graduation', () => {
+    const world = createWorld(makeSeed(31337), 120)
+    advanceTicks(world, 22 * 12)
+    const soldier = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 30)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!soldier) return
+    setPlayer(world, soldier.id)
+    enlist(world, soldier.id)
+    ;(world.player as { pending: unknown }).pending = null
+
+    const school = SERVICE_SCHOOLS.find((sc) => sc.courseMonths > 0)
+    if (!school) return
+
+    ;(world.player as { pending: unknown }).pending = {
+      id: 1,
+      tick: world.tick,
+      kind: 'attend-school',
+      personId: soldier.id,
+      otherId: null,
+      occupationId: school.id,
+      workplaceId: null,
+      monthlyPay: null,
+      placeId: null,
+      options: ['attend', 'decline'],
+    }
+    resolvePending(world, 'attend')
+
+    // NO GRADUATION HAS HAPPENED. What exists is a seat.
+    const record = world.service.get(soldier.id)
+    expect(record?.schoolId, 'the seat was never taken').toBe(school.id)
+    expect(record?.schoolStartsAtTick).not.toBeNull()
+    // THIS PERSON'S events, not the town's: twenty-two years of NPCs have
+    // been graduating courses in the background, and the first version of
+    // this check counted theirs.
+    expect(
+      world.events.some(
+        (e) => e.type === 'completed-training' && e.subjectId === soldier.id,
+      ),
+      'it announced a graduation for a course nobody has sat',
+    ).toBe(false)
+    // And nothing on the record claims the badge yet.
+    expect(record?.qualifications ?? []).not.toContain(school.badge)
   })
 })

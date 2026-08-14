@@ -165,7 +165,7 @@ import {
   setBaRating,
   SEVERE_AILMENT,
 } from './health.js'
-import { grantCampaignMedal, grantQualificationBadge, grantValor, grantWoundRecognition } from './awards.js'
+import { grantCampaignMedal, grantValor, grantWoundRecognition } from './awards.js'
 import {
   termsOfferedTo,
   optionsOffered,
@@ -173,11 +173,11 @@ import {
   decodeContract,
   bonusFor,
   applyReenlistmentOption,
-  addServiceQualification,
   applyBoardPromotion,
   assignServiceUnit,
   boardStandingFor,
   boostServicePerformance,
+  nextClassTick,
   commissionsOnEntry,
   oathAdministratorsFor,
   discharge as dischargeService,
@@ -383,6 +383,20 @@ import {
 } from './market.js'
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { boardMatterById, offerFor, priceAfter, voteCarries } from './board.js'
+import {
+  ADVERT_COST_PER_MILLE,
+  BIG_ORDER_PER_MILLE,
+  MATCH_PRICE_STEP,
+  NURSE_SPOILS_PER_MILLE,
+  PREMIUM_RATE_PER_MILLE,
+  RAISE_PER_MILLE,
+  RECOVERED_PER_MILLE,
+  REPAIR_COST_PER_MILLE,
+  REPLACE_COST_PER_MILLE,
+  THEFT_PER_MILLE,
+  businessMomentById,
+} from './moments.js'
+import { inTradeWords } from './tradewords.js'
 import { schoolFor, specialtyFor, unitFor } from './worldspec.js'
 
 /**
@@ -900,16 +914,48 @@ export function boardFor(world: World): BoardView | undefined {
 }
 
 /** The last two years of the books, summarised, for the financials screen. */
-export function booksFor(
-  world: World,
-): { readonly year: Ledger; readonly all: Ledger; readonly growthPerMille: number; readonly months: readonly BusinessMonth[] } | undefined {
+export function booksFor(world: World):
+  | {
+      readonly year: Ledger
+      readonly all: Ledger
+      readonly growthPerMille: number
+      readonly months: readonly BusinessMonth[]
+      /** The calendar year the `year` figures belong to. */
+      readonly yearNumber: number
+      /** The last COMPLETE year, or undefined in a business's first one. */
+      readonly lastYear: Ledger | undefined
+      readonly lastYearNumber: number
+    }
+  | undefined {
   const person = playerPerson(world)
   if (!person) return undefined
   const business = businessOf(world, person.id)
   if (business === undefined) return undefined
   const months = world.businessBooks.get(business.id) ?? []
+  /**
+   * A FINANCIAL YEAR, NOT A ROLLING WINDOW (owner, playing, 2026-08-14:
+   * "'the books last 12 months' changes every single month. this should be
+   * the yearly view and it all accumlates and restarts at the end of the
+   * year, right now it just shows you the months stats").
+   *
+   * It was `months.slice(-12)` — the last twelve months wherever you
+   * happened to be standing. Every month the oldest one silently dropped
+   * off the back, so the figures moved even in a month that went exactly
+   * like the one before it, and there was no point in the year where you
+   * could say "that is what the year came to".
+   *
+   * Now it accumulates from January and starts again in January, and the
+   * year just gone is kept beside it to compare against.
+   */
+  const thisYear = toDate(world, world.tick).year
+  const inYear = (month: BusinessMonth, year: number): boolean =>
+    toDate(world, month.tick).year === year
+  const lastYearMonths = months.filter((month) => inYear(month, thisYear - 1))
   return {
-    year: summarise(months.slice(-12)),
+    year: summarise(months.filter((month) => inYear(month, thisYear))),
+    yearNumber: thisYear,
+    lastYear: lastYearMonths.length > 0 ? summarise(lastYearMonths) : undefined,
+    lastYearNumber: thisYear - 1,
     all: summarise(months),
     growthPerMille: growthPerMilleOf(months),
     months,
@@ -4908,34 +4954,39 @@ export function resolvePending(world: World, choice: string): void {
 
     case 'attend-school': {
       if (choice === 'attend') {
+        /**
+         * TAKING THE SEAT IS NOT FINISHING THE COURSE (owner, playing,
+         * 2026-08-14: "when we get the popup in the military thats like 'a
+         * school slot has opened' we take it and then it says we complete
+         * it but we never actually did complete it, not on the record, can
+         * still attend the school etc").
+         *
+         * Exactly right, and worse than it looked. Accepting wrote a
+         * `completed-training` event on the spot — so the feed announced a
+         * graduation — then granted the TRADE's qualification and stopped.
+         * It never recorded the attempt, never granted the SCHOOL's badge,
+         * and never sent anybody to the schoolhouse. Eligibility is decided
+         * by whether you hold `school.badge`, so the same course stayed on
+         * offer for ever and could be "completed" again and again, each
+         * time announcing a graduation that was not on the record.
+         *
+         * A seat is a seat now. `runSchools` owns the rest, exactly as it
+         * does for the reenlistment option and for every soldier in town:
+         * the class starts, the course runs its months, it can injure or
+         * wash somebody out, and graduating grants the badge, the ribbon
+         * and the attempt on the record. One door, one story.
+         */
         const record = world.service.get(person.id)
-        if (record && record.dischargedAtTick === null) {
-          const specialty = specialtyFor(world, record.specialtyId)
-          // One event, not a same-tick begin-and-end: a short course fits
-          // inside the month, and the feed should not pretend otherwise.
-          const school =
-            pending.occupationId === null
-              ? undefined
-              : world.spec.schools.find((sc) => sc.id === pending.occupationId)
-          recordEvent(world, pending.tick, {
-            type: 'completed-training',
-            subjectId: person.id,
-            detail: school?.title ?? 'an advanced course',
+        const school =
+          pending.occupationId === null
+            ? undefined
+            : world.spec.schools.find((sc) => sc.id === pending.occupationId)
+        if (record && record.dischargedAtTick === null && school !== undefined) {
+          world.service.set(person.id, {
+            ...record,
+            schoolId: school.id,
+            schoolStartsAtTick: nextClassTick(school, world.tick),
           })
-          const performance = Math.min(1000, record.performance + 60)
-          boostServicePerformance(world, person.id, 60)
-          // The school can also earn the trade's rating — which counts
-          // toward the board (the training-to-promotion path the owner
-          // asked for, and the real one).
-          if (!record.qualifications.includes(specialty.qualification) && performance >= 500) {
-            const qualEvent = recordEvent(world, pending.tick, {
-              type: 'earned-qualification',
-              subjectId: person.id,
-              detail: specialty.qualification,
-            })
-            addServiceQualification(world, person.id, specialty.qualification)
-            grantQualificationBadge(world, pending.tick, person.id, qualEvent, specialty.qualification)
-          }
           recordDecision(world, pending.tick, {
             subjectId: person.id,
             decision: 'training',
@@ -5700,6 +5751,145 @@ export function resolvePending(world: World, choice: string): void {
      * question because a year-long age-up runs twelve of these months in
      * one press, and a shop can go from healthy to closed inside it.
      */
+    /**
+     * THE JOB OR THE FIRM (owner's ruling: "whenever a players company is
+     * worth over 500k they should have to leave their job or get a popup
+     * that is letting them decide to quit or focus on the business").
+     *
+     * Both answers are real. Walking out of the job gives the business the
+     * whole week. Keeping it does NOT get you both for free — a business
+     * run in the evenings earns like one run in the evenings, and that cost
+     * follows you for as long as you hold the two.
+     */
+    case 'business-or-job': {
+      if (choice === 'the-business') {
+        world.employment.delete(person.id)
+        recordEvent(world, world.tick, {
+          type: 'left-job',
+          subjectId: person.id,
+          detail: 'the-business',
+        })
+      }
+      // 'the-job' keeps both, and `runBusinesses` reads the same condition
+      // every month to know the business is being run part-time.
+      break
+    }
+
+    /**
+     * SOMETHING HAPPENED AT THE BUSINESS, AND YOU ANSWERED IT.
+     *
+     * Every cost here comes out of the TILL, never the pocket — the owner's
+     * ruling ("the business funds need to be kinda separate from the real
+     * bank"). A moment you cannot afford is a moment that hurts, which is
+     * the whole reason the draw dial is a decision.
+     */
+    case 'business-moment': {
+      const business =
+        pending.workplaceId === null ? undefined : world.businesses.get(pending.workplaceId)
+      if (business === undefined || business.closedTick !== null) break
+      const moment = businessMomentById(pending.occupationId ?? '')
+      if (moment === undefined) break
+      /**
+       * A BUSINESS THAT HAS NEVER BEEN TOUCHED HAS NO OPS RECORD, and a
+       * moment can land before the owner has fiddled with a single
+       * setting. Falling back to `freshOps()` is what `myBusiness` does
+       * for every other verb — caught by a test where matching a rival's
+       * price silently did nothing at all.
+       */
+      const ops = world.businessOps.get(business.id) ?? freshOps()
+
+      /** The dearest hand, who is the one every staff moment is about. */
+      const dearest = employeesOf(world, business.id)
+        .map((id) => ({ id, pay: world.employment.get(id)?.monthlyPay ?? 0 }))
+        .sort((a, b) => b.pay - a.pay)[0]
+
+      if (choice === 'match-them') {
+        // Custom back, margin gone. The oldest trade there is.
+        world.businessOps.set(business.id, {
+          ...ops,
+          markupPerMille: Math.max(800, ops.markupPerMille - MATCH_PRICE_STEP),
+        })
+      } else if (choice === 'put-the-word-out') {
+        const cost = Math.floor((business.capital * ADVERT_COST_PER_MILLE) / 1000) as Money
+        if (spendFromCapital(world, business.id, cost)) {
+          world.businessOps.set(business.id, {
+            ...ops,
+            advertisedUntilTick: (world.tick + ADVERT_MONTHS) as Tick,
+          })
+        }
+      } else if (choice === 'pay-them-more' && dearest !== undefined) {
+        const job = world.employment.get(dearest.id)
+        if (job !== undefined) {
+          world.employment.set(dearest.id, {
+            ...job,
+            monthlyPay: Math.floor((job.monthlyPay * (1000 + RAISE_PER_MILLE)) / 1000) as Money,
+          })
+        }
+      } else if (choice === 'let-them-walk' && dearest !== undefined) {
+        dismissFromBusiness(world, world.tick, dearest.id, business.name)
+      } else if (choice === 'find-another') {
+        // Back to the ordinary rate, and the relationship starts again.
+        world.businessOps.set(business.id, {
+          ...ops,
+          vendorName: 'a new supplier',
+          vendorRatePerMille: 1000,
+          vendorQualityPerMille: 1000,
+        })
+      } else if (choice === 'pay-the-premium') {
+        world.businessOps.set(business.id, { ...ops, vendorRatePerMille: PREMIUM_RATE_PER_MILLE })
+      } else if (choice === 'take-it' && ops.stockCents > 0) {
+        /**
+         * THE SHELF GOES OUT OF THE DOOR AND THE MONEY COMES BACK BIGGER.
+         * A real contract: it clears you out, and being cleared out is its
+         * own problem next month.
+         */
+        const paid = Math.floor((ops.stockCents * BIG_ORDER_PER_MILLE) / 1000) as Money
+        world.businessOps.set(business.id, { ...ops, stockCents: 0 as Money })
+        intoCapital(world, business.id, paid)
+      } else if (choice === 'repair-it') {
+        spendFromCapital(
+          world,
+          business.id,
+          Math.floor((business.capital * REPAIR_COST_PER_MILLE) / 1000) as Money,
+        )
+      } else if (choice === 'replace-it') {
+        const cost = Math.floor((business.capital * REPLACE_COST_PER_MILLE) / 1000) as Money
+        if (spendFromCapital(world, business.id, cost)) {
+          // New kit is a refit: the place works better for years.
+          world.businessOps.set(business.id, { ...ops, refitAtTick: world.tick })
+        }
+      } else if (choice === 'nurse-it-along') {
+        // Free today. It spoils what is on the shelf.
+        world.businessOps.set(business.id, {
+          ...ops,
+          stockCents: Math.floor(
+            (ops.stockCents * (1000 - NURSE_SPOILS_PER_MILLE)) / 1000,
+          ) as Money,
+        })
+      } else if (choice === 'have-it-out' && dearest !== undefined) {
+        const had = Math.floor((business.capital * THEFT_PER_MILLE) / 1000)
+        const back = Math.floor((had * RECOVERED_PER_MILLE) / 1000) as Money
+        dismissFromBusiness(world, world.tick, dearest.id, business.name)
+        intoCapital(world, business.id, back)
+      } else if (choice === 'let-it-go') {
+        // It carries on, because that is what letting it go means.
+        spendFromCapital(
+          world,
+          business.id,
+          Math.floor((business.capital * THEFT_PER_MILLE) / 1000) as Money,
+        )
+      }
+      // 'hold-your-price' and 'turn-it-down' do nothing on purpose: standing
+      // still is a real answer and the game does not get to punish it twice.
+
+      recordEvent(world, world.tick, {
+        type: 'business-moment',
+        subjectId: person.id,
+        detail: `${moment.id}:${choice}`,
+      })
+      break
+    }
+
     /**
      * THE VOTE IS TAKEN (owner: "Never got any board memeber moments").
      *
@@ -7040,6 +7230,24 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chased what was owed.' // log-only
     case 'refit':
       return 'Smartened the place up.' // log-only
+    case 'business-or-job': {
+      const pay = (pending.monthlyPay ?? 0) as Money
+      return `Your business has grown into the whole of a working week, and you are still on the books as ${pending.occupationId ?? 'an employee'} for ${formatMoney(pay)} a month. Something has to give: run the business properly, or keep the wage and run it in the evenings.`
+    }
+
+    case 'business-moment': {
+      const moment = businessMomentById(pending.occupationId ?? '')
+      const business =
+        pending.workplaceId === null ? undefined : world.businesses.get(pending.workplaceId)
+      // IN THE TRADE'S OWN WORDS, so a software company is never told its
+      // shelves are empty.
+      const said =
+        moment === undefined
+          ? 'Something needs deciding.'
+          : inTradeWords(moment.question, business?.kindId ?? '')
+      return `${business?.name ?? 'The business'} — ${said}`
+    }
+
     case 'board-vote': {
       const [matterId, stockId] = (pending.occupationId ?? '').split(':')
       const matter = matterId === undefined ? undefined : boardMatterById(matterId)

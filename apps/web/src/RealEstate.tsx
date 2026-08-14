@@ -13,6 +13,7 @@
 
 import { useState } from 'react'
 import type { Property, World } from '@life-engine/engine'
+import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import {
   accountsOf,
@@ -36,6 +37,7 @@ import {
   trendOf,
   trendWords,
   valueOf,
+  toDate,
 } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
 
@@ -173,7 +175,33 @@ export function RealEstate({
 
   const mine = propertiesOwnedBy(world, personId as never)
   const all = listingsFor(world)
-  const detail = open === null ? null : (all.find((l) => l.property.id === open) ?? null)
+  /**
+   * A PROPERTY YOU OWN IS NOT FOR SALE (owner, playing, 2026-08-14: "when
+   * you click on details on the property it should show things like how
+   * much the value has changed over time... right now details is blank").
+   *
+   * That was the whole bug. The panel looked its subject up in
+   * `listingsFor` — the MARKET — and a house you already own is not on the
+   * market, so Details resolved to null and rendered nothing at all. It
+   * falls back to the portfolio now, priced the way the engine prices a
+   * deed rather than the way it prices an offer.
+   */
+  const detail =
+    open === null
+      ? null
+      : (all.find((l) => l.property.id === open) ??
+        (() => {
+          const owned = mine.find((property) => property.id === open)
+          if (owned === undefined) return null
+          return {
+            property: owned,
+            price: valueOf(world, owned),
+            monthlyRent: rentOf(world, owned),
+            forSale: false,
+            // Your own deed is not on either market.
+            forRent: false,
+          }
+        })())
   const credit = creditOf(world, personId as never)
   const rate = offeredRatePerMille(world, credit, 'mortgage')
   const minSharePerMille = depositShareFor(credit)
@@ -238,6 +266,103 @@ export function RealEstate({
             <div><b>{property.sqft.toLocaleString()}</b><span>Sqft</span></div>
           </div>
         </section>
+
+        {/*
+          A DEED YOU ALREADY HOLD (owner: "if you are renting the property it
+          should show your profit after upkeep and everything and like bought
+          price stuff like that").
+
+          What it cost, what it is worth, what the difference is, and — where
+          somebody is living in it — what it actually clears each month once
+          the upkeep is out. A valuation on its own never told anybody
+          whether the house had been worth buying.
+        */}
+        {!detail.forSale && mine.some((owned) => owned.id === property.id) && (
+          <section className="re-sec">
+            <h4>What it has done for you</h4>
+            {(() => {
+              const paid = property.boughtForCents ?? null
+              const now = valueOf(world, property)
+              const gain = paid === null ? null : ((now - paid) as Money)
+              const since =
+                property.boughtAtTick === undefined
+                  ? null
+                  : toDate(world, property.boughtAtTick).year
+              const tenant = tenantOf(property.id)
+              const upkeep = ownershipCostOf(world, property, 0 as never).maintenance
+              const rent = tenant === undefined ? (0 as Money) : rentOf(world, property)
+              const net = (rent - upkeep) as Money
+              return (
+                <>
+                  <div className="re-tiles">
+                    <div className="re-tile hot">
+                      <span>Worth today</span>
+                      <b>{formatMoney(now)}</b>
+                    </div>
+                    <div className="re-tile">
+                      <span>You paid</span>
+                      <b>{paid === null ? 'not recorded' : formatMoney(paid)}</b>
+                    </div>
+                    {gain !== null && (
+                      <div className={gain >= 0 ? 're-tile hot' : 're-tile'}>
+                        <span>{gain >= 0 ? 'Gained' : 'Lost'}</span>
+                        <b className={gain >= 0 ? 'good' : 'bad'}>
+                          {formatMoney(Math.abs(gain) as Money)}
+                          {paid !== null && paid > 0
+                            ? ` (${gain >= 0 ? '+' : '−'}${Math.abs(Math.round((gain * 100) / paid)).toFixed(0)}%)`
+                            : ''}
+                        </b>
+                      </div>
+                    )}
+                    {since !== null && (
+                      <div className="re-tile">
+                        <span>Bought</span>
+                        <b>{String(since)}</b>
+                      </div>
+                    )}
+                  </div>
+                  <h4>The month on it</h4>
+                  <div className="re-row">
+                    <span>Rent coming in</span>
+                    <b className={rent > 0 ? 'good' : ''}>
+                      {tenant === undefined
+                        ? livedIn(property.id)
+                          ? '— you live here'
+                          : 'nobody in it'
+                        : `${formatMoney(rent)}/mo`}
+                    </b>
+                  </div>
+                  <div className="re-row">
+                    <span>Upkeep</span>
+                    <b className="bad">−{formatMoney(upkeep)}/mo</b>
+                  </div>
+                  <div className="re-row">
+                    <span>{net >= 0 ? 'Clears' : 'Costs you'}</span>
+                    <b className={net >= 0 ? 'good' : 'bad'}>
+                      {formatMoney(Math.abs(net) as Money)}/mo
+                    </b>
+                  </div>
+                  {tenant !== undefined && paid !== null && paid > 0 && (
+                    <div className="re-row">
+                      <span>Yield on what you paid</span>
+                      <b>{(((net * 12 * 1000) / paid) / 10).toFixed(1)}%/yr</b>
+                    </div>
+                  )}
+                  <p className="re-blurb">
+                    {/* THE ROOF OVER YOUR OWN HEAD IS NOT A VACANCY. The
+                        first version told a family living in their own
+                        house that a tenant would turn it into a business. */}
+                    {livedIn(property.id)
+                      ? 'You live here, so it earns nothing and costs its upkeep — which is what a home is. What it is worth still counts towards everything you own.'
+                      : tenant === undefined
+                        ? 'An empty place still costs its upkeep every month. A tenant is what turns it from a bill into a business.'
+                        : 'What is left after the upkeep is what the deed actually earns — before the mortgage, if there is one on it.'}
+                  </p>
+                </>
+              )
+            })()}
+          </section>
+        )}
 
         {detail.forSale && (
           <section className="re-sec">

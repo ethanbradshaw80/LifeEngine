@@ -87,6 +87,7 @@ import {
   isVacant,
   leaseBar,
   propertiesOwnedBy,
+  portfolioValueOf,
   rentOf as propertyRentOf,
   runNeighbourhoodDrift,
   saleProceedsOf,
@@ -142,6 +143,7 @@ import {
 } from './bankruptcy.js'
 import { placesOfKind } from './worldgen.js'
 import { BOARD_MATTERS, hasBoardSeat } from './board.js'
+import { businessMomentsFor } from './moments.js'
 import {
   BUSINESS_FAILS_AFTER,
   BUSINESS_KINDS,
@@ -396,7 +398,7 @@ export function moneyOnHand(world: World, personId: EntityId): Money {
  * own LOANS but none of the couple's cash, so borrowing $8,000 read as
  * minus $8,000 of wealth.
  */
-function liquidShareOf(world: World, personId: EntityId): number {
+export function liquidShareOf(world: World, personId: EntityId): number {
   const wallet = walletOf(world, personId)
   const joint = wallet.checking + wallet.savings
   const spouse = spouseOf(world, personId)
@@ -406,6 +408,28 @@ function liquidShareOf(world: World, personId: EntityId): number {
   return personId === wallet.personId ? joint - half : half
 }
 
+/**
+ * EVERY DOOR THEY OWN, not just the one they sleep behind (owner, playing,
+ * 2026-08-14: "only counts my home I live in on net worth not property
+ * total").
+ *
+ * `homeValueOf` reads `accounts.homePlaceId` — a single pointer at the
+ * NEIGHBOURHOOD the owner lives in, which is all ownership used to be. Once
+ * property became real records with an `ownerId`, a landlord with six
+ * houses still had exactly one of them counted.
+ *
+ * The portfolio is authoritative where it exists, and it already includes
+ * the residence when the residence is owned — so this returns one or the
+ * other rather than adding them, which would count the same house twice at
+ * two different valuations. The fallback keeps older saves honest: a person
+ * with a `homePlaceId` and no property records still has their home
+ * counted.
+ */
+export function bricksAndMortarOf(world: World, personId: EntityId): Money {
+  const portfolio = portfolioValueOf(world, personId)
+  return portfolio > 0 ? portfolio : homeValueOf(world, personId)
+}
+
 export function netWorthOf(world: World, personId: EntityId): Money {
   const a = accountsOf(world, personId)
   return (liquidShareOf(world, personId) +
@@ -413,7 +437,7 @@ export function netWorthOf(world: World, personId: EntityId): Money {
     a.retirement +
     portfolioValue(world, a.holdings) +
     portfolioValue(world, a.retirementHoldings) +
-    homeValueOf(world, personId) +
+    bricksAndMortarOf(world, personId) +
     businessWorthOf(world, personId) -
     totalDebtOf(a.loans)) as Money
 }
@@ -1153,7 +1177,9 @@ export function buyHome(
   // THE DOOR, NOT JUST THE STREET. Recorded on the household because a home
   // is where a FAMILY lives, not where one earner's bank account points.
   if (property !== undefined) {
-    setOwner(world, property.id, personId)
+    // WHAT IT COST, ON THE DEED — so the detail screen can show a gain
+    // rather than only a valuation.
+    setOwner(world, property.id, personId, { price, tick })
     const person = world.people.get(personId)
     const household = person?.householdId === null || person === undefined
       ? undefined
@@ -2596,6 +2622,7 @@ export function runFinances(world: World, tick: Tick): void {
   runNpcInvesting(world, tick)
   runRaiders(world, tick)
   runBoardMoments(world, tick)
+  runBusinessMoments(world, tick)
   runTaxSeason(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
@@ -3630,7 +3657,22 @@ function forecloseHome(world: World, personId: EntityId, owed: Money): Money {
 
 export function passOnHomes(world: World, tick: Tick, deceasedId: EntityId): void {
   const deceased = accountsOf(world, deceasedId)
-  if (deceased.homePlaceId === null) return
+  /**
+   * DEEDS PASS ON EVEN WHERE THERE WAS NO RESIDENCE (found by a test after
+   * net worth started counting the whole portfolio: a dead man was still
+   * worth $21,989).
+   *
+   * The guard was `homePlaceId === null` — the LEGACY pointer at the
+   * neighbourhood somebody lived in. A landlord who rented their own home,
+   * or whose pointer had been cleared, therefore left this function
+   * immediately and every deed they held stayed registered to a dead
+   * person: never inherited, never let, never sold, gone from the town for
+   * good. It was invisible because net worth read the same stale pointer.
+   */
+  const stillHeld = [...world.properties.values()].filter(
+    (property) => property.ownerId === deceasedId,
+  )
+  if (deceased.homePlaceId === null && stillHeld.length === 0) return
   // THE WIDOW KEEPS THE HOUSE. A surviving spouse inherits the home before
   // any child does — this must run before relationships turns the marriage
   // to widowhood, which performDeath's ordering guarantees. Only when no
@@ -3656,7 +3698,12 @@ export function passOnHomes(world: World, tick: Tick, deceasedId: EntityId): voi
       })
     }
   }
-  if (heirId !== null) {
+  /**
+   * ONLY HAND ON A RESIDENCE THAT EXISTED. Copying a null pointer onto the
+   * heir would evict them from their OWN home — which the old early return
+   * happened to prevent, and this change would otherwise have exposed.
+   */
+  if (heirId !== null && deceased.homePlaceId !== null) {
     const heir = accountsOf(world, heirId)
     setAccounts(world, {
       ...heir,
@@ -4390,12 +4437,68 @@ function runBusinesses(world: World, tick: Tick): void {
       shareOfTradePerMille(mine, rivalWeights),
       Math.max(0, rivalWeights.length - 1),
     )
+    /**
+     * THE SHELF IS PART OF THE BUSINESS (owner, playing: "when I would
+     * stock the shelfs I would have losing months and be at risk of
+     * closing").
+     *
+     * This was the root of it. `capital` was doing two jobs at once — the
+     * money in the till AND the size of the business the return is figured
+     * on — so buying stock moved cash out of the earning base and the shop
+     * immediately earned less for holding the goods it trades in. Six
+     * months of stock could tip a healthy business into a losing one, and
+     * the owner who never ordered anything looked like the clever one.
+     *
+     * Stock at cost is working capital, not a hole in the accounts, and
+     * `privateValuationOf` has always counted it as an asset. The earning
+     * base counts it too now, which makes ordering neutral: the same money,
+     * in a different place.
+     */
+    /**
+     * A BUSINESS HAS A NATURAL SIZE, AND MONEY PAST IT JUST SITS THERE.
+     *
+     * The draw dial is now literal (the owner's ruling), which removed the
+     * clamp that used to force surplus profit into the owner's hand. Measured
+     * immediately afterwards, that was catastrophic: capital compounds into
+     * profit into capital, and a century produced a richest townsperson worth
+     * $476 TRILLION and a corner business holding $4.8 billion. The taper
+     * alone does not hold it.
+     *
+     * So the loop is broken at the other end. You may leave whatever share
+     * you like in the business — that is your decision and the screen no
+     * longer lies about it — but the business only EARNS on what it can
+     * actually put to work. A shop with fifty million in the till does not
+     * trade like a fifty-million business; the money is just in the till.
+     */
+    const ceilingMultiple =
+      business.scaledAtTick != null
+        ? COMPANY_CEILING_MULTIPLE
+        : CAPITAL_CEILING_MULTIPLE +
+          ceilingBonusPerMilleOf(world.expansions.get(business.id)) / 1000
+    const worksWith = Math.min(
+      business.capital + (ops?.stockCents ?? 0),
+      atTodaysPrices(world, kind.capital) * ceilingMultiple,
+    )
+    const deployed = { ...business, capital: worksWith as Money }
     const grossProfit = monthlyProfitFor(
-      business,
+      deployed,
       kind,
       world.economy.phase,
       world.economy.growthPerMille,
-      owner.traits.diligence,
+      /**
+       * A BUSINESS RUN IN THE EVENINGS EARNS LIKE ONE.
+       *
+       * The owner's ruling gave the player a real choice at five hundred
+       * thousand — the firm or the wage — and a choice where both options
+       * are free is not a choice. Somebody holding a job while running a
+       * business this size is giving it half their attention, and the
+       * month reflects that for exactly as long as they hold both. Derived
+       * from the two facts rather than stored, so it can never fall out of
+       * step with them.
+       */
+      world.employment.has(business.ownerId) && businessDemandsAllHours(world, business.ownerId)
+        ? Math.floor(owner.traits.diligence / 2)
+        : owner.traits.diligence,
       swing,
       toDate(world, tick).year,
       payroll,
@@ -4418,6 +4521,13 @@ function runBusinesses(world: World, tick: Tick): void {
      * lands when it leaves.
      */
     let profit = grossProfit
+    /**
+     * WHAT THE MONTH COST, kept so the books can report it. Both stay zero
+     * for a trade with no shelf and no extras, which is honest rather than
+     * hidden.
+     */
+    let soldAtCost = 0
+    let otherCosts = 0
     if (ops !== undefined) {
       const wanted = stockNeededFor(Math.max(0, grossProfit) as Money, kind)
       /**
@@ -4474,7 +4584,23 @@ function runBusinesses(world: World, tick: Tick): void {
       let extra = 0
       if (ops.longHours) extra += Math.floor((payroll * LONG_HOURS_WAGE_PER_MILLE) / 1000)
       if (ops.insured) extra += insurancePremiumFor(business)
-      profit = (profit + consumed - extra) as Money
+      /**
+       * THE SHELF IS NOT ADDED BACK, and this is the correction (owner,
+       * playing, 2026-08-14: "I never had to stock the shelfs and it would
+       * still make money in fact, when I would stock the shelfs I would
+       * have losing months").
+       *
+       * `monthlyProfitFor` already returns a NET figure with the cost of
+       * goods inside it. Adding the consumed shelf back on top handed the
+       * owner the same money twice — once as goods they held and again as
+       * profit — which is why the books read a hundred per cent margin and
+       * no expenses at all. Ordering stock is an ASSET SWAP, not a cost:
+       * capital becomes goods, goods become takings. Neither leg belongs in
+       * the profit line.
+       */
+      soldAtCost = consumed
+      otherCosts = extra
+      profit = (profit - extra) as Money
       world.businessOps.set(business.id, {
         ...ops,
         stockCents: (ops.stockCents - consumed) as Money,
@@ -4517,9 +4643,31 @@ function runBusinesses(world: World, tick: Tick): void {
       const ceiling = (atTodaysPrices(world, kind.capital) *
         (scaled ? COMPANY_CEILING_MULTIPLE : grownCeiling)) as Money
       const room = Math.max(0, ceiling - business.capital)
+      /**
+       * THE DIAL MEANS WHAT IT SAYS (owner, ruling, 2026-08-14: "if I choose
+       * the 70/30 option I would take whatever is 70% of the profit and
+       * reinvest 30% into the company, like if I choose the other splits and
+       * so on").
+       *
+       * It did not. Retention was clamped by the capital ceiling, so an
+       * owner at the ceiling had the whole profit pushed into their hand
+       * whatever the dial said — and the screen showed a split that was not
+       * happening. He hit it twice.
+       *
+       * The clamp is gone for a trade: 30% left in is 30% left in. What
+       * stops a century of compounding from ending in absurd wealth is the
+       * TAPER on the earning base, which is the right tool for it — a
+       * business twenty times its founding size earns proportionally less on
+       * every extra dollar, rather than being told it may not hold them.
+       * Measured after the change rather than assumed.
+       *
+       * A SCALED COMPANY still meets a ceiling, because a founder on a
+       * salary is not choosing a split at all — the company keeps what it
+       * keeps, and that is the trade scaling up makes.
+       */
       const retained = scaled
         ? Math.min(Math.max(0, profit - founderSalaryOf(business, kind)), room)
-        : Math.min(Math.floor((profit * (ops?.retainPerMille ?? 300)) / 1000), room)
+        : Math.floor((profit * (ops?.retainPerMille ?? 300)) / 1000)
       const drawn = (profit - retained) as Money
       /**
        * THE DRAW IS SPLIT BY THE REGISTER (the business revamp).
@@ -4533,9 +4681,16 @@ function runBusinesses(world: World, tick: Tick): void {
        * The founder takes the remainder rather than a computed slice, so
        * the odd cent never goes missing and the month always balances.
        */
+      /**
+       * TAKINGS ARE GROSS NOW, so the screen can subtract and show what a
+       * month actually COST (owner: "my business was showing 0 expenses the
+       * entire time"). Revenue is what was earned before the goods, the
+       * wages and the rest came out of it; expenses are the difference
+       * between that and the profit, which means the two can never drift.
+       */
       recordBusinessMonth(world, tick, business.id, {
         tick,
-        takings: (profit + payroll) as Money,
+        takings: (profit + payroll + soldAtCost + otherCosts) as Money,
         wages: payroll as Money,
         profit,
         drawn: (profit - retained) as Money,
@@ -5281,6 +5436,69 @@ function runRaiders(world: World, tick: Tick): void {
       detail: `${ticker}:${String(after)}`,
     })
   }
+}
+
+/**
+ * SOMETHING HAPPENS TO THE BUSINESS (owner: "It feels like every business
+ * is dull and nothing to do until you IPO we need to add things to make it
+ * better").
+ *
+ * Board votes gave a LISTED company things that arrive on their own, and a
+ * listed company is a sliver of the time anybody spends owning something.
+ * This is the private business — the shop, the round, the firm — getting
+ * the same treatment.
+ *
+ * Roughly every other year, which is the pacing this needed most: often
+ * enough that owning a business is not a spreadsheet you visit, rare enough
+ * that it never becomes the monthly nagging he already told me to stop
+ * ("the 1 month 2 month thing is a little much").
+ */
+function runBusinessMoments(world: World, tick: Tick): void {
+  if (tick % 12 !== 7) return // once a year at most, and its own month
+  const playerId = world.player.personId
+  if (playerId === null || world.player.pending !== null) return
+  const business = [...world.businesses.values()].find(
+    (candidate) => candidate.ownerId === playerId && candidate.closedTick === null,
+  )
+  if (business === undefined) return
+  /**
+   * NOT WHILE IT IS DROWNING. A business in the middle of a bad run is
+   * already having its own conversation with the player, and stacking a
+   * moment on top of a closure warning is how a question gets lost.
+   */
+  if (business.badMonths > 0) return
+
+  const rng = openStream(world.seed, Stream.Economy, business.id, tick + 91_300)
+  if (!rng.chance(1, 2)) return // about every other year
+
+  const ops = world.businessOps.get(business.id)
+  /**
+   * COUNTED OFF THE EMPLOYMENT MAP, the way `runBusinesses` does it a few
+   * hundred lines up. finances.ts deliberately does not import systems.js,
+   * and one helper is not worth opening that door.
+   */
+  let staff = 0
+  for (const [personId, job] of world.employment) {
+    if (job.workplaceId !== business.id) continue
+    if (world.people.get(personId)?.deathTick !== null) continue
+    staff += 1
+  }
+  const available = businessMomentsFor(ops, staff)
+  if (available.length === 0) return
+  const moment = available[rng.nextIntInclusive(0, available.length - 1)]
+  if (moment === undefined) return
+
+  raisePending(world, {
+    tick,
+    kind: 'business-moment',
+    personId: playerId,
+    otherId: null,
+    occupationId: moment.id,
+    workplaceId: business.id,
+    monthlyPay: null,
+    placeId: null,
+    options: [...moment.options],
+  })
 }
 
 /**

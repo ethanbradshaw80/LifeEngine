@@ -1622,6 +1622,25 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   amount: e.amount,
                 })),
               ]
+              /**
+               * YOUR INCOME, NOT THE ROOF'S (owner, playing, 2026-08-14:
+               * "The money tab should just have my info i hate how we
+               * include other peoples money in our income, I dont care if
+               * were married lets just keep this info as just all the income
+               * you are receiving for that month").
+               *
+               * This ledger listed every earner under the roof — a wife's
+               * service pay, a father-in-law's state pension — under a
+               * heading that read as yours. The costs below genuinely are
+               * the building's and stay, named as the household's; what
+               * comes IN is now only ever this person's.
+               */
+              const mine = lines.filter((line) => line.key.endsWith(String(person.id)))
+              const draw = businessDrawOf(world, person.id)
+              if (draw > 0) {
+                mine.push({ key: `bd${String(person.id)}`, label: 'Drawn from the business', amount: draw })
+              }
+              const comingIn = mine.reduce((sum, line) => sum + line.amount, 0) as Money
               const mouths = [
                 ledger.adults > 0 ? `${ledger.adults} grown` : null,
                 ledger.children > 0 ? `${ledger.children} ${ledger.children === 1 ? 'child' : 'children'}` : null,
@@ -1664,9 +1683,23 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         const mine = (personalMonthlyNet(world, person.id) + draw) as Money
                         return (
                           <>
+                            {/*
+                              ONE PURSE, SAID ONCE (owner: "i hate how we
+                              include other peoples money").
+
+                              H0 keeps a married couple's liquid money as a
+                              single shared balance, so this line printed the
+                              SAME figure again under a partner's name — two
+                              identical numbers reading as if the household
+                              held twice what it does. Where the purse is
+                              shared it now says so; only genuinely separate
+                              money gets its own figure.
+                            */}
                             {partner !== undefined && theirs !== null && (
                               <>
-                                {partner.givenName} has {formatMoney(theirs)}
+                                {theirs === moneyOnHand(world, person.id)
+                                  ? `shared with ${partner.givenName}`
+                                  : `${partner.givenName} has ${formatMoney(theirs)}`}
                                 <br />
                               </>
                             )}
@@ -1696,13 +1729,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
 
                   <h3 className="panel-heading">The month</h3>
                   <ul className="ledger">
-                    {lines.length === 0 && (
+                    {mine.length === 0 && (
                       <li className="ledger-row muted">
                         <span className="ledger-label">Nothing is coming in</span>
                         <span className="ledger-amount">{formatMoney(0 as Money)}</span>
                       </li>
                     )}
-                    {lines.map((line) => (
+                    {mine.map((line) => (
                       <li key={line.key} className="ledger-row in">
                         <span className="ledger-label">{line.label}</span>
                         <span className="ledger-amount">+{formatMoney(line.amount)}</span>
@@ -1724,8 +1757,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </li>
                     )}
                     <li className="ledger-row subtotal">
-                      <span className="ledger-label">Coming in</span>
-                      <span className="ledger-amount">{formatMoney(ledger.income)}</span>
+                      <span className="ledger-label">Coming in — you</span>
+                      <span className="ledger-amount">{formatMoney(comingIn)}</span>
                     </li>
                     {ledger.homeless ? (
                       <li className="ledger-row out">
@@ -1774,13 +1807,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       </li>
                     )}
                     <li className="ledger-row subtotal">
-                      <span className="ledger-label">Going out</span>
+                      <span className="ledger-label">Going out — the roof</span>
                       <span className="ledger-amount">
                         {formatMoney((ledger.costs + ledger.lifestyle + ledger.salesTax) as Money)}
                       </span>
                     </li>
                     <li className={ledger.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
-                      <span className="ledger-label">Left over</span>
+                      {/* NAMED, so the arithmetic on this screen is honest:
+                          what comes IN is yours, what goes OUT is the
+                          building's, and these two figures were never meant
+                          to subtract to each other. */}
+                      <span className="ledger-label">Left over — the roof</span>
                       <span className="ledger-amount">
                         {ledger.net < 0
                           ? `−${formatMoney(-ledger.net as Money)}`

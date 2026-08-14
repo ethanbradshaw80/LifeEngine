@@ -43,6 +43,7 @@ import {
   distributeEstate,
   homePurchaseBar,
   netWorthOf,
+  passOnHomes,
   personalIncome,
   personalMonthlyNet,
 } from '../src/finances.js'
@@ -324,7 +325,16 @@ describe('inheritance', () => {
     const relocated = children.map((c) => world.people.get(c.id)!)
     const before = relocated.map((c) => netWorthOf(world, c.id))
 
+    /**
+     * A DEATH MOVES BOTH THE MONEY AND THE DEEDS, and this test only ever
+     * ran the money half. It passed because net worth could not see a house
+     * that was not the residence pointer; once it could, the dead parent
+     * was still worth the roof they owned. `performDeath` calls both, so
+     * the test now does too — which makes the "left with nothing" assertion
+     * below genuinely cover property instead of quietly skipping it.
+     */
     distributeEstate(world, world.tick, parent)
+    passOnHomes(world, world.tick, parent.id)
 
     const after = relocated.map((c) => netWorthOf(world, c.id))
     const eldest = after[0]! - before[0]!

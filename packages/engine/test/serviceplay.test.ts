@@ -16,6 +16,8 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { volunteerForDeployment } from '../src/deployment.js'
 import { relationKey } from '../src/geopolitics.js'
+import { SERVICE_SCHOOLS } from '../src/content.js'
+import { badgesOf, schoolOptionsFor } from '../src/service.js'
 import { advanceTick, advanceTicks, createWorld, worldHash } from '../src/index.js'
 import {
   applyForJob,
@@ -235,18 +237,39 @@ describe("the player's board", () => {
     ).toBe(true)
   })
 
-  it('a school raises the standing, on the record', () => {
+  it('sends you to the school, and the badge comes at graduation', () => {
+    /**
+     * REWRITTEN FOR THE REAL FLOW (owner, playing, 2026-08-14: "we take it
+     * and then it says we complete it but we never actually did complete
+     * it, not on the record, can still attend the school etc").
+     *
+     * The old version of this test pinned the bug: it raised the offer with
+     * `occupationId: null` — no school at all — and asserted that accepting
+     * instantly produced "an advanced course" completed, sixty points of
+     * standing and a badge. That is precisely the graduation-with-no-
+     * graduate he found, and a test asserting it was why nobody noticed.
+     *
+     * Accepting takes a SEAT. The schoolhouse does the rest, and it is
+     * allowed to say no — so this asserts the machinery ran and reached an
+     * outcome, not that a particular roll went the player's way.
+     */
     const world = createWorld(makeSeed(12345), 100)
     const person = anAdult(world)
     setPlayer(world, person.id)
     putInUniform(world, person.id, { performance: 480 })
+
+    const school = SERVICE_SCHOOLS.find(
+      (sc) => sc.branches.length === 0 || sc.branches.includes('land-forces'),
+    )
+    expect(school, 'no school this soldier could ever attend').toBeDefined()
+    if (!school) return
 
     raisePending(world, {
       tick: world.tick,
       kind: 'attend-school',
       personId: person.id,
       otherId: null,
-      occupationId: null,
+      occupationId: school.id,
       workplaceId: null,
       monthlyPay: null,
       placeId: null,
@@ -254,12 +277,39 @@ describe("the player's board", () => {
     })
     resolvePending(world, 'attend')
 
-    const record = world.service.get(person.id)
-    expect(record?.performance).toBe(540)
-    expect(world.events.some((e) => e.type === 'completed-training' && e.detail === 'an advanced course')).toBe(true)
-    // 540 >= 500: the course also earned the trade's rating and its badge.
-    expect(record?.qualifications).toContain('expert marksman')
-    expect((world.awards.get(person.id) ?? []).some((a) => a.kind === 'qualification-badge')).toBe(true)
+    // A SEAT, not a badge. Nothing is claimed yet.
+    const seated = world.service.get(person.id)
+    expect(seated?.schoolId).toBe(school.id)
+    expect(
+      world.events.some((e) => e.type === 'completed-training' && e.subjectId === person.id),
+    ).toBe(false)
+
+    // Run the course out. It may graduate, wash out or injure — all three
+    // are real outcomes and all three leave a mark on the record.
+    for (let month = 0; month < school.courseMonths + 8; month += 1) {
+      ;(world.player as { pending: unknown }).pending = null
+      advanceTicks(world, 1)
+    }
+    const after = world.service.get(person.id)
+    const attempts = (after?.schoolAttempts ?? []).filter((a) => a.schoolId === school.id)
+    expect(attempts.length, 'the schoolhouse never resolved the seat').toBeGreaterThan(0)
+
+    const graduated = attempts.some((a) => a.outcome === 'graduated')
+    if (graduated) {
+      /**
+       * THE BADGE IS WHAT MAKES IT REAL, and it lives on the AWARDS record
+       * rather than on `qualifications` — which is exactly the field
+       * `schoolOptionsFor` reads to decide whether the course is still on
+       * offer. That is the mechanism the reported bug defeated: the old
+       * instant path granted the trade's qualification and never this, so
+       * the school stayed open for ever.
+       */
+      expect(badgesOf(world, person.id)).toContain(school.badge)
+      expect(after?.performance ?? 0).toBeGreaterThan(480)
+      // And the course is off the list now.
+      const offer = schoolOptionsFor(world, person.id).find((o) => o.id === school.id)
+      expect(offer?.open ?? false, 'a graduated course was still on offer').toBe(false)
+    }
   })
 })
 

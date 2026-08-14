@@ -20,7 +20,6 @@ import {
   walletAccountsOf,
   arrearsOf,
   atTodaysPrices,
-  annualPay,
   creditOf,
   CHAPTER_7_FILE_YEARS,
   CHAPTER_13_FILE_YEARS,
@@ -40,8 +39,12 @@ import {
   planPayoffFor,
   marginalRatePerMille,
   marketLevel,
-  monthlyNetOf,
+  personalMonthlyNet,
   netWorthOf,
+  liquidShareOf,
+  businessWorthOf,
+  bricksAndMortarOf,
+  propertiesOwnedBy,
   offeredRatePerMille,
   portfolioValue,
   personalIncome,
@@ -51,6 +54,7 @@ import {
 import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
+import type { LoanKind } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
 
 type BankTab = 'home' | 'accounts' | 'loans' | 'taxes'
@@ -92,6 +96,14 @@ function Row({
  */
 type OverTheCounter = 'personal' | 'auto'
 const OVER_THE_COUNTER: readonly OverTheCounter[] = ['personal', 'auto']
+
+/** What each debt is called on a statement. */
+const LOAN_WORDS: Readonly<Record<LoanKind, string>> = {
+  mortgage: 'Mortgage',
+  auto: 'Car loan',
+  student: 'Student loan',
+  personal: 'Personal loan',
+}
 
 export function Bank({
   world,
@@ -138,6 +150,16 @@ export function Bank({
   // A quarter of savings is the unit a player actually trades in — small
   // enough to be a decision, big enough to matter.
   const stake = Math.max(0, Math.floor(wallet.savings / 4)) as Money
+  /**
+   * THE PARTS OF WHAT THEY ARE WORTH, read the same way `netWorthOf` reads
+   * them so the itemised list and the headline can never disagree.
+   */
+  const cash = liquidShareOf(world, person.id) as Money
+  const investments = (accounts.brokerage + portfolio) as Money
+  const businessWorth = businessWorthOf(world, person.id)
+  const owned = propertiesOwnedBy(world, person.id)
+  const bricks = bricksAndMortarOf(world, person.id)
+  const assets = (cash + investments + retirement + bricks + businessWorth) as Money
 
   return (
     <div className="bank">
@@ -168,6 +190,66 @@ export function Bank({
               {debt > 0 && <Row label="Debts" value={`−${formatMoney(debt)}`} tone="bad" />}
             </section>
 
+            {/*
+              WHAT YOU ARE WORTH, ITEMISED (owner: "Move the net worth tab
+              over to the money side as well and have it list out all your
+              assets and liability").
+
+              The figure was already at the top of this screen and nowhere
+              did it say what it was MADE of, so a player could not tell
+              whether they were rich in cash, in bricks, or in a business
+              they could not sell this afternoon. Every line reads from the
+              same function `netWorthOf` sums, so the parts always add to
+              the total shown above — they cannot drift apart.
+            */}
+            <section className="bank-card">
+              <h4>What you own</h4>
+              <Row label="Your share of the cash" value={formatMoney(cash)} />
+              {investments > 0 && <Row label="Investments" value={formatMoney(investments)} />}
+              {retirement > 0 && <Row label="Retirement" value={formatMoney(retirement)} />}
+              {/* EVERY DOOR, not just the one they sleep behind (owner:
+                  "only counts my home I live in on net worth not property
+                  total"). The count is named so a landlord can see the
+                  portfolio is in there. */}
+              {bricks > 0 && (
+                <Row
+                  label={
+                    owned.length > 1
+                      ? `Property · ${String(owned.length)} of them`
+                      : owned.length === 1
+                        ? 'Your property'
+                        : 'Your home'
+                  }
+                  value={formatMoney(bricks)}
+                />
+              )}
+              {businessWorth > 0 && (
+                <Row label="Your share of the business" value={formatMoney(businessWorth)} />
+              )}
+              <Row label="Everything you own" value={formatMoney(assets)} tone="good" />
+            </section>
+
+            <section className="bank-card">
+              <h4>What you owe</h4>
+              {accounts.loans.length === 0 && (
+                <p className="career-note">Nothing. You owe nobody a penny.</p>
+              )}
+              {accounts.loans.map((loan, at) => (
+                <Row
+                  key={`${loan.kind}-${String(at)}`}
+                  label={LOAN_WORDS[loan.kind]}
+                  value={`−${formatMoney(loan.balance)}`}
+                  tone="bad"
+                />
+              ))}
+              {debt > 0 && <Row label="Everything you owe" value={`−${formatMoney(debt)}`} tone="bad" />}
+              <Row
+                label="Net worth"
+                value={formatMoney(worth)}
+                tone={worth < 0 ? 'bad' : 'good'}
+              />
+            </section>
+
             <section className="bank-card">
               <h4>This month</h4>
               {(() => {
@@ -181,53 +263,64 @@ export function Bank({
                 const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
                 const costs = household ? householdCosts(world, household) : (0 as Money)
                 const lifestyle = household ? discretionaryFor(world, household) : (0 as Money)
-                const left = household ? monthlyNetOf(world, household) : (0 as Money)
+                /**
+                 * WHAT IS LEFT FOR THIS PERSON, not for the roof.
+                 * `monthlyNetOf` answers for the whole household, which is
+                 * exactly the mixing he objected to. `personalMonthlyNet`
+                 * answers for them, and the draw is added the same way the
+                 * town view already does it.
+                 */
+                const comingIn = (gross + draw) as Money
+                const left = (personalMonthlyNet(world, person.id) + draw) as Money
                 return (
                   <>
-                    {/* NAMED FOR WHAT IT IS (playtest: after retiring,
-                        "Your pay: $172,804.92/yr" — "a figure that doesn't
-                        reconcile with pension income... or any prior
-                        salary"). It reconciled perfectly — it WAS the
-                        pensions, at today's prices, printed under a label
-                        that says wages. The reviewer chased a phantom
-                        salary because the label lied about the
-                        composition. `personalIncome` is wages + service
-                        pay + sports pay + pensions; the label now follows
-                        whichever is actually flowing. */}
-                    <Row
-                      label={
-                        (world.employment.get(person.id)?.monthlyPay ?? 0) > 0
-                          ? 'Your pay'
-                          : gross > 0
-                            ? 'Pensions & benefits'
-                            : 'Your pay'
-                      }
-                      value={gross > 0 ? `${formatMoney(annualPay(gross))} / yr` : 'no wages'}
-                    />
-                    <Row
-                      label="Tax withheld"
-                      value={gross > 0 ? `−${formatMoney(withheld)} / mo` : '—'}
-                      tone="muted"
-                    />
                     {/*
-                      WHAT THE BUSINESS PAYS YOU, ON THE MONEY SCREEN (owner,
-                      playing: "I am still not seeing the yearly draw as
-                      income anywhere in the money section").
+                      YOUR MONEY, NOT THE HOUSEHOLD'S (owner, playing,
+                      2026-08-14: "The money tab should just have my info i
+                      hate how we include other peoples money in our income,
+                      I dont care if were married lets just keep this info as
+                      just all the income you are receiving for that month").
+                      
+                      Every line here is now this person's own, by the month,
+                      and the total is what THEY received. The household's
+                      shared costs are still shown, because rent is genuinely
+                      shared and pretending otherwise would be a different
+                      lie — but they are named as the household's, and no
+                      part of a partner's WAGE appears anywhere on this tab.
 
-                      It is not part of `personalIncome` on purpose — that
-                      function feeds the household pass, which CREDITS what
-                      it reports, and the draw is already in the wallet.
-                      Counting it there would pay it twice. So it is its own
-                      line, from its own function, reading the books.
+                      Monthly rather than annualised, because he asked for
+                      what arrives "for that month" and a yearly figure on a
+                      monthly statement is how the pension confusion started.
                     */}
-                    {draw > 0 && (
+                    <Row
+                      label="Coming in this month"
+                      value={comingIn > 0 ? formatMoney(comingIn) : 'nothing'}
+                      tone={comingIn > 0 ? 'good' : undefined}
+                    />
+                    {gross > 0 && (
                       <Row
-                        label="Drawn from the business"
-                        value={`${formatMoney(annualPay(draw))} / yr`}
-                        tone="good"
+                        label={
+                          (world.employment.get(person.id)?.monthlyPay ?? 0) > 0
+                            ? '— your pay'
+                            : '— pensions & benefits'
+                        }
+                        value={formatMoney(gross)}
+                        tone="muted"
                       />
                     )}
-                    <Row label="Rent + living" value={`−${formatMoney(costs)}`} />
+                    {draw > 0 && (
+                      <Row
+                        label="— drawn from the business"
+                        value={formatMoney(draw)}
+                        tone="muted"
+                      />
+                    )}
+                    <Row
+                      label="Tax withheld"
+                      value={gross > 0 ? `−${formatMoney(withheld)}` : '—'}
+                      tone="muted"
+                    />
+                    <Row label="Your share of rent + living" value={`−${formatMoney(costs)}`} />
                     <Row label="Lifestyle + sales tax" value={`−${formatMoney(lifestyle)}`} />
                     <Row
                       label="Left over"
