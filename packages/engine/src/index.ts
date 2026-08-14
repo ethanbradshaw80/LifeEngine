@@ -105,6 +105,7 @@ export {
   raiseCapitalPlayer,
   nextRoundOffer,
   boardFor,
+  withdrawFromBusinessPlayer,
   growthOffersFor,
   growBusinessPlayer,
   ceilingReport,

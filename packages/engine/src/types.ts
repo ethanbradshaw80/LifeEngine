@@ -2284,6 +2284,7 @@ export type PendingKind =
   | 'set-price'
   | 'set-retain'
   | 'invest-business'
+  | 'withdraw-business'
   | 'advertise'
   | 'long-hours'
   | 'insure'
@@ -2291,6 +2292,8 @@ export type PendingKind =
   | 'refit'
   /** Sold a slice of your own business. */
   | 'raise-capital'
+  /** The business is two bad months from closing. */
+  | 'business-trouble'
   /** Grew your own business. */
   | 'expand-business'
   | 'grow-business'
@@ -2593,6 +2596,7 @@ export type EventType =
   | 'moved-house'
   | 'raised-capital'
   | 'business-grew'
+  | 'business-struggling'
   | 'bought-rival'
   | 'sold-business'
   | 'inherited-stake'

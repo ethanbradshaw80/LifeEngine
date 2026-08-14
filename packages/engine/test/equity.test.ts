@@ -30,6 +30,7 @@ import {
 import {
   businessOf,
   expandBusinessPlayer,
+  investInBusinessPlayer,
   expansionOffers,
   raiseBar,
   raiseCapitalPlayer,
@@ -239,20 +240,22 @@ describe('growing beyond the four walls', () => {
     const kind = businessKindById(business.kindId)
     if (!kind) return
 
-    const before = walletOf(world, person.id)
-    const cashBefore = before.checking + before.savings
-    const earnBefore = monthlyProfitFor(business, kind, 'expansion', 40, 600, 0, 2005, 0, 0)
+    // THE TILL PAYS, so the business needs enough in it first.
+    expect(investInBusinessPlayer(world, 40_000_000).done).toBe(true)
+    const funded = businessOf(world, person.id)
+    if (!funded) return
+    const tillBefore = funded.capital
+    const earnBefore = monthlyProfitFor(funded, kind, 'expansion', 40, 600, 0, 2005, 0, 0)
 
     expect(expandBusinessPlayer(world, 'location').done).toBe(true)
 
     const uplift = upliftPerMilleOf(world.expansions.get(business.id))
     expect(uplift).toBeGreaterThan(0)
-    const earnAfter = monthlyProfitFor(business, kind, 'expansion', 40, 600, 0, 2005, 0, uplift)
+    const earnAfter = monthlyProfitFor(funded, kind, 'expansion', 40, 600, 0, 2005, 0, uplift)
     expect(earnAfter).toBeGreaterThan(earnBefore)
 
-    // It was paid for, out of the owner's own money.
-    const after = walletOf(world, person.id)
-    const paid = cashBefore - (after.checking + after.savings)
+    // Paid out of the BUSINESS, which is the whole separation.
+    const paid = tillBefore - (businessOf(world, person.id)?.capital ?? 0)
     expect(paid).toBe(world.expansions.get(business.id)?.[0]?.costCents)
 
     // And it cannot be bought twice.

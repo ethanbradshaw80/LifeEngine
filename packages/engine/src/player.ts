@@ -39,6 +39,8 @@ import {
   acquireRival,
   buyExpansion,
   buyGrowth,
+  intoCapital,
+  spendFromCapital,
   priceOfRival,
   raiseRound,
   sellBusiness,
@@ -295,6 +297,8 @@ import {
   REFIT_YEARS,
   bulkDiscountPerMille,
   chaseableFrom,
+  demandFromPricePerMille,
+  insurancePremiumFor,
   freshOps,
   stockNeededFor,
   vendorOfferFrom,
@@ -930,6 +934,12 @@ export function raiseCapitalPlayer(world: World): { done: boolean; reason: strin
 
   logVerb(world, 'raise-capital', terms.round)
   const holder = raiseRound(world, world.tick, business.id, terms.round)
+  if (holder !== undefined) {
+    return {
+      done: true,
+      reason: `${holder.name} put ${formatMoney(holder.investedCents)} in for ${(holder.perMille / 10).toFixed(1)}% of it. You hold ${((world.capTables.get(business.id)?.founderPerMille ?? 1000) / 10).toFixed(1)}%.`,
+    }
+  }
   if (holder === undefined) {
     return {
       done: false,
@@ -969,10 +979,8 @@ export function expansionBar(world: World, kind: ExpansionKind): string | null {
   }
   if (business.badMonths > 0) return 'Not in the middle of a bad run.'
   const cost = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000)
-  const wallet = walletAccountsOf(world, person.id)
-  const cash = wallet.checking + wallet.savings
-  if (cash < cost) {
-    return `It takes ${formatMoney(cost as Money)} and you have ${formatMoney(cash as Money)}.`
+  if (business.capital < cost) {
+    return `It takes ${formatMoney(cost as Money)} and the business has ${formatMoney(business.capital)}. Put more in first.`
   }
   return null
 }
@@ -1028,8 +1036,7 @@ export function rivalsForSale(
   if (!person) return []
   const mine = businessOf(world, person.id)
   if (mine === undefined) return []
-  const wallet = walletAccountsOf(world, person.id)
-  const cash = wallet.checking + wallet.savings
+  const cash = mine.capital
   return [...world.businesses.values()]
     .filter(
       (rival) =>
@@ -1049,7 +1056,7 @@ export function rivalsForSale(
           price <= 0
             ? 'It is not earning enough to price.'
             : cash < price
-              ? `It would take ${formatMoney(price)} and you have ${formatMoney(cash as Money)}.`
+              ? `It would take ${formatMoney(price)} and the business has ${formatMoney(cash)}. Put more in first.`
               : null,
       }
     })
@@ -1127,7 +1134,10 @@ export function hireIntoBusiness(
     factor('own-choice', 1000),
     factor('local-employer', 800),
   ])
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${hired.givenName} ${hired.familyName} starts as ${occupationById(candidate.occupationId).title}, at ${formatMoney(candidate.monthlyPay)} a month.`,
+  }
 }
 
 /** Let somebody go. Their job ends; the insurance a layoff earns follows. */
@@ -1145,9 +1155,16 @@ export function letGoFromBusiness(
     return { done: false, reason: 'They do not work for you.' }
   }
 
+  const gone = world.people.get(employeeId)
   logVerb(world, 'let-go', String(employeeId))
   dismissFromBusiness(world, world.tick, employeeId, business.name)
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason:
+      gone === undefined
+        ? 'They are off the books.'
+        : `${gone.givenName} ${gone.familyName} is let go. The wage stops; so does the work they did.`,
+  }
 }
 
 /**
@@ -5280,6 +5297,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'set-price':
     case 'set-retain':
     case 'invest-business':
+    case 'withdraw-business':
     case 'advertise':
     case 'long-hours':
     case 'insure':
@@ -5625,6 +5643,50 @@ export function resolvePending(world: World, choice: string): void {
           options: ['accept'],
         })
       }
+      break
+    }
+
+    /**
+     * THE BUSINESS IS TWO MONTHS FROM SHUTTING, and every answer here is a
+     * lever the player already has on the Business tab. It is asked as a
+     * question because a year-long age-up runs twelve of these months in
+     * one press, and a shop can go from healthy to closed inside it.
+     */
+    case 'business-trouble': {
+      const business =
+        pending.workplaceId === null ? undefined : world.businesses.get(pending.workplaceId)
+      if (business === undefined || business.closedTick !== null) break
+
+      if (choice === 'put-money-in') {
+        // Enough to cover the month that went wrong, if they have it.
+        const need = (pending.monthlyPay ?? 0) as Money
+        const taken = debitPerson(world, person.id, need)
+        if (taken > 0) {
+          world.businesses.set(business.id, {
+            ...business,
+            capital: (business.capital + taken) as Money,
+          })
+        }
+      } else if (choice === 'let-staff-go') {
+        // The dearest wage goes. It is the fastest cut there is, and it is
+        // somebody's job — which is the weight this choice is meant to have.
+        const staff = employeesOf(world, business.id)
+          .map((id) => ({ id, pay: world.employment.get(id)?.monthlyPay ?? 0 }))
+          .sort((a, b) => b.pay - a.pay)
+        const dearest = staff[0]
+        if (dearest !== undefined) {
+          dismissFromBusiness(world, world.tick, dearest.id, business.name)
+        }
+      } else if (choice === 'sell-the-stock') {
+        const ops = world.businessOps.get(business.id)
+        if (ops !== undefined && ops.stockCents > 0) {
+          const back = Math.floor((ops.stockCents * CLEARANCE_PER_MILLE) / 1000) as Money
+          creditPerson(world, business.ownerId, back)
+          world.businessOps.set(business.id, { ...ops, stockCents: 0 as Money })
+        }
+      }
+      // 'ride-it-out' does nothing on purpose: a bad quarter is not always
+      // the end, and the game does not get to insist otherwise.
       break
     }
 
@@ -6858,6 +6920,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Set what stays in the business.' // log-only
     case 'invest-business':
       return 'Put money into the business.' // log-only
+    case 'withdraw-business':
+      return 'Took money out of the business.' // log-only
     case 'advertise':
       return 'Put the word out.' // log-only
     case 'long-hours':
@@ -6868,6 +6932,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chased what was owed.' // log-only
     case 'refit':
       return 'Smartened the place up.' // log-only
+    case 'business-trouble': {
+      const name = pending.occupationId ?? 'The business'
+      return `${name} has lost money two months running. One more and the doors shut.`
+    }
     case 'raise-capital':
       return 'Sold a slice of the business.' // log-only
     case 'expand-business':
@@ -7797,9 +7865,11 @@ export function orderStockPlayer(world: World, months: number): { done: boolean;
   const wanted = Math.max(1, Math.min(12, Math.trunc(months)))
   const quoted = report.quotes.find((entry) => entry.months === wanted)
   const cost = quoted?.cost ?? (Math.floor((report.monthly * wanted * mine.ops.vendorRatePerMille) / 1000) as Money)
-  const taken = debitPerson(world, mine.business.ownerId, cost)
-  if (taken < cost) {
-    return { done: false, reason: `That order comes to ${formatMoney(cost)}, and you have less.` }
+  if (!spendFromCapital(world, mine.business.id, cost)) {
+    return {
+      done: false,
+      reason: `That order comes to ${formatMoney(cost)} and the business has ${formatMoney(mine.business.capital)} in it. Put more in first.`,
+    }
   }
   logVerb(world, 'order-stock', String(wanted))
   // What lands on the shelf is a month's worth times the months ordered —
@@ -7808,7 +7878,14 @@ export function orderStockPlayer(world: World, months: number): { done: boolean;
     ...mine.ops,
     stockCents: (mine.ops.stockCents + report.monthly * wanted) as Money,
   })
-  return { done: true, reason: '' }
+  const saved = report.monthly * wanted - cost
+  return {
+    done: true,
+    reason:
+      saved > 0
+        ? `${formatMoney(cost)} of stock in, and ${formatMoney(saved as Money)} saved by taking ${String(wanted)} months at once.`
+        : `${formatMoney(cost)} of stock on the shelf — ${String(wanted)} month${wanted === 1 ? '' : 's'} of trading covered.`,
+  }
 }
 
 /** What a clearance gets back, per-mille of what the stock cost. */
@@ -7824,9 +7901,13 @@ export function clearStockPlayer(world: World): { done: boolean; reason: string 
 
   const back = Math.floor((mine.ops.stockCents * CLEARANCE_PER_MILLE) / 1000) as Money
   logVerb(world, 'clear-stock', String(back))
-  creditPerson(world, mine.business.ownerId, back)
+  intoCapital(world, mine.business.id, back)
   world.businessOps.set(mine.business.id, { ...mine.ops, stockCents: 0 as Money })
-  return { done: true, reason: '' }
+  const lost = mine.ops.stockCents - back
+  return {
+    done: true,
+    reason: `The stockroom cleared for ${formatMoney(back)} — ${formatMoney(lost as Money)} less than it cost you.`,
+  }
 }
 
 /** Who else would supply you this month. Seeded, so the list is steady. */
@@ -7863,7 +7944,14 @@ export function switchVendorPlayer(world: World, name: string): { done: boolean;
     vendorRatePerMille: offer.ratePerMille,
     vendorQualityPerMille: offer.qualityPerMille,
   })
-  return { done: true, reason: '' }
+  const better = mine.ops.vendorRatePerMille - offer.ratePerMille
+  return {
+    done: true,
+    reason:
+      better > 0
+        ? `${offer.name} supply you now — ${String(Math.round(better / 10))}% cheaper than before.`
+        : `${offer.name} supply you now.`,
+  }
 }
 
 /**
@@ -7886,11 +7974,12 @@ export function haggleVendorPlayer(world: World): { done: boolean; reason: strin
   if (!won) {
     return { done: false, reason: `${mine.ops.vendorName} will not move on the price this year.` }
   }
-  world.businessOps.set(mine.business.id, {
-    ...mine.ops,
-    vendorRatePerMille: Math.max(820, mine.ops.vendorRatePerMille - rng.nextIntInclusive(20, 60)),
-  })
-  return { done: true, reason: '' }
+  const agreed = Math.max(820, mine.ops.vendorRatePerMille - rng.nextIntInclusive(20, 60))
+  world.businessOps.set(mine.business.id, { ...mine.ops, vendorRatePerMille: agreed })
+  return {
+    done: true,
+    reason: `${mine.ops.vendorName} came down ${String(Math.round((mine.ops.vendorRatePerMille - agreed) / 10))}% on the price.`,
+  }
 }
 
 /** What you charge. */
@@ -7903,7 +7992,16 @@ export function setPricePlayer(world: World, perMille: number): { done: boolean;
   if (step === undefined) return { done: false, reason: 'Not a price you can set.' }
   logVerb(world, 'set-price', String(perMille))
   world.businessOps.set(mine.business.id, { ...mine.ops, markupPerMille: step.perMille })
-  return { done: true, reason: '' }
+  const shift = demandFromPricePerMille(step.perMille)
+  return {
+    done: true,
+    reason:
+      shift === 0
+        ? 'Prices set to the going rate.'
+        : shift > 0
+          ? `Prices cut. Expect about ${String(Math.round(shift / 10))}% more custom, and less on each sale.`
+          : `Prices up. Expect about ${String(Math.abs(Math.round(shift / 10)))}% less custom, and more on each sale.`,
+  }
 }
 
 /** How much of the month stays in rather than being drawn. */
@@ -7915,7 +8013,10 @@ export function setRetainPlayer(world: World, perMille: number): { done: boolean
   const kept = Math.max(0, Math.min(900, Math.trunc(perMille)))
   logVerb(world, 'set-retain', String(kept))
   world.businessOps.set(mine.business.id, { ...mine.ops, retainPerMille: kept })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${String(Math.round(kept / 10))}% of the month stays in the business from now on; the rest comes to you.`,
+  }
 }
 
 /** Put your own money into the business. */
@@ -7936,7 +8037,43 @@ export function investInBusinessPlayer(
     ...mine.business,
     capital: (mine.business.capital + taken) as Money,
   })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${formatMoney(taken)} of your own money into ${mine.business.name}. It has ${formatMoney((mine.business.capital + taken) as Money)} in it now.`,
+  }
+}
+
+/**
+ * TAKE MONEY OUT OF THE BUSINESS.
+ *
+ * The other half of putting it in. The monthly draw is the ordinary road;
+ * this is for when the owner wants a lump out of the till — and it costs
+ * the business exactly what it takes, which is the whole point of the two
+ * being separate.
+ */
+export function withdrawFromBusinessPlayer(
+  world: World,
+  cents: number,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  const amount = Math.max(0, Math.trunc(cents))
+  if (amount <= 0) return { done: false, reason: 'Nothing to take.' }
+  if (!spendFromCapital(world, mine.business.id, amount as Money)) {
+    return {
+      done: false,
+      reason: `There is ${formatMoney(mine.business.capital)} in the business, not ${formatMoney(amount as Money)}.`,
+    }
+  }
+  logVerb(world, 'withdraw-business', String(amount))
+  creditPerson(world, mine.business.ownerId, amount as Money)
+  const left = world.businesses.get(mine.business.id)?.capital ?? (0 as Money)
+  return {
+    done: true,
+    reason: `${formatMoney(amount as Money)} out of the business and into your own money. ${formatMoney(left)} left in it.`,
+  }
 }
 
 /** A run of advertising. */
@@ -7949,15 +8086,18 @@ export function advertisePlayer(world: World): { done: boolean; reason: string }
     return { done: false, reason: 'The last run is still going.' }
   }
   const cost = Math.floor(mine.business.capital / 20) as Money
-  if (debitPerson(world, mine.business.ownerId, cost) < cost) {
-    return { done: false, reason: `A run costs ${formatMoney(cost)}, and you have less.` }
+  if (!spendFromCapital(world, mine.business.id, cost)) {
+    return { done: false, reason: `A run costs ${formatMoney(cost)}, and the business cannot cover it.` }
   }
   logVerb(world, 'advertise', String(cost))
   world.businessOps.set(mine.business.id, {
     ...mine.ops,
     advertisedUntilTick: (world.tick + ADVERT_MONTHS) as Tick,
   })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${formatMoney(cost)} on advertising. More people through the door for the next ${String(ADVERT_MONTHS)} months.`,
+  }
 }
 
 /** Trade evenings and Sundays, or stop. */
@@ -7968,7 +8108,12 @@ export function setLongHoursPlayer(world: World, on: boolean): { done: boolean; 
   if (mine === undefined) return { done: false, reason: 'You have no business.' }
   logVerb(world, 'long-hours', on ? 'on' : 'off')
   world.businessOps.set(mine.business.id, { ...mine.ops, longHours: on })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: on
+      ? 'Open evenings and Sundays now. More custom served, more wages owed, and it will tell on you.'
+      : 'Back to ordinary hours.',
+  }
 }
 
 /** Insure the place, or stop paying for it. */
@@ -7979,7 +8124,12 @@ export function setInsurancePlayer(world: World, on: boolean): { done: boolean; 
   if (mine === undefined) return { done: false, reason: 'You have no business.' }
   logVerb(world, 'insure', on ? 'on' : 'off')
   world.businessOps.set(mine.business.id, { ...mine.ops, insured: on })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: on
+      ? `Insured for ${formatMoney(insurancePremiumFor(mine.business))} a month. Money down a hole until the month it is not.`
+      : 'The insurance is cancelled. Nothing is covered now.',
+  }
 }
 
 /** Go after what the town owes you. */
@@ -7991,10 +8141,14 @@ export function chaseDebtsPlayer(world: World): { done: boolean; reason: string 
   if (mine.ops.owedToYouCents <= 0) return { done: false, reason: 'Nobody owes you anything.' }
 
   const back = chaseableFrom(mine.ops)
+  const owed = mine.ops.owedToYouCents
   logVerb(world, 'chase-debts', String(back))
-  creditPerson(world, mine.business.ownerId, back)
+  intoCapital(world, mine.business.id, back)
   world.businessOps.set(mine.business.id, { ...mine.ops, owedToYouCents: 0 as Money })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${formatMoney(back)} recovered of the ${formatMoney(owed)} owed. The rest you will not see.`,
+  }
 }
 
 /** Smarten the place up. */
@@ -8010,12 +8164,15 @@ export function refitPlayer(world: World): { done: boolean; reason: string } {
     return { done: false, reason: 'It still looks well kept.' }
   }
   const cost = Math.floor(mine.business.capital / 6) as Money
-  if (debitPerson(world, mine.business.ownerId, cost) < cost) {
-    return { done: false, reason: `A refit runs to ${formatMoney(cost)}, and you have less.` }
+  if (!spendFromCapital(world, mine.business.id, cost)) {
+    return { done: false, reason: `A refit runs to ${formatMoney(cost)}, and the business cannot cover it.` }
   }
   logVerb(world, 'refit', String(cost))
   world.businessOps.set(mine.business.id, { ...mine.ops, refitAtTick: world.tick })
-  return { done: true, reason: '' }
+  return {
+    done: true,
+    reason: `${formatMoney(cost)} on the place. It looks cared for again, and people notice.`,
+  }
 }
 
 /** What each way of growing would cost right now, and whether it is open. */
@@ -8035,8 +8192,8 @@ export function growthOffersFor(
   if (trade === undefined) return []
   const already = world.expansions.get(business.id) ?? []
   const years = Math.floor((world.tick - business.foundedTick) / TICKS_PER_YEAR)
-  const wallet = walletAccountsOf(world, person.id)
-  const cash = wallet.checking + wallet.savings
+  // THE TILL PAYS, not the pocket — so the bar reads the till.
+  const cash = business.capital
 
   return growthOptionsFor(trade).map((terms) => {
     const taken = already.filter((entry) => entry.kind === terms.kind).length
@@ -8048,7 +8205,9 @@ export function growthOffersFor(
     else if (years < terms.yearsTrading) {
       bar = `${String(terms.yearsTrading)} years of trading first — you have ${String(years)}.`
     } else if (business.badMonths > 0) bar = 'Not in the middle of a bad run.'
-    else if (cash < cost) bar = `It takes ${formatMoney(cost)} and you have ${formatMoney(cash as Money)}.`
+    else if (cash < cost) {
+      bar = `It takes ${formatMoney(cost)} and the business has ${formatMoney(cash)}. Put more in first.`
+    }
     return { terms, cost, taken, bar }
   })
 }
@@ -8068,9 +8227,17 @@ export function growBusinessPlayer(
   if (offer.bar !== null) return { done: false, reason: offer.bar }
 
   logVerb(world, 'grow-business', which)
-  return buyGrowth(world, world.tick, business.id, which)
-    ? { done: true, reason: '' }
-    : { done: false, reason: 'It did not come together.' }
+  if (!buyGrowth(world, world.tick, business.id, which)) {
+    return { done: false, reason: 'It did not come together.' }
+  }
+  const after = ceilingReport(world)
+  return {
+    done: true,
+    reason:
+      offer.terms.ceilingPerMille > 0 && after !== undefined
+        ? `${offer.terms.title} — ${formatMoney(offer.cost)}. It can grow to ${formatMoney(after.ceiling)} now.`
+        : `${offer.terms.title} — ${formatMoney(offer.cost)}. ${offer.terms.blurb}`,
+  }
 }
 
 /** How far this business is from the biggest it could be. */
@@ -8174,10 +8341,21 @@ export function sellBusinessPlayer(
   const buyer = buyersForBusiness(world).find((entry) => entry.personId === buyerId)
   if (buyer === undefined) return { done: false, reason: 'They are not buying.' }
 
+  const before = walletAccountsOf(world, person.id)
+  const cashBefore = before.checking + before.savings
   logVerb(world, 'sell-business', String(buyerId))
-  return sellBusiness(world, world.tick, business.id, buyerId, buyer.offer)
-    ? { done: true, reason: '' }
-    : { done: false, reason: 'The sale did not go through.' }
+  if (!sellBusiness(world, world.tick, business.id, buyerId, buyer.offer)) {
+    return { done: false, reason: 'The sale did not go through.' }
+  }
+  const after = walletAccountsOf(world, person.id)
+  const kept = after.checking + after.savings - cashBefore
+  return {
+    done: true,
+    reason:
+      kept <= 0
+        ? `${business.name} sold to ${buyer.name} for ${formatMoney(buyer.offer)} — and the backers took all of it.`
+        : `${business.name} sold to ${buyer.name} for ${formatMoney(buyer.offer)}. ${formatMoney(kept as Money)} of it is yours.`,
+  }
 }
 
 /** Shut it yourself, and take what is left of the capital. */
@@ -8188,7 +8366,13 @@ export function windDownPlayer(world: World): { done: boolean; reason: string } 
   const business = businessOf(world, person.id)
   if (business === undefined) return { done: false, reason: 'You have nothing to wind down.' }
 
+  const before = walletAccountsOf(world, person.id)
+  const cashBefore = before.checking + before.savings
   logVerb(world, 'wind-down', business.name)
   windDownBusiness(world, world.tick, business.id)
-  return { done: true, reason: '' }
+  const after = walletAccountsOf(world, person.id)
+  return {
+    done: true,
+    reason: `${business.name} is shut. ${formatMoney((after.checking + after.savings - cashBefore) as Money)} came back to you.`,
+  }
 }

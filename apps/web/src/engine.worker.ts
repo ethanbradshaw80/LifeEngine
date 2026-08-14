@@ -58,6 +58,7 @@ import {
   setPricePlayer,
   setRetainPlayer,
   investInBusinessPlayer,
+  withdrawFromBusinessPlayer,
   advertisePlayer,
   setLongHoursPlayer,
   setInsurancePlayer,
@@ -188,6 +189,7 @@ export type VerbRequest =
   | { readonly verb: 'set-price'; readonly perMille: number }
   | { readonly verb: 'set-retain'; readonly perMille: number }
   | { readonly verb: 'invest-business'; readonly cents: number }
+  | { readonly verb: 'withdraw-business'; readonly cents: number }
   | { readonly verb: 'advertise' }
   | { readonly verb: 'long-hours'; readonly on: boolean }
   | { readonly verb: 'insure'; readonly on: boolean }
@@ -746,6 +748,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'haggle-vendor': { const r = haggleVendorPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'set-price': { const r = setPricePlayer(world, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
           case 'set-retain': { const r = setRetainPlayer(world, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'withdraw-business': { const r = withdrawFromBusinessPlayer(world, a.cents); outcome = { ok: r.done, reason: r.reason }; break }
           case 'invest-business': { const r = investInBusinessPlayer(world, a.cents); outcome = { ok: r.done, reason: r.reason }; break }
           case 'advertise': { const r = advertisePlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'long-hours': { const r = setLongHoursPlayer(world, a.on); outcome = { ok: r.done, reason: r.reason }; break }
@@ -863,7 +866,18 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             break
           }
         }
-        send(0, outcome.ok ? undefined : outcome.reason)
+        /**
+         * SAY WHAT HAPPENED, not only what did not (owner: "make sure when
+         * we click on something from the business it actually reports
+         * feedback back and not just tap and nothing pops up").
+         *
+         * This threw away the reason on SUCCESS, so every action that
+         * worked was silent and the screen simply redrew. A verb now
+         * reports whenever it has something to say; the ones that return
+         * an empty reason stay quiet, which is the right default for a
+         * toggle nobody needs told about.
+         */
+        send(0, outcome.reason === '' ? undefined : outcome.reason)
         return
       }
 

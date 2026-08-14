@@ -261,6 +261,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       const [name, price] = (event.detail ?? '').split(':')
       return `Sold ${name ?? 'the business'} for ${formatMoney(Number(price ?? 0) as never)}.`
     }
+    case 'business-struggling': {
+      const [name, months] = (event.detail ?? '').split(':')
+      if (months === 'final') {
+        return `${name ?? 'The business'} cannot cover what it lost. One month to save it.`
+      }
+      return months === '1'
+        ? `${name ?? 'The business'} lost money this month.`
+        : `${name ?? 'The business'} has lost money ${months ?? 'two'} months running. One more and the doors shut.`
+    }
     case 'business-grew': {
       const [how, name] = (event.detail ?? '').split(':')
       const told =

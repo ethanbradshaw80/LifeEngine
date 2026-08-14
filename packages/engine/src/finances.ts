@@ -3700,7 +3700,7 @@ export function buyGrowth(
   // rooms is never the price of the first.
   const base = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000)
   const cost = Math.floor((base * (1000 + taken * 350)) / 1000) as Money
-  if (debitPerson(world, business.ownerId, cost) < cost) return false
+  if (!spendFromCapital(world, businessId, cost)) return false
 
   world.expansions.set(businessId, [
     ...already,
@@ -3807,6 +3807,43 @@ export function sellBusiness(
   return true
 }
 
+/**
+ * THE TILL IS NOT THE POCKET (owner: "the business funds need to be kinda
+ * separate from the real bank... it should be whatever money is in the
+ * capital like however much money we decided to leave in the business or if
+ * we need more money the option that we have to deposit more money").
+ *
+ * Every cost of running the business now comes out of the CAPITAL — the
+ * stock, the advertising, the refit, the ways of growing. The owner's own
+ * savings only reach it through a deliberate deposit, and only leave it
+ * through the monthly draw or a sale.
+ *
+ * Which is what finally makes the draw dial a decision rather than a
+ * preference: leave the month's takings in and the business can afford to
+ * grow, take it all home and it cannot.
+ */
+export function spendFromCapital(world: World, businessId: EntityId, amount: Money): boolean {
+  const business = world.businesses.get(businessId)
+  if (business === undefined || business.closedTick !== null) return false
+  if (amount <= 0 || business.capital < amount) return false
+  world.businesses.set(businessId, {
+    ...business,
+    capital: (business.capital - amount) as Money,
+  })
+  return true
+}
+
+/** Money the business earned, back into the business. */
+export function intoCapital(world: World, businessId: EntityId, amount: Money): boolean {
+  const business = world.businesses.get(businessId)
+  if (business === undefined || business.closedTick !== null || amount <= 0) return false
+  world.businesses.set(businessId, {
+    ...business,
+    capital: (business.capital + amount) as Money,
+  })
+  return true
+}
+
 /** Shut it yourself. What is left of the capital comes home. */
 export function windDownBusiness(world: World, tick: Tick, businessId: EntityId): boolean {
   const business = world.businesses.get(businessId)
@@ -3842,7 +3879,7 @@ export function buyExpansion(
   if (already.some((entry) => entry.kind === kind)) return false
 
   const cost = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000) as Money
-  if (debitPerson(world, business.ownerId, cost) < cost) return false
+  if (!spendFromCapital(world, businessId, cost)) return false
 
   world.expansions.set(businessId, [
     ...already,
@@ -3908,13 +3945,16 @@ export function acquireRival(
 
   const price = priceOfRival(world, rivalId)
   if (price <= 0) return false
-  if (debitPerson(world, mine.ownerId, price) < price) return false
+  // ONE FIRM BUYING ANOTHER: it comes out of the till, not the founder's
+  // savings. The seller is a person, so their side is personal money.
+  if (!spendFromCapital(world, mine.id, price)) return false
   creditPerson(world, rival.ownerId, price)
 
   // What they built becomes part of what you have.
+  const buyerNow = world.businesses.get(mine.id) ?? mine
   world.businesses.set(mine.id, {
-    ...mine,
-    capital: (mine.capital + rival.capital) as Money,
+    ...buyerNow,
+    capital: (buyerNow.capital + rival.capital) as Money,
   })
   world.businesses.set(rival.id, { ...rival, capital: 0 as Money, closedTick: tick })
   world.capTables.delete(rival.id)
@@ -4412,7 +4452,99 @@ function runBusinesses(world: World, tick: Tick): void {
     const loss = -profit
     const fromCapital = Math.min(loss, business.capital)
     const badMonths = business.badMonths + 1
-    if (badMonths >= BUSINESS_FAILS_AFTER || fromCapital < loss) {
+
+    /**
+     * NOBODY LOSES A BUSINESS WITHOUT BEING TOLD (owner, playing: "I just
+     * lost the business and there was no popups or anything as a warning
+     * and I didnt find out until I saw it in the feed").
+     *
+     * The same silent-gate disease as the medical discharge before v1.1 and
+     * the eviction before H1: a serious thing happened to somebody's life
+     * and the only notice was a line in the ledger afterwards. Worse here,
+     * because aging a YEAR runs twelve of these months in one press — a
+     * business could go from healthy to shut with the player never having
+     * been offered a chance to do anything about it.
+     *
+     * So the first bad month is a warning in the feed, and the second STOPS
+     * THE CLOCK with a question. `raisePending` refuses when a decision is
+     * already up, which is right: the arrears question and this one cannot
+     * both be shouting, and the tick pauses on whichever landed first.
+     */
+    if (business.ownerId === world.player.personId && badMonths < BUSINESS_FAILS_AFTER) {
+      if (badMonths === 1) {
+        recordEvent(world, tick, {
+          type: 'business-struggling',
+          subjectId: business.ownerId,
+          detail: `${business.name}:1`,
+        })
+      } else {
+        recordEvent(world, tick, {
+          type: 'business-struggling',
+          subjectId: business.ownerId,
+          detail: `${business.name}:${String(badMonths)}`,
+        })
+        raisePending(world, {
+          tick,
+          kind: 'business-trouble',
+          personId: business.ownerId,
+          otherId: null,
+          occupationId: business.name,
+          workplaceId: business.id,
+          monthlyPay: loss as Money,
+          placeId: null,
+          /**
+           * FOUR ANSWERS, and each is a real lever the player already has:
+           * money in, wages off, the stockroom emptied, or nothing. Riding
+           * it out is a legitimate choice — a bad quarter is not always the
+           * end, and the game does not get to insist otherwise.
+           */
+          options: ['put-money-in', 'let-staff-go', 'sell-the-stock', 'ride-it-out'],
+        })
+      }
+    }
+
+    const wouldClose = badMonths >= BUSINESS_FAILS_AFTER || fromCapital < loss
+    /**
+     * ONE MONTH'S GRACE, ALWAYS, BEFORE THE DOORS SHUT.
+     *
+     * A HOLE IN THE FIRST VERSION OF THIS WARNING, caught by a probe: the
+     * closure test is `badMonths >= 3 OR the capital cannot absorb the
+     * loss`, and that second clause fires on the FIRST bad month. A shop
+     * with a thin till met one ruinous month and was gone the same tick,
+     * having been warned about nothing — which is exactly the report this
+     * work exists to answer.
+     *
+     * So a player's business that is about to close gets the question and a
+     * month to answer it. The capital is gone either way; what it buys is
+     * the chance to put money in, cut a wage or sell the stock off before
+     * the end. Ignore it and next month it shuts for good.
+     */
+    if (wouldClose && business.ownerId === world.player.personId && badMonths < BUSINESS_FAILS_AFTER) {
+      world.businesses.set(business.id, {
+        ...business,
+        capital: 0 as Money,
+        badMonths: BUSINESS_FAILS_AFTER - 1,
+      })
+      recordEvent(world, tick, {
+        type: 'business-struggling',
+        subjectId: business.ownerId,
+        detail: `${business.name}:final`,
+      })
+      raisePending(world, {
+        tick,
+        kind: 'business-trouble',
+        personId: business.ownerId,
+        otherId: null,
+        occupationId: business.name,
+        workplaceId: business.id,
+        monthlyPay: loss as Money,
+        placeId: null,
+        options: ['put-money-in', 'let-staff-go', 'sell-the-stock', 'ride-it-out'],
+      })
+      continue
+    }
+
+    if (wouldClose) {
       // IT CLOSES. What is left of the capital comes back to the owner, and
       // it is always less than went in.
       world.businesses.set(business.id, {

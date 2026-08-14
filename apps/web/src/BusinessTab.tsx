@@ -178,6 +178,10 @@ export function BusinessTab({
             <b>{String(staff.length)}</b>
             <span>On the books</span>
           </div>
+          <div className="re-tile hot">
+            <b>{formatMoney(business.capital)}</b>
+            <span>In the business</span>
+          </div>
         </div>
       </section>
 
@@ -463,6 +467,10 @@ export function BusinessTab({
               {String(100 - Math.round(ops.retainPerMille / 10))}% comes to you as income. What
               stays in is what the business grows on.
             </p>
+            <p className="career-note">
+              The money in the business is what the business spends: stock, advertising, a
+              refit, another set of rooms. Your own savings only reach it if you put them in.
+            </p>
             <div className="biz-actions">
               <button
                 type="button"
@@ -472,7 +480,17 @@ export function BusinessTab({
                   onAct({ verb: 'invest-business', cents: Math.floor(business.capital / 4) })
                 }
               >
-                Put in {formatMoney(Math.floor(business.capital / 4) as Money)} of your own
+                Put in {formatMoney(Math.floor(business.capital / 4) as Money)}
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy || business.capital <= 0}
+                onClick={() =>
+                  onAct({ verb: 'withdraw-business', cents: Math.floor(business.capital / 4) })
+                }
+              >
+                Take out {formatMoney(Math.floor(business.capital / 4) as Money)}
               </button>
             </div>
 

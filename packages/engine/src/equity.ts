@@ -22,17 +22,18 @@
  * engine. Pure arithmetic: finances moves the money.
  */
 
-import type { Money } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import type {
   Business,
   BusinessMonth,
+  BusinessOps,
   CapTable,
   Expansion,
   ExpansionKind,
   InvestmentRound,
   Shareholder,
 } from './types.js'
-import { annualRevenueOf, businessKindById, valuationMultipleFor } from './business.js'
+import { businessKindById } from './business.js'
 import type { BusinessKind } from './business.js'
 
 /** A business nobody has raised against: the founder holds all of it. */
@@ -47,12 +48,59 @@ export function foundingCapTable(): CapTable {
  * already uses, applied a stage earlier. A private trade is worth what its
  * earnings are worth to somebody else, and no more.
  */
-export function privateValuationOf(world: { readonly tick: number }, business: Business): Money {
-  void world
+/** Months of trading before anybody will price it on its earnings. */
+export const TRACK_RECORD_MONTHS = 6
+
+/** What a year of demonstrated profit is worth to a buyer. */
+export const EARNINGS_MULTIPLE = 8
+
+export function privateValuationOf(
+  world: {
+    readonly tick: number
+    readonly businessBooks: ReadonlyMap<EntityId, readonly BusinessMonth[]>
+    readonly businessOps: ReadonlyMap<EntityId, BusinessOps>
+  },
+  business: Business,
+): Money {
   const kind = businessKindById(business.kindId)
   if (kind === undefined || business.closedTick !== null) return 0 as Money
-  const revenue = annualRevenueOf(business, kind)
-  return Math.floor((revenue * valuationMultipleFor(business.kindId)) / 1000) as Money
+
+  /**
+   * A BUSINESS IS WORTH WHAT IT HAS EARNED, not what it might.
+   *
+   * THE EXPLOIT THIS CLOSES (owner, playing): "when you start a business
+   * the worth is automatically super high, I just started a business for 9k
+   * worth 553k at the very start now, this is bad because now we can just
+   * sell and make all that money."
+   *
+   * He is exactly right, and the cause was valuing a business on its
+   * THEORETICAL capacity: revenue implied from the capital, times a
+   * multiple, from the first day. A trade bought on Monday was worth
+   * fifteen times its price on Tuesday, and selling it was free money —
+   * which would have made every other way of earning in this game pointless.
+   *
+   * So the price is what a buyer would actually pay: the ASSETS (the money
+   * in the till and the stock on the shelf, which are really there) plus a
+   * multiple of the profit it has DEMONSTRATED over the last year. A
+   * business with no track record is worth its assets and not a penny more,
+   * so flipping it loses you the private-sale haircut. A business that has
+   * genuinely earned for a year is worth a great deal, which is the whole
+   * reward for having run it well.
+   */
+  const ops = world.businessOps.get(business.id)
+  const assets = (business.capital + (ops?.stockCents ?? 0)) as Money
+
+  const books = world.businessBooks.get(business.id) ?? []
+  if (books.length < TRACK_RECORD_MONTHS) return assets
+
+  const recent = books.slice(-12)
+  const earned = recent.reduce((sum, month) => sum + month.profit, 0)
+  if (earned <= 0) return assets
+
+  // Scaled to a full year where there is less than a year of it, so six
+  // good months are not quietly counted as twelve.
+  const annual = Math.floor((earned * 12) / recent.length)
+  return (assets + annual * EARNINGS_MULTIPLE) as Money
 }
 
 /** What each round buys, and what it costs the founder. */

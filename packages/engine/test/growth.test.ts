@@ -33,6 +33,7 @@ import {
   ceilingReport,
   growBusinessPlayer,
   growthOffersFor,
+  investInBusinessPlayer,
   ipoBar,
   sellBusinessPlayer,
   setPlayer,
@@ -94,7 +95,15 @@ describe('the ceiling', () => {
 
     const business = businessOf(world, world.player.personId as never)
     if (!business) return
+    /**
+     * THE TILL PAYS FOR THE LADDER (owner: "the business funds need to be
+     * kinda separate from the real bank"), so the money has to be in the
+     * business before it can climb. Which is the decision the draw dial is
+     * really for.
+     */
     for (let i = 0; i < CEILING_STEPS_MAX + 3; i += 1) {
+      investInBusinessPlayer(world, 400_000_000)
+      clearPending(world)
       growBusinessPlayer(world, 'capacity')
       clearPending(world)
     }
@@ -160,8 +169,25 @@ describe('ten million before year eight', () => {
      */
     const kind = businessKindById(business.kindId)
     if (!kind) return
+    /**
+     * A BUSINESS IS WORTH WHAT IT HAS EARNED, so a business worth ten
+     * million is one with a YEAR OF EARNING behind it — rigging the capital
+     * alone is now (correctly) not enough, because assets are only half of
+     * what a buyer pays for.
+     */
     const rich = { ...business, capital: (business.capital * 40) as Money }
     world.businesses.set(business.id, rich)
+    world.businessBooks.set(
+      business.id,
+      Array.from({ length: 12 }, (_, month) => ({
+        tick: (world.tick - (12 - month)) as never,
+        takings: 9_000_000 as Money,
+        wages: 0 as Money,
+        profit: 8_000_000 as Money,
+        drawn: 1_600_000 as Money,
+        retained: 6_400_000 as Money,
+      })),
+    )
     expect(privateValuationOf(world, rich)).toBeGreaterThan(1_000_000_000)
     expect(ipoBar(world, person.id), 'ten million inside eight years opens it').toBeNull()
 
@@ -180,6 +206,8 @@ describe('ten million before year eight', () => {
     setRetainPlayer(run_.world, 800)
     run(run_.world, 13)
     for (let year = 0; year < 6; year += 1) {
+      investInBusinessPlayer(run_.world, 200_000_000)
+      clearPending(run_.world)
       growBusinessPlayer(run_.world, 'capacity')
       clearPending(run_.world)
       run(run_.world, 12)
@@ -191,7 +219,14 @@ describe('ten million before year eight', () => {
     const grown = businessOf(run_.world, run_.person.id)
     const left = businessOf(idle.world, idle.person.id)
     if (!grown || !left) return
-    expect(grown.capital).toBeGreaterThan(left.capital * 2)
+    /**
+     * MEASURED ON THE CEILING, not on the till. Climbing the ladder SPENDS
+     * the till, so raw capital is the wrong yardstick for whether the
+     * ladder was worth climbing — what it buys is room to become bigger.
+     */
+    const grownRoom = ceilingReport(run_.world)?.ceiling ?? 0
+    const idleRoom = ceilingReport(idle.world)?.ceiling ?? 0
+    expect(grownRoom).toBeGreaterThan(idleRoom * 2)
   })
 })
 

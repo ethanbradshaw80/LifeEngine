@@ -26,7 +26,8 @@ import {
 } from '../src/business.js'
 import type { Business } from '../src/types.js'
 import { employeesOf, livingPeople } from '../src/systems.js'
-import { setPlayer } from '../src/player.js'
+import { businessOf, resolvePending, setPlayer, startBusiness } from '../src/player.js'
+import { walletOf } from '../src/finances.js'
 import { ageAt } from '../src/clock.js'
 
 function aBusiness(capital: number): Business {
@@ -267,6 +268,88 @@ describe('a business earns on the same scale as a wage', () => {
     expect(badStaffed).toBeLessThan(badAlone)
     // But the staff never destroy value — the loss is bounded by the bill.
     expect(badAlone - badStaffed).toBeLessThanOrEqual(payroll)
+  })
+})
+
+describe('nobody loses a business without being told', () => {
+  it('warns, then stops the clock before the doors shut', () => {
+    /**
+     * THE REPORT THIS ANSWERS (owner, playing): "I just lost the business
+     * and there was no popups or anything as a warning and I didnt find out
+     * until I saw it in the feed."
+     *
+     * The same silent-gate disease as the medical discharge before v1.1 and
+     * the eviction before H1 — and worse here, because aging a YEAR runs
+     * twelve of these months in one press. A shop could go from healthy to
+     * shut with the player never offered a chance to do anything.
+     *
+     * Rigged deliberately: a wage bill in a depression is the realistic
+     * road to ruin, and staff are profitable in an ordinary month, so an
+     * ordinary month will not produce this.
+     */
+    const world = createWorld(makeSeed(777), 100)
+    advanceTicks(world, 24 * 12)
+    const person = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 26 && ageAt(p.birthTick, world.tick) <= 34)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!person) return
+    setPlayer(world, person.id)
+    const wallet = walletOf(world, person.id)
+    world.accounts.set(wallet.personId, { ...wallet, savings: 500_000_000 as Money })
+    startBusiness(world, 'diner')
+    ;(world.player as { pending: unknown }).pending = null
+
+    const business = businessOf(world, person.id)
+    if (!business) return
+    const hand = livingPeople(world).find(
+      (p) => p.id !== person.id && !world.employment.has(p.id) && ageAt(p.birthTick, world.tick) > 20,
+    )
+    if (!hand) return
+    world.employment.set(hand.id, {
+      personId: hand.id,
+      occupationId: 'shop-clerk',
+      workplaceId: business.id,
+      monthlyPay: 400_000 as Money,
+      startedAtTick: world.tick,
+      performance: 500,
+      trackId: null,
+      rungSinceTick: world.tick,
+    })
+    const slump = { ...world.economy, phase: 'depression' as const, growthPerMille: -120 }
+    ;(world as { economy: typeof slump }).economy = slump
+
+    let asked = false
+    let closedSilently = false
+    for (let month = 0; month < 18; month += 1) {
+      advanceTicks(world, 1)
+      ;(world as { economy: typeof slump }).economy = slump
+      const pending = world.player.pending
+      if (pending?.kind === 'business-trouble') {
+        asked = true
+        // Every answer is a real lever, and riding it out is allowed.
+        expect(pending.options).toContain('put-money-in')
+        expect(pending.options).toContain('let-staff-go')
+        expect(pending.options).toContain('sell-the-stock')
+        expect(pending.options).toContain('ride-it-out')
+        // It is still open at the moment of asking — that is the point.
+        expect(businessOf(world, person.id)).toBeDefined()
+        resolvePending(world, 'let-staff-go')
+        // Answering keeps it open — the whole point of being asked.
+        expect(businessOf(world, person.id)).toBeDefined()
+        break
+      }
+      if (businessOf(world, person.id) === undefined) {
+        closedSilently = true
+        break
+      }
+      ;(world.player as { pending: unknown }).pending = null
+    }
+
+    expect(closedSilently, 'the business closed without ever asking').toBe(false)
+    expect(asked, 'the business never warned before failing').toBe(true)
+    // And the slide was narrated on the way down, not only at the end.
+    const warned = world.events.filter((e) => e.type === 'business-struggling')
+    expect(warned.length).toBeGreaterThan(0)
   })
 })
 

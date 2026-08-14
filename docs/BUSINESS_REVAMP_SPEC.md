@@ -157,3 +157,38 @@ housing ledger trio hit six times.
   years, and the count does not trend to zero.
 - Employment is real: a closure puts named people out of work.
 - Ledger agreement — business money reconciles with personal money to the cent.
+
+---
+
+## 7) Takeovers — the top of the ladder (owner's ask, 2026-08-13)
+
+> *"is there a thing where If someone has so much money that they can just
+> buy up all the shares of a stock and do a takeover? or own a certain
+> percentage? isnt that a thing in real life"*
+
+Yes, and the pieces are already in the engine doing nothing: every `Stock`
+carries `sharesOutstanding`, every holding carries `units`, and nothing
+anywhere asks what share of a company one person holds. A player can own
+ninety per cent of Vantek Semiconductor today and the game will not notice.
+
+**What it needs.**
+
+1. **A stake readout.** Units held over shares outstanding, per-mille, shown
+   on the stock screen next to the position. Without this the whole thing is
+   invisible, which is the state it is in now.
+2. **Thresholds that mean something.** A blocking stake at 250 per-mille; a
+   controlling stake past 500. Control is the interesting one: the dividends
+   are yours in proportion, and for a company the player FLOATED, buying back
+   past half is a genuine arc — you sold it and you took it back.
+3. **Price impact.** Buying that heavily has to move the price against you,
+   or a takeover costs exactly market cap and there is no decision in it.
+   The market already has the machinery for a price that moves; this is
+   volume pressure on the same dial.
+4. **The reverse, and this is the half that makes it a story.** Somebody in
+   town with real money can come for a company the PLAYER floated. That is
+   the same arc pointed the other way, and it is the reason to keep a
+   holding rather than sell the lot at the IPO.
+
+**What it must not become.** A button that converts money into a bigger
+number. The cost of control has to rise as you take it — that is what makes
+"do I want this badly enough" a question rather than arithmetic.

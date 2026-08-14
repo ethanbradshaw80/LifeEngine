@@ -275,6 +275,13 @@ const OPTION_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> 
     wait: '⏳ Ask for time to think',
   },
   'move-out': { accept: 'Move out', decline: 'Stay home' },
+  // The business is a month from shutting. Every answer is a real lever.
+  'business-trouble': {
+    'put-money-in': '💷 Put your own money in',
+    'let-staff-go': '📉 Let the dearest wage go',
+    'sell-the-stock': '🏷️ Sell the stock off',
+    'ride-it-out': 'Ride it out',
+  },
   courtship: { accept: 'See where it goes', decline: 'Stay friends' },
   marriage: { accept: 'Marry them', decline: 'Not yet' },
   child: { accept: 'Have a child', decline: 'Not now' },

@@ -113,12 +113,11 @@ describe('the shelf', () => {
     const { world, person } = aShopkeeper()
     expect(orderStockPlayer(world, 3).done).toBe(true)
     const shelf = stockReport(world)?.held ?? 0
-    const before = walletOf(world, person.id)
-    const cashBefore = before.checking + before.savings
+    // THE TILL IS PAID, not the pocket: stock is the business's money.
+    const tillBefore = businessOf(world, person.id)?.capital ?? 0
 
     expect(clearStockPlayer(world).done).toBe(true)
-    const after = walletOf(world, person.id)
-    const back = after.checking + after.savings - cashBefore
+    const back = (businessOf(world, person.id)?.capital ?? 0) - tillBefore
     expect(back).toBeGreaterThan(0)
     expect(back, 'a clearance should not pay full price').toBeLessThan(shelf)
     expect(stockReport(world)?.held).toBe(0)
