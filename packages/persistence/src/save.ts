@@ -268,6 +268,10 @@ function hydrate(
   for (const entry of (body['expansions'] as { businessId: number; list: unknown[] }[] | undefined) ?? []) {
     expansions.set(entry.businessId as never, (entry.list ?? []) as never)
   }
+  const businessBooks = new Map<import('@life-engine/shared').EntityId, readonly import('@life-engine/engine').BusinessMonth[]>()
+  for (const entry of (body['businessBooks'] as { businessId: number; months: unknown[] }[] | undefined) ?? []) {
+    businessBooks.set(entry.businessId as never, (entry.months ?? []) as never)
+  }
   const leases = new Map<import('@life-engine/shared').EntityId, Lease>()
   for (const lease of (body['leases'] as Lease[] | undefined) ?? []) {
     leases.set(lease.householdId, lease)
@@ -357,6 +361,7 @@ function hydrate(
     leases,
     capTables,
     expansions,
+    businessBooks,
     deployments,
     nations,
     geoRelations,

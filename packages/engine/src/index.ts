@@ -104,6 +104,8 @@ export {
   raiseBar,
   raiseCapitalPlayer,
   nextRoundOffer,
+  boardFor,
+  booksFor,
   expansionBar,
   expansionOffers,
   expandBusinessPlayer,
@@ -414,6 +416,7 @@ export type {
   BankruptcyChapter,
   Business,
   CapTable,
+  BusinessMonth,
   Expansion,
   ExpansionKind,
   InvestmentRound,
@@ -423,6 +426,9 @@ export {
   EXPANSIONS,
   expansionTermsFor,
   upliftPerMilleOf,
+  boardViewFor,
+  growthPerMilleOf,
+  summarise,
   competitionPerMilleFor,
   marketWeightOf,
   shareOfTradePerMille,
@@ -437,7 +443,7 @@ export {
   shareOf,
   termsFor,
 } from './equity.js'
-export type { RoundTerms, ExpansionTerms } from './equity.js'
+export type { RoundTerms, ExpansionTerms, Ledger, BoardView } from './equity.js'
 export {
   BUSINESS_KINDS,
   annualRevenueOf,

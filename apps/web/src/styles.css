@@ -5517,3 +5517,17 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
 }
 
 .cov-note { margin: 0.5rem 0 0; line-height: 1.35; }
+
+/* THE SHARE REGISTER, AS A PICTURE (business-ownership.html). A percentage
+   is a number; a bar is how much of it is still yours. */
+.own-bars { display: grid; gap: 0.4rem; margin: 0.5rem 0 0.7rem; }
+.own-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.76rem; }
+.own-name { flex: 0 0 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.own-track {
+  flex: 1; height: 8px; border-radius: 4px; overflow: hidden;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.own-fill { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.own-fill.local { background: var(--ok); }
+.own-fill.firm { background: #b8860b; }
+.own-pct { flex: 0 0 3.2rem; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }

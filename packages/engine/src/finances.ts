@@ -23,7 +23,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import type { ExpansionKind, InvestmentRound, Shareholder } from './types.js'
+import type { BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
@@ -3963,6 +3963,31 @@ function runNpcVentures(world: World, tick: Tick): void {
  * this out of the hot loop. Keyed by kindId: a diner does not compete with
  * a dental practice.
  */
+/**
+ * KEEP THE BOOKS, two years deep.
+ *
+ * A rolling window rather than a ledger for ever: Law 6 asks for history
+ * summarised, and twenty-four months is what a real set of accounts shows
+ * on one page. Without this there was no financial history in the engine at
+ * all — which is why a profit-and-loss screen could not be drawn from
+ * anything but a single month's guess.
+ */
+const BOOKS_MONTHS = 24
+
+function recordBusinessMonth(
+  world: World,
+  tick: Tick,
+  businessId: EntityId,
+  month: BusinessMonth,
+): void {
+  void tick
+  const kept = [...(world.businessBooks.get(businessId) ?? []), month]
+  world.businessBooks.set(
+    businessId,
+    kept.length > BOOKS_MONTHS ? kept.slice(kept.length - BOOKS_MONTHS) : kept,
+  )
+}
+
 function marketWeightsByTrade(world: World): Map<string, number[]> {
   const byTrade = new Map<string, number[]>()
   for (const business of world.businesses.values()) {
@@ -4090,6 +4115,14 @@ function runBusinesses(world: World, tick: Tick): void {
        * The founder takes the remainder rather than a computed slice, so
        * the odd cent never goes missing and the month always balances.
        */
+      recordBusinessMonth(world, tick, business.id, {
+        tick,
+        takings: (profit + payroll) as Money,
+        wages: payroll as Money,
+        profit,
+        drawn: (profit - retained) as Money,
+        retained: retained as Money,
+      })
       const table = world.capTables.get(business.id)
       if (table === undefined) {
         creditPerson(world, business.ownerId, drawn)
@@ -4113,6 +4146,14 @@ function runBusinesses(world: World, tick: Tick): void {
       continue
     }
 
+    recordBusinessMonth(world, tick, business.id, {
+      tick,
+      takings: (profit + payroll) as Money,
+      wages: payroll as Money,
+      profit,
+      drawn: 0 as Money,
+      retained: 0 as Money,
+    })
     const loss = -profit
     const fromCapital = Math.min(loss, business.capital)
     const badMonths = business.badMonths + 1

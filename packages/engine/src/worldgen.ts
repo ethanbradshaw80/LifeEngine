@@ -176,6 +176,7 @@ export function createWorld(
     leases: new Map(),
     capTables: new Map(),
     expansions: new Map(),
+    businessBooks: new Map(),
     deployments: new Map(),
     relationships: new Map(),
     events: [],

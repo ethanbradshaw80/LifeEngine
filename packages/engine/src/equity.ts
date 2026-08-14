@@ -25,6 +25,7 @@
 import type { Money } from '@life-engine/shared'
 import type {
   Business,
+  BusinessMonth,
   CapTable,
   Expansion,
   ExpansionKind,
@@ -297,4 +298,108 @@ export function competitionPerMilleFor(sharePerMille: number, rivals: number): n
   // the even split, clamped so one dominant shop cannot earn without end.
   const relative = Math.floor((sharePerMille * 1000) / even) - 1000
   return Math.max(-600, Math.min(500, Math.floor(relative / 2)))
+}
+
+// ---------------------------------------------------------------------------
+// The books, and the board
+// ---------------------------------------------------------------------------
+
+/** A stretch of months added up, for the profit-and-loss screen. */
+export interface Ledger {
+  readonly months: number
+  readonly takings: Money
+  readonly wages: Money
+  readonly profit: Money
+  readonly drawn: Money
+  readonly retained: Money
+  /** Profit as a share of takings, per-mille. Negative where it lost money. */
+  readonly marginPerMille: number
+}
+
+export function summarise(months: readonly BusinessMonth[]): Ledger {
+  const takings = months.reduce((sum, m) => sum + m.takings, 0)
+  const wages = months.reduce((sum, m) => sum + m.wages, 0)
+  const profit = months.reduce((sum, m) => sum + m.profit, 0)
+  return {
+    months: months.length,
+    takings: takings as Money,
+    wages: wages as Money,
+    profit: profit as Money,
+    drawn: months.reduce((sum, m) => sum + m.drawn, 0) as Money,
+    retained: months.reduce((sum, m) => sum + m.retained, 0) as Money,
+    marginPerMille: takings === 0 ? 0 : Math.floor((profit * 1000) / takings),
+  }
+}
+
+/**
+ * IS THE BUSINESS GOING THE RIGHT WAY? Per-mille, comparing the last year
+ * against the year before it. Zero where there is not yet enough history to
+ * say, which is honest rather than flattering.
+ */
+export function growthPerMilleOf(months: readonly BusinessMonth[]): number {
+  if (months.length < 24) return 0
+  const older = summarise(months.slice(0, 12)).takings
+  const recent = summarise(months.slice(12)).takings
+  if (older <= 0) return 0
+  return Math.floor(((recent - older) * 1000) / older)
+}
+
+/** What the board makes of it, and why. */
+export interface BoardView {
+  /** Combined weight of the seats held, per-mille. */
+  readonly weightPerMille: number
+  readonly approves: boolean
+  readonly reason: string
+}
+
+/**
+ * HOW THE BOARD WOULD VOTE.
+ *
+ * Institutions take a seat when they buy in, and a seat is worth something
+ * or it is decoration. They read three things — is it growing, is it making
+ * money, is it steady — and they are not sentimental about any of them.
+ *
+ * A business with no board approves everything, because there is nobody to
+ * ask. That is the ordinary case and it stays frictionless.
+ */
+export function boardViewFor(
+  table: CapTable | undefined,
+  books: readonly BusinessMonth[],
+  badMonths: number,
+): BoardView {
+  const weight = table === undefined ? 0 : boardWeightFor(table)
+  if (weight <= 0) {
+    return { weightPerMille: 0, approves: true, reason: 'Nobody to answer to but yourself.' }
+  }
+  const year = summarise(books.slice(-12))
+  const growth = growthPerMilleOf(books)
+  if (badMonths > 0) {
+    return {
+      weightPerMille: weight,
+      approves: false,
+      reason: 'They will not back anything in the middle of a bad run.',
+    }
+  }
+  if (year.profit <= 0) {
+    return {
+      weightPerMille: weight,
+      approves: false,
+      reason: 'A year that lost money is not a year they will put more into.',
+    }
+  }
+  if (growth < -100) {
+    return {
+      weightPerMille: weight,
+      approves: false,
+      reason: 'Takings are going backwards, and they can read.',
+    }
+  }
+  return {
+    weightPerMille: weight,
+    approves: true,
+    reason:
+      growth > 100
+        ? 'Growing, profitable, and they would like more of it.'
+        : 'Steady enough that nobody round the table objects.',
+  }
 }

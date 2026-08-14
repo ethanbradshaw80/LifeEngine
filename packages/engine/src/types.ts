@@ -2175,6 +2175,27 @@ export interface Expansion {
   readonly upliftPerMille: number
 }
 
+/**
+ * ONE MONTH OF A BUSINESS'S BOOKS.
+ *
+ * Kept as a rolling window rather than for ever — Law 6 asks for history
+ * summarised, not unlimited raw detail, and two years is what a real set of
+ * accounts shows you on one page.
+ */
+export interface BusinessMonth {
+  readonly tick: Tick
+  /** What the trade took, before wages. */
+  readonly takings: Money
+  /** What the staff cost. */
+  readonly wages: Money
+  /** What was left — this can be, and often is, negative. */
+  readonly profit: Money
+  /** What the owner and the shareholders drew out of it. */
+  readonly drawn: Money
+  /** What stayed in as capital. */
+  readonly retained: Money
+}
+
 export type InvestmentRound = 'seed' | 'series-a' | 'series-b' | 'series-c'
 
 /**
@@ -3019,6 +3040,8 @@ export interface World {
   readonly capTables: Map<EntityId, CapTable>
   /** How each business has grown beyond its own doors. Keyed by business id. */
   readonly expansions: Map<EntityId, readonly Expansion[]>
+  /** The last two years of each business's books. Keyed by business id. */
+  readonly businessBooks: Map<EntityId, readonly BusinessMonth[]>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

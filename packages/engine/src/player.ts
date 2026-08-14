@@ -270,14 +270,17 @@ import { baCompensationFor, inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
   EXPANSIONS,
+  boardViewFor,
+  growthPerMilleOf,
+  summarise,
   expansionTermsFor,
   foundingCapTable,
   investmentFor,
   nextRoundFor,
   privateValuationOf,
 } from './equity.js'
-import type { ExpansionTerms, RoundTerms } from './equity.js'
-import type { ExpansionKind } from './types.js'
+import type { BoardView, ExpansionTerms, Ledger, RoundTerms } from './equity.js'
+import type { BusinessMonth, ExpansionKind } from './types.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -838,7 +841,44 @@ export function raiseBar(world: World): string | null {
   if (world.tick - business.foundedTick < TICKS_PER_YEAR * 2) {
     return 'Too new. Nobody backs a business with no trading behind it.'
   }
+  /**
+   * AND THE BOARD HAS TO AGREE. A seat is worth something or it is
+   * decoration: once an institution holds one, raising again is their
+   * decision as much as yours, and they read the books before they nod.
+   */
+  const view = boardViewFor(table, world.businessBooks.get(business.id) ?? [], business.badMonths)
+  if (!view.approves) return view.reason
   return null
+}
+
+/** What the board makes of the business right now, for the screen. */
+export function boardFor(world: World): BoardView | undefined {
+  const person = playerPerson(world)
+  if (!person) return undefined
+  const business = businessOf(world, person.id)
+  if (business === undefined) return undefined
+  return boardViewFor(
+    world.capTables.get(business.id),
+    world.businessBooks.get(business.id) ?? [],
+    business.badMonths,
+  )
+}
+
+/** The last two years of the books, summarised, for the financials screen. */
+export function booksFor(
+  world: World,
+): { readonly year: Ledger; readonly all: Ledger; readonly growthPerMille: number; readonly months: readonly BusinessMonth[] } | undefined {
+  const person = playerPerson(world)
+  if (!person) return undefined
+  const business = businessOf(world, person.id)
+  if (business === undefined) return undefined
+  const months = world.businessBooks.get(business.id) ?? []
+  return {
+    year: summarise(months.slice(-12)),
+    all: summarise(months),
+    growthPerMille: growthPerMilleOf(months),
+    months,
+  }
 }
 
 /** What the next round would cost and buy, for the screen. */

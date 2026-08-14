@@ -20,6 +20,8 @@ import {
   annualRevenueOf,
   businessBar,
   atTodaysPrices,
+  boardFor,
+  booksFor,
   businessHealthWords,
   companyHeadcountOf,
   floatProceedsFor,
@@ -294,6 +296,87 @@ export function BusinessTab({
         )
       ) : null}
 
+      {/* THE BOOKS (the owner's business-financials.html). Real months,
+          not a projection: the engine keeps a rolling two years per
+          business, which is what Law 6 asks for — history summarised
+          rather than a ledger kept for ever. */}
+      {(() => {
+        const books = booksFor(world)
+        if (books === undefined || books.months.length === 0) {
+          return (
+            <section className="career-card">
+              <h4>The books</h4>
+              <p className="career-note">
+                Nothing in them yet. A month of trading has to go by first.
+              </p>
+            </section>
+          )
+        }
+        const { year, growthPerMille } = books
+        return (
+          <section className="career-card">
+            <h4>The books · last {String(year.months)} months</h4>
+            <div className="re-tiles">
+              <div className="re-tile">
+                <span>Takings</span>
+                <b>{formatMoney(year.takings)}</b>
+              </div>
+              <div className="re-tile">
+                <span>Wages</span>
+                <b>{formatMoney(year.wages)}</b>
+              </div>
+              <div className={year.profit >= 0 ? 're-tile hot' : 're-tile'}>
+                <span>Profit</span>
+                <b>{formatMoney(year.profit)}</b>
+              </div>
+              <div className="re-tile">
+                <span>Margin</span>
+                <b>{(year.marginPerMille / 10).toFixed(0)}%</b>
+              </div>
+              <div className="re-tile">
+                <span>You drew</span>
+                <b>{formatMoney(year.drawn)}</b>
+              </div>
+              <div className="re-tile">
+                <span>Left in</span>
+                <b>{formatMoney(year.retained)}</b>
+              </div>
+            </div>
+            <Row
+              label="Year on year"
+              value={
+                books.months.length < 24
+                  ? 'not enough history yet'
+                  : `${growthPerMille >= 0 ? '+' : ''}${(growthPerMille / 10).toFixed(0)}%`
+              }
+            />
+            <p className="career-note">
+              What it takes, less what the staff cost, is what it made. What you drew is income;
+              what was left in became capital, and capital is what the valuation is built on.
+            </p>
+          </section>
+        )
+      })()}
+
+      {/* THE BOARD (the owner's business-investors.html). Not a mock
+          meeting: institutions take a seat when they buy in, and the seat
+          is a real gate on raising again. They read the books. */}
+      {(() => {
+        const board = boardFor(world)
+        if (board === undefined || board.weightPerMille <= 0) return null
+        return (
+          <section className="career-card">
+            <h4>The board</h4>
+            <Row
+              label="Seats hold"
+              value={`${(board.weightPerMille / 10).toFixed(1)}% of the company`}
+            />
+            <Row label="On the next round" value={board.approves ? 'they would back it' : 'they would not'} />
+            <p className="career-note">{board.reason}</p>
+          </section>
+        )
+      })()}
+
       {/* GROWING IT (the expansion ladder). Every rung asks for years
     at the wheel, a run of good months and the money — and each
     one is bought once and changes how the business earns from
@@ -418,6 +501,29 @@ export function BusinessTab({
             </li>
           ))}
         </ul>
+      )}
+      {table !== undefined && table.shareholders.length > 0 && (
+        <>
+          <h4 style={{ marginTop: '0.9rem' }}>What was agreed</h4>
+          <ul className="openings">
+            {table.shareholders.map((holder) => (
+              <li key={`terms-${holder.id}`}>
+                <span className="o-title">
+                  {holder.name}
+                  <span className="s">
+                    gets {(holder.preferencePerMille / 1000).toFixed(1)}× their money back before
+                    anybody else
+                  </span>
+                  <span className="s">
+                    {holder.boardSeat
+                      ? 'holds a seat — raising again is their decision too'
+                      : 'no seat: they own a share, not a say'}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
       {offer === undefined ? (
         <p className="career-note">
