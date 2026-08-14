@@ -105,6 +105,12 @@ export {
   raiseCapitalPlayer,
   nextRoundOffer,
   boardFor,
+  growthOffersFor,
+  growBusinessPlayer,
+  ceilingReport,
+  buyersForBusiness,
+  sellBusinessPlayer,
+  windDownPlayer,
   opsFor,
   stockReport,
   orderStockPlayer,
@@ -452,6 +458,9 @@ export {
   EXPANSIONS,
   expansionTermsFor,
   upliftPerMilleOf,
+  CEILING_STEPS_MAX,
+  ceilingBonusPerMilleOf,
+  growthOptionsFor,
   boardViewFor,
   growthPerMilleOf,
   summarise,
@@ -469,7 +478,7 @@ export {
   shareOf,
   termsFor,
 } from './equity.js'
-export type { RoundTerms, ExpansionTerms, Ledger, BoardView } from './equity.js'
+export type { RoundTerms, ExpansionTerms, GrowthTerms, Ledger, BoardView } from './equity.js'
 export {
   BUSINESS_KINDS,
   annualRevenueOf,

@@ -40,8 +40,13 @@ import {
   tradingLiftPerMille,
 } from './operations.js'
 import {
+  CEILING_STEPS_MAX,
+  ceilingBonusPerMilleOf,
   competitionPerMilleFor,
   expansionTermsFor,
+  floorLiftPerMilleOf,
+  growthTermsFor,
+  weightBonusOf,
   foundingCapTable,
   marketWeightOf,
   shareOfTradePerMille,
@@ -3671,6 +3676,157 @@ export function raiseRound(
  * GROW THE BUSINESS. finances owns it because it spends money: the cost
  * comes out of the owner's wallet and the business earns more from then on.
  */
+/**
+ * BUY A WAY OF GROWING. The one that lifts the ceiling is repeatable and
+ * dearer each time; the rest are bought once.
+ */
+export function buyGrowth(
+  world: World,
+  tick: Tick,
+  businessId: EntityId,
+  which: ExpansionKind,
+): boolean {
+  const business = world.businesses.get(businessId)
+  const trade = business === undefined ? undefined : businessKindById(business.kindId)
+  if (business === undefined || trade === undefined || business.closedTick !== null) return false
+  const terms = growthTermsFor(trade, which)
+  if (terms === undefined) return false
+  const already = world.expansions.get(businessId) ?? []
+  const taken = already.filter((entry) => entry.kind === which).length
+  if (!terms.repeatable && taken > 0) return false
+  if (terms.repeatable && taken >= CEILING_STEPS_MAX) return false
+
+  // Each step of capacity costs more than the last: the second set of
+  // rooms is never the price of the first.
+  const base = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000)
+  const cost = Math.floor((base * (1000 + taken * 350)) / 1000) as Money
+  if (debitPerson(world, business.ownerId, cost) < cost) return false
+
+  world.expansions.set(businessId, [
+    ...already,
+    {
+      kind: which,
+      name: terms.title,
+      sinceTick: tick,
+      costCents: cost,
+      upliftPerMille: terms.upliftPerMille,
+      ceilingPerMille: terms.ceilingPerMille,
+      weightBonus: terms.weightBonus,
+      floorPerMille: terms.floorPerMille,
+    },
+  ])
+  recordEvent(world, tick, {
+    type: 'business-grew',
+    subjectId: business.ownerId,
+    detail: `${which}:${business.name}`,
+  })
+  return true
+}
+
+/**
+ * SELL THE WHOLE THING (owner: "why would someone grow a company to its max
+ * and not be able to sell and start another business they would just be
+ * stuck").
+ *
+ * THIS IS WHERE LIQUIDATION PREFERENCES FINALLY DO SOMETHING. Every
+ * shareholder record has carried one since the register was built and no
+ * code path has ever read it, because a preference only means anything at
+ * an exit and there was no exit. Investors take their multiple off the top;
+ * what is left splits by shareholding. On a poor sale the founder can walk
+ * away with nothing at all, which is the true price of having taken money
+ * and something the game has never charged before.
+ *
+ * The business does NOT close. It carries on under whoever bought it —
+ * possibly as a rival to whatever you start next, which is what a
+ * persistent town is for.
+ */
+export function sellBusiness(
+  world: World,
+  tick: Tick,
+  businessId: EntityId,
+  buyerId: EntityId,
+  price: Money,
+): boolean {
+  const business = world.businesses.get(businessId)
+  const buyer = world.people.get(buyerId)
+  if (business === undefined || business.closedTick !== null) return false
+  if (buyer === undefined || buyer.deathTick !== null) return false
+  if (price <= 0) return false
+  if (debitPerson(world, buyerId, price) < price) return false
+
+  const seller = business.ownerId
+  const table = world.capTables.get(businessId)
+  let left: number = price
+  if (table !== undefined) {
+    for (const holder of table.shareholders) {
+      // What they were promised back before anybody else sees a penny.
+      const preferred = Math.min(
+        left,
+        Math.floor((holder.investedCents * holder.preferencePerMille) / 1000),
+      )
+      if (preferred <= 0) continue
+      left -= preferred
+      if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
+        creditPerson(world, holder.personId, preferred as Money)
+      }
+    }
+    // Whatever survived the preferences splits by what people hold.
+    for (const holder of table.shareholders) {
+      const cut = Math.floor((left * holder.perMille) / 1000)
+      if (cut <= 0) continue
+      if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
+        creditPerson(world, holder.personId, cut as Money)
+      }
+    }
+    const founderCut = Math.floor((left * table.founderPerMille) / 1000)
+    if (founderCut > 0) creditPerson(world, seller, founderCut as Money)
+  } else {
+    creditPerson(world, seller, left as Money)
+  }
+
+  // It goes on trading under its new owner, and the register is settled.
+  world.businesses.set(businessId, { ...business, ownerId: buyerId })
+  world.capTables.delete(businessId)
+  world.businessOps.delete(businessId)
+
+  recordEvent(world, tick, {
+    type: 'sold-business',
+    subjectId: seller,
+    otherId: buyerId,
+    detail: `${business.name}:${String(price)}`,
+  })
+  recordDecision(world, tick, {
+    subjectId: seller,
+    decision: 'business',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000)],
+    chosen: `sold ${business.name}`,
+    rejected: ['keeping it'],
+    streamId: Stream.Economy,
+  })
+  return true
+}
+
+/** Shut it yourself. What is left of the capital comes home. */
+export function windDownBusiness(world: World, tick: Tick, businessId: EntityId): boolean {
+  const business = world.businesses.get(businessId)
+  if (business === undefined || business.closedTick !== null) return false
+  const ops = world.businessOps.get(businessId)
+  // The shelf goes at clearance, the same as a stockroom clearance would.
+  const shelf = ops === undefined ? 0 : Math.floor((ops.stockCents * 620) / 1000)
+  creditPerson(world, business.ownerId, (business.capital + shelf) as Money)
+  world.businesses.set(businessId, { ...business, capital: 0 as Money, closedTick: tick })
+  world.capTables.delete(businessId)
+  world.businessOps.delete(businessId)
+  world.expansions.delete(businessId)
+  recordEvent(world, tick, {
+    type: 'business-closed',
+    subjectId: business.ownerId,
+    detail: business.name,
+  })
+  return true
+}
+
 export function buyExpansion(
   world: World,
   tick: Tick,
@@ -4024,7 +4180,7 @@ function runBusinesses(world: World, tick: Tick): void {
   // squared.
   const weightsByTrade = marketWeightsByTrade(world)
   for (const id of [...world.businesses.keys()].sort((a, b) => a - b)) {
-    const business = world.businesses.get(id)
+    let business = world.businesses.get(id)
     if (!business || business.closedTick !== null) continue
     const owner = world.people.get(business.ownerId)
     const kind = businessKindById(business.kindId)
@@ -4041,7 +4197,7 @@ function runBusinesses(world: World, tick: Tick): void {
      * keeps the town's own trade exactly as it was — only a business
      * somebody is actually standing in gets a stockroom and a price list.
      */
-    const ops = world.businessOps.get(business.id)
+    let ops = world.businessOps.get(business.id)
     /**
      * THE WAGE BILL IS REAL MONEY, and it is conserved: it leaves the
      * business through the profit line, and the same people are credited
@@ -4066,11 +4222,9 @@ function runBusinesses(world: World, tick: Tick): void {
      * business alone in its trade feels nothing at all.
      */
     const rivalWeights = weightsByTrade.get(business.kindId) ?? []
-    const mine = marketWeightOf(
-      business,
-      staff,
-      upliftPerMilleOf(world.expansions.get(business.id)),
-    )
+    const mine =
+      marketWeightOf(business, staff, upliftPerMilleOf(world.expansions.get(business.id))) +
+      weightBonusOf(world.expansions.get(business.id))
     const competition = competitionPerMilleFor(
       shareOfTradePerMille(mine, rivalWeights),
       Math.max(0, rivalWeights.length - 1),
@@ -4087,6 +4241,7 @@ function runBusinesses(world: World, tick: Tick): void {
       upliftPerMilleOf(world.expansions.get(business.id)) +
         (ops === undefined ? 0 : tradingLiftPerMille(ops, tick, TICKS_PER_YEAR)),
       competition,
+      floorLiftPerMilleOf(world.expansions.get(business.id)),
     )
 
     /**
@@ -4102,6 +4257,38 @@ function runBusinesses(world: World, tick: Tick): void {
     let profit = grossProfit
     if (ops !== undefined) {
       const wanted = stockNeededFor(Math.max(0, grossProfit) as Money, kind)
+      /**
+       * A SHOP RESTOCKS ITSELF WITHOUT BEING TOLD.
+       *
+       * MEASURED, AND THE FIRST VERSION WAS BRUTAL: the shelf only filled
+       * when the player pressed a button, so touching ANY setting — the
+       * price, the draw dial — created the record, switched on the gate,
+       * and set the takings to zero for ever. Twenty-five years of a shop
+       * earning nothing because its owner adjusted a slider.
+       *
+       * So the business tops the shelf up out of its own capital at
+       * whatever the supplier charges, the way a real one buys stock out
+       * of last week's takings. That makes the player's actions UPSIDE
+       * rather than homework: a bulk order is cheaper than the drip, and a
+       * better vendor lowers the cost of every restock from then on. The
+       * gate still bites — but only when the business genuinely cannot
+       * afford to fill its own shelf, which is what running out means.
+       */
+      if (ops.stockCents < wanted) {
+        const short = wanted - ops.stockCents
+        const bill = Math.floor((short * ops.vendorRatePerMille) / 1000)
+        const afford = Math.min(bill, Math.max(0, business.capital))
+        if (afford > 0) {
+          const bought = Math.floor((afford * 1000) / ops.vendorRatePerMille)
+          world.businesses.set(business.id, {
+            ...business,
+            capital: (business.capital - afford) as Money,
+          })
+          business = world.businesses.get(business.id) ?? business
+          ops = { ...ops, stockCents: (ops.stockCents + bought) as Money }
+          world.businessOps.set(business.id, ops)
+        }
+      }
       const served = servedPerMille(ops.stockCents, wanted)
       if (served < 1000) {
         profit = Math.floor((profit * served) / 1000) as Money
@@ -4153,8 +4340,19 @@ function runBusinesses(world: World, tick: Tick): void {
       //     something worth taking public, and it is a genuine trade: less
       //     money in your hand each month, far more of it on paper.
       const scaled = business.scaledAtTick != null
+      /**
+       * THE CEILING IS SOMETHING YOU RAISE NOW, not a wall you meet.
+       *
+       * Four times founding was where every business stopped and stayed
+       * stopped, however well it was run. Each capacity step buys another
+       * three times, to a cap of twenty-five — which is what a business
+       * worth ten million looks like from the day it opened.
+       */
+      const grownCeiling =
+        CAPITAL_CEILING_MULTIPLE +
+        ceilingBonusPerMilleOf(world.expansions.get(business.id)) / 1000
       const ceiling = (atTodaysPrices(world, kind.capital) *
-        (scaled ? COMPANY_CEILING_MULTIPLE : CAPITAL_CEILING_MULTIPLE)) as Money
+        (scaled ? COMPANY_CEILING_MULTIPLE : grownCeiling)) as Money
       const room = Math.max(0, ceiling - business.capital)
       const retained = scaled
         ? Math.min(Math.max(0, profit - founderSalaryOf(business, kind)), room)

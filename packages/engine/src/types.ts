@@ -2164,7 +2164,20 @@ export interface GeoRelation {
  * royalties for the name, and owning your supplier takes a bite out of
  * what everything costs.
  */
-export type ExpansionKind = 'location' | 'franchise' | 'supply-chain'
+export type ExpansionKind =
+  | 'location'
+  | 'franchise'
+  | 'supply-chain'
+  /** Repeatable. The one that lifts the ceiling on what the business can become. */
+  | 'capacity'
+  /** A name people ask for by name. */
+  | 'reputation'
+  /** Doing it better than the shop across the square. */
+  | 'quality'
+  /** Something else to sell. */
+  | 'new-line'
+  /** Steady money that does not care what kind of month it is. */
+  | 'contracts'
 
 export interface Expansion {
   readonly kind: ExpansionKind
@@ -2173,6 +2186,17 @@ export interface Expansion {
   readonly costCents: Money
   /** What it adds, per-mille of the trade's ordinary monthly earning. */
   readonly upliftPerMille: number
+  /**
+   * WHAT IT ADDS TO THE CEILING, per-mille of the founding capital.
+   *
+   * The wall at four times founding is what made a business stop growing
+   * and stay stopped. Capacity is how you move it.
+   */
+  readonly ceilingPerMille?: number
+  /** What it adds to your weight against rivals in the trade. */
+  readonly weightBonus?: number
+  /** How far it lifts the floor under a bad month, per-mille. */
+  readonly floorPerMille?: number
 }
 
 /**
@@ -2269,6 +2293,9 @@ export type PendingKind =
   | 'raise-capital'
   /** Grew your own business. */
   | 'expand-business'
+  | 'grow-business'
+  | 'sell-business'
+  | 'wind-down'
   /** Bought out a rival in the same trade. */
   | 'buy-rival'
   /** Took somebody on at your own business. */

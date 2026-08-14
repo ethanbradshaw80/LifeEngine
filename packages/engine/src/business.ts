@@ -504,6 +504,12 @@ export function monthlyProfitFor(
    * nobody else in it, negative when rivals are taking the custom.
    */
   competitionPerMille = 0,
+  /**
+   * HOW FAR A STANDING ORDER LIFTS THE FLOOR under a ruinous month. Steady
+   * money does not care what kind of month it is, which is the whole point
+   * of having some.
+   */
+  floorLiftPerMille = 0,
 ): Money {
   // A RETIRING TRADE EARNS ON A SHRINKING MARKET. The demand floor falls
   // over a decade rather than at a stroke, so the owner has years to sell,
@@ -546,7 +552,10 @@ export function monthlyProfitFor(
   // a median life of seventeen years rather than dying in their first
   // winter. The slump term still doubles, so failures cluster in the
   // downturns rather than falling on people at random.
-  const perMille = Math.max(-1500, 880 + weather * 10 + slump * 2 + hand + swing)
+  const perMille = Math.max(
+    -1500 + floorLiftPerMille,
+    880 + weather * 10 + slump * 2 + hand + swing,
+  )
   /**
    * THE WAGES GO OUT WHATEVER THE MONTH DID — operating leverage, and the
    * whole reason employing somebody is a decision rather than a free

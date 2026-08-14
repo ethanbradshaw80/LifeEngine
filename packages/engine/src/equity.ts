@@ -33,6 +33,7 @@ import type {
   Shareholder,
 } from './types.js'
 import { annualRevenueOf, businessKindById, valuationMultipleFor } from './business.js'
+import type { BusinessKind } from './business.js'
 
 /** A business nobody has raised against: the founder holds all of it. */
 export function foundingCapTable(): CapTable {
@@ -402,4 +403,161 @@ export function boardViewFor(
         ? 'Growing, profitable, and they would like more of it.'
         : 'Steady enough that nobody round the table objects.',
   }
+}
+
+// ---------------------------------------------------------------------------
+// Growing it: the five ways, named for the trade
+// ---------------------------------------------------------------------------
+
+/**
+ * THE WALL, AND HOW YOU MOVE IT (owner: "there is no real ways to grow the
+ * business, we need actions the players can take depending on their type of
+ * business to be able to grow and make more money").
+ *
+ * The reason a business stopped growing was never the player: retained
+ * profit was capped at four times what the trade took to open, and after
+ * that a well-run shop and a badly-run one arrived at the same place. That
+ * cap is what CAPACITY moves — repeatable, dearer every time, and the only
+ * road from a four-times trade to a twenty-five-times one.
+ *
+ * The other four do not touch the ceiling. They decide whether you are the
+ * shop people go to, which since the market landed is a thing that takes
+ * custom off named rivals rather than conjuring it.
+ */
+export const CEILING_STEP_PER_MILLE = 3000
+export const CEILING_STEPS_MAX = 7
+
+/** How the five read for a trade that sells goods, and one that sells hours. */
+interface GrowthNames {
+  readonly title: string
+  readonly blurb: string
+}
+
+const GOODS_NAMES: Readonly<Record<string, GrowthNames>> = {
+  capacity: { title: 'Take on more room', blurb: 'More space, more shelves, more you can sell in a month.' },
+  reputation: { title: 'Build the name', blurb: 'Be the one people mean when they name the trade.' },
+  quality: { title: 'Raise the standard', blurb: 'Better goods, better kept. People notice both.' },
+  'new-line': { title: 'Add a line', blurb: 'Something else on the shelf, for the people already through the door.' },
+  contracts: { title: 'Land a standing order', blurb: 'Somebody who buys every month whatever the month is like.' },
+}
+
+const SERVICE_NAMES: Readonly<Record<string, GrowthNames>> = {
+  capacity: { title: 'Take on more room', blurb: 'Another chair, another pair of hands, more people seen in a week.' },
+  reputation: { title: 'Build the name', blurb: 'Be the one people ask for by name.' },
+  quality: { title: 'Raise the standard', blurb: 'Train them properly. It shows, and it is charged for.' },
+  'new-line': { title: 'Offer something new', blurb: 'Another service, for the people already coming to you.' },
+  contracts: { title: 'Land a standing booking', blurb: 'Regular work that does not care what kind of month it is.' },
+}
+
+/** A trade that keeps much of its money on a shelf sells goods. */
+function sellsGoods(kind: BusinessKind): boolean {
+  return kind.cogsPerMille >= 300
+}
+
+export interface GrowthTerms {
+  readonly kind: ExpansionKind
+  readonly title: string
+  readonly blurb: string
+  /** Cost as a share of what the trade took to open, per-mille. */
+  readonly costPerMille: number
+  readonly upliftPerMille: number
+  readonly ceilingPerMille: number
+  readonly weightBonus: number
+  readonly floorPerMille: number
+  readonly yearsTrading: number
+  readonly repeatable: boolean
+}
+
+export function growthOptionsFor(kind: BusinessKind): readonly GrowthTerms[] {
+  const names = sellsGoods(kind) ? GOODS_NAMES : SERVICE_NAMES
+  const of = (id: string): GrowthNames =>
+    names[id] ?? { title: 'Grow it', blurb: 'More of what you already do.' }
+  return [
+    {
+      kind: 'capacity',
+      ...of('capacity'),
+      costPerMille: 900,
+      upliftPerMille: 90,
+      ceilingPerMille: CEILING_STEP_PER_MILLE,
+      weightBonus: 0,
+      floorPerMille: 0,
+      yearsTrading: 1,
+      repeatable: true,
+    },
+    {
+      kind: 'reputation',
+      ...of('reputation'),
+      costPerMille: 450,
+      upliftPerMille: 60,
+      ceilingPerMille: 0,
+      weightBonus: 120,
+      floorPerMille: 0,
+      yearsTrading: 2,
+      repeatable: false,
+    },
+    {
+      kind: 'quality',
+      ...of('quality'),
+      costPerMille: 550,
+      upliftPerMille: 120,
+      ceilingPerMille: 0,
+      weightBonus: 60,
+      floorPerMille: 0,
+      yearsTrading: 2,
+      repeatable: false,
+    },
+    {
+      kind: 'new-line',
+      ...of('new-line'),
+      costPerMille: 700,
+      upliftPerMille: 200,
+      ceilingPerMille: 0,
+      weightBonus: 0,
+      floorPerMille: 0,
+      yearsTrading: 3,
+      repeatable: false,
+    },
+    {
+      kind: 'contracts',
+      ...of('contracts'),
+      costPerMille: 800,
+      upliftPerMille: 80,
+      ceilingPerMille: 0,
+      weightBonus: 40,
+      /** Steady money: a ruinous month is far less ruinous. */
+      floorPerMille: 500,
+      yearsTrading: 4,
+      repeatable: false,
+    },
+  ]
+}
+
+export function growthTermsFor(kind: BusinessKind, which: ExpansionKind): GrowthTerms | undefined {
+  return growthOptionsFor(kind).find((entry) => entry.kind === which)
+}
+
+/**
+ * HOW FAR THE CEILING HAS BEEN MOVED, per-mille above the founding four.
+ *
+ * Capped, because a ceiling that rises without end is no ceiling: seven
+ * steps of three takes a trade from four times its founding capital to
+ * twenty-five, which is what a business worth ten million looks like from
+ * where it started.
+ */
+export function ceilingBonusPerMilleOf(list: readonly Expansion[] | undefined): number {
+  if (list === undefined) return 0
+  const steps = list.filter((entry) => entry.kind === 'capacity').length
+  return Math.min(CEILING_STEPS_MAX, steps) * CEILING_STEP_PER_MILLE
+}
+
+/** What growth adds to your weight against the rivals in your trade. */
+export function weightBonusOf(list: readonly Expansion[] | undefined): number {
+  if (list === undefined) return 0
+  return list.reduce((sum, entry) => sum + (entry.weightBonus ?? 0), 0)
+}
+
+/** How far growth has lifted the floor under a bad month, per-mille. */
+export function floorLiftPerMilleOf(list: readonly Expansion[] | undefined): number {
+  if (list === undefined) return 0
+  return list.reduce((sum, entry) => sum + (entry.floorPerMille ?? 0), 0)
 }

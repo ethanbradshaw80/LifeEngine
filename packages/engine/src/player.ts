@@ -24,6 +24,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
 import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './content.js'
+import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
   canAfford,
@@ -37,9 +38,13 @@ import {
   monthlyNetOf,
   acquireRival,
   buyExpansion,
+  buyGrowth,
   priceOfRival,
   raiseRound,
+  sellBusiness,
+  windDownBusiness,
   setSpendStance,
+  walletHolderOf,
   walletOf as walletAccountsOf,
 } from './finances.js'
 import { LIVING_COST_CHILD } from './content.js'
@@ -269,8 +274,11 @@ import { openBusiness } from './finances.js'
 import { baCompensationFor, inTheBA, outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
 import {
+  CEILING_STEPS_MAX,
   EXPANSIONS,
   boardViewFor,
+  ceilingBonusPerMilleOf,
+  growthOptionsFor,
   growthPerMilleOf,
   summarise,
   expansionTermsFor,
@@ -279,7 +287,7 @@ import {
   nextRoundFor,
   privateValuationOf,
 } from './equity.js'
-import type { BoardView, ExpansionTerms, Ledger, RoundTerms } from './equity.js'
+import type { BoardView, ExpansionTerms, GrowthTerms, Ledger, RoundTerms } from './equity.js'
 import type { BusinessMonth, BusinessOps, ExpansionKind } from './types.js'
 import {
   ADVERT_MONTHS,
@@ -1197,18 +1205,39 @@ export function scaleUpPlayer(world: World): { done: boolean; reason: string } {
 export function ipoBar(world: World, personId: EntityId): string | null {
   const business = businessOf(world, personId)
   if (business === undefined) return 'You do not run a company.'
-  if (business.scaledAtTick == null) {
-    return 'A trade does not list on an exchange. Grow it into a company first.'
-  }
   if (business.listedStockId != null) return 'It is already public.'
   const kind = businessKindById(business.kindId)
   if (kind === undefined) return 'You do not run a company.'
+
+  /**
+   * THE FAST ROAD (owner: "if they cross the threshold of an evaluation of
+   * over 10 million before year 8 they are allowed to IPO").
+   *
+   * Build something worth ten million inside eight years and the exchange
+   * comes to YOU — no need to have scaled up first, because a business that
+   * size has already proved everything scaling up was meant to prove. It is
+   * a reward for growing fast, and the only way to reach it is the capacity
+   * ladder, which is the point.
+   */
+  const years = Math.floor((world.tick - business.foundedTick) / TICKS_PER_YEAR)
+  const openValuation = privateValuationOf(world, business)
+  if (years < FAST_IPO_YEARS && openValuation >= FAST_IPO_VALUATION) return null
+
+  if (business.scaledAtTick == null) {
+    return years < FAST_IPO_YEARS
+      ? `A trade does not list on an exchange. Grow it into a company — or be worth ${String(Math.floor(FAST_IPO_VALUATION / 100_000_000))} million before year ${String(FAST_IPO_YEARS)}; it is worth ${String(Math.floor(openValuation / 100_000_000))} now.`
+      : 'A trade does not list on an exchange. Grow it into a company first.'
+  }
   const valuation = valuationOf(business, kind)
   if (valuation < IPO_MIN_VALUATION) {
-    return `Nobody will underwrite it at ${String(Math.floor(valuation / 100_000_00))} million. It needs to be worth ${String(Math.floor(IPO_MIN_VALUATION / 100_000_00))}.`
+    return `Nobody will underwrite it at ${String(Math.floor(valuation / 100_000_000))} million. It needs to be worth ${String(Math.floor(IPO_MIN_VALUATION / 100_000_000))}.`
   }
   return null
 }
+
+/** Ten million inside eight years and the exchange comes to you. */
+export const FAST_IPO_VALUATION = 1_000_000_000
+export const FAST_IPO_YEARS = 8
 
 /**
  * TAKE IT PUBLIC — the capstone (careers overhaul, Fix 3C).
@@ -5258,6 +5287,9 @@ export function resolvePending(world: World, choice: string): void {
     case 'refit':
     case 'raise-capital':
     case 'expand-business':
+    case 'grow-business':
+    case 'sell-business':
+    case 'wind-down':
     case 'buy-rival':
     case 'hire-staff':
     case 'let-go':
@@ -6840,6 +6872,12 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Sold a slice of the business.' // log-only
     case 'expand-business':
       return 'Grew the business.' // log-only
+    case 'grow-business':
+      return 'Grew the business.' // log-only
+    case 'sell-business':
+      return 'Sold the business.' // log-only
+    case 'wind-down':
+      return 'Wound the business down.' // log-only
     case 'buy-rival':
       return 'Bought out a rival.' // log-only
     case 'hire-staff':
@@ -7977,5 +8015,180 @@ export function refitPlayer(world: World): { done: boolean; reason: string } {
   }
   logVerb(world, 'refit', String(cost))
   world.businessOps.set(mine.business.id, { ...mine.ops, refitAtTick: world.tick })
+  return { done: true, reason: '' }
+}
+
+/** What each way of growing would cost right now, and whether it is open. */
+export function growthOffersFor(
+  world: World,
+): readonly {
+  readonly terms: GrowthTerms
+  readonly cost: Money
+  readonly taken: number
+  readonly bar: string | null
+}[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const business = businessOf(world, person.id)
+  if (business === undefined) return []
+  const trade = businessKindById(business.kindId)
+  if (trade === undefined) return []
+  const already = world.expansions.get(business.id) ?? []
+  const years = Math.floor((world.tick - business.foundedTick) / TICKS_PER_YEAR)
+  const wallet = walletAccountsOf(world, person.id)
+  const cash = wallet.checking + wallet.savings
+
+  return growthOptionsFor(trade).map((terms) => {
+    const taken = already.filter((entry) => entry.kind === terms.kind).length
+    const base = Math.floor((atTodaysPrices(world, trade.capital) * terms.costPerMille) / 1000)
+    const cost = Math.floor((base * (1000 + taken * 350)) / 1000) as Money
+    let bar: string | null = null
+    if (!terms.repeatable && taken > 0) bar = 'Already done.'
+    else if (terms.repeatable && taken >= CEILING_STEPS_MAX) bar = 'As big as this trade goes.'
+    else if (years < terms.yearsTrading) {
+      bar = `${String(terms.yearsTrading)} years of trading first — you have ${String(years)}.`
+    } else if (business.badMonths > 0) bar = 'Not in the middle of a bad run.'
+    else if (cash < cost) bar = `It takes ${formatMoney(cost)} and you have ${formatMoney(cash as Money)}.`
+    return { terms, cost, taken, bar }
+  })
+}
+
+/** Grow it, one of the five ways. */
+export function growBusinessPlayer(
+  world: World,
+  which: ExpansionKind,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have no business to grow.' }
+  const offer = growthOffersFor(world).find((entry) => entry.terms.kind === which)
+  if (offer === undefined) return { done: false, reason: 'Not a way this trade grows.' }
+  if (offer.bar !== null) return { done: false, reason: offer.bar }
+
+  logVerb(world, 'grow-business', which)
+  return buyGrowth(world, world.tick, business.id, which)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'It did not come together.' }
+}
+
+/** How far this business is from the biggest it could be. */
+export function ceilingReport(
+  world: World,
+): { readonly capital: Money; readonly ceiling: Money; readonly steps: number } | undefined {
+  const person = playerPerson(world)
+  if (!person) return undefined
+  const business = businessOf(world, person.id)
+  if (business === undefined) return undefined
+  const trade = businessKindById(business.kindId)
+  if (trade === undefined) return undefined
+  const multiple =
+    CAPITAL_CEILING_MULTIPLE + ceilingBonusPerMilleOf(world.expansions.get(business.id)) / 1000
+  return {
+    capital: business.capital,
+    ceiling: (atTodaysPrices(world, trade.capital) * multiple) as Money,
+    steps: (world.expansions.get(business.id) ?? []).filter((e) => e.kind === 'capacity').length,
+  }
+}
+
+/**
+ * WHO WOULD BUY THE WHOLE THING, and what they would pay.
+ *
+ * A rival in the same trade pays MORE than a stranger, because taking you
+ * out is worth something to them beyond what you earn. Everybody else pays
+ * a private-sale price, which is less than the valuation — nobody buys at
+ * the number the seller would like.
+ */
+export const PRIVATE_SALE_PER_MILLE = 850
+export const RIVAL_PREMIUM_PER_MILLE = 1150
+
+export function buyersForBusiness(
+  world: World,
+): readonly { readonly personId: EntityId; readonly name: string; readonly offer: Money; readonly rival: boolean }[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const business = businessOf(world, person.id)
+  if (business === undefined) return []
+  const valuation = privateValuationOf(world, business)
+  if (valuation <= 0) return []
+
+  /**
+   * NOT SOMEBODY WHO SHARES YOUR WALLET (H0). A test caught this: the
+   * wealthiest person in town was the player's own SPOUSE, so the money
+   * left the joint balance and arrived back in it and the business changed
+   * hands for nothing. Selling to yourself is not a sale.
+   */
+  const mine = walletHolderOf(world, person.id)
+  const out: { personId: EntityId; name: string; offer: Money; rival: boolean }[] = []
+  for (const other of world.businesses.values()) {
+    if (other.closedTick !== null || other.id === business.id) continue
+    if (other.kindId !== business.kindId) continue
+    const owner = world.people.get(other.ownerId)
+    if (owner === undefined || owner.deathTick !== null || owner.id === person.id) continue
+    if (walletHolderOf(world, owner.id) === mine) continue
+    const offer = Math.floor((valuation * RIVAL_PREMIUM_PER_MILLE) / 1000) as Money
+    const wallet = walletAccountsOf(world, owner.id)
+    if (wallet.checking + wallet.savings < offer) continue
+    out.push({ personId: owner.id, name: `${owner.givenName} ${owner.familyName}`, offer, rival: true })
+  }
+
+  // And whoever in town simply has the money.
+  const plain = Math.floor((valuation * PRIVATE_SALE_PER_MILLE) / 1000) as Money
+  const monied = [...world.people.values()]
+    .filter((other) => {
+      if (other.deathTick !== null || other.id === person.id) return false
+      if (walletHolderOf(world, other.id) === mine) return false
+      if (ageAt(other.birthTick, world.tick) < 25) return false
+      if (out.some((entry) => entry.personId === other.id)) return false
+      const wallet = walletAccountsOf(world, other.id)
+      return wallet.checking + wallet.savings >= plain
+    })
+    .sort((a, b) => {
+      const wa = walletAccountsOf(world, a.id)
+      const wb = walletAccountsOf(world, b.id)
+      return wb.checking + wb.savings - (wa.checking + wa.savings) || a.id - b.id
+    })
+  const best = monied[0]
+  if (best !== undefined) {
+    out.push({
+      personId: best.id,
+      name: `${best.givenName} ${best.familyName}`,
+      offer: plain,
+      rival: false,
+    })
+  }
+  return out.sort((a, b) => b.offer - a.offer || a.personId - b.personId)
+}
+
+/** Sell it, and be free to start again. */
+export function sellBusinessPlayer(
+  world: World,
+  buyerId: EntityId,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have nothing to sell.' }
+  const buyer = buyersForBusiness(world).find((entry) => entry.personId === buyerId)
+  if (buyer === undefined) return { done: false, reason: 'They are not buying.' }
+
+  logVerb(world, 'sell-business', String(buyerId))
+  return sellBusiness(world, world.tick, business.id, buyerId, buyer.offer)
+    ? { done: true, reason: '' }
+    : { done: false, reason: 'The sale did not go through.' }
+}
+
+/** Shut it yourself, and take what is left of the capital. */
+export function windDownPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const business = businessOf(world, person.id)
+  if (business === undefined) return { done: false, reason: 'You have nothing to wind down.' }
+
+  logVerb(world, 'wind-down', business.name)
+  windDownBusiness(world, world.tick, business.id)
   return { done: true, reason: '' }
 }

@@ -23,6 +23,9 @@ import {
   PRICE_STEPS,
   boardFor,
   booksFor,
+  buyersForBusiness,
+  ceilingReport,
+  growthOffersFor,
   demandFromPricePerMille,
   insurancePremiumFor,
   opsFor,
@@ -699,6 +702,131 @@ export function BusinessTab({
     </section>
   )
 })()}
+
+{/* GROWING IT, THE FIVE WAYS. Capacity is the one that moves the wall —
+    everything else decides whether you are the shop people go to. The
+    names change with the trade: a salon takes on another chair, a shop
+    takes on more room. */}
+{(() => {
+  const offers = growthOffersFor(world)
+  const ceiling = ceilingReport(world)
+  if (offers.length === 0) return null
+  const room = ceiling === undefined ? 0 : ceiling.ceiling - ceiling.capital
+  return (
+    <section className="career-card">
+      <h4>Growing it</h4>
+      {ceiling !== undefined && (
+        <>
+          <Row
+            label="As big as it can be"
+            value={`${formatMoney(ceiling.capital)} of ${formatMoney(ceiling.ceiling)}`}
+          />
+          <div className="own-track" style={{ margin: '0.4rem 0 0.6rem' }}>
+            <span
+              className="own-fill"
+              style={{
+                width: `${String(Math.min(100, Math.round((ceiling.capital / Math.max(1, ceiling.ceiling)) * 100)))}%`,
+              }}
+            />
+          </div>
+          {room <= 0 && (
+            <p className="career-note bad">
+              It is as big as it can get. Take on more room, or it stops here however well you
+              run it.
+            </p>
+          )}
+        </>
+      )}
+      <ul className="openings">
+        {offers.map((offer) => (
+          <li key={offer.terms.kind} className={offer.bar === null ? undefined : 'is-shut'}>
+            <span className="o-title">
+              {offer.terms.title}
+              {offer.taken > 0 && offer.terms.repeatable ? ` · ${String(offer.taken)} so far` : ''}
+              <span className="s">{offer.terms.blurb}</span>
+              <span className="s">
+                {formatMoney(offer.cost)}
+                {offer.terms.ceilingPerMille > 0
+                  ? ` · raises the ceiling by ${String(offer.terms.ceilingPerMille / 1000)}×`
+                  : ''}
+                {offer.terms.upliftPerMille > 0
+                  ? ` · +${String(Math.round(offer.terms.upliftPerMille / 10))}% a month`
+                  : ''}
+                {offer.terms.weightBonus > 0 ? ' · takes custom off rivals' : ''}
+                {offer.terms.floorPerMille > 0 ? ' · steadies a bad month' : ''}
+              </span>
+              {offer.bar !== null && <span className="s bar">{offer.bar}</span>}
+            </span>
+            <button
+              type="button"
+              className="apply"
+              disabled={busy || offer.bar !== null}
+              onClick={() => onAct({ verb: 'grow-business', kind: offer.terms.kind })}
+            >
+              Do it
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+})()}
+
+{/* GETTING OUT. Somebody who grew a business to its ceiling and could not
+    sell it would simply be stuck with it, which was the owner's own
+    objection. A rival in the trade pays more than a stranger, because
+    taking you out is worth something beyond what you earn. */}
+{(() => {
+  const buyers = buyersForBusiness(world)
+  return (
+    <section className="career-card">
+      <h4>Getting out</h4>
+      {buyers.length === 0 ? (
+        <p className="career-note">
+          Nobody in town has the money for it just now. You can always shut it yourself.
+        </p>
+      ) : (
+        <ul className="openings">
+          {buyers.map((buyer) => (
+            <li key={buyer.personId}>
+              <span className="o-title">
+                {buyer.name}
+                <span className="s">
+                  {buyer.rival
+                    ? 'a rival in your trade — worth more to them than to anybody else'
+                    : 'money in the town, looking for something to put it in'}
+                </span>
+              </span>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'sell-business', buyerId: buyer.personId })}
+              >
+                Sell for {formatMoney(buyer.offer)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="career-note">
+        Backers are paid what they were promised before you see a penny. Sell for too little and
+        there may be nothing left for you at all.
+      </p>
+      <div className="biz-actions">
+        <button
+          type="button"
+          className="apply"
+          disabled={busy}
+          onClick={() => onAct({ verb: 'wind-down' })}
+        >
+          Shut it and take what is left
+        </button>
+      </div>
+    </section>
+  )
+})()}
+
 
 {/* WHO OWNS IT (owner's ruling: real townspeople AND generated
     firms). A trade nobody has backed shows the register at a

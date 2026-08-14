@@ -63,6 +63,9 @@ import {
   setInsurancePlayer,
   chaseDebtsPlayer,
   refitPlayer,
+  growBusinessPlayer,
+  sellBusinessPlayer,
+  windDownPlayer,
   expandBusinessPlayer,
   acquireRivalPlayer,
   letGoFromBusiness,
@@ -118,7 +121,7 @@ import {
   tryOutForUnit,
   walkOut,
 } from '@life-engine/engine'
-import type { World } from '@life-engine/engine'
+import type { ExpansionKind, World } from '@life-engine/engine'
 import { createLedgerTracker } from './ledgerdelta.js'
 import type { LedgerDelta } from './ledgerdelta.js'
 import { fromSaveFile } from '@life-engine/persistence'
@@ -177,6 +180,9 @@ export type VerbRequest =
   | { readonly verb: 'raise-capital' }
   | { readonly verb: 'order-stock'; readonly months: number }
   | { readonly verb: 'clear-stock' }
+  | { readonly verb: 'grow-business'; readonly kind: ExpansionKind }
+  | { readonly verb: 'sell-business'; readonly buyerId: number }
+  | { readonly verb: 'wind-down' }
   | { readonly verb: 'switch-vendor'; readonly name: string }
   | { readonly verb: 'haggle-vendor' }
   | { readonly verb: 'set-price'; readonly perMille: number }
@@ -187,7 +193,7 @@ export type VerbRequest =
   | { readonly verb: 'insure'; readonly on: boolean }
   | { readonly verb: 'chase-debts' }
   | { readonly verb: 'refit' }
-  | { readonly verb: 'expand-business'; readonly kind: 'location' | 'franchise' | 'supply-chain' }
+  | { readonly verb: 'expand-business'; readonly kind: ExpansionKind }
   | { readonly verb: 'buy-rival'; readonly rivalId: number }
   | { readonly verb: 'hire-staff'; readonly candidateId: number }
   | { readonly verb: 'let-go'; readonly employeeId: number }
@@ -732,6 +738,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             break
           }
           case 'order-stock': { const r = orderStockPlayer(world, a.months); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'grow-business': { const r = growBusinessPlayer(world, a.kind as never); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'sell-business': { const r = sellBusinessPlayer(world, a.buyerId as never); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'wind-down': { const r = windDownPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'clear-stock': { const r = clearStockPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'switch-vendor': { const r = switchVendorPlayer(world, a.name); outcome = { ok: r.done, reason: r.reason }; break }
           case 'haggle-vendor': { const r = haggleVendorPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
