@@ -105,6 +105,21 @@ export {
   raiseCapitalPlayer,
   nextRoundOffer,
   boardFor,
+  opsFor,
+  stockReport,
+  orderStockPlayer,
+  clearStockPlayer,
+  vendorOffersFor,
+  switchVendorPlayer,
+  haggleVendorPlayer,
+  setPricePlayer,
+  setRetainPlayer,
+  investInBusinessPlayer,
+  advertisePlayer,
+  setLongHoursPlayer,
+  setInsurancePlayer,
+  chaseDebtsPlayer,
+  refitPlayer,
   booksFor,
   expansionBar,
   expansionOffers,
@@ -129,7 +144,18 @@ export {
   tryOutForUnit,
   walkOut,
 } from './player.js'
-export type { CustomLifeSpec, JobCandidate } from './player.js'
+export type { CustomLifeSpec, JobCandidate, StockReport } from './player.js'
+export {
+  ADVERT_MONTHS,
+  PRICE_STEPS,
+  demandFromPricePerMille,
+  insurancePremiumFor,
+  servedPerMille,
+  stockNeededFor,
+  tradingLiftPerMille,
+} from './operations.js'
+export type { VendorOffer } from './operations.js'
+export type { BusinessOps } from './types.js'
 
 // Geopolitics (L4-M1)
 export {

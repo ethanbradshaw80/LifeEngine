@@ -2196,6 +2196,31 @@ export interface BusinessMonth {
   readonly retained: Money
 }
 
+/**
+ * HOW A BUSINESS IS BEING RUN, this month — the owner's own standing
+ * decisions. Absent for a business nobody is actively running (every NPC's),
+ * which keeps the town's own trade exactly as it was.
+ */
+export interface BusinessOps {
+  /** Stock on the shelf, valued at what it cost. */
+  readonly stockCents: Money
+  readonly vendorName: string
+  /** What the supplier charges, per-mille of the ordinary rate. Lower is better. */
+  readonly vendorRatePerMille: number
+  /** What their goods are like, per-mille. Cheap often means shoddy. */
+  readonly vendorQualityPerMille: number
+  /** What you charge, per-mille of the going rate. */
+  readonly markupPerMille: number
+  readonly advertisedUntilTick: Tick | null
+  readonly longHours: boolean
+  readonly insured: boolean
+  /** What customers on account still owe you. */
+  readonly owedToYouCents: Money
+  readonly refitAtTick: Tick | null
+  /** What stays in the business rather than being drawn, per-mille. */
+  readonly retainPerMille: number
+}
+
 export type InvestmentRound = 'seed' | 'series-a' | 'series-b' | 'series-c'
 
 /**
@@ -2227,6 +2252,19 @@ export interface CapTable {
 }
 
 export type PendingKind =
+  /** Running your own business, month to month. */
+  | 'order-stock'
+  | 'clear-stock'
+  | 'switch-vendor'
+  | 'haggle-vendor'
+  | 'set-price'
+  | 'set-retain'
+  | 'invest-business'
+  | 'advertise'
+  | 'long-hours'
+  | 'insure'
+  | 'chase-debts'
+  | 'refit'
   /** Sold a slice of your own business. */
   | 'raise-capital'
   /** Grew your own business. */
@@ -3042,6 +3080,8 @@ export interface World {
   readonly expansions: Map<EntityId, readonly Expansion[]>
   /** The last two years of each business's books. Keyed by business id. */
   readonly businessBooks: Map<EntityId, readonly BusinessMonth[]>
+  /** How each business is being run. Keyed by business id. */
+  readonly businessOps: Map<EntityId, BusinessOps>
   /** L4-M4. Keyed by personId: every tour, open and closed. History persists. */
   readonly deployments: Map<EntityId, Deployment[]>
   /** Keyed by relationshipKey(). Map iteration is insertion-ordered and

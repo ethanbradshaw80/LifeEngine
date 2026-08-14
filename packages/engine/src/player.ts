@@ -280,7 +280,18 @@ import {
   privateValuationOf,
 } from './equity.js'
 import type { BoardView, ExpansionTerms, Ledger, RoundTerms } from './equity.js'
-import type { BusinessMonth, ExpansionKind } from './types.js'
+import type { BusinessMonth, BusinessOps, ExpansionKind } from './types.js'
+import {
+  ADVERT_MONTHS,
+  PRICE_STEPS,
+  REFIT_YEARS,
+  bulkDiscountPerMille,
+  chaseableFrom,
+  freshOps,
+  stockNeededFor,
+  vendorOfferFrom,
+} from './operations.js'
+import type { VendorOffer } from './operations.js'
 import type { CrimeChoice, CrimeDanger } from './crimescene.js'
 import { separationFor } from './separation.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -5233,6 +5244,18 @@ export function resolvePending(world: World, choice: string): void {
     case 're-enrolment':
     case 'spend-stance':
     case 'house-hunt':
+    case 'order-stock':
+    case 'clear-stock':
+    case 'switch-vendor':
+    case 'haggle-vendor':
+    case 'set-price':
+    case 'set-retain':
+    case 'invest-business':
+    case 'advertise':
+    case 'long-hours':
+    case 'insure':
+    case 'chase-debts':
+    case 'refit':
     case 'raise-capital':
     case 'expand-business':
     case 'buy-rival':
@@ -6789,6 +6812,30 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Settled how the money is carried.' // log-only
     case 'house-hunt':
       return 'Went looking for a place.' // log-only
+    case 'order-stock':
+      return 'Ordered stock.' // log-only
+    case 'clear-stock':
+      return 'Cleared the stockroom.' // log-only
+    case 'switch-vendor':
+      return 'Changed supplier.' // log-only
+    case 'haggle-vendor':
+      return 'Haggled with the supplier.' // log-only
+    case 'set-price':
+      return 'Set the prices.' // log-only
+    case 'set-retain':
+      return 'Set what stays in the business.' // log-only
+    case 'invest-business':
+      return 'Put money into the business.' // log-only
+    case 'advertise':
+      return 'Put the word out.' // log-only
+    case 'long-hours':
+      return 'Changed the trading hours.' // log-only
+    case 'insure':
+      return 'Changed the insurance.' // log-only
+    case 'chase-debts':
+      return 'Chased what was owed.' // log-only
+    case 'refit':
+      return 'Smartened the place up.' // log-only
     case 'raise-capital':
       return 'Sold a slice of the business.' // log-only
     case 'expand-business':
@@ -7648,4 +7695,287 @@ export function dealBlackjack(world: World, wager: Money): { done: boolean; reas
   return opened
     ? { done: true, reason: '' }
     : { done: false, reason: 'There is already a decision waiting.' }
+}
+
+// ---------------------------------------------------------------------------
+// Running the business, month to month
+// ---------------------------------------------------------------------------
+
+/** The played person's business and how it is being run, or undefined. */
+function myBusiness(world: World): { business: Business; ops: BusinessOps } | undefined {
+  const person = playerPerson(world)
+  if (!person || person.deathTick !== null) return undefined
+  const business = businessOf(world, person.id)
+  if (business === undefined || business.closedTick !== null) return undefined
+  return { business, ops: world.businessOps.get(business.id) ?? freshOps() }
+}
+
+/** How the played business is being run, for the screen. */
+export function opsFor(world: World): BusinessOps | undefined {
+  return myBusiness(world)?.ops
+}
+
+/** What the shelf holds, what a month eats, and what a top-up costs. */
+export interface StockReport {
+  readonly held: Money
+  readonly monthly: Money
+  readonly monthsCovered: number
+  readonly quotes: readonly { readonly months: number; readonly cost: Money }[]
+}
+
+export function stockReport(world: World): StockReport | undefined {
+  const mine = myBusiness(world)
+  if (mine === undefined) return undefined
+  const kind = businessKindById(mine.business.kindId)
+  if (kind === undefined) return undefined
+  const monthly = stockNeededFor(
+    Math.floor((mine.business.capital * kind.returnPerMille) / 1000 / 12) as Money,
+    kind,
+  )
+  const quote = (months: number): Money => {
+    const rated = Math.floor((monthly * months * mine.ops.vendorRatePerMille) / 1000)
+    return Math.floor((rated * (1000 - bulkDiscountPerMille(months))) / 1000) as Money
+  }
+  return {
+    held: mine.ops.stockCents,
+    monthly,
+    monthsCovered: monthly <= 0 ? 99 : Math.floor((mine.ops.stockCents * 10) / monthly) / 10,
+    quotes: [1, 3, 6].map((months) => ({ months, cost: quote(months) })),
+  }
+}
+
+/** Buy stock for the shelf. Cash out of the wallet, goods in. */
+export function orderStockPlayer(world: World, months: number): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  const report = stockReport(world)
+  if (mine === undefined || report === undefined) {
+    return { done: false, reason: 'You have no business to stock.' }
+  }
+  if (report.monthly <= 0) {
+    return { done: false, reason: 'This trade keeps nothing on a shelf.' }
+  }
+  const wanted = Math.max(1, Math.min(12, Math.trunc(months)))
+  const quoted = report.quotes.find((entry) => entry.months === wanted)
+  const cost = quoted?.cost ?? (Math.floor((report.monthly * wanted * mine.ops.vendorRatePerMille) / 1000) as Money)
+  const taken = debitPerson(world, mine.business.ownerId, cost)
+  if (taken < cost) {
+    return { done: false, reason: `That order comes to ${formatMoney(cost)}, and you have less.` }
+  }
+  logVerb(world, 'order-stock', String(wanted))
+  // What lands on the shelf is a month's worth times the months ordered —
+  // the discount is money saved, not goods lost.
+  world.businessOps.set(mine.business.id, {
+    ...mine.ops,
+    stockCents: (mine.ops.stockCents + report.monthly * wanted) as Money,
+  })
+  return { done: true, reason: '' }
+}
+
+/** What a clearance gets back, per-mille of what the stock cost. */
+export const CLEARANCE_PER_MILLE = 620
+
+/** Dump the shelf below cost to get the cash out of it. */
+export function clearStockPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  if (mine.ops.stockCents <= 0) return { done: false, reason: 'The shelf is already bare.' }
+
+  const back = Math.floor((mine.ops.stockCents * CLEARANCE_PER_MILLE) / 1000) as Money
+  logVerb(world, 'clear-stock', String(back))
+  creditPerson(world, mine.business.ownerId, back)
+  world.businessOps.set(mine.business.id, { ...mine.ops, stockCents: 0 as Money })
+  return { done: true, reason: '' }
+}
+
+/** Who else would supply you this month. Seeded, so the list is steady. */
+export function vendorOffersFor(world: World): readonly VendorOffer[] {
+  const mine = myBusiness(world)
+  if (mine === undefined) return []
+  const rng = openStream(world.seed, Stream.Economy, mine.business.id, world.tick + 15_500)
+  const offers: VendorOffer[] = []
+  for (let i = 0; i < 3; i += 1) {
+    offers.push(
+      vendorOfferFrom(
+        rng.nextIntInclusive(0, 999),
+        rng.nextIntInclusive(0, 300),
+        rng.nextIntInclusive(0, 120),
+      ),
+    )
+  }
+  return offers
+}
+
+/** Take a different supplier's terms. */
+export function switchVendorPlayer(world: World, name: string): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  const offer = vendorOffersFor(world).find((entry) => entry.name === name)
+  if (offer === undefined) return { done: false, reason: 'They are not offering this month.' }
+
+  logVerb(world, 'switch-vendor', offer.name)
+  world.businessOps.set(mine.business.id, {
+    ...mine.ops,
+    vendorName: offer.name,
+    vendorRatePerMille: offer.ratePerMille,
+    vendorQualityPerMille: offer.qualityPerMille,
+  })
+  return { done: true, reason: '' }
+}
+
+/**
+ * PUSH THE SUPPLIER YOU HAVE. Free, and it works — up to a point. There is
+ * a floor under what any supplier will take, so this is not a button you
+ * hold down until the goods are free.
+ */
+export function haggleVendorPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  if (mine.ops.vendorRatePerMille <= 820) {
+    return { done: false, reason: 'They will not go lower. You have had everything they have.' }
+  }
+  const rng = openStream(world.seed, Stream.Economy, mine.business.id, world.tick + 15_900)
+  logVerb(world, 'haggle-vendor', mine.ops.vendorName)
+  const won = rng.chance(380 + Math.floor(person.traits.ambition / 8), 1000)
+  if (!won) {
+    return { done: false, reason: `${mine.ops.vendorName} will not move on the price this year.` }
+  }
+  world.businessOps.set(mine.business.id, {
+    ...mine.ops,
+    vendorRatePerMille: Math.max(820, mine.ops.vendorRatePerMille - rng.nextIntInclusive(20, 60)),
+  })
+  return { done: true, reason: '' }
+}
+
+/** What you charge. */
+export function setPricePlayer(world: World, perMille: number): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  const step = PRICE_STEPS.find((entry) => entry.perMille === perMille)
+  if (step === undefined) return { done: false, reason: 'Not a price you can set.' }
+  logVerb(world, 'set-price', String(perMille))
+  world.businessOps.set(mine.business.id, { ...mine.ops, markupPerMille: step.perMille })
+  return { done: true, reason: '' }
+}
+
+/** How much of the month stays in rather than being drawn. */
+export function setRetainPlayer(world: World, perMille: number): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  const kept = Math.max(0, Math.min(900, Math.trunc(perMille)))
+  logVerb(world, 'set-retain', String(kept))
+  world.businessOps.set(mine.business.id, { ...mine.ops, retainPerMille: kept })
+  return { done: true, reason: '' }
+}
+
+/** Put your own money into the business. */
+export function investInBusinessPlayer(
+  world: World,
+  cents: number,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  const amount = Math.max(0, Math.trunc(cents))
+  if (amount <= 0) return { done: false, reason: 'Nothing to put in.' }
+  const taken = debitPerson(world, mine.business.ownerId, amount as Money)
+  if (taken < amount) return { done: false, reason: 'You do not have that to put in.' }
+  logVerb(world, 'invest-business', String(amount))
+  world.businesses.set(mine.business.id, {
+    ...mine.business,
+    capital: (mine.business.capital + taken) as Money,
+  })
+  return { done: true, reason: '' }
+}
+
+/** A run of advertising. */
+export function advertisePlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  if (mine.ops.advertisedUntilTick !== null && world.tick < mine.ops.advertisedUntilTick) {
+    return { done: false, reason: 'The last run is still going.' }
+  }
+  const cost = Math.floor(mine.business.capital / 20) as Money
+  if (debitPerson(world, mine.business.ownerId, cost) < cost) {
+    return { done: false, reason: `A run costs ${formatMoney(cost)}, and you have less.` }
+  }
+  logVerb(world, 'advertise', String(cost))
+  world.businessOps.set(mine.business.id, {
+    ...mine.ops,
+    advertisedUntilTick: (world.tick + ADVERT_MONTHS) as Tick,
+  })
+  return { done: true, reason: '' }
+}
+
+/** Trade evenings and Sundays, or stop. */
+export function setLongHoursPlayer(world: World, on: boolean): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  logVerb(world, 'long-hours', on ? 'on' : 'off')
+  world.businessOps.set(mine.business.id, { ...mine.ops, longHours: on })
+  return { done: true, reason: '' }
+}
+
+/** Insure the place, or stop paying for it. */
+export function setInsurancePlayer(world: World, on: boolean): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  logVerb(world, 'insure', on ? 'on' : 'off')
+  world.businessOps.set(mine.business.id, { ...mine.ops, insured: on })
+  return { done: true, reason: '' }
+}
+
+/** Go after what the town owes you. */
+export function chaseDebtsPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  if (mine.ops.owedToYouCents <= 0) return { done: false, reason: 'Nobody owes you anything.' }
+
+  const back = chaseableFrom(mine.ops)
+  logVerb(world, 'chase-debts', String(back))
+  creditPerson(world, mine.business.ownerId, back)
+  world.businessOps.set(mine.business.id, { ...mine.ops, owedToYouCents: 0 as Money })
+  return { done: true, reason: '' }
+}
+
+/** Smarten the place up. */
+export function refitPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const mine = myBusiness(world)
+  if (mine === undefined) return { done: false, reason: 'You have no business.' }
+  if (
+    mine.ops.refitAtTick !== null &&
+    world.tick - mine.ops.refitAtTick < REFIT_YEARS * TICKS_PER_YEAR
+  ) {
+    return { done: false, reason: 'It still looks well kept.' }
+  }
+  const cost = Math.floor(mine.business.capital / 6) as Money
+  if (debitPerson(world, mine.business.ownerId, cost) < cost) {
+    return { done: false, reason: `A refit runs to ${formatMoney(cost)}, and you have less.` }
+  }
+  logVerb(world, 'refit', String(cost))
+  world.businessOps.set(mine.business.id, { ...mine.ops, refitAtTick: world.tick })
+  return { done: true, reason: '' }
 }

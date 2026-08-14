@@ -20,8 +20,14 @@ import {
   annualRevenueOf,
   businessBar,
   atTodaysPrices,
+  PRICE_STEPS,
   boardFor,
   booksFor,
+  demandFromPricePerMille,
+  insurancePremiumFor,
+  opsFor,
+  stockReport,
+  vendorOffersFor,
   businessHealthWords,
   companyHeadcountOf,
   floatProceedsFor,
@@ -50,6 +56,14 @@ import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import { occupationById } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
+
+/** What the owner can choose to leave in the business each month. */
+const RETAIN_STEPS: readonly { readonly perMille: number; readonly title: string }[] = [
+  { perMille: 0, title: 'Take it all' },
+  { perMille: 300, title: 'Take most' },
+  { perMille: 550, title: 'Split it' },
+  { perMille: 800, title: 'Leave it in' },
+]
 
 function Row({ label, value }: { readonly label: string; readonly value: string }): JSX.Element {
   return (
@@ -295,6 +309,224 @@ export function BusinessTab({
           </section>
         )
       ) : null}
+
+      {/* RUNNING IT. The month to month of it: what is on the shelf, who
+          supplies you, what you charge, and what you do with what it makes.
+          Every one of these is a real trade-off — none of them is simply
+          good, which is what stops the screen being a row of upgrades. */}
+      {(() => {
+        const ops = opsFor(world)
+        const stock = stockReport(world)
+        if (ops === undefined) return null
+        const vendors = vendorOffersFor(world)
+        const priceLift = demandFromPricePerMille(ops.markupPerMille)
+        return (
+          <section className="career-card">
+            <h4>Running it</h4>
+
+            {stock !== undefined && stock.monthly > 0 && (
+              <>
+                <Row label="On the shelf" value={formatMoney(stock.held)} />
+                <Row
+                  label="That covers"
+                  value={`${stock.monthsCovered.toFixed(1)} months of trading`}
+                />
+                {stock.held < stock.monthly && (
+                  <p className="career-note bad">
+                    Short of stock. You cannot serve the whole month, and the custom you turn
+                    away goes to somebody else.
+                  </p>
+                )}
+                <div className="biz-actions">
+                  {stock.quotes.map((quote) => (
+                    <button
+                      key={quote.months}
+                      type="button"
+                      className="apply"
+                      disabled={busy}
+                      onClick={() => onAct({ verb: 'order-stock', months: quote.months })}
+                    >
+                      Order {String(quote.months)} month{quote.months === 1 ? '' : 's'} ·{' '}
+                      {formatMoney(quote.cost)}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="apply"
+                    disabled={busy || stock.held <= 0}
+                    onClick={() => onAct({ verb: 'clear-stock' })}
+                  >
+                    Clear the stockroom
+                  </button>
+                </div>
+              </>
+            )}
+
+            <h4 style={{ marginTop: '0.9rem' }}>Your supplier</h4>
+            <Row label="Who" value={ops.vendorName} />
+            <Row
+              label="Their rate"
+              value={`${String(Math.abs(Math.round(ops.vendorRatePerMille / 10) - 100))}% ${
+                ops.vendorRatePerMille >= 1000 ? 'over' : 'under'
+              } the going rate`}
+            />
+            <Row
+              label="Their goods"
+              value={
+                ops.vendorQualityPerMille >= 1050
+                  ? 'better than most'
+                  : ops.vendorQualityPerMille >= 950
+                    ? 'ordinary'
+                    : 'people notice, and not kindly'
+              }
+            />
+            <div className="biz-actions">
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'haggle-vendor' })}
+              >
+                Haggle with them
+              </button>
+            </div>
+            {vendors.length > 0 && (
+              <ul className="openings">
+                {vendors.map((vendor) => (
+                  <li key={vendor.name}>
+                    <span className="o-title">
+                      {vendor.name}
+                      <span className="s">
+                        {String(Math.abs(Math.round(vendor.ratePerMille / 10) - 100))}%{' '}
+                        {vendor.ratePerMille >= 1000 ? 'over' : 'under'} the going rate ·{' '}
+                        {vendor.qualityPerMille >= 1050
+                          ? 'good goods'
+                          : vendor.qualityPerMille >= 950
+                            ? 'ordinary goods'
+                            : 'shoddy goods'}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="apply"
+                      disabled={busy || vendor.name === ops.vendorName}
+                      onClick={() => onAct({ verb: 'switch-vendor', name: vendor.name })}
+                    >
+                      Switch
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <h4 style={{ marginTop: '0.9rem' }}>What you charge</h4>
+            <div className="biz-chips">
+              {PRICE_STEPS.map((step) => (
+                <button
+                  key={step.perMille}
+                  type="button"
+                  className={step.perMille === ops.markupPerMille ? 'on' : ''}
+                  disabled={busy}
+                  onClick={() => onAct({ verb: 'set-price', perMille: step.perMille })}
+                >
+                  {step.title}
+                </button>
+              ))}
+            </div>
+            <p className="career-note">
+              {priceLift === 0
+                ? 'The going rate — what everybody else in the trade charges.'
+                : priceLift > 0
+                  ? `About ${String(Math.round(priceLift / 10))}% more through the door, and less kept on each sale.`
+                  : `About ${String(Math.abs(Math.round(priceLift / 10)))}% fewer through the door, and more kept on each sale.`}
+            </p>
+
+            <h4 style={{ marginTop: '0.9rem' }}>What you take out</h4>
+            <div className="biz-chips">
+              {RETAIN_STEPS.map((step) => (
+                <button
+                  key={step.perMille}
+                  type="button"
+                  className={step.perMille === ops.retainPerMille ? 'on' : ''}
+                  disabled={busy}
+                  onClick={() => onAct({ verb: 'set-retain', perMille: step.perMille })}
+                >
+                  {step.title}
+                </button>
+              ))}
+            </div>
+            <p className="career-note">
+              {String(Math.round(ops.retainPerMille / 10))}% stays in as capital and{' '}
+              {String(100 - Math.round(ops.retainPerMille / 10))}% comes to you as income. What
+              stays in is what the business grows on.
+            </p>
+            <div className="biz-actions">
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() =>
+                  onAct({ verb: 'invest-business', cents: Math.floor(business.capital / 4) })
+                }
+              >
+                Put in {formatMoney(Math.floor(business.capital / 4) as Money)} of your own
+              </button>
+            </div>
+
+            <h4 style={{ marginTop: '0.9rem' }}>The rest of it</h4>
+            <div className="biz-actions">
+              <button
+                type="button"
+                className="apply"
+                disabled={
+                  busy ||
+                  (ops.advertisedUntilTick !== null && world.tick < ops.advertisedUntilTick)
+                }
+                onClick={() => onAct({ verb: 'advertise' })}
+              >
+                {ops.advertisedUntilTick !== null && world.tick < ops.advertisedUntilTick
+                  ? 'The advertising is running'
+                  : `Put the word out · ${formatMoney(Math.floor(business.capital / 20) as Money)}`}
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'long-hours', on: !ops.longHours })}
+              >
+                {ops.longHours ? 'Go back to ordinary hours' : 'Open evenings and Sundays'}
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'insure', on: !ops.insured })}
+              >
+                {ops.insured ? 'Stop the insurance' : 'Insure the place'} ·{' '}
+                {formatMoney(insurancePremiumFor(business))}/mo
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy || ops.owedToYouCents <= 0}
+                onClick={() => onAct({ verb: 'chase-debts' })}
+              >
+                {ops.owedToYouCents > 0
+                  ? `Chase the ${formatMoney(ops.owedToYouCents)} owed you`
+                  : 'Nobody owes you anything'}
+              </button>
+              <button
+                type="button"
+                className="apply"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'refit' })}
+              >
+                Smarten it up · {formatMoney(Math.floor(business.capital / 6) as Money)}
+              </button>
+            </div>
+          </section>
+        )
+      })()}
 
       {/* THE BOOKS (the owner's business-financials.html). Real months,
           not a projection: the engine keeps a rolling two years per

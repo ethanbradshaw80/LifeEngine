@@ -61,6 +61,16 @@ export interface BusinessKind {
    * dropping the type from the list.
    */
   readonly retiredAfter?: number
+  /**
+   * WHAT THE GOODS COST, per-mille of what they sell for.
+   *
+   * From the owner's own BUSINESS_TYPES_DATA: software is almost all
+   * margin (50), a shop or a diner lives on a knife edge (400-500). This
+   * is what makes running one trade feel unlike another — a salon's stock
+   * is a shelf of product, a haulage firm's is diesel, and a software
+   * company barely has any, so price and reputation are all it has.
+   */
+  readonly cogsPerMille: number
 }
 
 /**
@@ -119,6 +129,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 2250,
     exposure: 500,
     maxEmployees: 0,
+    cogsPerMille: 120,
   },
   {
     id: 'lessons',
@@ -127,6 +138,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 1550,
     exposure: 600,
     maxEmployees: 1,
+    cogsPerMille: 80,
   },
   {
     id: 'cleaning-round',
@@ -135,6 +147,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 1200,
     exposure: 700,
     maxEmployees: 4,
+    cogsPerMille: 220,
   },
   {
     id: 'market-stall',
@@ -143,6 +156,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 1050,
     exposure: 700,
     maxEmployees: 1,
+    cogsPerMille: 420,
   },
   {
     // A BUSINESS THAT ENDS. Word processors took the trade apart through
@@ -154,6 +168,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 725,
     exposure: 800,
     maxEmployees: 2,
+    cogsPerMille: 300,
     retiredAfter: 1990,
   },
   {
@@ -163,6 +178,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 650,
     exposure: 850,
     maxEmployees: 3,
+    cogsPerMille: 300,
   },
   {
     id: 'salon',
@@ -171,6 +187,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 600,
     exposure: 700,
     maxEmployees: 5,
+    cogsPerMille: 220,
   },
   {
     // Mail order first, then the same trade with a website in front of it.
@@ -180,6 +197,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 588,
     exposure: 1400,
     maxEmployees: 6,
+    cogsPerMille: 500,
     availableFrom: 1996,
   },
   {
@@ -189,6 +207,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 538,
     exposure: 900,
     maxEmployees: 4,
+    cogsPerMille: 340,
     retiredAfter: 2005,
   },
   {
@@ -201,6 +220,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 500,
     exposure: 1100,
     maxEmployees: 4,
+    cogsPerMille: 260,
     availableFrom: 1982,
     retiredAfter: 2007,
   },
@@ -211,6 +231,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 488,
     exposure: 950,
     maxEmployees: 3,
+    cogsPerMille: 450,
   },
   {
     id: 'fitness-studio',
@@ -219,6 +240,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 463,
     exposure: 1000,
     maxEmployees: 5,
+    cogsPerMille: 150,
     availableFrom: 1980,
   },
   {
@@ -228,6 +250,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 450,
     exposure: 1000,
     maxEmployees: 6,
+    cogsPerMille: 430,
   },
   {
     id: 'computer-shop',
@@ -236,6 +259,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 440,
     exposure: 1300,
     maxEmployees: 6,
+    cogsPerMille: 460,
     availableFrom: 1980,
   },
   {
@@ -245,6 +269,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 430,
     exposure: 1100,
     maxEmployees: 4,
+    cogsPerMille: 520,
   },
   {
     id: 'diner',
@@ -253,6 +278,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 405,
     exposure: 1150,
     maxEmployees: 10,
+    cogsPerMille: 380,
   },
   {
     id: 'haulage',
@@ -261,6 +287,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 388,
     exposure: 1250,
     maxEmployees: 8,
+    cogsPerMille: 400,
   },
   {
     id: 'contracting-firm',
@@ -269,6 +296,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 375,
     exposure: 1200,
     maxEmployees: 14,
+    cogsPerMille: 380,
   },
   {
     // THE SAFEST MONEY IN THE TABLE. A recession does not stop a tooth
@@ -279,6 +307,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 363,
     exposure: 400,
     maxEmployees: 6,
+    cogsPerMille: 200,
   },
   {
     // AND THE WILDEST. It rides the cycle harder than anything else here.
@@ -288,6 +317,7 @@ export const BUSINESS_KINDS: readonly BusinessKind[] = [
     returnPerMille: 350,
     exposure: 1500,
     maxEmployees: 20,
+    cogsPerMille: 60,
     availableFrom: 2002,
   },
 ]

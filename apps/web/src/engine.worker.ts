@@ -51,6 +51,18 @@ import {
   scaleUpPlayer,
   hireIntoBusiness,
   raiseCapitalPlayer,
+  orderStockPlayer,
+  clearStockPlayer,
+  switchVendorPlayer,
+  haggleVendorPlayer,
+  setPricePlayer,
+  setRetainPlayer,
+  investInBusinessPlayer,
+  advertisePlayer,
+  setLongHoursPlayer,
+  setInsurancePlayer,
+  chaseDebtsPlayer,
+  refitPlayer,
   expandBusinessPlayer,
   acquireRivalPlayer,
   letGoFromBusiness,
@@ -163,6 +175,18 @@ export type VerbRequest =
   | { readonly verb: 'pay-down'; readonly kind: 'personal' | 'auto' | 'mortgage' | 'student'; readonly cents: number }
   | { readonly verb: 'scale-up' }
   | { readonly verb: 'raise-capital' }
+  | { readonly verb: 'order-stock'; readonly months: number }
+  | { readonly verb: 'clear-stock' }
+  | { readonly verb: 'switch-vendor'; readonly name: string }
+  | { readonly verb: 'haggle-vendor' }
+  | { readonly verb: 'set-price'; readonly perMille: number }
+  | { readonly verb: 'set-retain'; readonly perMille: number }
+  | { readonly verb: 'invest-business'; readonly cents: number }
+  | { readonly verb: 'advertise' }
+  | { readonly verb: 'long-hours'; readonly on: boolean }
+  | { readonly verb: 'insure'; readonly on: boolean }
+  | { readonly verb: 'chase-debts' }
+  | { readonly verb: 'refit' }
   | { readonly verb: 'expand-business'; readonly kind: 'location' | 'franchise' | 'supply-chain' }
   | { readonly verb: 'buy-rival'; readonly rivalId: number }
   | { readonly verb: 'hire-staff'; readonly candidateId: number }
@@ -707,6 +731,18 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             outcome = { ok: r.done, reason: r.reason }
             break
           }
+          case 'order-stock': { const r = orderStockPlayer(world, a.months); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'clear-stock': { const r = clearStockPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'switch-vendor': { const r = switchVendorPlayer(world, a.name); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'haggle-vendor': { const r = haggleVendorPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'set-price': { const r = setPricePlayer(world, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'set-retain': { const r = setRetainPlayer(world, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'invest-business': { const r = investInBusinessPlayer(world, a.cents); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'advertise': { const r = advertisePlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'long-hours': { const r = setLongHoursPlayer(world, a.on); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'insure': { const r = setInsurancePlayer(world, a.on); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'chase-debts': { const r = chaseDebtsPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'refit': { const r = refitPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'raise-capital': {
             const r = raiseCapitalPlayer(world)
             outcome = { ok: r.done, reason: r.reason }

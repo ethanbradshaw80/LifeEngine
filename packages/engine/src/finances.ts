@@ -25,12 +25,20 @@
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import type { BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
+import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
+import {
+  LONG_HOURS_WAGE_PER_MILLE,
+  insurancePremiumFor,
+  servedPerMille,
+  stockNeededFor,
+  tradingLiftPerMille,
+} from './operations.js'
 import {
   competitionPerMilleFor,
   expansionTermsFor,
@@ -4029,6 +4037,12 @@ function runBusinesses(world: World, tick: Tick): void {
     const rng = openStream(world.seed, Stream.Career, business.id, tick + 11_000)
     const swing = rng.nextIntInclusive(-980, 980)
     /**
+     * HOW THE OWNER IS RUNNING IT. Absent for every NPC's business, which
+     * keeps the town's own trade exactly as it was — only a business
+     * somebody is actually standing in gets a stockroom and a price list.
+     */
+    const ops = world.businessOps.get(business.id)
+    /**
      * THE WAGE BILL IS REAL MONEY, and it is conserved: it leaves the
      * business through the profit line, and the same people are credited
      * it in the earner loop. A place-based job still conjures its wage —
@@ -4061,7 +4075,7 @@ function runBusinesses(world: World, tick: Tick): void {
       shareOfTradePerMille(mine, rivalWeights),
       Math.max(0, rivalWeights.length - 1),
     )
-    const profit = monthlyProfitFor(
+    const grossProfit = monthlyProfitFor(
       business,
       kind,
       world.economy.phase,
@@ -4070,9 +4084,52 @@ function runBusinesses(world: World, tick: Tick): void {
       swing,
       toDate(world, tick).year,
       payroll,
-      upliftPerMilleOf(world.expansions.get(business.id)),
+      upliftPerMilleOf(world.expansions.get(business.id)) +
+        (ops === undefined ? 0 : tradingLiftPerMille(ops, tick, TICKS_PER_YEAR)),
       competition,
     )
+
+    /**
+     * THE SHELF DECIDES WHAT YOU ACTUALLY SOLD.
+     *
+     * A month wants a certain cost of goods to go out of the door. What is
+     * on the shelf caps it: short of stock and you serve part of the month,
+     * lose the rest of the custom, and the people who could not be served
+     * go somewhere else. Selling CONSUMES the stock, which is the honest
+     * accounting — buying it was cash turning into stock, and the expense
+     * lands when it leaves.
+     */
+    let profit = grossProfit
+    if (ops !== undefined) {
+      const wanted = stockNeededFor(Math.max(0, grossProfit) as Money, kind)
+      const served = servedPerMille(ops.stockCents, wanted)
+      if (served < 1000) {
+        profit = Math.floor((profit * served) / 1000) as Money
+      }
+      const consumed = Math.min(ops.stockCents, Math.floor((wanted * served) / 1000))
+      /**
+       * THE STOCK WAS PAID FOR WHEN IT WAS ORDERED, so it is added back.
+       *
+       * `monthlyProfitFor` returns a NET return — the cost of goods is
+       * already inside it, the same way labour was before payroll became
+       * real. Subtracting the shelf again would double-count it, which is
+       * exactly the trap the wage bill fell into. So the month adds back
+       * what it consumed: the cash left the wallet at the ordering, and it
+       * comes home in the takings.
+       *
+       * Which means holding stock is not free even though it costs nothing
+       * here — it is working capital, sitting on a shelf instead of in the
+       * bank, and running out of it costs the sale outright.
+       */
+      let extra = 0
+      if (ops.longHours) extra += Math.floor((payroll * LONG_HOURS_WAGE_PER_MILLE) / 1000)
+      if (ops.insured) extra += insurancePremiumFor(business)
+      profit = (profit + consumed - extra) as Money
+      world.businessOps.set(business.id, {
+        ...ops,
+        stockCents: (ops.stockCents - consumed) as Money,
+      })
+    }
 
     if (profit >= 0) {
       // A share is drawn as income and the rest is retained, which is how a
@@ -4101,7 +4158,7 @@ function runBusinesses(world: World, tick: Tick): void {
       const room = Math.max(0, ceiling - business.capital)
       const retained = scaled
         ? Math.min(Math.max(0, profit - founderSalaryOf(business, kind)), room)
-        : Math.min(Math.floor((profit * 300) / 1000), room)
+        : Math.min(Math.floor((profit * (ops?.retainPerMille ?? 300)) / 1000), room)
       const drawn = (profit - retained) as Money
       /**
        * THE DRAW IS SPLIT BY THE REGISTER (the business revamp).

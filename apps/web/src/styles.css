@@ -5531,3 +5531,20 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
 .own-fill.local { background: var(--ok); }
 .own-fill.firm { background: #b8860b; }
 .own-pct { flex: 0 0 3.2rem; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* RUNNING THE BUSINESS: the month-to-month actions. Buttons that wrap
+   rather than a rail that scrolls, because on a phone a row of six actions
+   is a row whose end you cannot see. */
+.biz-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0 0.2rem; }
+.biz-actions .apply { flex: 1 1 auto; min-width: 46%; }
+.biz-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.4rem 0; }
+.biz-chips button {
+  flex: 0 0 auto; font: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer;
+  color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 0.32rem 0.75rem;
+}
+.biz-chips button.on {
+  border-color: var(--accent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+.career-note.bad { color: var(--bad); }
