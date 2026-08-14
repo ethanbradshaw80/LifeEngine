@@ -15,7 +15,21 @@
 
 import type { JSX } from 'react'
 import {
+  BUSINESS_KINDS,
+  annualPay,
+  annualRevenueOf,
+  businessBar,
+  atTodaysPrices,
   businessHealthWords,
+  companyHeadcountOf,
+  floatProceedsFor,
+  founderSalaryOf,
+  ipoBar,
+  kindAvailableIn,
+  moneyOnHand,
+  scaleUpBar,
+  toDate,
+  valuationOf,
   businessKindById,
   candidatesForBusiness,
   employeesOf,
@@ -57,13 +71,64 @@ export function BusinessTab({
   readonly busy: boolean
   readonly onAct: (action: VerbRequest) => void
 }): JSX.Element {
+  /**
+   * NOTHING OF YOUR OWN YET — so this is where you start one (owner: "we
+   * should remove the business UI in the Careers tab and move it over to
+   * our new business tabs to have everything in one place"). The list of
+   * trades used to live on Career, which meant opening a business and
+   * running one were behind two different doors.
+   */
   if (business === undefined) {
     return (
-      <p className="bank-note">
-        You are not running anything of your own. The Career tab has the trades you could go into.
-      </p>
+      <div className="career">
+        <section className="career-card">
+          <h4>Working for yourself</h4>
+          <p className="career-note">
+            Capital out of your own savings, gone the moment it is spent. It rides the economy
+            directly — worth more than a wage in a boom and worth less than nothing in a slump —
+            and it can pass to your children.
+          </p>
+          {/* ONLY THE TRADES THAT EXIST THIS YEAR (the era ruling). A trade
+              whose time has not come is not listed at all rather than
+              listed and greyed; a trade whose time has PASSED is gone too,
+              and the engine's own bar refuses it either way. */}
+          <ul className="openings">
+            {BUSINESS_KINDS.filter((entry) =>
+              kindAvailableIn(entry, toDate(world, world.tick).year),
+            ).map((entry) => {
+              const capital = atTodaysPrices(world, entry.capital) as Money
+              const shut = businessBar(
+                entry,
+                moneyOnHand(world, person.id),
+                capital,
+                false,
+                99,
+                toDate(world, world.tick).year,
+              )
+              return (
+                <li key={entry.id} className={shut === null ? undefined : 'is-shut'}>
+                  <span className="o-title">
+                    {entry.title}
+                    <span className="s">{formatMoney(capital)} to open</span>
+                    {shut !== null && <span className="s bar">{shut}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    className="apply"
+                    disabled={busy || shut !== null}
+                    onClick={() => onAct({ verb: 'start-business', kindId: entry.id })}
+                  >
+                    Open
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      </div>
     )
   }
+
   const kind = businessKindById(business.kindId)
   const staff = employeesOf(world, business.id)
   const table = world.capTables.get(business.id)
@@ -95,18 +160,141 @@ export function BusinessTab({
             <span>On the books</span>
           </div>
         </div>
-        <Row label="Trade" value={kind?.title ?? business.kindId} />
-        <Row label="Capital in it" value={formatMoney(business.capital)} />
-        <Row label="How it is going" value={businessHealthWords(business)} />
-        {business.generations > 0 && (
-          <Row
-            label="Passed down"
-            value={`${String(business.generations)} ${business.generations === 1 ? 'time' : 'times'}`}
-          />
-        )}
       </section>
 
-{/* GROWING IT (the expansion ladder). Every rung asks for years
+<section className="career-card">
+          <h4>{business.name}</h4>
+          <Row
+            label="Trade"
+            value={businessKindById(business.kindId)?.title ?? business.kindId}
+          />
+          <Row label="Capital in it" value={formatMoney(business.capital)} />
+          <Row label="How it is going" value={businessHealthWords(business)} />
+          {business.generations > 0 && (
+            <Row
+              label="Passed down"
+              value={`${String(business.generations)} ${business.generations === 1 ? 'time' : 'times'}`}
+            />
+          )}
+          <p className="career-note">
+            What it makes is drawn as income each month; what it loses comes out of the capital
+            first. Three bad months in a row and the doors shut.
+          </p>
+        </section>
+
+      {/* THE COMPANY AND THE IPO, built from the owner's careers.html
+          third screen: a valuation hero, four figures in a grid, and
+          the offering with its rows and its one big button.
+
+          TOKENS ARE THE APP'S, not the mockup's. The mockup is dark
+          only and names --green/--gold/--panel2, none of which exist
+          here; the equivalents (--ok, --gold, --panel-raised) are all
+          defined for light AND dark, which is the mistake that made
+          the school screen unreadable in daylight. */}
+      {kind !== undefined ? (
+        business.scaledAtTick != null ? (
+          <section className="co">
+            <div className="co-val">
+              <div className="k">Estimated valuation</div>
+              <div className="v">{formatMoney(valuationOf(business, kind))}</div>
+              <div className="g">
+                {business.listedStockId != null
+                  ? 'Public — the market prices it now'
+                  : `${String(Math.floor((world.tick - (business.scaledAtTick ?? 0)) / 12))} years as a company`}
+              </div>
+            </div>
+            <div className="co-grid">
+              <div className="kv">
+                <div className="k">Annual revenue</div>
+                <div className="v">
+                  {formatMoney(annualRevenueOf(business, kind))}
+                </div>
+              </div>
+              <div className="kv">
+                <div className="k">Your ownership</div>
+                <div className="v">
+                  {String(Math.floor((business.founderStakePerMille ?? 1000) / 10))}%
+                </div>
+              </div>
+              <div className="kv">
+                <div className="k">Your salary</div>
+                <div className="v">
+                  {formatMoney(annualPay(founderSalaryOf(business, kind)))}
+                </div>
+              </div>
+              <div className="kv">
+                <div className="k">Employees</div>
+                <div className="v">
+                  {String(companyHeadcountOf(business, kind))}
+                </div>
+              </div>
+            </div>
+
+            {business.listedStockId == null ? (
+              (() => {
+                const shut = ipoBar(world, person.id)
+                const valuation = valuationOf(business, kind)
+                return (
+                  <div className={`ipo${shut === null ? '' : ' locked'}`}>
+                    <h3>Take the company public</h3>
+                    <p>
+                      You would sell a slice to the public, keep control, and turn your
+                      ownership into tradable shares.
+                    </p>
+                    <div className="row">
+                      <span>Sell to the public</span>
+                      <span className="v">30%</span>
+                    </div>
+                    <div className="row">
+                      <span>Cash to you (est.)</span>
+                      <span className="v ok">{formatMoney(floatProceedsFor(valuation))}</span>
+                    </div>
+                    <div className="row">
+                      <span>Your remaining stake</span>
+                      <span className="v">
+                        70% · {formatMoney(Math.floor((valuation * 700) / 1000) as Money)}
+                      </span>
+                    </div>
+                    {shut !== null && <div className="reason">🔒 {shut}</div>}
+                    <button
+                      type="button"
+                      disabled={busy || shut !== null}
+                      onClick={() => onAct({ verb: 'take-public' })}
+                    >
+                      Take {business.name} public (IPO)
+                    </button>
+                  </div>
+                )
+              })()
+            ) : (
+              <p className="career-note">
+                Public — the market prices it now, and what you kept is on the Market tab.
+              </p>
+            )}
+          </section>
+        ) : (
+          <section className="career-card">
+            <h4>Grow it into a company</h4>
+            <p className="career-note">
+              A company has a valuation, a salary instead of a draw, and a ceiling far above a
+              trade&apos;s. It is the road to taking it public.
+            </p>
+            {scaleUpBar(business, kind, world.tick) !== null && (
+              <p className="career-note">{scaleUpBar(business, kind, world.tick)}</p>
+            )}
+            <button
+              type="button"
+              className="apply"
+              disabled={busy || scaleUpBar(business, kind, world.tick) !== null}
+              onClick={() => onAct({ verb: 'scale-up' })}
+            >
+              Grow it into a company
+            </button>
+          </section>
+        )
+      ) : null}
+
+      {/* GROWING IT (the expansion ladder). Every rung asks for years
     at the wheel, a run of good months and the money — and each
     one is bought once and changes how the business earns from
     then on. This is what raising money is FOR. */}

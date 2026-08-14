@@ -18,21 +18,8 @@
 import { useState } from 'react'
 import type { JSX } from 'react'
 import {
-  BUSINESS_KINDS,
   annualPay,
   atTodaysPrices,
-  annualRevenueOf,
-  businessBar,
-  kindAvailableIn,
-  toDate,
-  businessHealthWords,
-  businessKindById,
-  companyHeadcountOf,
-  floatProceedsFor,
-  founderSalaryOf,
-  ipoBar,
-  scaleUpBar,
-  valuationOf,
   nextRungOf,
   branchName,
   isServing,
@@ -43,7 +30,6 @@ import {
   placeOf,
   promotionBar,
   standingWords,
-  moneyOnHand,
   trackById,
   disciplineOf,
 } from '@life-engine/engine'
@@ -52,13 +38,12 @@ import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
 
-type CareerTab = 'over' | 'ladder' | 'resume' | 'biz'
+type CareerTab = 'over' | 'ladder' | 'resume'
 
 const TABS: readonly { id: CareerTab; icon: string; label: string }[] = [
   { id: 'over', icon: '▚', label: 'Overview' },
   { id: 'ladder', icon: '≣', label: 'Ladder' },
   { id: 'resume', icon: '▤', label: 'Résumé' },
-  { id: 'biz', icon: '◈', label: 'Business' },
 ]
 
 function Row({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -97,14 +82,14 @@ export function Career({
       ? null
       : promotionBar(track, place.rung, job.performance, monthsInRung)
 
-  const business = [...world.businesses.values()].find(
-    (entry) => entry.ownerId === person.id && entry.closedTick === null,
-  )
   // WHETHER THEY ARE SERVING, which is the thing the civilian jobs map
   // cannot answer.
+  // The business section moved to its own tab; these stay on the props so
+  // the call site is unchanged and the next verb added here has them.
+  void busy
+  void onAct
   const record = world.service.get(person.id)
   const serving = record !== undefined && isServing(world, person.id) ? record : undefined
-  const businessKind = business === undefined ? undefined : businessKindById(business.kindId)
 
   return (
     <div className="career">
@@ -346,201 +331,6 @@ export function Career({
               )
             })()}
           </section>
-        )}
-
-        {tab === 'biz' && (
-          <>
-            {business !== undefined ? (
-              <section className="career-card">
-                <h4>{business.name}</h4>
-                <Row
-                  label="Trade"
-                  value={businessKindById(business.kindId)?.title ?? business.kindId}
-                />
-                <Row label="Capital in it" value={formatMoney(business.capital)} />
-                <Row label="How it is going" value={businessHealthWords(business)} />
-                {business.generations > 0 && (
-                  <Row
-                    label="Passed down"
-                    value={`${String(business.generations)} ${business.generations === 1 ? 'time' : 'times'}`}
-                  />
-                )}
-                <p className="career-note">
-                  What it makes is drawn as income each month; what it loses comes out of the capital
-                  first. Three bad months in a row and the doors shut.
-                </p>
-              </section>
-            ) : null}
-
-            {/* THE COMPANY AND THE IPO, built from the owner's careers.html
-                third screen: a valuation hero, four figures in a grid, and
-                the offering with its rows and its one big button.
-
-                TOKENS ARE THE APP'S, not the mockup's. The mockup is dark
-                only and names --green/--gold/--panel2, none of which exist
-                here; the equivalents (--ok, --gold, --panel-raised) are all
-                defined for light AND dark, which is the mistake that made
-                the school screen unreadable in daylight. */}
-            {business !== undefined && businessKind !== undefined ? (
-              business.scaledAtTick != null ? (
-                <section className="co">
-                  <div className="co-val">
-                    <div className="k">Estimated valuation</div>
-                    <div className="v">{formatMoney(valuationOf(business, businessKind))}</div>
-                    <div className="g">
-                      {business.listedStockId != null
-                        ? 'Public — the market prices it now'
-                        : `${String(Math.floor((world.tick - (business.scaledAtTick ?? 0)) / 12))} years as a company`}
-                    </div>
-                  </div>
-                  <div className="co-grid">
-                    <div className="kv">
-                      <div className="k">Annual revenue</div>
-                      <div className="v">
-                        {formatMoney(annualRevenueOf(business, businessKind))}
-                      </div>
-                    </div>
-                    <div className="kv">
-                      <div className="k">Your ownership</div>
-                      <div className="v">
-                        {String(Math.floor((business.founderStakePerMille ?? 1000) / 10))}%
-                      </div>
-                    </div>
-                    <div className="kv">
-                      <div className="k">Your salary</div>
-                      <div className="v">
-                        {formatMoney(annualPay(founderSalaryOf(business, businessKind)))}
-                      </div>
-                    </div>
-                    <div className="kv">
-                      <div className="k">Employees</div>
-                      <div className="v">
-                        {String(companyHeadcountOf(business, businessKind))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {business.listedStockId == null ? (
-                    (() => {
-                      const shut = ipoBar(world, person.id)
-                      const valuation = valuationOf(business, businessKind)
-                      return (
-                        <div className={`ipo${shut === null ? '' : ' locked'}`}>
-                          <h3>Take the company public</h3>
-                          <p>
-                            You would sell a slice to the public, keep control, and turn your
-                            ownership into tradable shares.
-                          </p>
-                          <div className="row">
-                            <span>Sell to the public</span>
-                            <span className="v">30%</span>
-                          </div>
-                          <div className="row">
-                            <span>Cash to you (est.)</span>
-                            <span className="v ok">{formatMoney(floatProceedsFor(valuation))}</span>
-                          </div>
-                          <div className="row">
-                            <span>Your remaining stake</span>
-                            <span className="v">
-                              70% · {formatMoney(Math.floor((valuation * 700) / 1000) as Money)}
-                            </span>
-                          </div>
-                          {shut !== null && <div className="reason">🔒 {shut}</div>}
-                          <button
-                            type="button"
-                            disabled={busy || shut !== null}
-                            onClick={() => onAct({ verb: 'take-public' })}
-                          >
-                            Take {business.name} public (IPO)
-                          </button>
-                        </div>
-                      )
-                    })()
-                  ) : (
-                    <p className="career-note">
-                      It trades on the exchange like any other company — a live price, analyst
-                      coverage, and news of its own. Your remaining stake is real net worth that
-                      rises and falls with the share price. A great year makes you rich; a bad
-                      enough run takes the company off the board and the shares with it.
-                    </p>
-                  )}
-                </section>
-              ) : (
-                (() => {
-                  const shut = scaleUpBar(business, businessKind, world.tick)
-                  return (
-                    <section className="career-card">
-                      <h4>Grow it into a company</h4>
-                      <p className="career-note">
-                        Past a certain size a trade stops being a trade. A company keeps its profit
-                        instead of paying it out to you, which is how it grows into something worth
-                        floating — you draw a salary and the rest builds the valuation.
-                      </p>
-                      {shut !== null && <div className="reason">🔒 {shut}</div>}
-                      <button
-                        type="button"
-                        className="apply"
-                        disabled={busy || shut !== null}
-                        onClick={() => onAct({ verb: 'scale-up' })}
-                      >
-                        Grow {business.name} into a company
-                      </button>
-                    </section>
-                  )
-                })()
-              )
-            ) : (
-              <section className="career-card">
-                <h4>Working for yourself</h4>
-                <p className="career-note">
-                  Capital out of your own savings, gone the moment it is spent. It rides the economy
-                  directly — worth more than a wage in a boom and worth less than nothing in a
-                  slump — and it can pass to your children.
-                </p>
-                <ul className="openings">
-                  {/* ONLY THE TRADES THAT EXIST THIS YEAR (owner's era
-                      ruling). A trade whose time has not come is not listed
-                      at all rather than listed and greyed — "ask again after
-                      2002" on twenty rows would be noise. A trade whose time
-                      has PASSED is also gone from the list, and the engine's
-                      own bar refuses it either way, so the screen and the
-                      verb cannot disagree. */}
-                  {BUSINESS_KINDS.filter((kind) =>
-                    kindAvailableIn(kind, toDate(world, world.tick).year),
-                  ).map((kind) => {
-                    const capital = atTodaysPrices(world, kind.capital) as Money
-                    const shut = businessBar(
-                      kind,
-                      moneyOnHand(world, person.id),
-                      capital,
-                      false,
-                      // The bar's own age check reads the person; this screen
-                      // only ever draws for the played character.
-                      99,
-                      toDate(world, world.tick).year,
-                    )
-                    return (
-                      <li key={kind.id} className={shut === null ? undefined : 'is-shut'}>
-                        <span className="o-title">
-                          {kind.title}
-                          <span className="s">{formatMoney(capital)} to open</span>
-                          {shut !== null && <span className="s bar">{shut}</span>}
-                        </span>
-                        <button
-                          type="button"
-                          className="apply"
-                          disabled={busy || shut !== null}
-                          onClick={() => onAct({ verb: 'start-business', kindId: kind.id })}
-                        >
-                          Open
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </section>
-            )}
-          </>
         )}
       </div>
 
