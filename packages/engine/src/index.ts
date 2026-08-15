@@ -151,7 +151,7 @@ export {
   tryOutForUnit,
   walkOut,
 } from './player.js'
-export type { CustomLifeSpec, JobCandidate, StakeView, StockReport } from './player.js'
+export type { CustomLifeSpec, JobCandidate, LicenceView, PathView, RungView, StakeView, StockReport } from './player.js'
 export {
   ADVERT_MONTHS,
   PRICE_STEPS,
@@ -161,6 +161,34 @@ export {
   stockNeededFor,
   tradingLiftPerMille,
 } from './operations.js'
+export {
+  SKILLS,
+  SKILL_LEVEL,
+  SKILL_MAX,
+  afterAMonth,
+  earnedThisMonth,
+  gatesFailed,
+  heldSkills,
+  levelOf,
+  meetsGates,
+  skillById,
+  skillOf,
+  standingOf,
+} from './skills.js'
+export type { Skill, SkillGate, SkillGrowth, SkillId, SkillSheet } from './skills.js'
+export {
+  LICENCES,
+  PATH_CATEGORIES,
+  SPEC_DEFLATOR,
+  fromSpecSalary,
+  levelOfPath,
+  licenceById,
+  nextLevel,
+  pathAvailableIn,
+  pathById,
+} from './paths.js'
+export type { CareerPath, Licence, PathLevel } from './paths.js'
+export { FIRST_SLICE } from './pathcontent.js'
 export type { VendorOffer } from './operations.js'
 export {
   BOARD_MATTERS,
@@ -448,6 +476,7 @@ export type {
   WarPhase,
   World,
   WorldEvent,
+  LicenceId,
 } from './types.js'
 export type { OrdersSheet, OrdersVariant } from './deployment.js'
 export { SECTORS, holdingValue, marketLevel, portfolioValue, sectorById } from './market.js'
@@ -641,6 +670,13 @@ export type { Election, Office, Officeholder, Party, PolicyState } from './types
 export type { CampaignAction, DebateChoice } from './government.js'
 export {
   buySharesPlayer,
+  pathsFor,
+  joinBar,
+  joinPathPlayer,
+  climbPathPlayer,
+  licencesFor,
+  earnLicencePlayer,
+  holdsLicence,
   stakesOf,
   takeoverBar,
   takeStakePlayer,

@@ -272,6 +272,17 @@ function hydrate(
   for (const entry of (body['businessBooks'] as { businessId: number; months: unknown[] }[] | undefined) ?? []) {
     businessBooks.set(entry.businessId as never, (entry.months ?? []) as never)
   }
+  const skills = new Map<
+    import('@life-engine/shared').EntityId,
+    import('@life-engine/engine').SkillSheet
+  >()
+  for (const entry of (body['skills'] as { personId: number; sheet: unknown }[] | undefined) ?? []) {
+    skills.set(entry.personId as never, (entry.sheet ?? {}) as never)
+  }
+  const licences = new Map<import('@life-engine/shared').EntityId, readonly string[]>()
+  for (const entry of (body['licences'] as { personId: number; held: string[] }[] | undefined) ?? []) {
+    licences.set(entry.personId as never, (entry.held ?? []) as never)
+  }
   const businessOps = new Map<import('@life-engine/shared').EntityId, import('@life-engine/engine').BusinessOps>()
   for (const entry of (body['businessOps'] as { businessId: number }[] | undefined) ?? []) {
     const { businessId, ...ops } = entry
@@ -352,6 +363,8 @@ function hydrate(
     ),
     education,
     employment,
+    skills,
+    licences: licences as never,
     relationships,
     events: body['events'] as WorldEvent[],
     causalRecords: body['causalRecords'] as CausalRecord[],

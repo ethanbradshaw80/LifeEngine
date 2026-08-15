@@ -617,7 +617,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 177
+export const SIMULATION_VERSION = 178
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
@@ -701,6 +701,17 @@ export function toSnapshot(world: World): WorldSnapshot {
       habits: [...world.habits.values()].sort((a, b) => a.personId - b.personId),
       properties: [...world.properties.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
       leases: [...world.leases.values()].sort((a, b) => a.householdId - b.householdId),
+      /**
+       * SKILL SHEETS, sparse and sorted (jobs revamp). Only people who have
+       * actually worked at something appear, which keeps a save from
+       * carrying eighteen zeroes for every child in the town.
+       */
+      skills: [...world.skills.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([personId, sheet]) => ({ personId, sheet })),
+      licences: [...world.licences.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([personId, held]) => ({ personId, held })),
       businessOps: [...world.businessOps.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([businessId, ops]) => ({ businessId, ...ops })),

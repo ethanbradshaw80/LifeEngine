@@ -2533,7 +2533,41 @@ const V75_TO_V76: Migration = {
   },
 }
 
-const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47, V47_TO_V48, V48_TO_V49, V49_TO_V50, V50_TO_V51, V51_TO_V52, V52_TO_V53, V53_TO_V54, V54_TO_V55, V55_TO_V56, V56_TO_V57, V57_TO_V58, V58_TO_V59, V59_TO_V60, V60_TO_V61, V61_TO_V62, V62_TO_V63, V63_TO_V64, V64_TO_V65, V65_TO_V66, V66_TO_V67, V67_TO_V68, V68_TO_V69, V69_TO_V70, V70_TO_V71, V71_TO_V72, V72_TO_V73, V73_TO_V74, V74_TO_V75, V75_TO_V76]
+/**
+ * SCHEMA 77 — EVERY PERSON CAN NOW BE GOOD AT SOMETHING (jobs revamp).
+ *
+ * Skill sheets are what WORK left behind, and an existing save has no record
+ * of which months were spent doing what — so nobody is awarded a skill they
+ * cannot be shown to have earned. The map opens empty and fills from the
+ * work done from here on, which is the only honest reading of a save that
+ * predates the system.
+ *
+ * The loader already defaults a missing `skills` to an empty map, so this
+ * step is a version bump and a re-checksum rather than a data rewrite. It
+ * exists so the chain has no hole in it: a version without a migration is
+ * the bug the runner throws on.
+ */
+const V76_TO_V77: Migration = {
+  from: 76,
+  to: 77,
+  describe: 'skills and licences: what the work left behind, and the papers held',
+  apply(save) {
+    const header = requireObject(requireField(save, 'header', 'save'), 'save.header')
+    const world = requireObject(requireField(save, 'world', 'save'), 'save.world')
+    const next = {
+      ...world,
+      skills: Array.isArray(world['skills']) ? world['skills'] : [],
+      licences: Array.isArray(world['licences']) ? world['licences'] : [],
+    }
+    return {
+      ...save,
+      header: { ...header, schemaVersion: 77, checksum: checksumOf(next) },
+      world: next,
+    }
+  },
+}
+
+const MIGRATIONS: readonly Migration[] = [V1_TO_V2, V2_TO_V3, V3_TO_V4, V4_TO_V5, V5_TO_V6, V6_TO_V7, V7_TO_V8, V8_TO_V9, V9_TO_V10, V10_TO_V11, V11_TO_V12, V12_TO_V13, V13_TO_V14, V14_TO_V15, V15_TO_V16, V16_TO_V17, V17_TO_V18, V18_TO_V19, V19_TO_V20, V20_TO_V21, V21_TO_V22, V22_TO_V23, V23_TO_V24, V24_TO_V25, V25_TO_V26, V26_TO_V27, V27_TO_V28, V28_TO_V29, V29_TO_V30, V30_TO_V31, V31_TO_V32, V32_TO_V33, V33_TO_V34, V34_TO_V35, V35_TO_V36, V36_TO_V37, V37_TO_V38, V38_TO_V39, V39_TO_V40, V40_TO_V41, V41_TO_V42, V42_TO_V43, V43_TO_V44, V44_TO_V45, V45_TO_V46, V46_TO_V47, V47_TO_V48, V48_TO_V49, V49_TO_V50, V50_TO_V51, V51_TO_V52, V52_TO_V53, V53_TO_V54, V54_TO_V55, V55_TO_V56, V56_TO_V57, V57_TO_V58, V58_TO_V59, V59_TO_V60, V60_TO_V61, V61_TO_V62, V62_TO_V63, V63_TO_V64, V64_TO_V65, V65_TO_V66, V66_TO_V67, V67_TO_V68, V68_TO_V69, V69_TO_V70, V70_TO_V71, V71_TO_V72, V72_TO_V73, V73_TO_V74, V74_TO_V75, V75_TO_V76, V76_TO_V77]
 
 /** Read the schema version from an unvalidated save, or fail clearly. */
 export function readSchemaVersion(save: unknown): number {

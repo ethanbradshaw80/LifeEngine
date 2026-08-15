@@ -107,6 +107,9 @@ import {
   eligibleSpecialties,
 } from './service.js'
 import { placesOfKind } from './worldgen.js'
+import { afterAMonth } from './skills.js'
+import { FIRST_SLICE } from './pathcontent.js'
+import { levelOfPath, pathById } from './paths.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
 
@@ -1678,7 +1681,35 @@ export function dismissFromBusiness(
   })
 }
 
+/**
+ * A MONTH AT THE WORK, AND WHAT IT LEAVES BEHIND (jobs revamp).
+ *
+ * Skills are not chosen and cannot be bought: they are the residue of the
+ * months somebody actually spent doing something, at the rate that work
+ * teaches. This is the only place they grow.
+ *
+ * FOR THE WHOLE TOWN, by the owner's ruling — a welder in the next street
+ * accumulates Technical Knowledge exactly as the player does, because
+ * otherwise the promotion rules bind only one person and Law 2 is a
+ * decoration. Cheap: a few array reads per employed adult, no allocation
+ * where the job teaches nothing.
+ */
+function runSkillGrowth(world: World): void {
+  for (const [personId, job] of world.employment) {
+    if (job.pathId === undefined || job.pathLevel === undefined) continue
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+    const path = pathById(FIRST_SLICE, job.pathId)
+    const level = path === undefined ? undefined : levelOfPath(path, job.pathLevel)
+    if (level === undefined || level.teaches.length === 0) continue
+    const before = world.skills.get(personId) ?? {}
+    const after = afterAMonth(before, level.teaches)
+    if (after !== before) world.skills.set(personId, after)
+  }
+}
+
 export function runEmployment(world: World, tick: Tick): void {
+  runSkillGrowth(world)
   runReviews(world, tick)
   runWorkMoments(world, tick)
   runBusinessHiring(world, tick)

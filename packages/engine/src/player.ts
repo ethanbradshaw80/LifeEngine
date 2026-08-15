@@ -384,6 +384,16 @@ import {
 import type { PendingDecision, PendingKind, Person, Sex, World } from './types.js'
 import { boardMatterById, offerFor, priceAfter, voteCarries } from './board.js'
 import {
+  gatesFailed,
+  levelOf as levelOfSkill,
+  skillById,
+  standingOf,
+} from './skills.js'
+import { FIRST_SLICE } from './pathcontent.js'
+import { LICENCES, licenceById, pathAvailableIn } from './paths.js'
+import type { CareerPath, PathLevel } from './paths.js'
+import type { EducationLevel, LicenceId } from './types.js'
+import {
   ADVERT_COST_PER_MILLE,
   BIG_ORDER_PER_MILLE,
   MATCH_PRICE_STEP,
@@ -5409,6 +5419,8 @@ export function resolvePending(world: World, choice: string): void {
     case 'wind-down':
     case 'buy-rival':
     case 'take-stake':
+    case 'take-job':
+    case 'earn-licence':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -7281,6 +7293,10 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Bought out a rival.' // log-only
     case 'take-stake':
       return 'Bought up shares.' // log-only
+    case 'take-job':
+      return 'Started on a new ladder.' // log-only
+    case 'earn-licence':
+      return 'Earned a qualification.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':
@@ -8940,4 +8956,416 @@ export function takeStakePlayer(
       ? `${formatMoney(spent as Money)} for ${(after / 10).toFixed(1)}% of ${stock.name}. It is yours now.`
       : `${formatMoney(spent as Money)} spent. You hold ${(after / 10).toFixed(1)}% of ${stock.name} — ${stakeWords(after)}.`,
   }
+}
+
+// ---------------------------------------------------------------------------
+// The career ladders (jobs revamp)
+// ---------------------------------------------------------------------------
+
+/** One rung as the Jobs screen shows it. */
+export interface RungView {
+  readonly id: string
+  readonly title: string
+  readonly level: number
+  readonly monthlyPay: Money
+  readonly monthsRequired: number
+  readonly stress: number
+  readonly happiness: number
+  readonly blurb: string
+  /** What it wants, in words a player can act on. */
+  readonly asks: readonly string[]
+  /** Empty when they could take this rung today. */
+  readonly bars: readonly string[]
+  readonly held: boolean
+}
+
+/** One ladder as the Jobs screen shows it. */
+export interface PathView {
+  readonly id: string
+  readonly name: string
+  readonly categoryId: string
+  readonly blurb: string
+  readonly rungs: readonly RungView[]
+  /** Why they cannot join at the bottom today, or null. */
+  readonly entryBar: string | null
+  /** True where they are on this ladder now. */
+  readonly current: boolean
+  readonly topPay: Money
+}
+
+/**
+ * WHAT ONE RUNG ASKS FOR, and which of those they fail.
+ *
+ * The bar and the screen read the SAME function, so a greyed row and a
+ * refusal can never disagree about why — the pattern this codebase has had
+ * to learn six times.
+ */
+function rungViewFor(
+  world: World,
+  personId: EntityId,
+  path: CareerPath,
+  level: PathLevel,
+  monthsAtLevel: number,
+  heldLevel: number,
+): RungView {
+  const sheet = world.skills.get(personId)
+  const education = world.education.get(personId)
+  const asks: string[] = []
+  const bars: string[] = []
+
+  for (const need of level.needs) {
+    const skill = skillById(need.skill)
+    const label = skill?.label ?? need.skill
+    asks.push(`${label} ${String(need.level)}`)
+    if (levelOfSkill(sheet, need.skill) < need.level) {
+      bars.push(`${label} at ${String(need.level)} — you are ${standingOf(levelOfSkill(sheet, need.skill))}`)
+    }
+  }
+
+  if (level.monthsRequired > 0) {
+    asks.push(`${String(level.monthsRequired)} months on the rung below`)
+    if (heldLevel === level.level - 1 && monthsAtLevel < level.monthsRequired) {
+      const short = level.monthsRequired - monthsAtLevel
+      bars.push(`${String(short)} more month${short === 1 ? '' : 's'} where you are`)
+    }
+  }
+
+  if (level.needsLevel !== undefined) {
+    asks.push(schoolingWords(level.needsLevel))
+    if (!hasSchooling(education?.level, level.needsLevel)) {
+      bars.push(`${schoolingWords(level.needsLevel)} — you do not have it`)
+    }
+  }
+
+  if (level.needsLicence !== undefined) {
+    const licence = licenceById(level.needsLicence)
+    asks.push(licence?.title ?? level.needsLicence)
+    if (!holdsLicence(world, personId, level.needsLicence)) {
+      bars.push(`${licence?.title ?? 'a licence'} — you do not hold it`)
+    }
+  }
+
+  return {
+    id: level.id,
+    title: level.title,
+    level: level.level,
+    monthlyPay: atTodaysPrices(world, level.monthlyPay) as Money,
+    monthsRequired: level.monthsRequired,
+    stress: level.stress,
+    happiness: level.happiness,
+    blurb: level.blurb,
+    asks,
+    bars,
+    held: heldLevel === level.level && onThisPath(world, personId, path.id),
+  }
+}
+
+/** Do they hold these papers? */
+export function holdsLicence(world: World, personId: EntityId, licence: LicenceId): boolean {
+  return (world.licences.get(personId) ?? []).includes(licence)
+}
+
+/** Is this person on this ladder right now? */
+function onThisPath(world: World, personId: EntityId, pathId: string): boolean {
+  return world.employment.get(personId)?.pathId === pathId
+}
+
+/** Does their schooling reach this level? */
+function hasSchooling(held: EducationLevel | undefined, wanted: EducationLevel): boolean {
+  return EDUCATION_ORDER.indexOf(held ?? 'none') >= EDUCATION_ORDER.indexOf(wanted)
+}
+
+const EDUCATION_ORDER: readonly EducationLevel[] = [
+  'none',
+  'primary',
+  'middle',
+  'secondary',
+  'trade',
+  'college',
+  'graduate',
+]
+
+function schoolingWords(level: EducationLevel): string {
+  return level === 'graduate'
+    ? 'a postgraduate qualification'
+    : level === 'college'
+      ? 'a degree'
+      : level === 'trade'
+        ? 'a trade qualification'
+        : level === 'secondary'
+          ? 'a school certificate'
+          : 'schooling'
+}
+
+/** Every ladder in the town, as the screen wants them. */
+export function pathsFor(world: World): readonly PathView[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  const year = toDate(world, world.tick).year
+  const job = world.employment.get(person.id)
+  const heldPathId = job?.pathId
+  const heldLevel = job?.pathLevel ?? 0
+  const monthsAtLevel = job === undefined ? 0 : Math.floor((world.tick - job.rungSinceTick) / 1)
+
+  const out: PathView[] = []
+  for (const path of FIRST_SLICE) {
+    if (!pathAvailableIn(path, year)) continue
+    const current = heldPathId === path.id
+    const rungs = path.levels.map((level) =>
+      rungViewFor(world, person.id, path, level, current ? monthsAtLevel : 0, current ? heldLevel : 0),
+    )
+    const top = path.levels[path.levels.length - 1]
+    out.push({
+      id: path.id,
+      name: path.name,
+      categoryId: path.categoryId,
+      blurb: path.blurb,
+      rungs,
+      entryBar: current ? 'You are already on this ladder.' : joinBar(world, person.id, path),
+      current,
+      topPay: atTodaysPrices(world, top?.monthlyPay ?? 0) as Money,
+    })
+  }
+  return out
+}
+
+/**
+ * WHY THEY CANNOT START THIS LADDER TODAY, or null.
+ *
+ * OWNER'S RULING (2026-08-14): "they should have to go through the
+ * management ladder like everyone else and not just handed a higher
+ * position because he has the skills." A switch always enters at the
+ * BOTTOM. What a long history buys is speed afterwards — the skill gates
+ * of the rungs above are already met, so only the months hold them back.
+ */
+export function joinBar(world: World, personId: EntityId, path: CareerPath): string | null {
+  const person = world.people.get(personId)
+  if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  const year = toDate(world, world.tick).year
+  if (!pathAvailableIn(path, year)) return 'Nobody does that work in this town yet.'
+  const entry = path.levels[0]
+  if (entry === undefined) return 'That is not a ladder.'
+
+  const education = world.education.get(personId)
+  if (!hasSchooling(education?.level, path.requires)) {
+    return `${schoolingWords(path.requires)} first — the first rung asks for it.`
+  }
+  if (entry.needsLevel !== undefined && !hasSchooling(education?.level, entry.needsLevel)) {
+    return `${schoolingWords(entry.needsLevel)} first.`
+  }
+  if (entry.needsLicence !== undefined && !holdsLicence(world, personId, entry.needsLicence)) {
+    const licence = licenceById(entry.needsLicence)
+    return `You need ${licence?.title ?? 'a licence'} before anybody will take you on.`
+  }
+  const sheet = world.skills.get(personId)
+  const short = gatesFailed(sheet, entry.needs)
+  const first = short[0]
+  if (first !== undefined) {
+    const skill = skillById(first.skill)
+    return `${skill?.label ?? first.skill} at ${String(first.level)} — you are ${standingOf(levelOfSkill(sheet, first.skill))}.`
+  }
+  return null
+}
+
+/**
+ * START AT THE BOTTOM OF A LADDER (owner's ruling, 2026-08-14: "they should
+ * have to go through the management ladder like everyone else and not just
+ * handed a higher position because he has the skills").
+ *
+ * Always the first rung, whatever they did before. A welder with twenty
+ * years of Technical Knowledge walks into management as a coordinator, the
+ * same as a school leaver — and then climbs faster than the school leaver,
+ * because the skill gates above are already met and only the months hold
+ * him. That is what a history is worth here: speed, never a shortcut.
+ */
+export function joinPathPlayer(world: World, pathId: string): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const path = FIRST_SLICE.find((entry) => entry.id === pathId)
+  if (path === undefined) return { done: false, reason: 'Nobody does that work here.' }
+  const bar = joinBar(world, person.id, path)
+  if (bar !== null) return { done: false, reason: bar }
+  const entry = path.levels[0]
+  if (entry === undefined) return { done: false, reason: 'That is not a ladder.' }
+
+  /**
+   * A BUSINESS THIS SIZE IS THE WHOLE WEEK. The same rule the business
+   * module settled: you cannot take a job while running something that
+   * needs all of you.
+   */
+  if (businessDemandsAllHours(world, person.id)) {
+    return { done: false, reason: 'Your own business takes every hour you have.' }
+  }
+
+  const workplace = placesOfKind(world, 'workplace')[0]
+  if (workplace === undefined) return { done: false, reason: 'There is nowhere in town to do it.' }
+
+  logVerb(world, 'take-job', pathId)
+  const previous = world.employment.get(person.id)
+  if (previous !== undefined) {
+    recordEvent(world, world.tick, {
+      type: 'left-job',
+      subjectId: person.id,
+      detail: 'for another trade',
+    })
+  }
+  world.employment.set(person.id, {
+    personId: person.id,
+    occupationId: entry.id,
+    workplaceId: workplace.id,
+    monthlyPay: atTodaysPrices(world, entry.monthlyPay) as Money,
+    startedAtTick: world.tick,
+    performance: previous?.performance ?? Math.floor((person.traits.diligence + 500) / 2),
+    trackId: null,
+    rungSinceTick: world.tick,
+    pathId: path.id,
+    pathLevel: entry.level,
+  })
+  recordEvent(world, world.tick, {
+    type: 'hired',
+    subjectId: person.id,
+    placeId: workplace.id,
+    detail: entry.title,
+  })
+  return {
+    done: true,
+    reason: `${entry.title} at ${formatMoney(atTodaysPrices(world, entry.monthlyPay) as Money)} a month. Everybody starts here.`,
+  }
+}
+
+/**
+ * THE RUNG ABOVE, when everything it asks for is met.
+ *
+ * Deliberately a VERB rather than something the month does on its own: the
+ * owner's whole complaint about the old ladder was that promotion happened
+ * to you. Here you go and take it, and the screen has already told you
+ * exactly what is short.
+ */
+export function climbPathPlayer(world: World): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const job = world.employment.get(person.id)
+  if (job?.pathId === undefined || job.pathLevel === undefined) {
+    return { done: false, reason: 'You are not on one of the ladders.' }
+  }
+  const path = FIRST_SLICE.find((entry) => entry.id === job.pathId)
+  if (path === undefined) return { done: false, reason: 'That trade is gone.' }
+  const next = path.levels.find((level) => level.level === (job.pathLevel ?? 0) + 1)
+  if (next === undefined) return { done: false, reason: 'There is nothing above where you are.' }
+
+  const months = world.tick - job.rungSinceTick
+  if (months < next.monthsRequired) {
+    const short = next.monthsRequired - months
+    return {
+      done: false,
+      reason: `${String(short)} more month${short === 1 ? '' : 's'} where you are before they will consider it.`,
+    }
+  }
+  const sheet = world.skills.get(person.id)
+  const short = gatesFailed(sheet, next.needs)
+  const first = short[0]
+  if (first !== undefined) {
+    const skill = skillById(first.skill)
+    return {
+      done: false,
+      reason: `They want ${skill?.label ?? first.skill} at ${String(first.level)} and you are ${standingOf(levelOfSkill(sheet, first.skill))}.`,
+    }
+  }
+  const education = world.education.get(person.id)
+  if (next.needsLevel !== undefined && !hasSchooling(education?.level, next.needsLevel)) {
+    return { done: false, reason: `That rung asks for ${schoolingWords(next.needsLevel)}.` }
+  }
+  if (next.needsLicence !== undefined && !holdsLicence(world, person.id, next.needsLicence)) {
+    const licence = licenceById(next.needsLicence)
+    return { done: false, reason: `That rung asks for ${licence?.title ?? 'a licence'}.` }
+  }
+
+  logVerb(world, 'take-job', next.id)
+  world.employment.set(person.id, {
+    ...job,
+    occupationId: next.id,
+    monthlyPay: atTodaysPrices(world, next.monthlyPay) as Money,
+    pathLevel: next.level,
+    rungSinceTick: world.tick,
+  })
+  recordEvent(world, world.tick, {
+    type: 'promoted',
+    subjectId: person.id,
+    detail: next.title,
+  })
+  return {
+    done: true,
+    reason: `${next.title}, at ${formatMoney(atTodaysPrices(world, next.monthlyPay) as Money)} a month.`,
+  }
+}
+
+/** Every licence, with what it costs today and whether they hold it. */
+export interface LicenceView {
+  readonly id: LicenceId
+  readonly title: string
+  readonly blurb: string
+  readonly cost: Money
+  readonly months: number
+  readonly held: boolean
+  readonly bar: string | null
+}
+
+export function licencesFor(world: World): readonly LicenceView[] {
+  const person = playerPerson(world)
+  if (!person) return []
+  return LICENCES.map((licence) => {
+    const cost = atTodaysPrices(world, licence.cost) as Money
+    const held = holdsLicence(world, person.id, licence.id)
+    const wallet = walletAccountsOf(world, person.id)
+    const bar = held
+      ? 'You already hold it.'
+      : wallet.savings + wallet.checking < cost
+        ? `It costs ${formatMoney(cost)} and you have ${formatMoney((wallet.savings + wallet.checking) as Money)}.`
+        : null
+    return {
+      id: licence.id,
+      title: licence.title,
+      blurb: licence.blurb,
+      cost,
+      months: licence.months,
+      held,
+      bar,
+    }
+  })
+}
+
+/**
+ * GO AND GET THE PAPERS.
+ *
+ * Paid for out of the wallet (H0) and granted on the spot — the months in
+ * the table are what it COST somebody to earn, and the fee is the game's
+ * way of charging for them. A licence nobody can afford is the barrier
+ * doing its job, not a bug.
+ */
+export function earnLicencePlayer(world: World, licenceId: string): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const licence = licenceById(licenceId)
+  if (licence === undefined) return { done: false, reason: 'No such qualification.' }
+  if (holdsLicence(world, person.id, licence.id)) {
+    return { done: false, reason: 'You already hold it.' }
+  }
+  const cost = atTodaysPrices(world, licence.cost) as Money
+  const paid = debitPerson(world, person.id, cost)
+  if (paid < cost) {
+    if (paid > 0) creditPerson(world, person.id, paid)
+    return { done: false, reason: `It costs ${formatMoney(cost)} and you cannot cover it.` }
+  }
+
+  logVerb(world, 'earn-licence', licence.id)
+  world.licences.set(person.id, [...(world.licences.get(person.id) ?? []), licence.id])
+  recordEvent(world, world.tick, {
+    type: 'qualified',
+    subjectId: person.id,
+    detail: licence.title,
+  })
+  return { done: true, reason: `You hold ${licence.title}. ${formatMoney(cost)} to sit it.` }
 }

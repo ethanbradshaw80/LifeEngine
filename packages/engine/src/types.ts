@@ -14,6 +14,7 @@
  */
 
 import type { EntityId, Money, Seed, Tick } from '@life-engine/shared'
+import type { SkillSheet } from './skills.js'
 
 // ---------------------------------------------------------------------------
 // People
@@ -1332,6 +1333,29 @@ export interface HealthRecord {
  * thing that could have broken was code comparing a rank to a LITERAL, and
  * there were three of those; they ask `isHigherEducation` by name now.
  */
+/**
+ * THE PAPERS A JOB CAN REQUIRE that schooling does not cover (jobs revamp).
+ *
+ * Defined HERE rather than beside the career tables because `world.licences`
+ * holds them: the state's own module owns the type. Putting it in `paths.ts`
+ * made `types` and `paths` import each other, which the import-graph test
+ * correctly refused.
+ */
+export type LicenceId =
+  | 'cdl'
+  | 'real-estate'
+  | 'insurance'
+  | 'cosmetology'
+  | 'aviation'
+  | 'fitness'
+  | 'firefighter'
+  | 'gaming'
+  | 'massage'
+  | 'grooming'
+  | 'heavy-equipment'
+  | 'pharmacy'
+  | 'medical-tech'
+
 export type EducationLevel =
   | 'none'
   | 'primary'
@@ -1588,6 +1612,17 @@ export interface EmploymentRecord {
    */
   readonly trackId: string | null
   readonly rungSinceTick: Tick
+  /**
+   * WHICH OF THE OWNER'S LADDERS THIS JOB IS ON, and how far up (jobs
+   * revamp). Optional because the town's existing work hangs off
+   * `trackId` and the paths sit BESIDE that rather than replacing it —
+   * a save from before this has neither, and neither is invented for it.
+   *
+   * When present, the level's `teaches` is what a month at this desk
+   * leaves behind in the skill sheet.
+   */
+  readonly pathId?: string
+  readonly pathLevel?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -2316,6 +2351,9 @@ export type PendingKind =
   | 'buy-rival'
   /** Bought up shares of a listed company to reach a stake. */
   | 'take-stake'
+  /** Started at the bottom of one of the career ladders. */
+  | 'take-job'
+  | 'earn-licence'
   /** A company you hold a seat in has put something to its shareholders. */
   | 'board-vote'
   /** Something happened to the business you run, and it wants an answer. */
@@ -2621,6 +2659,8 @@ export type EventType =
   | 'bought-rival'
   | 'sold-business'
   /** Bought past half of a listed company. detail 'TICKER:perMille'. */
+  /** Earned a licence or certificate the work required. */
+  | 'qualified'
   | 'took-control'
   /** Voted on a matter at a company you hold a seat in. detail 'matter:ticker:how'. */
   | 'board-voted'
@@ -3114,6 +3154,20 @@ export interface World {
   readonly elections: Map<string, Election>
   readonly education: Map<EntityId, EducationRecord>
   readonly employment: Map<EntityId, EmploymentRecord>
+  /**
+   * WHAT EACH PERSON IS GOOD AT (jobs revamp).
+   *
+   * Sparse on purpose: a skill sheet is what WORK left behind, so children
+   * and the never-employed have no entry at all rather than eighteen
+   * zeroes. `systems.ts` owns employment and is the only writer.
+   */
+  readonly skills: Map<EntityId, SkillSheet>
+  /**
+   * THE PAPERS SOMEBODY HOLDS (jobs revamp) — a CDL, a cosmetology licence,
+   * a gaming licence. Sparse: most people hold none, and no amount of skill
+   * substitutes for one.
+   */
+  readonly licences: Map<EntityId, readonly LicenceId[]>
   /** L4-M2. Keyed by personId; single writer is the health system. */
   readonly health: Map<EntityId, HealthRecord>
   /** L4-M3. Keyed by personId. Records SURVIVE discharge. */

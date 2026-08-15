@@ -166,6 +166,8 @@ export function createWorld(
     policy: freshPolicy(),
     education: new Map(),
     employment: new Map(),
+    skills: new Map(),
+    licences: new Map(),
     health: new Map(),
     service: new Map(),
     awards: new Map(),

@@ -399,6 +399,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'enlisted':
       return `${year} — Enlisted as ${withArticle(event.detail ?? 'recruit')} at ${age}.`
+    case 'qualified':
+      return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
     case 'money-shock': {
