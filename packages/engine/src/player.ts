@@ -5063,7 +5063,8 @@ export function resolvePending(world: World, choice: string): void {
       const years = Number(choice.replace('yr', '')) || state.termYears
       const record = world.service.get(person.id)
       const bonus = record === undefined ? 0 : bonusFor(world, record, pending.tick, years)
-      const options = optionsOffered(state.code, bonus)
+      // With the world, so a school that cannot be delivered is not offered.
+      const options = optionsOffered(state.code, bonus, world, person.id)
       contractNext =
         options.length === 0
           ? { kind: 'service-contract', state: encodeContract(state.code, years, 'none', bonus) }
@@ -6183,6 +6184,8 @@ export function resolvePending(world: World, choice: string): void {
         ? optionsOffered(
             decodeContract(contractNext.state).code,
             decodeContract(contractNext.state).bonus,
+            world,
+            person.id,
           )
         : oathOptionsFor(world, person.id)
     raisePending(world, {

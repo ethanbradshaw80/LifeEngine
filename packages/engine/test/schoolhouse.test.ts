@@ -14,7 +14,12 @@ import type { Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { recordEvent } from '../src/records.js'
-import { flagStatus, schoolOptionsFor } from '../src/service.js'
+import {
+  applyReenlistmentOption,
+  flagStatus,
+  optionsOffered,
+  schoolOptionsFor,
+} from '../src/service.js'
 import { resolvePending, setPlayer } from '../src/player.js'
 import { setFitness } from '../src/stats.js'
 import { livingPeople } from '../src/systems.js'
@@ -492,5 +497,68 @@ describe('a slot taken from the offer', () => {
     ).toBe(false)
     // And nothing on the record claims the badge yet.
     expect(record?.qualifications ?? []).not.toContain(school.badge)
+  })
+})
+
+/**
+ * A RETENTION CHOICE MUST BUY SOMETHING (found while fixing the school slot,
+ * 2026-08-14).
+ *
+ * `applyReenlistmentOption` picks the best OPEN school, and where none was
+ * open it did nothing at all — so a soldier could spend their one retention
+ * choice on a course that never arrived, with no refusal and nothing on the
+ * record to say why.
+ */
+describe('the reenlistment school option', () => {
+  it('is not offered when there is no seat to give', () => {
+    const world = createWorld(makeSeed(4242), 120)
+    advanceTicks(world, 20 * 12)
+    const soldier = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 30)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!soldier) return
+    enlist(world, soldier.id)
+
+    // Flagged: every course in the catalogue closes at once, which is the
+    // cleanest way to reach "nothing open" without rigging seat counts.
+    recordEvent(world, world.tick, {
+      type: 'article-15',
+      subjectId: soldier.id,
+      detail: 'test',
+    })
+    const open = schoolOptionsFor(world, soldier.id).filter((o) => o.open)
+    if (open.length > 0) return // the flag did not close them; nothing to prove
+
+    const offered = optionsOffered('RE-1', 0, world, soldier.id)
+    expect(offered, 'a seat was offered that could not be given').not.toContain('school')
+    // The other promises still stand.
+    expect(offered.length).toBeGreaterThan(0)
+  })
+
+  it('still buys something if it is somehow chosen with nothing open', () => {
+    const world = createWorld(makeSeed(4242), 120)
+    advanceTicks(world, 20 * 12)
+    const soldier = livingPeople(world)
+      .filter((p) => ageAt(p.birthTick, world.tick) >= 20 && ageAt(p.birthTick, world.tick) <= 30)
+      .sort((a, b) => a.id - b.id)[0]
+    if (!soldier) return
+    enlist(world, soldier.id)
+    recordEvent(world, world.tick, {
+      type: 'article-15',
+      subjectId: soldier.id,
+      detail: 'test',
+    })
+
+    const person = world.people.get(soldier.id)
+    if (!person) return
+    applyReenlistmentOption(world, world.tick as Tick, person, 'school')
+
+    const record = world.service.get(soldier.id)
+    const gotSeat = record?.schoolId !== null && record?.schoolId !== undefined
+    const gotStability = (record?.stabilizedUntilTick ?? 0) > world.tick
+    expect(
+      gotSeat || gotStability,
+      'the choice bought nothing at all',
+    ).toBe(true)
   })
 })

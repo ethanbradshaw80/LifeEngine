@@ -141,18 +141,6 @@ still is always allowed.
   same school on offer to be "completed" again and again. Taking a seat now
   sends you to the school: the class starts, the course runs, it can wash you
   out, and graduating is what earns the badge.
+- Choosing a school at reenlistment could quietly buy nothing at all when no
+  course had a seat open. It is no longer offered when it cannot be given.
 - Every button in the business screens reports what it did.
-
----
-
-### A note for existing saves
-
-Your save will open and upgrade itself. Two things will look different:
-
-**Businesses earn differently.** The books were double-counting stock, and
-fixing it changed what a month is worth. An established business may report
-smaller profits than it did before — that money was never really there.
-
-**Property bought before this update shows "not recorded" for what you paid.**
-The deed never stored a purchase price. Anything bought from now on will show
-what it cost and what it has gained.

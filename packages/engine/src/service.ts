@@ -3020,9 +3020,30 @@ export function termsOfferedTo(world: World, person: Person, tick: Tick): readon
   return eligibilityOf(world, person, record, tick).terms
 }
 
-/** §5. The options on this contract, given what it pays. */
-export function optionsOffered(code: string, bonus: number): readonly ReenlistmentOption[] {
-  return optionsFor(code === 'RE-3' ? 'RE-3' : 'RE-1', bonus as Money)
+/**
+ * §5. The options on this contract, given what it pays.
+ *
+ * NEVER OFFER A SEAT THAT DOES NOT EXIST (found while fixing the school
+ * slot, 2026-08-14). `applyReenlistmentOption` picks the best OPEN school
+ * and, where none was open, did nothing at all — so a soldier could spend
+ * their one retention choice on a course that never arrived, with no
+ * refusal and nothing on the record to say why.
+ *
+ * The list is filtered against the same function the schoolhouse screen
+ * reads, so the option is on the table exactly when it can be honoured.
+ * Pass the world and the person to get that check; without them the raw
+ * list comes back, which is what the encode/decode paths want.
+ */
+export function optionsOffered(
+  code: string,
+  bonus: number,
+  world?: World,
+  personId?: EntityId,
+): readonly ReenlistmentOption[] {
+  const all = optionsFor(code === 'RE-3' ? 'RE-3' : 'RE-1', bonus as Money)
+  if (world === undefined || personId === undefined) return all
+  const anySchool = schoolOptionsFor(world, personId).some((option) => option.open)
+  return anySchool ? all : all.filter((option) => option !== 'school')
 }
 
 /**
@@ -3060,16 +3081,31 @@ export function applyReenlistmentOption(
     // thing they would otherwise have had to compete for.
     const open = schoolOptionsFor(world, person.id).filter((o) => o.open)
     const pick = open[open.length - 1]
-    if (pick !== undefined) {
-      const school = world.spec.schools.find((sc) => sc.id === pick.id)
-      if (school !== undefined) {
-        world.service.set(world.service.get(person.id)!.personId, {
-          ...world.service.get(person.id)!,
-          schoolId: school.id,
-          schoolStartsAtTick: nextClassTick(school, tick),
-        })
-      }
+    const school =
+      pick === undefined ? undefined : world.spec.schools.find((sc) => sc.id === pick.id)
+    if (school !== undefined) {
+      world.service.set(world.service.get(person.id)!.personId, {
+        ...world.service.get(person.id)!,
+        schoolId: school.id,
+        schoolStartsAtTick: nextClassTick(school, tick),
+      })
+      return
     }
+    /**
+     * NOTHING OPEN, SO THE PROMISE IS KEPT ANOTHER WAY.
+     *
+     * The option should not be on the table at all in this case, and
+     * `optionsOffered` now sees to that — but a decision can be encoded
+     * before the schoolhouse fills up and answered after, and a retention
+     * choice that silently buys nothing is the worst of the possible
+     * outcomes. The service owes them something for signing: they get the
+     * stability instead, which is the option that costs the service a
+     * promise rather than a seat.
+     */
+    world.service.set(person.id, {
+      ...record,
+      stabilizedUntilTick: (tick + STABILITY_MONTHS) as Tick,
+    })
   }
 }
 
