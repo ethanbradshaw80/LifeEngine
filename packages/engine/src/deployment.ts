@@ -84,7 +84,7 @@ import type { Rng } from './rng.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { officerRoleById, specialtyTitleCased } from './content.js'
 import { sceneTagsFor } from './enlistment.js'
-import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf } from './service.js'
+import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf, unitRosterOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
@@ -838,13 +838,108 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
  * would add hundreds to a world that already carries several hundred, for
  * a squad nobody will ever be shown. NPCs deploy exactly as they did.
  */
-function spinUpSquad(
+/**
+ * THE SQUAD IS YOUR UNIT'S (MILITARY_DEPTH_PLAN §6, and the owner's report:
+ * "you never actually deploy with someone from your unit even when it says
+ * your unit is taking volunteers").
+ *
+ * He was right, and it was two parallel roads rather than a missing feature.
+ * The home-station roster has always been real — `rosterFrom` builds it from
+ * living, serving people and sorts them by who answers for the rest. The
+ * deployment squad was a SEPARATE system that invented five strangers per
+ * tour and threw them away at the end. A player could spend a decade in a
+ * unit and never once deploy with anybody in it.
+ *
+ * Now the unit supplies the squad. Which means, for free:
+ *   - the people beside you are people you have served with at home
+ *   - they PERSIST between tours, because the unit does — the same man is
+ *     the same man on your third tour, older and senior
+ *   - when one is killed it is somebody with a name, a rank, a trade and a
+ *     hometown the player has already seen on a roster
+ *   - and a unit that advertises for volunteers can actually supply them
+ *
+ * INVENTING IS THE FALLBACK, NOT THE RULE. A thin station may not have five
+ * people to spare, and a squad of two is not a squad — so the remainder is
+ * spun up as before. That path is now the exception it always should have
+ * been.
+ *
+ * THE ROLES COME OFF THE PEOPLE. A medic is somebody whose trade is
+ * medicine, and the team leader is whoever the roster already names as its
+ * leader — not a die. Competence is read from the service record rather than
+ * drawn, so the man who is good at this is good at it for a reason the game
+ * can point at.
+ */
+export function squadFromUnit(
   world: World,
   tick: Tick,
   ownerId: EntityId,
   tourNumber: number,
 ): readonly SquadMember[] {
+  const roster = unitRosterOf(world, ownerId)
   const specs = squadSpecsFor(world, tick, ownerId, tourNumber)
+  if (roster === null) return spinUpSquad(world, tick, ownerId, tourNumber, specs)
+
+  /**
+   * A FIRETEAM IS NOT THE UNIT'S FIVE MOST SENIOR PEOPLE.
+   *
+   * `rosterFrom` sorts by who answers for the rest, so taking the first five
+   * handed the player a team of ranks 7, 7, 7, 3 and 6 — every senior NCO in
+   * the company out on one patrol, which is both unbelievable and the
+   * opposite of how a fireteam is built.
+   *
+   * One person leads it and the rest are junior. So the leader billet is
+   * filled from the senior end and everything else from the junior end,
+   * which also gives the squad the shape the spec cares about: "the
+   * difference between the man who is good at this and the one who is
+   * nineteen and frightened is most of what a squad IS."
+   */
+  const mates = roster.members.filter((m) => m.personId !== ownerId)
+  const juniorFirst = [...mates].reverse()
+  const taken: SquadMember[] = []
+  const used = new Set<EntityId>()
+
+  for (const spec of specs) {
+    // A medic billet wants a medic. Fall through to whoever is left when the
+    // unit has none — a rifle squad without one is a real situation.
+    const wanted =
+      spec.role === 'medic'
+        ? juniorFirst.find((m) => !used.has(m.personId) && /medic|corpsman/i.test(m.specialtyTitle))
+        : spec.role === 'leader'
+          ? mates.find((m) => !used.has(m.personId))
+          : undefined
+    const pick = wanted ?? juniorFirst.find((m) => !used.has(m.personId))
+    if (pick === undefined) break
+    used.add(pick.personId)
+    const record = world.service.get(pick.personId)
+    taken.push({
+      personId: pick.personId,
+      role: spec.role,
+      nickname: spec.nickname,
+      // EARNED, not drawn: what the service already thinks of them, lifted
+      // by the grade they have reached.
+      competence: Math.max(
+        120,
+        Math.min(1000, (record?.performance ?? 500) + (record?.rank ?? 0) * 25),
+      ),
+      sinceTick: record?.unitSinceTick ?? tick,
+    })
+  }
+
+  if (taken.length >= specs.length) return taken
+  // THE STATION COULD NOT FILL IT. Spin up only the shortfall, so a thin
+  // garrison still puts a whole fireteam around the player.
+  const short = specs.slice(taken.length)
+  return [...taken, ...spinUpSquad(world, tick, ownerId, tourNumber, short)]
+}
+
+function spinUpSquad(
+  world: World,
+  tick: Tick,
+  ownerId: EntityId,
+  tourNumber: number,
+  only?: readonly ReturnType<typeof squadSpecsFor>[number][],
+): readonly SquadMember[] {
+  const specs = only ?? squadSpecsFor(world, tick, ownerId, tourNumber)
   const rng = openStream(world.seed, Stream.CombatResolution, ownerId * 59 + tourNumber, tick + 7_300)
   const members: SquadMember[] = []
 
@@ -1027,7 +1122,7 @@ function startCombatTour(
     // THE PLAYER'S ONLY. Five real people per NPC tour would add hundreds
     // to the world for a squad nobody is ever shown.
     ...(personId === world.player.personId
-      ? { squad: spinUpSquad(world, tick, personId, tourNumber) }
+      ? { squad: squadFromUnit(world, tick, personId, tourNumber) }
       : {}),
   }
   world.deployments.set(personId, [...history, deployment])
