@@ -756,6 +756,16 @@ export type { CauseView, GiftOffer, GiftTerms, GiftTier } from './philanthropy.j
 export { moneyMonthFor, recordMoney, MONEY_LOG_MONTHS } from './finances.js'
 export type { MoneyEntry } from './types.js'
 export { causesFor, endowPlayer, giveBar } from './player.js'
+export { TRUST_MINIMUM, settleTrustPlayer, trustBar, trustViewFor } from './player.js'
+export type { TrustView } from './player.js'
+export {
+  TRUST_DRAW_PER_MILLE,
+  beneficiariesOf,
+  descendantsOf,
+  trustOf,
+  trustValueOf,
+} from './finances.js'
+export type { FamilyTrust, TrustRule } from './types.js'
 export { buildOffersFor, commissionBuildPlayer } from './player.js'
 export { BUILD_TIERS, BUILD_PREMIUM_PER_MILLE, buildCostFor, buildTierFor, plannedBuild } from './realestate.js'
 export type { BuildOffer, BuildTier } from './realestate.js'

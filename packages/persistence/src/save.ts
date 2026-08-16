@@ -380,6 +380,7 @@ function hydrate(
     capTables,
     expansions,
     moneyLog: (body['moneyLog'] as never[] | undefined) ?? [],
+    trusts: (body['trusts'] as never[] | undefined) ?? [],
     businessBooks,
     businessOps,
     deployments,

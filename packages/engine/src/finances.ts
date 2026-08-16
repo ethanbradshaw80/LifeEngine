@@ -23,8 +23,8 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import type { MoneyEntry, BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
-import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
+import type { FamilyTrust, MoneyEntry, BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
+import { isHigherEducation, LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { raisePending } from './player.js'
@@ -2966,6 +2966,7 @@ export function runFinances(world: World, tick: Tick): void {
   runBoardMoments(world, tick)
   runBusinessMoments(world, tick)
   runTaxSeason(world, tick)
+  runTrusts(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
   const households = [...world.households.values()]
@@ -6368,4 +6369,127 @@ export function earnLicence(
     detail: licence.title,
   })
   return { done: true, reason: `You hold ${licence.title}. ${formatMoney(cost)} to sit it.` }
+}
+
+// ---------------------------------------------------------------------------
+// THE FAMILY TRUST (the money sinks, third of them)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT A TRUST PAYS OUT A YEAR, per-mille of its principal.
+ *
+ * Three per cent, which is roughly what a real endowment draws and is the
+ * number that makes it perpetual rather than a slow suicide: the principal is
+ * held in BASE-YEAR cents so it keeps its real value for ever, and the draw
+ * comes out on top of that.
+ *
+ * IT IS NOT A MONEY PRINTER. The payout is bounded entirely by what somebody
+ * chose to put in and can never come out again, and nothing compounds — the
+ * principal does not grow with the payments, so a trust is exactly as large
+ * as the fortune that founded it.
+ */
+export const TRUST_DRAW_PER_MILLE = 30
+
+/** What is in a trust today, at today's prices. */
+export function trustValueOf(world: World, trust: FamilyTrust): Money {
+  return atTodaysPrices(world, trust.principal) as Money
+}
+
+/** The trust this person founded, if they founded one. */
+export function trustOf(world: World, personId: EntityId): FamilyTrust | undefined {
+  return world.trusts.find((trust) => trust.founderId === personId)
+}
+
+/**
+ * EVERY LIVING DESCENDANT, down all the generations.
+ *
+ * NOT `heirsOf`, which is children alone and is right for an estate — an
+ * estate is settled once and children are who is standing there. A trust is
+ * the opposite: it exists precisely to reach the grandchildren and their
+ * children, decades after the founder is dead and every child has spent
+ * their inheritance.
+ *
+ * Breadth-first from the founder, guarded against a cycle in the tree,
+ * ordered oldest first so the payout is reproducible.
+ */
+export function descendantsOf(world: World, founderId: EntityId): readonly Person[] {
+  const found: Person[] = []
+  const seen = new Set<EntityId>([founderId])
+  let frontier: EntityId[] = [founderId]
+  // A town of this size cannot be deeper than this many generations, and the
+  // bound means a malformed tree can never hang the tick.
+  for (let depth = 0; depth < 12 && frontier.length > 0; depth += 1) {
+    const next: EntityId[] = []
+    for (const person of world.people.values()) {
+      if (seen.has(person.id)) continue
+      if (!person.parentIds.some((parent) => frontier.includes(parent))) continue
+      seen.add(person.id)
+      next.push(person.id)
+      if (person.deathTick === null) found.push(person)
+    }
+    frontier = next
+  }
+  return found.sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
+}
+
+/**
+ * WHO THIS TRUST PAYS THIS YEAR, under the rule its founder set.
+ *
+ * Every rule reads the same list of living descendants and narrows it. A
+ * trust with nobody left to pay simply does not pay — it does not dissolve,
+ * because a line can skip a generation and come back.
+ */
+export function beneficiariesOf(world: World, trust: FamilyTrust): readonly Person[] {
+  const blood = descendantsOf(world, trust.founderId)
+  if (trust.rule === 'eldest') {
+    const eldest = blood[0]
+    return eldest === undefined ? [] : [eldest]
+  }
+  if (trust.rule === 'schooling') {
+    // Only those actually at their books. The founder's money is for the
+    // education itself, not for being related to him.
+    return blood.filter((person) => isHigherEducation(world.education.get(person.id)?.enrolledIn ?? null))
+  }
+  return blood
+}
+
+/**
+ * THE TRUSTS PAY OUT, once a year, on the anniversary of their founding.
+ *
+ * ANNUALLY RATHER THAN MONTHLY because that is what a trust does and because
+ * this walks the family tree — doing it twelve times as often would put a
+ * descent search into the monthly tick for a payment nobody would notice
+ * arriving in twelfths.
+ *
+ * NOTHING HERE TOUCHES AN ESTATE. That is the entire point: `distributeEstate`
+ * reads a person's ACCOUNTS, and trust capital has never been in anybody's
+ * accounts since the day it was settled. It survives every death in the line.
+ */
+export function runTrusts(world: World, tick: Tick): void {
+  for (let i = 0; i < world.trusts.length; i += 1) {
+    const trust = world.trusts[i]
+    if (trust === undefined) continue
+    if ((tick - trust.foundedTick) % 12 !== 0) continue
+    if (tick === trust.foundedTick) continue
+
+    const draw = Math.floor((trustValueOf(world, trust) * TRUST_DRAW_PER_MILLE) / 1000) as Money
+    if (draw <= 0) continue
+    const paid = beneficiariesOf(world, trust)
+    if (paid.length === 0) continue
+
+    const share = Math.floor(draw / paid.length)
+    if (share <= 0) continue
+    let handed = 0
+    for (const person of paid) {
+      creditPerson(world, person.id, share as Money, `From the ${trust.familyName} family trust`)
+      handed += share
+      recordEvent(world, tick, {
+        type: 'trust-paid',
+        subjectId: person.id,
+        otherId: trust.founderId,
+        detail: String(share),
+      })
+    }
+    world.trusts[i] = { ...trust, paidOut: (trust.paidOut + handed) as Money }
+  }
 }

@@ -755,6 +755,10 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Gave to ${event.detail ?? 'the town'}.`
     case 'built-home':
       return `${year} — Built ${(event.detail ?? '').split(':')[1] ?? 'a house'}.`
+    case 'trust-settled':
+      return `${year} — Settled the ${(event.detail ?? '').split(':')[0] ?? 'family'} family trust.`
+    case 'trust-paid':
+      return `${year} — Paid from the family trust.`
     // ---- THE COURT, WHICH USED TO HAPPEN OFFSTAGE -------------------
     //
     // Twenty-eight person-level events were recorded and rendered nowhere:
@@ -1187,6 +1191,14 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
       const [kind, where] = (event.detail ?? '').split(':')
       return `Raised where nothing stood — ${kind ?? 'a house'} at ${where ?? 'a new address'}. Building costs more than buying, which is the price of having it exactly as you wanted it.`
     }
+
+    case 'trust-settled': {
+      const [name] = (event.detail ?? '').split(':')
+      return `Capital settled on the ${name ?? 'family'} family trust. It is not theirs any more — it cannot be drawn on, it is not counted in what they are worth, and it is not theirs to leave. What it buys is that it never passes through anybody's estate again.`
+    }
+
+    case 'trust-paid':
+      return 'A payment from an ancestor’s trust. Somebody who died before they were born arranged for this.'
 
     case 'endowed':
       return `Money given to one of the town's own institutions — ${event.detail ?? 'the town'}. It does not come back, which is the point of it.`

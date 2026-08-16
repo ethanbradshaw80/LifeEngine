@@ -571,6 +571,39 @@ export interface MoneyEntry {
   readonly label: string
 }
 
+/**
+ * A FAMILY TRUST — money that outlives the person who earned it.
+ *
+ * The last of the money sinks the owner asked for, and the one that answers
+ * Law 8 most directly. An estate is settled ONCE: taxed, split equally among
+ * living children, and gone. A grandchild gets whatever is left of what their
+ * father did with his share. A trust is the other thing — capital that never
+ * passes through anybody's estate, pays out for ever, and still carries the
+ * founder's name in the year 2090.
+ *
+ * WHAT MAKES IT A SINK, and not a savings account with a story: money put in
+ * CANNOT COME OUT. The founder can never draw on it, it does not count toward
+ * what they are worth, and it is not theirs to leave. What they buy is the
+ * certainty that their descendants are looked after — which is exactly what a
+ * real trust buys and exactly why people pay for one.
+ *
+ * PRINCIPAL IS IN BASE-YEAR CENTS, like every other price in this world, so
+ * a trust founded in 1974 is still worth something in 2090 without anybody
+ * having to index it by hand.
+ */
+export type TrustRule = 'income' | 'schooling' | 'eldest'
+
+export interface FamilyTrust {
+  readonly founderId: EntityId
+  readonly familyName: string
+  /** What is in it, in BASE-YEAR cents. Read at today's prices to spend. */
+  readonly principal: Money
+  readonly rule: TrustRule
+  readonly foundedTick: Tick
+  /** Everything it has ever paid out, at the prices of the day it paid. */
+  readonly paidOut: Money
+}
+
 export interface Place {
   readonly id: EntityId
   readonly name: string
@@ -2381,6 +2414,8 @@ export type PendingKind =
   | 'endow'
   /** A home commissioned rather than bought. */
   | 'commission-build'
+  /** Money settled on a family trust. */
+  | 'settle-trust'
   /** Running your own business, month to month. */
   | 'order-stock'
   | 'clear-stock'
@@ -2917,6 +2952,10 @@ export type EventType =
   | 'was-acquitted'
   /** Money given to one of the town's institutions. */
   | 'endowed'
+  /** A family trust paid one of its descendants. */
+  | 'trust-paid'
+  /** A family trust founded, or added to. */
+  | 'trust-settled'
   /** A home raised where nothing stood. */
   | 'built-home'
   | 'released-from-jail'
@@ -3276,6 +3315,12 @@ export interface World {
    * existed, which is why this needed no migration.
    */
   readonly moneyLog: MoneyEntry[]
+  /**
+   * THE FAMILY TRUSTS — see `FamilyTrust`. Never touched by
+   * `distributeEstate`, which is the whole point of them. Empty in every
+   * save written before they existed, so no migration.
+   */
+  readonly trusts: FamilyTrust[]
   readonly causalRecords: CausalRecord[]
   readonly player: PlayerState
   /** L4-M1. Keyed by id; insertion order deterministic from generation. */

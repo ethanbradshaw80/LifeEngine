@@ -180,6 +180,7 @@ export function createWorld(
     expansions: new Map(),
     businessBooks: new Map(),
     moneyLog: [],
+    trusts: [],
     businessOps: new Map(),
     deployments: new Map(),
     relationships: new Map(),

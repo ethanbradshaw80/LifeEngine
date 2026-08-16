@@ -20,6 +20,7 @@
  *    same life exactly.
  */
 
+import { dollars } from '@life-engine/shared'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
@@ -27,6 +28,10 @@ import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './co
 import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
+  TRUST_DRAW_PER_MILLE,
+  beneficiariesOf,
+  trustOf,
+  trustValueOf,
   earnLicence,
   canAfford,
   creditPerson,
@@ -231,7 +236,7 @@ import {
   takeLoan,
 } from './finances.js'
 import { loanBar } from './credit.js'
-import type { LoanKind } from './types.js'
+import type { TrustRule, LoanKind } from './types.js'
 import { crimeOutcomeFor, decodeCrimeScene } from './crimescene.js'
 import { decodeWorkMoment, situationOf, workMomentById } from './workmoments.js'
 import {
@@ -5497,6 +5502,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'earn-licence':
     case 'endow':
     case 'commission-build':
+    case 'settle-trust':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -7375,6 +7381,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Earned a qualification.' // log-only
     case 'endow':
       return 'Gave to the town.' // log-only
+    case 'settle-trust':
+      return 'Settled a family trust.' // log-only
     case 'commission-build':
       return 'Had a house built.' // log-only
     case 'hire-staff':
@@ -9715,5 +9723,142 @@ export function commissionBuildPlayer(
   return {
     done: true,
     reason: `${formatMoney(cost)}. ${planned.address} is yours, and nobody has ever lived in it.`,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// THE FAMILY TRUST (the money sinks, third of them)
+// ---------------------------------------------------------------------------
+
+/** The smallest sum the lawyers will draw papers for, in base-year cents. */
+export const TRUST_MINIMUM = dollars(8_000)
+
+export interface TrustView {
+  readonly exists: boolean
+  readonly familyName: string
+  readonly rule: TrustRule
+  /** What is in it, at today's money. */
+  readonly held: Money
+  /** What it hands out each year, split among whoever the rule names. */
+  readonly yearly: Money
+  /** Everything it has ever paid. */
+  readonly paidOut: Money
+  /** Who it would pay this year, by name. */
+  readonly beneficiaries: readonly string[]
+  /** The least it can be opened or topped up with, at today's money. */
+  readonly minimum: Money
+  readonly bar: string | null
+}
+
+export function trustViewFor(world: World): TrustView {
+  const person = playerPerson(world)
+  const existing = person === undefined ? undefined : trustOf(world, person.id)
+  const minimum = atTodaysPrices(world, TRUST_MINIMUM) as Money
+  const held = existing === undefined ? (0 as Money) : trustValueOf(world, existing)
+  return {
+    exists: existing !== undefined,
+    familyName: existing?.familyName ?? person?.familyName ?? '',
+    rule: existing?.rule ?? 'income',
+    held,
+    yearly: Math.floor((held * TRUST_DRAW_PER_MILLE) / 1000) as Money,
+    paidOut: existing?.paidOut ?? (0 as Money),
+    beneficiaries:
+      existing === undefined
+        ? []
+        : beneficiariesOf(world, existing).map((p: Person) => `${p.givenName} ${p.familyName}`),
+    minimum,
+    bar: person === undefined ? 'Nobody to settle it.' : trustBar(world, person.id, minimum),
+  }
+}
+
+/**
+ * WHY THEY CANNOT PUT THIS INTO A TRUST, in words, or null when they can.
+ * Read by the screen and by the verb — the bar pattern.
+ */
+export function trustBar(world: World, personId: EntityId, amount: Money): string | null {
+  const minimum = atTodaysPrices(world, TRUST_MINIMUM) as Money
+  if (amount < minimum) {
+    return `A trust is drawn up for ${formatMoney(minimum)} or more.`
+  }
+  const have = moneyOnHand(world, personId)
+  if (have < amount) {
+    return `That is ${formatMoney(amount)} and you have ${formatMoney(have)}.`
+  }
+  return null
+}
+
+/**
+ * SETTLE MONEY ON YOUR FAMILY, FOR GOOD.
+ *
+ * THE TRADE, and it is a real one: the money is gone. Not spent — GONE from
+ * you. You cannot draw on it, it does not count toward what you are worth,
+ * and it is not yours to leave in a will. What you buy is that it never
+ * passes through anybody's estate again: it is not taxed at your death, not
+ * split away among children who will spend it, and it is still paying your
+ * great-grandchildren in eighty years.
+ *
+ * Topping up an existing trust is the same verb — a family adds to it down
+ * the generations, which is what makes it a family trust rather than a
+ * gesture.
+ */
+export function settleTrustPlayer(
+  world: World,
+  cents: number,
+  rule: TrustRule = 'income',
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const amount = Math.floor(cents) as Money
+  const bar = trustBar(world, person.id, amount)
+  if (bar !== null) return { done: false, reason: bar }
+
+  const paid = debitPerson(world, person.id, amount, 'Settled on the family trust')
+  if (paid < amount) {
+    if (paid > 0) creditPerson(world, person.id, paid, 'A trust that could not be covered, refunded')
+    return { done: false, reason: `That is ${formatMoney(amount)} and you cannot cover it.` }
+  }
+
+  // HELD IN BASE-YEAR CENTS, like every other price in this world, so a trust
+  // settled in 1974 has not quietly withered by 2090.
+  const inBaseYear = Math.floor(
+    (amount * 1000) / Math.max(1, world.economy.priceLevelPerMille),
+  ) as Money
+  const existing = trustOf(world, person.id)
+  if (existing === undefined) {
+    world.trusts.push({
+      founderId: person.id,
+      familyName: person.familyName,
+      principal: inBaseYear,
+      rule,
+      foundedTick: world.tick,
+      paidOut: 0 as Money,
+    })
+  } else {
+    const at = world.trusts.indexOf(existing)
+    world.trusts[at] = { ...existing, principal: (existing.principal + inBaseYear) as Money }
+  }
+
+  logVerb(world, 'settle-trust', rule)
+  recordEvent(world, world.tick, {
+    type: 'trust-settled',
+    subjectId: person.id,
+    detail: `${person.familyName}:${String(amount)}`,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'philanthropy',
+    significance: 'major',
+    inputs: [factor('own-means', Math.min(1000, Math.floor(amount / 100_000)))],
+    chosen: `settled ${formatMoney(amount)} on the ${person.familyName} family trust`,
+    rejected: ['keeping it where it could be spent'],
+    streamId: Stream.Career,
+  })
+  return {
+    done: true,
+    reason:
+      existing === undefined
+        ? `The ${person.familyName} family trust is settled. It is not yours any more, and it never stops.`
+        : `${formatMoney(amount)} more into the ${person.familyName} trust.`,
   }
 }

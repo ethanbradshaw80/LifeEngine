@@ -470,10 +470,35 @@ export function RealEstate({
    * dearest first, because the point of this section is the top of the
    * market.
    */
-  const affordable = buildOffersFor(world)
-    .filter((offer) => offer.bar === null)
-    .sort((a, b) => b.cost - a.cost)
-    .slice(0, 6)
+  /**
+   * SHOW THE LADDER, NOT ONLY THE RUNGS ALREADY IN REACH (owner: "there is no
+   * button or UI to build homes though that I can see?").
+   *
+   * He was right and this was mine: the section was filtered to offers whose
+   * bar was NULL — the ones he could already afford outright — so for the
+   * whole early and middle of a life it rendered nothing at all and the
+   * feature simply did not exist on his screen.
+   *
+   * Every other refusal in this game is a greyed button with the reason
+   * beside it, and this is no different. One row per tier, on the best
+   * street each can be built on, priced and refused in the engine's own
+   * words — so a player can see what building costs long before they can
+   * pay for it, which is most of the point of having a top of the market.
+   */
+  const buildable = (() => {
+    const best = new Map<string, ReturnType<typeof buildOffersFor>[number]>()
+    for (const offer of buildOffersFor(world)) {
+      const held = best.get(offer.type)
+      // The dearest street they could actually build on; failing that, the
+      // dearest overall, so the row still shows what the tier is worth.
+      const better =
+        held === undefined ||
+        (offer.bar === null && held.bar !== null) ||
+        (offer.bar === null) === (held.bar === null && offer.cost > held.cost)
+      if (better) best.set(offer.type, offer)
+    }
+    return [...best.values()].sort((a, b) => a.cost - b.cost)
+  })()
   const forSale = all.filter((l) => l.forSale).slice(0, 9)
   const forRent = all.filter((l) => l.forRent && !l.forSale).slice(0, 6)
   const hoods = [...world.places.values()]
@@ -531,7 +556,7 @@ export function RealEstate({
         thing you build with. Only the tiers a player can afford are shown, so
         this section is invisible until it is relevant.
       */}
-      {affordable.length > 0 && (
+      {buildable.length > 0 && (
         <>
           <div className="re2-title">Build your own</div>
           <p className="re2-cdesc">
@@ -540,7 +565,7 @@ export function RealEstate({
             than buying; that difference is what bespoke means.
           </p>
           <div className="re2-grid">
-            {affordable.map((offer) => (
+            {buildable.map((offer) => (
               <article className="re2-card" key={`${String(offer.placeId)}-${offer.type}`}>
                 <div className="re2-chead">
                   <div>

@@ -24,3 +24,27 @@
   flex: 1 1 auto;
   min-width: 9rem;
 }
+
+/* THE FAMILY TRUST — three rules, chosen once, so they read as a row of
+   alternatives rather than a form. */
+.trust-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.5rem 0;
+}
+.trust-rule {
+  flex: 1 1 auto;
+  min-width: 8rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line, rgba(0, 0, 0, 0.15));
+  border-radius: 0.4rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.trust-rule.on {
+  border-color: currentColor;
+  font-weight: 600;
+}

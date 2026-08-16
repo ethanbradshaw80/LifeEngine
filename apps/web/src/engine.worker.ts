@@ -90,6 +90,7 @@ import {
   climbPathPlayer,
   earnLicencePlayer,
   commissionBuildPlayer,
+  settleTrustPlayer,
   endowPlayer,
   sellSharesPlayer,
   chooseSpendStance,
@@ -128,7 +129,7 @@ import {
   tryOutForUnit,
   walkOut,
 } from '@life-engine/engine'
-import type { ExpansionKind, GiftTier, PropertyType, World } from '@life-engine/engine'
+import type { ExpansionKind, GiftTier, PropertyType, TrustRule, World } from '@life-engine/engine'
 import { createLedgerTracker } from './ledgerdelta.js'
 import type { LedgerDelta } from './ledgerdelta.js'
 import { fromSaveFile } from '@life-engine/persistence'
@@ -180,6 +181,7 @@ export type VerbRequest =
   | { readonly verb: 'earn-licence'; readonly licenceId: string }
   | { readonly verb: 'endow'; readonly placeId: number; readonly tier: GiftTier }
   | { readonly verb: 'commission-build'; readonly placeId: number; readonly propertyType: PropertyType }
+  | { readonly verb: 'settle-trust'; readonly cents: number; readonly rule: TrustRule }
   | { readonly verb: 'sell-shares'; readonly stockId: string; readonly retirement: boolean }
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
@@ -618,6 +620,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'earn-licence': { const r = earnLicencePlayer(world, a.licenceId); outcome = { ok: r.done, reason: r.reason }; break }
           case 'endow': { const r = endowPlayer(world, a.placeId as never, a.tier); outcome = { ok: r.done, reason: r.reason }; break }
           case 'commission-build': { const r = commissionBuildPlayer(world, a.placeId as never, a.propertyType); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'settle-trust': { const r = settleTrustPlayer(world, a.cents, a.rule); outcome = { ok: r.done, reason: r.reason }; break }
           case 'take-stake': { const r = takeStakePlayer(world, a.stockId, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
           case 'buy-shares': {
             const r = buySharesPlayer(world, a.stockId, a.cents, a.retirement)
