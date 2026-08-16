@@ -126,6 +126,7 @@ const EVENT_EXPLAINED_BY: Partial<Record<EventType, DecisionType>> = {
   'committed-offence': 'crime',
   'was-convicted': 'justice',
   'was-acquitted': 'justice',
+  endowed: 'philanthropy',
   // P1: events that had records nobody could reach, and the four new
   // choice events. Every entry verified against the decision type actually
   // recorded at the same (tick, subject). 'reenlisted' resolves only on

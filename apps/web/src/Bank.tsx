@@ -17,6 +17,7 @@ import {
   LOAN_TERMS,
   SECTORS,
   accountsOf,
+  causesFor,
   walletAccountsOf,
   arrearsOf,
   atTodaysPrices,
@@ -160,6 +161,7 @@ export function Bank({
   const owned = propertiesOwnedBy(world, person.id)
   const bricks = bricksAndMortarOf(world, person.id)
   const assets = (cash + investments + retirement + bricks + businessWorth) as Money
+  const causes = causesFor(world)
 
   return (
     <div className="bank">
@@ -246,6 +248,54 @@ export function Bank({
                 <Row label="Your share of the business" value={formatMoney(businessWorth)} />
               )}
               <Row label="Everything you own" value={formatMoney(assets)} tone="good" />
+            </section>
+
+            {/*
+              GIVING IT AWAY — the first of the money sinks (owner: "once you
+              get money like that theres nothing to really do").
+
+              On the Bank rather than a tab of its own, because it is a thing
+              you do with money and this is where money decisions live. Every
+              refusal is `giveBar`'s own words, which is the same function the
+              verb calls, so a greyed button and its reason cannot disagree.
+            */}
+            <section className="bank-card">
+              <h4>Giving</h4>
+              <p className="career-note">
+                The town's own institutions. Money given is gone — what it buys is a
+                better place than the one you found, and a name that outlasts you.
+              </p>
+              {causes.map((cause) => (
+                <div key={String(cause.placeId)} className="give-cause">
+                  <div className="give-cause-head">
+                    <b>{cause.name}</b>
+                    {cause.endowedBy !== null && (
+                      <span className="jobs-chip">the {cause.endowedBy} name is on it</span>
+                    )}
+                  </div>
+                  <p className="career-note">{cause.blurb}</p>
+                  <div className="give-offers">
+                    {cause.offers.map((offer) => (
+                      <button
+                        key={offer.tier}
+                        type="button"
+                        className="apply"
+                        disabled={offer.bar !== null}
+                        title={offer.bar ?? offer.blurb}
+                        onClick={() =>
+                          onAct({ verb: 'endow', placeId: cause.placeId as number, tier: offer.tier })
+                        }
+                      >
+                        {offer.title} · {formatMoney(offer.cost)}
+                      </button>
+                    ))}
+                  </div>
+                  {/* WHAT IS SHORT, not merely that something is. */}
+                  {cause.offers.every((o) => o.bar !== null) && (
+                    <p className="career-note bad">{cause.offers[0]?.bar}</p>
+                  )}
+                </div>
+              ))}
             </section>
 
             <section className="bank-card">

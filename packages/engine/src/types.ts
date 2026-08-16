@@ -553,6 +553,20 @@ export interface Place {
   readonly kind: PlaceKind
   /** Relative desirability, 0-1000. Drives moving decisions. */
   readonly desirability: number
+  /**
+   * THE FAMILY WHOSE NAME IS OVER THE DOOR, once somebody has endowed it.
+   *
+   * Beside the name rather than replacing it, deliberately: half this
+   * town's machinery matches places BY NAME — `workplaceNamesFor` seats a
+   * nurse at "the county hospital" and a teacher at "the public library" by
+   * string — so renaming the library would quietly stop every education
+   * career finding anywhere to work.
+   *
+   * Absent on every place in every save written before philanthropy, and
+   * absent means nobody's name is on it. No migration: `save.ts` reads
+   * places structurally.
+   */
+  readonly endowedBy?: string
 }
 
 export interface Town {
@@ -2324,6 +2338,8 @@ export interface CapTable {
 }
 
 export type PendingKind =
+  /** Money given to one of the town's institutions. */
+  | 'endow'
   /** Running your own business, month to month. */
   | 'order-stock'
   | 'clear-stock'
@@ -2858,6 +2874,8 @@ export type EventType =
   | 'reported-crime'
   | 'declined-to-report'
   | 'was-acquitted'
+  /** Money given to one of the town's institutions. */
+  | 'endowed'
   | 'released-from-jail'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */
@@ -2915,6 +2933,8 @@ export interface WorldEvent {
 // ---------------------------------------------------------------------------
 
 export type DecisionType =
+  /** Money given away to one of the town's institutions. */
+  | 'philanthropy'
   | 'employment-change'
   | 'household-formation'
   | 'move'
@@ -2957,6 +2977,8 @@ export type DecisionType =
 export type Significance = 'notable' | 'major' | 'defining'
 
 export type FactorId =
+  /** What somebody could afford to part with. */
+  | 'own-means'
   /** How long the venture has survived — the thing that separates a
    *  company from a good year. */
   | 'years-trading'

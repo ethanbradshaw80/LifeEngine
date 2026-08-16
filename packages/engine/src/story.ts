@@ -748,6 +748,11 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     }
     case 'was-acquitted':
       return `${year} — Acquitted at the courthouse.`
+    // GIVING IT AWAY. In the timeline because Law 8 is the whole reason it
+    // exists: a life that endowed the school should read that way a
+    // hundred years later.
+    case 'endowed':
+      return `${year} — Gave to ${event.detail ?? 'the town'}.`
     // ---- THE COURT, WHICH USED TO HAPPEN OFFSTAGE -------------------
     //
     // Twenty-eight person-level events were recorded and rendered nowhere:
@@ -952,6 +957,7 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
 
 /** Plain-English phrasing for a stored factor. Never invented — one per FactorId. */
 const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
+  'own-means': 'what they could afford to part with',
   'years-trading': 'the business had survived long enough to be one',
   valuation: 'what the company had come to be worth',
   'qualified-for-role': '{they} was qualified for it',
@@ -1174,6 +1180,9 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
 
     case 'was-acquitted':
       return 'The charge did not stick. Nothing goes on the record — the arrest happened, and that was all it was.'
+
+    case 'endowed':
+      return `Money given to one of the town's own institutions — ${event.detail ?? 'the town'}. It does not come back, which is the point of it.`
 
     case 'hired': {
       const job = world.employment.get(event.subjectId)

@@ -27,6 +27,7 @@ import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './co
 import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
+  liquidShareOf,
   earnLicence,
   canAfford,
   creditPerson,
@@ -244,6 +245,14 @@ import {
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
 import { article15For } from './article15.js'
+import {
+  GIFTS,
+  causeBlurb,
+  causePlaces,
+  endowedNameFor,
+  giftTermsFor,
+} from './philanthropy.js'
+import type { CauseView, GiftTier } from './philanthropy.js'
 import type { HabitKind } from './types.js'
 import {
   dropHabit,
@@ -5477,6 +5486,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'take-stake':
     case 'take-job':
     case 'earn-licence':
+    case 'endow':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -7353,6 +7363,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Started on a new ladder.' // log-only
     case 'earn-licence':
       return 'Earned a qualification.' // log-only
+    case 'endow':
+      return 'Gave to the town.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':
@@ -9434,4 +9446,139 @@ export function earnLicencePlayer(world: World, licenceId: string): { done: bool
   const done = earnLicence(world, person.id, licenceId)
   if (done.done) logVerb(world, 'earn-licence', licenceId)
   return done
+}
+
+// ---------------------------------------------------------------------------
+// GIVING IT AWAY (the money sinks, first of them)
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT THE TOWN WOULD TAKE, and what it would cost to give it.
+ *
+ * Every refusal on the screen comes from `giveBar` below, which is the same
+ * function the verb calls — the bar pattern this codebase has had to learn
+ * more than once. A card that says you cannot give and a button that refuses
+ * can never disagree.
+ */
+export function causesFor(world: World): readonly CauseView[] {
+  const person = playerPerson(world)
+  return causePlaces(world).map((place) => ({
+    placeId: place.id,
+    name: place.name,
+    blurb: causeBlurb(place),
+    endowedBy: place.endowedBy ?? null,
+    offers: GIFTS.map((terms) => ({
+      tier: terms.tier,
+      title: terms.title,
+      blurb: terms.blurb,
+      cost: atTodaysPrices(world, terms.cost) as Money,
+      bar: person === undefined ? 'Nobody to give it.' : giveBar(world, person.id, place.id, terms.tier),
+    })),
+  }))
+}
+
+/**
+ * WHY THEY CANNOT GIVE THIS, in words, or null when they can.
+ *
+ * Read by the screen and by the verb. The order matters: the reasons a
+ * player cannot act on are said before the ones they can do something about,
+ * so the message is always the most useful one.
+ */
+export function giveBar(
+  world: World,
+  personId: EntityId,
+  placeId: EntityId,
+  tier: GiftTier,
+): string | null {
+  const place = world.places.get(placeId)
+  if (place === undefined) return 'There is no such place.'
+  if (place.kind !== 'school' && place.kind !== 'civic') {
+    return 'That is somebody’s business, not the town’s.'
+  }
+  const terms = giftTermsFor(tier)
+  if (terms === undefined) return 'No such gift.'
+
+  // THE NAME GOES ON ONCE. A second family cannot buy over the first, which
+  // is the whole point of it outliving anybody — otherwise the richest
+  // generation simply overwrites the one before and nothing is permanent.
+  if (terms.names && (place.endowedBy ?? null) !== null) {
+    return `${place.endowedBy ?? ''} endowed it. A name over a door goes on once.`
+  }
+
+  const cost = atTodaysPrices(world, terms.cost) as Money
+  if (liquidShareOf(world, personId) < cost) {
+    return `It takes ${formatMoney(cost)} and you have ${formatMoney(liquidShareOf(world, personId) as Money)}.`
+  }
+  return null
+}
+
+/**
+ * GIVE IT AWAY. The money is gone — that is what a sink is.
+ *
+ * WHAT IT BUYS, and none of it is a stat the player will go hunting for:
+ * the place is better for it (desirability is a real field that decides
+ * where people choose to live), the family name goes over the door at the
+ * top tier and STAYS there, and the whole thing lands in the causal record
+ * so the retrospective can tell their grandchildren about it.
+ */
+export function endowPlayer(
+  world: World,
+  placeId: EntityId,
+  tier: GiftTier,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = giveBar(world, person.id, placeId, tier)
+  if (bar !== null) return { done: false, reason: bar }
+
+  const place = world.places.get(placeId)
+  const terms = giftTermsFor(tier)
+  if (place === undefined || terms === undefined) return { done: false, reason: 'No such gift.' }
+
+  const cost = atTodaysPrices(world, terms.cost) as Money
+  const paid = debitPerson(world, person.id, cost)
+  if (paid < cost) {
+    // Never take a part-payment for a whole gift.
+    if (paid > 0) creditPerson(world, person.id, paid)
+    return { done: false, reason: `It takes ${formatMoney(cost)} and you cannot cover it.` }
+  }
+
+  const named = terms.names ? endowedNameFor(person.familyName, place) : null
+  world.places.set(place.id, {
+    ...place,
+    desirability: Math.min(1000, place.desirability + terms.lift),
+    ...(named === null ? {} : { endowedBy: person.familyName }),
+  })
+
+  logVerb(world, 'endow', `${String(placeId)}:${tier}`)
+  recordEvent(world, world.tick, {
+    type: 'endowed',
+    subjectId: person.id,
+    placeId: place.id,
+    detail: named ?? place.name,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'philanthropy',
+    significance: 'major',
+    inputs: [factor('own-means', Math.min(1000, Math.floor(cost / 1000)))],
+    chosen:
+      named === null
+        ? `gave ${formatMoney(cost)} to ${place.name}`
+        : `endowed ${place.name} as ${named}`,
+    rejected: ['keeping the money'],
+    streamId: Stream.Career,
+  })
+  // Giving feels like something. Small and bounded — this is a story, not a
+  // stat to farm.
+  nudgeWellbeing(world, world.tick, person.id, terms.names ? 18 : 6, `giving to ${place.name}`)
+
+  return {
+    done: true,
+    reason:
+      named === null
+        ? `${formatMoney(cost)} to ${place.name}. They will remember it.`
+        : `${formatMoney(cost)}. It is ${named} now, and will be long after you.`,
+  }
 }

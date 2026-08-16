@@ -89,6 +89,7 @@ import {
   joinPathPlayer,
   climbPathPlayer,
   earnLicencePlayer,
+  endowPlayer,
   sellSharesPlayer,
   chooseSpendStance,
   courtFriend,
@@ -126,7 +127,7 @@ import {
   tryOutForUnit,
   walkOut,
 } from '@life-engine/engine'
-import type { ExpansionKind, World } from '@life-engine/engine'
+import type { ExpansionKind, GiftTier, World } from '@life-engine/engine'
 import { createLedgerTracker } from './ledgerdelta.js'
 import type { LedgerDelta } from './ledgerdelta.js'
 import { fromSaveFile } from '@life-engine/persistence'
@@ -176,6 +177,7 @@ export type VerbRequest =
   | { readonly verb: 'join-path'; readonly pathId: string }
   | { readonly verb: 'climb-path' }
   | { readonly verb: 'earn-licence'; readonly licenceId: string }
+  | { readonly verb: 'endow'; readonly placeId: number; readonly tier: GiftTier }
   | { readonly verb: 'sell-shares'; readonly stockId: string; readonly retirement: boolean }
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
@@ -612,6 +614,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 'join-path': { const r = joinPathPlayer(world, a.pathId); outcome = { ok: r.done, reason: r.reason }; break }
           case 'climb-path': { const r = climbPathPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
           case 'earn-licence': { const r = earnLicencePlayer(world, a.licenceId); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'endow': { const r = endowPlayer(world, a.placeId as never, a.tier); outcome = { ok: r.done, reason: r.reason }; break }
           case 'take-stake': { const r = takeStakePlayer(world, a.stockId, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
           case 'buy-shares': {
             const r = buySharesPlayer(world, a.stockId, a.cents, a.retirement)

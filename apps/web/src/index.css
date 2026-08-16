@@ -1,0 +1,26 @@
+
+/* GIVING — the money sinks. Each cause is a small block with its tiers
+   across the bottom, so the escalation reads left to right. */
+.give-cause {
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+}
+.give-cause:first-of-type {
+  border-top: none;
+}
+.give-cause-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.give-offers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+.give-offers .apply {
+  flex: 1 1 auto;
+  min-width: 9rem;
+}
