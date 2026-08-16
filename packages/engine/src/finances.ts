@@ -23,7 +23,7 @@
  */
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
-import type { BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
+import type { MoneyEntry, BusinessMonth, ExpansionKind, InvestmentRound, Shareholder } from './types.js'
 import { LIVING_COST_ADULT, LIVING_COST_CHILD, PRIVATE_SCHOOL_TUITION, rentFor } from './content.js'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
@@ -585,7 +585,7 @@ export function chargeTuition(
   amount: Money,
 ): Money {
   if (amount <= 0) return 0 as Money
-  const paid = debitPerson(world, personId, amount)
+  const paid = debitPerson(world, personId, amount, 'Court-ordered support paid')
   const shortfall = (amount - paid) as Money
   if (shortfall <= 0) return 0 as Money
 
@@ -597,7 +597,7 @@ export function chargeTuition(
     // a second path means the debt is recorded exactly as every other
     // loan in the game is, with one rate fixed at one signing.
     if (!takeLoan(world, tick, personId, 'student', shortfall)) return 0 as Money
-    debitPerson(world, personId, shortfall)
+    debitPerson(world, personId, shortfall, 'Court-ordered support paid')
     return shortfall
   }
 
@@ -750,7 +750,7 @@ export function signLease(
 
   const rent = propertyRentOf(world, property)
   const deposit = (rent * DEPOSIT_MONTHS) as Money
-  debitPerson(world, personId, (rent + deposit) as Money)
+  debitPerson(world, personId, (rent + deposit) as Money, 'Rent and deposit on a new tenancy')
 
   world.leases.set(household.id, {
     propertyId,
@@ -794,7 +794,7 @@ export function endLease(world: World, tick: Tick, householdId: EntityId): boole
   const sound = property === undefined || property.condition >= 500
   if (sound && household !== undefined) {
     const head = [...household.memberIds][0]
-    if (head !== undefined) creditPerson(world, head, lease.depositCents)
+    if (head !== undefined) creditPerson(world, head, lease.depositCents, 'Deposit returned')
   }
   recordEvent(world, tick, {
     type: 'ended-lease',
@@ -1014,7 +1014,7 @@ export function sellHome(
   // never reaches a seller who still owes on the place.
   const toSeller = net - owed
   // PROCEEDS TO THE WALLET (H0), the file changes on the personal record.
-  if (toSeller > 0) creditPerson(world, personId, toSeller as Money)
+  if (toSeller > 0) creditPerson(world, personId, toSeller as Money, 'Sold a property')
   setAccounts(world, {
     ...accountsOf(world, personId),
     loans: isResidence ? accounts.loans.filter((l) => l.kind !== 'mortgage') : accounts.loans,
@@ -1500,7 +1500,117 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
  * would be a second writer, and `setAccounts` stays unexported so nobody
  * can. Returns what was actually taken, which may be less than asked.
  */
-export function debitPerson(world: World, personId: EntityId, amount: Money): Money {
+/**
+ * HOW LONG THE STATEMENT REMEMBERS. Eighteen months, so a player can look
+ * back over last year without a save carrying a lifetime of grocery money.
+ */
+export const MONEY_LOG_MONTHS = 18
+
+/**
+ * WRITE ONE MOVEMENT OF THE PLAYER'S MONEY DOWN, WITH ITS CAUSE.
+ *
+ * THE ASK (owner): "the month should show every single income and spending of
+ * that money with labels so we know what acutally caused it."
+ *
+ * The money card was a FORECAST of a recurring month, which by construction
+ * cannot explain the months that most need explaining — the one where a
+ * business sold, a house was bought, a licence was sat. This is the other
+ * thing: a statement of what actually moved.
+ *
+ * IT LIVES AT THE CHOKEPOINT ON PURPOSE. `creditPerson` and `debitPerson` are
+ * the only two ways money reaches or leaves a person outside the monthly
+ * pass, so recording here means a new verb CANNOT forget to appear on the
+ * statement — the coverage is structural rather than remembered. The monthly
+ * pass adds its own lines where it applies them.
+ *
+ * THE PLAYER'S WALLET ONLY. Logging the whole town would put tens of
+ * thousands of rows into a save to answer a question nobody asks about a
+ * stranger — and a couple share one wallet under H0, so the test is whether
+ * the WALLET is the player's, not whether the person is.
+ */
+/**
+ * THE PLAYER'S WALLET, RESOLVED AT MOST ONCE PER TICK.
+ *
+ * A PERFORMANCE REGRESSION I CAUSED AND THE SUITE CAUGHT: the first version
+ * of `recordMoney` called `walletHolderOf` twice on every money movement in
+ * the world. That reads `spouseOf`, which is `firstEdgeWith`, which SCANS
+ * EVERY RELATIONSHIP IN THE WORLD — so a town of a hundred and fifty people
+ * paid two full scans per earner per month, inside `runFinances`, which
+ * `RESUME.md` already records as the whole tick budget. The suite went from
+ * about 650 seconds to 1,317 and a long test tipped over its timeout.
+ *
+ * The answer is that it only ever needed resolving ONCE. Memoised against
+ * the world it was computed for and the tick it was computed at, so a second
+ * world in the same process, or the next month in this one, recomputes
+ * rather than reading a stale answer. Derived state only — nothing here is
+ * saved, and the same (world, tick) always produces the same value, so
+ * determinism is untouched.
+ */
+let walletMemoWorld: World | null = null
+let walletMemoTick = -1
+let walletMemoHolder: EntityId | null = null
+
+function playerWalletHolder(world: World): EntityId | null {
+  if (walletMemoWorld === world && walletMemoTick === world.tick) return walletMemoHolder
+  const playerId = world.player.personId
+  walletMemoWorld = world
+  walletMemoTick = world.tick
+  walletMemoHolder = playerId === null ? null : walletHolderOf(world, playerId)
+  return walletMemoHolder
+}
+
+export function recordMoney(
+  world: World,
+  personId: EntityId,
+  amount: Money,
+  label: string,
+  /**
+   * THE WALLET THIS MOVEMENT LANDED IN, where the caller already knows it.
+   * `creditPerson` and `debitPerson` both resolve it to move the money, so
+   * handing it over saves this function repeating a full relationship scan
+   * for every person in the town.
+   */
+  holder?: EntityId,
+): void {
+  if (amount === 0) return
+  const playerId = world.player.personId
+  if (playerId === null) return
+  /**
+   * THE CHEAP HALF FIRST. A movement on the player's own record needs no
+   * lookup at all, and that is most of what a player's statement is made of.
+   */
+  if (personId !== playerId) {
+    const mine = playerWalletHolder(world)
+    if (mine === null) return
+    if ((holder ?? walletHolderOf(world, personId)) !== mine) return
+  }
+
+  world.moneyLog.push({ tick: world.tick, amount, label })
+  // Prune from the front, oldest first. The log is appended in tick order,
+  // so this stops as soon as it meets something worth keeping.
+  const oldest = world.tick - MONEY_LOG_MONTHS * 12
+  let drop = 0
+  while (drop < world.moneyLog.length && (world.moneyLog[drop]?.tick ?? 0) < oldest) drop += 1
+  if (drop > 0) world.moneyLog.splice(0, drop)
+}
+
+/** Everything that moved this person's money in a given month, in order. */
+export function moneyMonthFor(world: World, tick: Tick): readonly MoneyEntry[] {
+  return world.moneyLog.filter((entry) => entry.tick === tick)
+}
+
+export function debitPerson(
+  world: World,
+  personId: EntityId,
+  amount: Money,
+  /**
+   * WHAT THIS WAS FOR, for the statement. Optional so no existing caller
+   * broke, and every one worth naming has been named — an unlabelled
+   * movement still appears, which is the point: the player is never shown
+   * money leaving with no line against it.
+   */
+  why = 'Something bought',
+): Money {
   if (amount <= 0) return 0 as Money
   // H0: the couple's money is one pot. The debit lands on the wallet.
   const accounts = walletOf(world, personId)
@@ -1512,13 +1622,21 @@ export function debitPerson(world: World, personId: EntityId, amount: Money): Mo
     checking: (accounts.checking - fromChecking) as Money,
     savings: (accounts.savings - fromSavings) as Money,
   })
+  recordMoney(world, personId, -(fromChecking + fromSavings) as Money, why, accounts.personId)
   return (fromChecking + fromSavings) as Money
 }
 
-export function creditPerson(world: World, personId: EntityId, amount: Money): number {
+export function creditPerson(
+  world: World,
+  personId: EntityId,
+  amount: Money,
+  /** What brought it in. See `debitPerson`. */
+  why = 'Money in',
+): number {
   if (amount <= 0) return 0
   // H0: earnings land in the couple's one pot.
   const accounts = walletOf(world, personId)
+  recordMoney(world, personId, amount, why, accounts.personId)
   const beforeLiquid = accounts.checking + accounts.savings
   setAccounts(world, { ...accounts, checking: (accounts.checking + amount) as Money })
   // Digging out is an event, the same as falling in was. The wallet dug
@@ -1615,7 +1733,7 @@ export function transferBetweenHouseholds(
     .filter((p): p is Person => p !== undefined && p.deathTick === null)
     .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)
   const receiver = receivers[0]
-  if (receiver !== undefined) creditPerson(world, receiver.id, moved as Money)
+  if (receiver !== undefined) creditPerson(world, receiver.id, moved as Money, 'Moved between your own accounts')
   return moved
 }
 
@@ -2918,7 +3036,13 @@ export function runFinances(world: World, tick: Tick): void {
         monthsWorked: wage > 0 ? accounts.monthsWorked + 1 : accounts.monthsWorked,
         lastMonthlyPay: wage > 0 ? (wage as Money) : accounts.lastMonthlyPay,
       })
-      creditPerson(world, memberId, earned)
+      /**
+       * THE WAGE LINE ON THE STATEMENT. Named by what it actually is — the
+       * pay packet AFTER tax, plus any floor the state put under it — so a
+       * player comparing it with their salary is not confused by the gap
+       * that withholding makes.
+       */
+      creditPerson(world, memberId, earned, support > 0 ? 'Pay and support — after tax' : 'Pay — after tax')
       earners.push({ personId: memberId, income: earned })
       income += earned
     }
@@ -2951,6 +3075,15 @@ export function runFinances(world: World, tick: Tick): void {
 
     // Taken pro rata, in integer cents, with the rounding remainder on the
     // largest earner so the shares always sum to exactly what is owed.
+    /**
+     * IS THIS EVEN THE PLAYER'S ROOF? A cheap array check, so the itemising
+     * below costs the other forty-five households in the town nothing at
+     * all. Without it this loop paid a full relationship scan per earner
+     * per month for people whose statement nobody will ever read.
+     */
+    const playerIsHere =
+      world.player.personId !== null && household.memberIds.includes(world.player.personId)
+    const playerWallet = playerIsHere ? playerWalletHolder(world) : null
     let collected = 0
     if (income > 0 && owed > 0) {
       earners.sort((a, b) => b.income - a.income || a.personId - b.personId)
@@ -2967,6 +3100,45 @@ export function runFinances(world: World, tick: Tick): void {
         setAccounts(world, { ...accounts, checking: (accounts.checking - taken) as Money })
         collected += taken
         left -= share
+
+        /**
+         * THE OUTGOING LINES ON THE PLAYER'S STATEMENT (owner: "the month
+         * should show every single income and spending of that money with
+         * labels so we know what acutally caused it").
+         *
+         * The month collects ONE lump per earner covering the roof, the
+         * mouths and the day-to-day. That is right for the simulation and
+         * useless on a statement, so the lump is split back into its three
+         * causes here — IN PROPORTION, with the remainder on the last line,
+         * so the lines always add to exactly what was taken. A statement
+         * whose rows do not sum to the money that left is worse than no
+         * statement.
+         *
+         * GUARDED ON THE PLAYER'S WALLET FIRST, because this loop is the
+         * hottest code in the month and none of the work below is worth
+         * doing for a stranger.
+         */
+        if (taken > 0 && playerWallet !== null && walletHolderOf(world, earner.personId) === playerWallet) {
+          const theirs = units.find((one) => one.includes(earner.personId))
+          if (theirs !== undefined) {
+            const at = units.indexOf(theirs)
+            const theirShape = { unitCount: units.length, totalIncome, mine: incomes[at] ?? 0 }
+            const parts = unitCostParts(world, household, theirs, theirShape)
+            const spend = discretionaryForUnit(world, household, theirs, theirShape)
+            const day = spend + salesTaxOn(spend as Money)
+            const whole = parts.rent + parts.living + day
+            if (whole > 0) {
+              const rentCut = Math.floor((taken * parts.rent) / whole)
+              const liveCut = Math.floor((taken * parts.living) / whole)
+              const dayCut = taken - rentCut - liveCut
+              recordMoney(world, earner.personId, -rentCut as Money, 'Rent')
+              recordMoney(world, earner.personId, -liveCut as Money, 'Living costs — food, clothes, the bills')
+              recordMoney(world, earner.personId, -dayCut as Money, 'Day-to-day spending')
+            } else {
+              recordMoney(world, earner.personId, -taken as Money, 'The month’s bills')
+            }
+          }
+        }
       }
     }
 
@@ -3789,7 +3961,7 @@ function runLandlords(world: World, tick: Tick): void {
     // Living in your own house is shelter, not income.
     if (household.memberIds.includes(ownerId)) continue
     const rent = roofCostFor(world, household)
-    if (rent > 0) creditPerson(world, ownerId, rent)
+    if (rent > 0) creditPerson(world, ownerId, rent, 'Rent from a tenant')
   }
 }
 
@@ -3992,7 +4164,7 @@ export function raiseRound(
       })
     const backer = candidates[0]
     if (backer === undefined) return undefined
-    const taken = debitPerson(world, backer.id, amount)
+    const taken = debitPerson(world, backer.id, amount, 'Put into the business')
     if (taken < amount) return undefined
     holder = {
       id: `sh-${String(businessId)}-${round}`,
@@ -4144,7 +4316,7 @@ export function sellBusiness(
   if (business === undefined || business.closedTick !== null) return false
   if (buyer === undefined || buyer.deathTick !== null) return false
   if (price <= 0) return false
-  if (!fromOutside && debitPerson(world, buyerId, price) < price) return false
+  if (!fromOutside && debitPerson(world, buyerId, price, 'Bought out a rival') < price) return false
 
   const seller = business.ownerId
   const table = world.capTables.get(businessId)
@@ -4159,7 +4331,7 @@ export function sellBusiness(
       if (preferred <= 0) continue
       left -= preferred
       if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
-        creditPerson(world, holder.personId, preferred as Money)
+        creditPerson(world, holder.personId, preferred as Money, 'Your preference on the sale')
       }
     }
     // Whatever survived the preferences splits by what people hold.
@@ -4167,13 +4339,13 @@ export function sellBusiness(
       const cut = Math.floor((left * holder.perMille) / 1000)
       if (cut <= 0) continue
       if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
-        creditPerson(world, holder.personId, cut as Money)
+        creditPerson(world, holder.personId, cut as Money, 'Your share of the sale')
       }
     }
     const founderCut = Math.floor((left * table.founderPerMille) / 1000)
-    if (founderCut > 0) creditPerson(world, seller, founderCut as Money)
+    if (founderCut > 0) creditPerson(world, seller, founderCut as Money, 'Your share of the sale')
   } else {
-    creditPerson(world, seller, left as Money)
+    creditPerson(world, seller, left as Money, 'Your share of the sale')
   }
 
   // It goes on trading under its new owner, and the register is settled.
@@ -4243,7 +4415,7 @@ export function windDownBusiness(world: World, tick: Tick, businessId: EntityId)
   const ops = world.businessOps.get(businessId)
   // The shelf goes at clearance, the same as a stockroom clearance would.
   const shelf = ops === undefined ? 0 : Math.floor((ops.stockCents * 620) / 1000)
-  creditPerson(world, business.ownerId, (business.capital + shelf) as Money)
+  creditPerson(world, business.ownerId, (business.capital + shelf) as Money, 'Wound the business up')
   world.businesses.set(businessId, { ...business, capital: 0 as Money, closedTick: tick })
   layOffTheStaffOf(world, tick, businessId, business.name)
   world.capTables.delete(businessId)
@@ -4341,7 +4513,7 @@ export function acquireRival(
   // ONE FIRM BUYING ANOTHER: it comes out of the till, not the founder's
   // savings. The seller is a person, so their side is personal money.
   if (!spendFromCapital(world, mine.id, price)) return false
-  creditPerson(world, rival.ownerId, price)
+  creditPerson(world, rival.ownerId, price, 'Sold the business')
 
   // What they built becomes part of what you have.
   const buyerNow = world.businesses.get(mine.id) ?? mine
@@ -4942,7 +5114,7 @@ function runBusinesses(world: World, tick: Tick): void {
         setAccounts(world, { ...own, taxableYtd: (own.taxableYtd + cents) as Money })
       }
       if (table === undefined) {
-        creditPerson(world, business.ownerId, drawn)
+        creditPerson(world, business.ownerId, drawn, 'Drawn from the business')
         taxDraw(business.ownerId, drawn)
       } else {
         let paidOut = 0
@@ -4951,12 +5123,12 @@ function runBusinesses(world: World, tick: Tick): void {
           if (cut <= 0) continue
           paidOut += cut
           if (holder.personId !== null && world.people.get(holder.personId)?.deathTick === null) {
-            creditPerson(world, holder.personId, cut as Money)
+            creditPerson(world, holder.personId, cut as Money, 'Dividend from your shares')
             taxDraw(holder.personId, cut)
           }
         }
         const founders = Math.max(0, drawn - paidOut)
-        creditPerson(world, business.ownerId, founders as Money)
+        creditPerson(world, business.ownerId, founders as Money, 'Drawn from the business')
         taxDraw(business.ownerId, founders)
       }
       world.businesses.set(business.id, {
@@ -5095,7 +5267,7 @@ function runBusinesses(world: World, tick: Tick): void {
         closedTick: tick,
       })
       layOffTheStaffOf(world, tick, business.id, business.name)
-      creditPerson(world, business.ownerId, Math.max(0, business.capital - loss) as Money)
+      creditPerson(world, business.ownerId, Math.max(0, business.capital - loss) as Money, 'What was left when the business closed')
       recordEvent(world, tick, {
         type: 'business-closed',
         subjectId: business.ownerId,
@@ -5177,6 +5349,7 @@ function payInterest(world: World): void {
     if (!person || person.deathTick !== null) continue
     const interest = monthlyInterestOn(accounts.savings, savingsRateOf(world))
     if (interest <= 0) continue
+    recordMoney(world, accounts.personId, interest, 'Interest on your savings')
     setAccounts(world, {
       ...accounts,
       savings: (accounts.savings + interest) as Money,
@@ -6181,10 +6354,10 @@ export function earnLicence(
     return { done: false, reason: 'You already hold it.' }
   }
   const cost = atTodaysPrices(world, licence.cost) as Money
-  const paid = debitPerson(world, personId, cost)
+  const paid = debitPerson(world, personId, cost, 'Bought shares')
   if (paid < cost) {
     // Never take a part-payment for a whole qualification.
-    if (paid > 0) creditPerson(world, personId, paid)
+    if (paid > 0) creditPerson(world, personId, paid, 'Shares you could not cover, refunded')
     return { done: false, reason: `It costs ${formatMoney(cost)} and you cannot cover it.` }
   }
 

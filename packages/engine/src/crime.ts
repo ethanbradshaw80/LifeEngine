@@ -708,7 +708,7 @@ export function executeOffence(
       // proceeds of every till and forged cheque in the town were quietly
       // deleted at the next settle, and C2's whole premise ("what you take
       // is real money") was not true of half the offences.
-      taken = creditPerson(world, person.id, wanted as Money)
+      taken = creditPerson(world, person.id, wanted as Money, 'Takings from a theft')
     }
   }
 
@@ -1014,7 +1014,7 @@ function carryOutOffence(
   if (offence.gainMax > 0) {
     const wanted = rng.nextIntInclusive(offence.gainMin, offence.gainMax)
     // The thief's own pocket — see the note in the theft path above.
-    taken = creditPerson(world, person.id, wanted as Money)
+    taken = creditPerson(world, person.id, wanted as Money, 'Takings from a theft')
   }
 
   recordEvent(world, tick, {

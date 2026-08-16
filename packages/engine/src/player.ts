@@ -1423,7 +1423,7 @@ export function takePublicPlayer(world: World): { done: boolean; reason: string 
   })
 
   // The cash for the slice sold. finances writes it, as always.
-  creditPerson(world, person.id, floatProceedsFor(valuation))
+  creditPerson(world, person.id, floatProceedsFor(valuation), 'Floated the company')
   // And the rest becomes shares they hold, at the opening price.
   grantShares(
     world,
@@ -1527,7 +1527,7 @@ export function buyChipsPlayer(world: World, cents: Money): { done: boolean; rea
   // actually collect, and that is the only number the cashier may honour.
   // Crediting the ASKED amount minted chips from thin air the moment the
   // wallet ran dry (owner, playing: "I can get unlimited chips").
-  const taken = debitPerson(world, person.id, cents)
+  const taken = debitPerson(world, person.id, cents, 'Bought chips at the casino')
   if (taken <= 0) return { done: false, reason: 'The window counts your money and slides it back.' }
   world.gamblers.set(person.id, {
     ...record,
@@ -1560,7 +1560,7 @@ export function cashOutPlayer(world: World): { done: boolean; reason: string; ce
   const cents = record.chips
   logVerb(world, 'cash-out', String(cents))
   world.gamblers.set(person.id, { ...record, chips: 0 as Money })
-  creditPerson(world, person.id, cents)
+  creditPerson(world, person.id, cents, 'Cashed out at the casino')
   recordEvent(world, world.tick, {
     type: 'cashed-out',
     subjectId: person.id,
@@ -2316,7 +2316,7 @@ export function takeFightPlayer(world: World): { done: boolean; reason: string; 
     ...after,
     fatigue: Math.min(1_000, record.fatigue + 160),
   })
-  creditPerson(world, person.id, atTodaysPrices(world, result.purse) as Money)
+  creditPerson(world, person.id, atTodaysPrices(world, result.purse) as Money, 'Winnings')
   recordEvent(world, world.tick, {
     type: 'fought',
     subjectId: person.id,
@@ -2892,7 +2892,7 @@ export function seeADoctor(world: World): { seen: boolean; reason: string } {
     return { seen: false, reason: 'Nothing to be seen about.' }
   }
 
-  debitPerson(world, person.id, DOCTOR_VISIT_COST)
+  debitPerson(world, person.id, DOCTOR_VISIT_COST, 'Seeing the doctor')
   // A quarter off what is wrong. Real, bounded, and not a cure.
   world.health.set(person.id, {
     ...health,
@@ -3613,7 +3613,7 @@ export function fitAdaptationPlayer(world: World): { done: boolean; reason: stri
   if (!fitAdaptation(world, person.id, world.tick)) {
     return { done: false, reason: 'Nothing to fit.', words: '' }
   }
-  debitPerson(world, person.id, cost)
+  debitPerson(world, person.id, cost, 'Tuition')
   return {
     done: true,
     reason: '',
@@ -5195,7 +5195,7 @@ export function resolvePending(world: World, choice: string): void {
         // the household balance, which since the split is an OBLIGATIONS
         // counter clamped at or below zero every month — so a player took a
         // twelve-thousand-dollar bonus and the next settle deleted it.
-        creditPerson(world, person.id, state.bonus as Money)
+        creditPerson(world, person.id, state.bonus as Money, 'Signing bonus')
       }
       break
     }
@@ -6047,7 +6047,7 @@ export function resolvePending(world: World, choice: string): void {
       if (choice === 'put-money-in') {
         // Enough to cover the month that went wrong, if they have it.
         const need = (pending.monthlyPay ?? 0) as Money
-        const taken = debitPerson(world, person.id, need)
+        const taken = debitPerson(world, person.id, need, 'Put into the business')
         if (taken > 0) {
           world.businesses.set(business.id, {
             ...business,
@@ -6068,7 +6068,7 @@ export function resolvePending(world: World, choice: string): void {
         const ops = world.businessOps.get(business.id)
         if (ops !== undefined && ops.stockCents > 0) {
           const back = Math.floor((ops.stockCents * CLEARANCE_PER_MILLE) / 1000) as Money
-          creditPerson(world, business.ownerId, back)
+          creditPerson(world, business.ownerId, back, 'Returned from the business')
           world.businessOps.set(business.id, { ...ops, stockCents: 0 as Money })
         }
       }
@@ -8499,7 +8499,7 @@ export function investInBusinessPlayer(
   const space =
     room === undefined ? amount : Math.max(0, room.ceiling - mine.business.capital)
   const wanted = Math.min(amount, space)
-  const taken = debitPerson(world, mine.business.ownerId, wanted as Money)
+  const taken = debitPerson(world, mine.business.ownerId, wanted as Money, 'Bought stock for the business')
   if (taken <= 0) return { done: false, reason: 'You do not have that to put in.' }
   logVerb(world, 'invest-business', String(amount))
   world.businesses.set(mine.business.id, {
@@ -8540,7 +8540,7 @@ export function withdrawFromBusinessPlayer(
     }
   }
   logVerb(world, 'withdraw-business', String(amount))
-  creditPerson(world, mine.business.ownerId, amount as Money)
+  creditPerson(world, mine.business.ownerId, amount as Money, 'Sold up')
   const left = world.businesses.get(mine.business.id)?.capital ?? (0 as Money)
   return {
     done: true,
@@ -9558,10 +9558,10 @@ export function endowPlayer(
   if (place === undefined || terms === undefined) return { done: false, reason: 'No such gift.' }
 
   const cost = atTodaysPrices(world, terms.cost) as Money
-  const paid = debitPerson(world, person.id, cost)
+  const paid = debitPerson(world, person.id, cost, 'Given to the town')
   if (paid < cost) {
     // Never take a part-payment for a whole gift.
-    if (paid > 0) creditPerson(world, person.id, paid)
+    if (paid > 0) creditPerson(world, person.id, paid, 'A gift that could not be covered, refunded')
     return { done: false, reason: `It takes ${formatMoney(cost)} and you cannot cover it.` }
   }
 
@@ -9685,9 +9685,9 @@ export function commissionBuildPlayer(
   const planned = plannedBuild(world, neighbourhoodPlaceId, type, year)
   if (planned === undefined) return { done: false, reason: 'You cannot build there.' }
   const cost = buildCostFor(world, planned)
-  const paid = debitPerson(world, person.id, cost)
+  const paid = debitPerson(world, person.id, cost, 'Had a house built')
   if (paid < cost) {
-    if (paid > 0) creditPerson(world, person.id, paid)
+    if (paid > 0) creditPerson(world, person.id, paid, 'A build that could not be covered, refunded')
     return { done: false, reason: `The build comes to ${formatMoney(cost)} and you cannot cover it.` }
   }
 

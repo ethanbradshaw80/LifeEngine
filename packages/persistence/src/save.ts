@@ -379,6 +379,7 @@ function hydrate(
     leases,
     capTables,
     expansions,
+    moneyLog: (body['moneyLog'] as never[] | undefined) ?? [],
     businessBooks,
     businessOps,
     deployments,

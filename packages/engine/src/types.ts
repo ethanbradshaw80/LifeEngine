@@ -547,6 +547,30 @@ export interface WorldSpec {
 
 export type PlaceKind = 'neighbourhood' | 'school' | 'workplace' | 'civic' | 'base'
 
+/**
+ * ONE MOVEMENT OF THE PLAYER'S MONEY, WITH ITS CAUSE (owner: "the month
+ * should show every single income and spending of that money with labels so
+ * we know what acutally caused it").
+ *
+ * The money card was a FORECAST — what a recurring month looks like — and he
+ * is asking for a STATEMENT: what actually happened, itemised. A forecast
+ * cannot explain a one-off, and one-offs are exactly the months that need
+ * explaining. A business sold, a house bought, a licence sat, chips cashed,
+ * an inheritance: none of them are in a typical month and all of them are in
+ * THAT month.
+ *
+ * Kept for the player alone, and only for the last eighteen months. Logging
+ * every townsperson's every movement would put tens of thousands of rows in
+ * a save to answer a question nobody asks about them.
+ */
+export interface MoneyEntry {
+  readonly tick: Tick
+  /** Signed: positive came in, negative went out. */
+  readonly amount: Money
+  /** What caused it, in the words a player reads. */
+  readonly label: string
+}
+
 export interface Place {
   readonly id: EntityId
   readonly name: string
@@ -3246,6 +3270,12 @@ export interface World {
   readonly relationships: Map<string, Relationship>
 
   readonly events: WorldEvent[]
+  /**
+   * THE PLAYER'S OWN MONEY, MOVEMENT BY MOVEMENT — see `MoneyEntry`. Pruned
+   * to the last eighteen months, and empty in every save written before it
+   * existed, which is why this needed no migration.
+   */
+  readonly moneyLog: MoneyEntry[]
   readonly causalRecords: CausalRecord[]
   readonly player: PlayerState
   /** L4-M1. Keyed by id; insertion order deterministic from generation. */

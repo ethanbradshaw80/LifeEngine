@@ -65,6 +65,7 @@ import {
   monthlyNetOf,
   businessDrawOf,
   walletAccountsOf,
+  moneyMonthFor,
   monthAheadFor,
   personalMonthlyNet,
   partnerOf,
@@ -1591,6 +1592,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                * roof, every mouth under it) while the heading said "you".
                */
               const month = monthAheadFor(world, person.id)
+              /**
+               * LAST MONTH'S ACTUAL MOVEMENTS. The tick has already advanced
+               * past the month being reported, so this reads the one before —
+               * the month the player just watched happen.
+               */
+              const statement = moneyMonthFor(world, (world.tick - 1) as never)
+              const statementNet = statement.reduce((sum, entry) => sum + entry.amount, 0)
 
               /**
                * EVERY WAY MONEY COMES IN, NOT THE THREE THIS CARD KNEW ABOUT
@@ -1741,7 +1749,55 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </span>
                   </div>
 
-                  <h3 className="panel-heading">The month</h3>
+                  {/*
+                    WHAT ACTUALLY HAPPENED, LINE BY LINE (owner: "the month
+                    should show every single income and spending of that money
+                    with labels so we know what acutally caused it").
+
+                    The card below this is a FORECAST — what a recurring month
+                    looks like — and by construction it cannot explain the
+                    months that most need explaining: the one where a business
+                    sold, a house was bought, a licence was sat. This is the
+                    statement. Every movement of this person's money, in the
+                    order it happened, with the cause the engine recorded at
+                    the moment it moved.
+                  */}
+                  <h3 className="panel-heading">What happened last month</h3>
+                  {statement.length === 0 ? (
+                    <p className="muted small">
+                      Nothing moved. The month ahead is below.
+                    </p>
+                  ) : (
+                    <ul className="ledger">
+                      {statement.map((entry, at) => (
+                        <li
+                          key={`${String(entry.tick)}-${String(at)}`}
+                          className={entry.amount >= 0 ? 'ledger-row in' : 'ledger-row out'}
+                        >
+                          <span className="ledger-label">{entry.label}</span>
+                          <span className="ledger-amount">
+                            {entry.amount >= 0
+                              ? `+${formatMoney(entry.amount)}`
+                              : `−${formatMoney(-entry.amount as Money)}`}
+                          </span>
+                        </li>
+                      ))}
+                      <li
+                        className={
+                          statementNet < 0 ? 'ledger-row total short' : 'ledger-row total'
+                        }
+                      >
+                        <span className="ledger-label">What it came to</span>
+                        <span className="ledger-amount">
+                          {statementNet < 0
+                            ? `−${formatMoney(-statementNet as Money)}`
+                            : formatMoney(statementNet as Money)}
+                        </span>
+                      </li>
+                    </ul>
+                  )}
+
+                  <h3 className="panel-heading">A month like this one</h3>
                   <ul className="ledger">
                     {mine.length === 0 && (
                       <li className="ledger-row muted">
