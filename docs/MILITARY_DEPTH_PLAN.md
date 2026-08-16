@@ -236,6 +236,69 @@ Then:
 - The squad in §6 is **drawn from it**, which is what makes "your unit is
   taking volunteers" stop being a lie.
 
+### 9.0 The world outside the town — the owner's correction
+
+> *"Right now its just all towns people all over the fort bragg and fort riley
+> its just ashwood people... theres obviously a world outside of ashwood... when
+> we join it should be a complete unit with history that is going on or that
+> players from our town have created because we should still be able to be
+> stationed with someone we know."*
+
+**This is the foundation the rest of §9 stands on, and it changes the shape of
+the update.** A base full of the same forty townspeople is the tell that the
+world ends at the town line.
+
+**The good news, measured:** the architecture for people-from-elsewhere
+**already exists and already works.** `spinUpSquad` registers real `Person`
+records in `world.people` — they roll traits, they carry health, and when one
+is killed it runs the same `performDeath` as any other death in the world, so
+it reaches the ledger and the story. The comment on it states the rule
+outright: they are kept out of the town by *"no household, no job, no place"*
+(`householdId: null` and no employment record), which is what already keeps
+anybody out of the town's marriage and jobs passes.
+
+So we are not inventing a second class of person. **We are fixing that they
+are thrown away.** Today they are spun up per tour and belong to nothing.
+
+What changes:
+
+- **Units carry a roster of real, persistent people.** Same person tier, same
+  death, same records — but attached to a *unit*, not to one tour of one
+  player.
+- **They are clickable, exactly like a townsperson.** Same person screen. He
+  asked for this directly and there is no reason it should be a different
+  screen: they are the same kind of record.
+- **They outlive your time there.** You post out, they stay. You come back
+  nine years later and the specialist is a sergeant first class, or is dead,
+  or got out in '84 — and the unit remembers either way.
+- **They have lives you can see the edges of.** Where they are from (a place
+  that is not Ashwood), a family somewhere, a reason they joined. Not a full
+  simulated household — the cost is not worth it — but enough that they are a
+  person rather than a nickname.
+
+**And people you know can genuinely turn up.** The point of a life sim is that
+your hometown friend is at the same post by chance, or your brother enlists
+into the same branch, or the man you served with in '78 is running the
+recruiting station in your town in '91. Townspeople who serve should be
+*eligible* for the same rosters — rarely, honestly, never scripted. That is
+the "stationed with someone we know" he asked for, and it is worth more
+because it is uncommon.
+
+**The reconciliation with §14's ruling.** He said history accumulates from
+play, and he also said a unit should be *"a complete unit with history that is
+going on."* Both hold, and the resolution is the roster: **a unit that is new
+to *you* is not new to itself.** Its people have been there for years, its
+losses are on its books, its reputation exists — all of it produced by the
+simulation running, not invented as backstory. Nothing is fabricated
+retroactively. It is simply that the world did not start when you walked in.
+
+**The honest cost.** Persistent rosters mean more people alive at once, and
+this engine has a measured performance baseline. Unit rosters must stay
+`tier: 'deep'` with no household, no job and no place — the exact exemptions
+that already keep squadmates out of every per-person town pass — and the
+population cost gets measured before and after, not estimated. If it is too
+expensive, the fix is fewer units with fuller rosters, never fake people.
+
 ### 9.1 Unit awards — the owner's ruling, researched
 
 > *"unit awards are different from people awards"*
@@ -300,68 +363,133 @@ Sources: [Presidential Unit Citation](https://en.wikipedia.org/wiki/Presidential
 
 ## 10. Peacetime
 
-Most of a military career is not a war, and today the years between
-deployments are empty. The owner asked for things to actually do.
+> Owner: *"most of those peacetime ideas you had we already have in our game
+> man, think of more."*
 
-**The rule that keeps this from becoming chores:** peacetime should generate
-*a life*, not a task list. Most months should pass with a line of texture and
-no decision. When a decision does come, it should matter for years.
+He is right, and the first draft of this section was largely a description of
+the shipped game. **What already exists, read out of the code rather than
+remembered:**
 
-### 10.1 More schools, per branch
+| Already built | Where |
+|---|---|
+| **PME leadership schools**, per branch, per grade, a **hard gate on promotion** | `SERVICE_SCHOOLS` `category: 'pme'`, `gatesGrade`, `schoolOwedFor` |
+| **Badge schools** — jump, air assault, sniper, freefall, SERE, dive, EOD, flight, pathfinder | `SERVICE_SCHOOLS` `category: 'skill'` |
+| Selection courses and the **special-unit chain** | `category: 'selection'`, `SPECIAL_UNITS` |
+| **Field exercises / sea patrols / readiness exercises** | `service.ts`, 1-in-14 garrison months |
+| **PCS moves between bases** | `service.ts`, `monthsIn % 36 === 30` |
+| **Qualifications earned on performance** | `earned-qualification` + badge |
+| **Reenlistment as a signed document** | `contract.ts` |
+| **Article 15**, as a document | `article15.ts` |
+| **Promotion, time-in-grade, high-year tenure** | `HIGH_YEAR_TENURE_TIG = 72` |
+| **NPCs going to schools too** | `service.ts`, 1-in-40 |
 
-Schools exist and are the strongest thing we already have — extend rather
-than invent. Each is months of your life, a qualification on the record, and
-a different career afterwards.
+So the section is rewritten. What follows is what is **genuinely missing**,
+and the theme is that peacetime today is a list of *events that happen to
+you* with **no people in it** — which is the same root cause as §9.0.
 
-- **Leadership schools by grade** — the ladder every NCO actually climbs, and
-  a hard gate on promotion. Failing one costs you years.
-- **Trade schools deeper in your own MOS** — advanced, senior, master. A
-  mechanic who is *the* mechanic.
-- **Badge schools** — jump, air assault, dive, survival. Short, brutal, and
-  they change which units will take you (§9's real gate).
-- **Instructor duty** — you go *back* to the school to teach. Two or three
-  years, no deployment, and a reputation that follows you.
-- **Joint and staff courses** for officers, which is how a career stops being
-  a platoon and becomes a headquarters.
+### 10.1 Special duty — the tours that take you out of your unit
 
-### 10.2 Things that happen through the year
+The single biggest gap, and the best fit for a life sim. Real careers are
+interrupted by two- and three-year assignments **away from your unit and your
+trade**:
 
-- **Field exercises** — a month in the mud pretending. Squad bonds move (§6),
-  people get hurt for real (§4.5), and units get graded.
-- **Inspections and evaluations** — the unit's grade, not yours, which is
-  where §9's reputation comes from and where the **Meritorious Unit
-  Commendation** is earned.
-- **Ranges and quals** — routine, but a bad one in front of the wrong person
-  costs you.
-- **Duty rosters** — CQ, staff duty, the weekend you lose. Small, frequent,
-  and the honest texture of the job.
-- **Details** — the working party nobody wanted. Cheap, and instantly
-  recognisable to anyone who has served.
-- **Ceremony** — change of command, a retirement, a memorial. This is where
-  the unit's history gets said out loud.
-- **Humanitarian and disaster response** — a real peacetime mission, it can
-  go wrong, and it earns real awards without a war.
-- **Training accidents** — §4.5 lives here too, and this is where peacetime
-  stops being safe.
+- **Recruiter.** And this is the one worth building first, because a recruiter
+  gets sent **to a town** — possibly **your own**. You go home in uniform, you
+  sit in a strip-mall office, and **you enlist the kids you grew up with.** A
+  townsperson's enlistment event now has *your character's name on it*, twenty
+  years later, in their record. That is Law 4 paying out, and nothing in the
+  game does it today.
+- **Drill sergeant / instructor.** You are the one running basic training or
+  the schoolhouse. Every soldier who passes through carries you on their file.
+  Brutal hours, no deployment, and a reputation.
+- **Honour guard / ceremonial duty.** Funerals. Quiet, dignified, and it puts
+  a character at the worst day of somebody else's family's life.
+- **Staff / headquarters.** For officers, the tour where a career stops being
+  a platoon and starts being a career.
 
-### 10.3 The people
+All of them: hard on the family, good for promotion, and years of your life.
 
-- A first sergeant who has it in for you, or a good officer, or a bad one —
-  **a named person whose opinion moves your evaluations for years.**
-- Reenlistment moments: they want you to stay, and the bonus is real money
-  against a life you could have instead.
-- Barracks life, and the friend who gets in trouble and takes you with him
-  (Article 15 already exists — peacetime is when it should fire).
+### 10.2 The evaluation report — a document, annually, by a named person
 
-### 10.4 Promotion and stagnation felt month to month
+The game already writes documents beautifully — the enlistment contract, the
+Article 15. **The annual evaluation is the missing one, and it is the one that
+actually runs a career.**
 
-Not just at a board. You should be able to see it coming: the year you are
-clearly ahead, the year you are clearly not, and the quiet realisation that
-the next grade is not going to happen. High-year tenure already ends careers
-(`HIGH_YEAR_TENURE_TIG = 72`) — the player should *feel* that clock, not be
-told about it on the last month.
+- **Written by a named rater** — your platoon sergeant, your commander. A real
+  person from §9.0's roster, with an opinion of you that persists.
+- **It compounds.** Promotion currently reads a `performance` number. A career
+  should be readable as a stack of reports where you can *see* the year it
+  went wrong.
+- **A bad rater is a real event.** The first sergeant who has it in for you is
+  not flavour text if he writes your evaluation for three years.
+- **Readable in thirty years**, like everything else in the record.
 
-### 10.5 The honest risk
+### 10.3 Command — being responsible for named people
+
+Rank today is a number and a pay grade. It should mean **people are yours.**
+
+- Squad leader, platoon sergeant, first sergeant, commander: a **named subset
+  of the unit roster you are answerable for.**
+- **Their problems become yours.** One of yours gets an Article 15 — it is on
+  your evaluation. One of yours cannot pay his rent, or is drinking, or his
+  wife left.
+- **When one of yours dies, you are the one who writes the letter.** That is
+  the moment the whole system is for, and it is impossible without §9.0.
+
+### 10.4 A life that happens at the base, not in the town
+
+Right now every relationship a character has is an Ashwood relationship, even
+during twenty years stationed elsewhere. That is the same bug as §9.0 wearing
+different clothes.
+
+- **Meet a spouse near the post.** Marry somebody from the town outside the
+  gate, and take them with you on the next PCS.
+- **Children born at the post hospital**, in a place that is not your
+  hometown, who grow up moving.
+- **Your friends are the people in your unit** — and when you PCS, you lose
+  touch with them, which the friendship system already models.
+
+### 10.5 Peacetime is not safe
+
+Nothing in garrison can hurt you today. Deployment has illness and injury;
+home station has nothing.
+
+- **Training accidents** — a vehicle rollover on an exercise, an aircraft
+  mishap, a range accident. Real, and a real share of military deaths.
+- **The drive home.** Off-duty vehicle deaths are one of the great quiet
+  killers of peacetime militaries.
+- These give a cook, a clerk or a mechanic a career that can go wrong without
+  pretending they were in a firefight — and they make the years between wars
+  carry weight.
+
+### 10.6 Off-duty trouble — what actually ends peacetime careers
+
+`article15.ts` exists and peacetime is when it should be firing. What feeds
+it today is thin.
+
+- Drink, debt, a bad marriage, a fight outside a bar by the gate.
+- **Boredom modelled honestly**: long stretches with nothing happening are
+  when people get into trouble, and that is a real finding, not a joke.
+- A friend who gets in trouble and takes you with him.
+
+### 10.7 Boards, competitions and the unit's grade
+
+- **Appearing before a board** — uniform, questions, a panel of named senior
+  NCOs. You can fail. Soldier of the Year, promotion boards.
+- **Inspections and gunnery that grade the UNIT, not you.** This is where §9's
+  reputation comes from and where the **Meritorious Unit Commendation** is
+  earned in peace.
+- **Ceremony** — change of command, retirements, memorials. Where a unit's
+  history gets said out loud in front of the people who made it.
+
+### 10.8 The alert
+
+Deployment currently just happens. It should sometimes **interrupt**: recall
+at 0300, everybody in, wheels up in eighteen hours. A war that starts during
+your daughter's birthday is a different memory from a war you were notified
+about in a menu.
+
+### 10.9 The honest risk
 
 Too much peacetime is boredom, which is the thing being modelled and also the
 thing that makes people stop playing. **Measure it:** share of service months
