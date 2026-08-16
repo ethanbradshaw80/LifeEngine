@@ -27,12 +27,21 @@ combat resolution, casualties, awards and military architecture. The
 | The war at home | **Show it** |
 | War modelling | **After real life** |
 | Shape | **One big update** |
-| Also in scope | **Unit identity** and **peacetime**. Everything else queued |
+| Also in scope | **Unit identity** and **peacetime** |
+| Peacetime scope | **All of §10 is in the build** (owner, 2026-08-16) |
 
-**Explicitly dropped for now:** the draft, Reserve and Guard, duty stations
-and PCS moves, the family at home during a deployment, and casualty
+**Explicitly dropped for now:** the draft, Reserve and Guard, and casualty
 notification as a moment in the survivor's life. All are good; none are this
 update.
+
+**Two things moved out of that dropped list, and it is worth saying why.**
+*Duty stations and PCS* turned out to be **already built** (`service.ts`
+moves a person between bases every 36 months) — it was never a scope
+question. And *the family at home* comes back in a narrower form as §10.4:
+not the family waiting through a deployment, which stays dropped, but a
+character **building a life around the post instead of around Ashwood** —
+marrying somebody from outside the gate, children born where they are
+stationed. Different feature, same observation underneath.
 
 ---
 
@@ -387,6 +396,10 @@ So the section is rewritten. What follows is what is **genuinely missing**,
 and the theme is that peacetime today is a list of *events that happen to
 you* with **no people in it** — which is the same root cause as §9.0.
 
+**All of §10.1 to §10.8 is accepted into the build** (owner, 2026-08-16:
+*"add all of those peacetime suggestions to the build"*). Build order and
+dependencies are at §15. §10.9 is the guard on all of it.
+
 ### 10.1 Special duty — the tours that take you out of your unit
 
 The single biggest gap, and the best fit for a life sim. Real careers are
@@ -588,3 +601,82 @@ branch, exercises, inspections, duty and details, instructor tours,
 humanitarian missions, named people whose opinion of you compounds, and
 promotion pressure felt month to month. With a measurement (§10.5) to catch
 it if a decade of peace reads as ten identical years.
+
+---
+
+## 15. The build order
+
+Everything in this document is in scope. This is the order, and the order is
+**forced by dependency, not by preference** — most of the update is
+unbuildable until units contain people.
+
+### Stage 1 — The roster (§9.0). Everything waits on this.
+
+Persistent units with real, clickable people who outlive your time there.
+Nothing else in this list can be built honestly first:
+
+- §6 squad drawn from the unit → needs a unit with people in it.
+- §9.1 unit awards, permanent vs temporary wear → needs *"were you assigned,
+  and when"* to be a fact.
+- §10.2 evaluations by a named rater → needs the rater to exist.
+- §10.3 command → needs people to be responsible for.
+- §5 after-action reports naming who did what → needs names that persist.
+
+**Exit test:** post out of a unit, play nine years, come back, and the people
+are where the decade left them. Measured against the performance baseline
+before and after.
+
+### Stage 2 — The record
+
+Once people persist, the paperwork means something.
+
+1. **§10.2 the annual evaluation** — a document, a named rater, and a career
+   readable as a stack of them. This replaces `performance` as the thing
+   promotion reads, so it lands before anything that depends on promotion.
+2. **§9.1 unit awards and campaign streamers** — including the peacetime
+   Meritorious Unit Commendation, which needs §10.7's unit grade to hang off.
+3. **§5.3 the after-action report** as a filed document.
+4. **§8 fit-for-duty vs disability**, and ratings that combine. Self-contained
+   and can move earlier if it is annoying him in play — it is the one item on
+   this list that is a **bug fix**, not a feature.
+
+### Stage 3 — Peacetime with people in it
+
+5. **§10.7 boards, inspections, the unit's grade** — feeds the MUC and the
+   evaluation, so it comes before the tours that are judged on them.
+6. **§10.3 command** — named people are yours; their trouble is your trouble.
+7. **§10.5 garrison risk** and **§10.6 off-duty trouble** — cheap, and they
+   make the years between wars carry weight immediately.
+8. **§10.1 special duty**, recruiter first. Recruiter duty depends on Stage 1
+   (you are posted away from your unit) and pays back into the town's own
+   enlistment records, so it wants the rest of the peacetime frame standing.
+9. **§10.4 a life at the base** — marriage and children where you are
+   stationed rather than in Ashwood.
+10. **§10.8 the alert** — small, and best built once deployment has something
+    to interrupt.
+
+### Stage 4 — The war
+
+11. **§11 forty nations with drifting alignments.** Independent of everything
+    above and can be built in parallel by a separate pass — it touches
+    geopolitics, not people.
+12. **§4 situational encounters** and every scene rewritten per MOS and
+    branch. The largest content job in the update.
+13. **§5.1–5.2 squad results and personal attribution.**
+14. **§4.4 most months have no scene** and **§4.5 non-combat casualties.**
+15. **§6 squad bonds earned rather than waited out.**
+16. **§7 lasting psychological injury**, last, because it is driven by what
+    happened in 12–15 and cannot be tuned before they exist.
+17. **§12 the war seen from home.**
+
+### Rules that hold across every stage
+
+- **`CLAUDE.md` §10: independent review by `military-scope-reviewer` is
+  MANDATORY**, before implementation and against the work. This update touches
+  combat resolution, casualties and awards throughout.
+- **Every number in §13 is measured, not asserted** — before and after.
+- **`SIMULATION_VERSION` bumps, then three baselines re-pin**, in the order
+  bump → measure → pin → verify.
+- **Each stage is a place it is safe to stop.** Stage 1 alone is a better game
+  than today; so is Stage 1 + 2. Nothing here is all-or-nothing, and if this
+  runs long the release line is between stages.
