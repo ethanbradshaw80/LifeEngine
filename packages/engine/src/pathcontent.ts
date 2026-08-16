@@ -18,6 +18,8 @@
  */
 
 import { climbable, fromSpecSalary } from './paths.js'
+import { DESK_TRADES } from './pathmore.js'
+import { HANDS_ON } from './pathhands.js'
 import type { CareerPath } from './paths.js'
 
 /** Shorthand so a rung reads like the owner's table row. */
@@ -237,5 +239,7 @@ const WRITTEN: readonly CareerPath[] = [
 ]
 
 /** What the game actually offers: the tables, with every ladder connected. */
-export const FIRST_SLICE: readonly CareerPath[] = WRITTEN.map(climbable)
+export const FIRST_SLICE: readonly CareerPath[] = [...WRITTEN, ...DESK_TRADES, ...HANDS_ON].map(
+  climbable,
+)
 export { WRITTEN }

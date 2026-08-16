@@ -56,6 +56,26 @@ covering every category. The remaining paths then pour into the same table
 as pure content. The alternative risked baking a foundational mistake into
 320 job levels before anything could be played.
 
+**DONE, 2026-08-15.** All three slices are in: **74 ladders, 310 rungs**,
+one file each so the transcription stays reviewable —
+
+| file | what is in it | ladders |
+|---|---|---|
+| `pathcontent.ts` | the first slice, one per category | 15 |
+| `pathmore.ts` | desk trades — technology, finance, management, transport | 29 |
+| `pathhands.ts` | hands-on — trades, healthcare, hospitality, creative, services | 30 |
+
+The spread against his fifteen bubbles: Technology 11, Finance & Business 9,
+Trades 9, Creative 7, Business & Mgmt 7, Healthcare 5, Hospitality 5, Public
+Service 4, Personal Services 4, Retail 3, Transportation 3, Agriculture 3,
+Entertainment 2, Education 1, Law 1.
+
+His document lists seventy-five; seventy-four are transcribed, the shortfall
+being ladders his tables named twice under different headings. The foundation
+held — adding fifty-nine ladders needed **no engine change at all**, and the
+three determinism goldens did not move, because a table nothing reads during
+a tick cannot change a world.
+
 ### Ruling 4 — stress and happiness ship WITH jobs
 
 > Options offered: defer / build now. **Chosen: build now.**
@@ -131,6 +151,17 @@ satisfied one of them.
 
 1. **Where the remaining paths' stress/happiness rows come from** for those
    whose tables list them only in the summary sections.
+   — ANSWERED BY DOING, and stated plainly so it can be overruled: where his
+   document gave per-rung figures they are his; where it gave only a summary,
+   the rungs interpolate between the ends he named. Era windows on trades
+   that plainly did not exist in 1970 (barista, brand designer, video
+   production) are mine, not his.
+
+2. **The town is still not on these ladders.** Every one of the 74 is a
+   PLAYER career. NPCs remain on the old `careers.ts` tracks, which is why
+   adding them moved no golden. Wiring the town on was attempted and reverted
+   — it broke four invariants — and is blocked on rungs becoming first-class
+   in the occupation table.
 
 ## 5. Acceptance
 
@@ -142,3 +173,9 @@ satisfied one of them.
   order against the engine's own table.
 - A save from before this opens, and nobody is awarded a skill they cannot
   be shown to have earned.
+- **Every bubble opens on a career somebody could actually start.** Held by
+  `pathseam.test.ts`, which tests what `pathsFor` hands the screen rather
+  than what the table contains — and which found the one real flaw in the
+  content: Personal Services was sealed outright, because the stylist, the
+  trainer, the masseur AND the groomer all demanded a licence at the entry
+  rung. Four locks and no way in. The groomer's ticket moved up a rung.

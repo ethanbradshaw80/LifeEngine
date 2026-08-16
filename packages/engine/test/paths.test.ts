@@ -15,6 +15,8 @@
 import { describe, expect, it } from 'vitest'
 import { OCCUPATIONS } from '../src/content.js'
 import { FIRST_SLICE, WRITTEN } from '../src/pathcontent.js'
+import { HANDS_ON } from '../src/pathhands.js'
+import { DESK_TRADES } from '../src/pathmore.js'
 import {
   LICENCES,
   PATH_CATEGORIES,
@@ -31,7 +33,11 @@ import { skillById } from '../src/skills.js'
 
 describe('the table holds together', () => {
   it('has a path in it, and every one covers a real category', () => {
-    expect(FIRST_SLICE.length).toBeGreaterThanOrEqual(15)
+    // The whole table now, not a slice: his document is seventy-five ladders
+    // and seventy-four are transcribed. The floor is here so a source file
+    // that stops being wired in shows up as a failure rather than as a
+    // quietly shorter list of careers.
+    expect(FIRST_SLICE.length).toBeGreaterThanOrEqual(70)
     for (const path of FIRST_SLICE) {
       const category = PATH_CATEGORIES.find((entry) => entry.id === path.categoryId)
       expect(category, `${path.id} is filed under a category that does not exist`).toBeDefined()
@@ -170,17 +176,21 @@ describe('no ladder is a dead end', () => {
   })
 
   it('leaves the written tables alone — the fix is at load, not in the data', () => {
-    // WRITTEN is what was transcribed; FIRST_SLICE is what is played. Same
-    // rungs, same pay, same months: only the teaching is topped up.
-    expect(WRITTEN).toHaveLength(FIRST_SLICE.length)
-    for (let at = 0; at < WRITTEN.length; at += 1) {
-      const written = WRITTEN[at]
-      const played = FIRST_SLICE[at]
-      expect(played?.id).toBe(written?.id)
-      expect(played?.levels.length).toBe(written?.levels.length)
+    /**
+     * The transcribed tables against what is played. Matched BY ID rather
+     * than by position: the ladders arrive from two files now, and an
+     * index-wise comparison only held while there was one.
+     */
+    const written = [...WRITTEN, ...DESK_TRADES, ...HANDS_ON]
+    expect(FIRST_SLICE).toHaveLength(written.length)
+    for (const source of written) {
+      const played = FIRST_SLICE.find((path) => path.id === source.id)
+      expect(played, `${source.id} is written but never played`).toBeDefined()
+      expect(played?.levels.length).toBe(source.levels.length)
       played?.levels.forEach((level, i) => {
-        expect(level.monthlyPay).toBe(written?.levels[i]?.monthlyPay)
-        expect(level.monthsRequired).toBe(written?.levels[i]?.monthsRequired)
+        expect(level.monthlyPay).toBe(source.levels[i]?.monthlyPay)
+        expect(level.monthsRequired).toBe(source.levels[i]?.monthsRequired)
+        expect(level.title).toBe(source.levels[i]?.title)
       })
     }
   })

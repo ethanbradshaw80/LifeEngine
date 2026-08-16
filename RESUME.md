@@ -284,6 +284,15 @@ These have each cost real time more than once:
    prisoner.**
 6. **Import cycles are caught by `imports.test.ts` and are usually avoidable
    by reading state inline** rather than importing the module that owns it.
+7. **A CONTENT TABLE THAT VALIDATES CAN STILL REACH THE SCREEN EMPTY.**
+   `paths.test.ts` checked all 74 career ladders — ids unique, rungs in
+   order, every skill real, every ladder climbable — and passed. But the
+   thing a player touches is `pathsFor(world)`, and through THAT seam the
+   whole Personal Services category was sealed: stylist, trainer, masseur
+   and groomer each demanded a licence on the entry rung, so the bubble
+   opened on four locks and no way in. **Test the seam the screen reads,
+   not only the table the seam reads from** — `pathseam.test.ts` is that
+   test, and it found the flaw on its first run.
 
 ### WHERE IT ACTUALLY IS (2026-08-14, SIMULATION_VERSION 174, SCHEMA_VERSION 75)
 
@@ -301,6 +310,23 @@ and the whole business module. What has shipped since:
   the last tenth hurt, and an NPC who can come for what the player floated.
 - **Business lives in its own tab**, per the owner's mockups. The panels that
   were wrongly built inside Career are gone.
+- **Jobs & Careers, from his four files** (2026-08-14/15). Eighteen skills on
+  every person in thousandths, growth that slows by level so mastery takes a
+  career; thirteen licences that money and months can buy and no amount of
+  skill can substitute for; **74 ladders and 310 rungs** across his fifteen
+  categories, salaries deflated by 5 into 1970 money; and his `jobs-ui.html`
+  built against the engine, so every refusal on the screen is the same
+  function the verb calls. See `docs/JOBS_REVAMP_SPEC.md`.
+  - THE CALL that saved the content pass: **a ladder is made climbable at
+    load, not in the data.** A validator found all fifteen first-slice paths
+    were dead ends — 74 gates demanding skills nothing below them taught, not
+    one visible by eye. `climbable()` teaches, at a trickle, whatever the
+    rung above demands. The remaining 59 ladders were then covered by
+    construction rather than by remembering.
+  - **The town is NOT on these ladders.** They are player careers; NPCs stay
+    on `careers.ts`. That is why pouring in 59 ladders moved no golden and
+    needed no version bump. Wiring the town on broke four invariants and was
+    reverted — see the queue.
 
 **The recurring failure shape this module added to the list:** a test that
 hand-rolls the same arithmetic as the code it is testing will pass beside the
