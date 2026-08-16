@@ -390,7 +390,13 @@ import {
   standingOf,
 } from './skills.js'
 import { FIRST_SLICE } from './pathcontent.js'
-import { LICENCES, licenceById, pathAvailableIn } from './paths.js'
+import {
+  LICENCES,
+  findRung,
+  licenceById,
+  pathAvailableIn,
+  workplaceNamesFor,
+} from './paths.js'
 import type { CareerPath, PathLevel } from './paths.js'
 import type { EducationLevel, LicenceId } from './types.js'
 import {
@@ -737,8 +743,29 @@ export function resolveInterview(
   approach: InterviewApproach,
   variant: number,
 ): { hired: boolean; workplaceId: EntityId | null; pay: Money } {
-  const occupation = OCCUPATIONS.find((o) => o.id === occupationId)
-  const workplaces = placesOfKind(world, 'workplace')
+  /**
+   * THE ROOM IS THE SAME ROOM FOR A LADDER (owner, playing: "you also dont
+   * get interviewed for the job or nothing you just get it doesnt matter").
+   *
+   * He was right: `joinPathPlayer` handed the job straight over, while every
+   * job in the occupation table went through an interview with three ways to
+   * play it. A career path is not a lesser kind of work and does not get a
+   * lesser hiring. Rungs are looked up here so the same room, the same
+   * approaches and the same odds serve both.
+   */
+  const rung = findRung(FIRST_SLICE, occupationId)
+  const occupation =
+    OCCUPATIONS.find((o) => o.id === occupationId) ??
+    (rung === undefined
+      ? undefined
+      : {
+          id: rung.level.id,
+          title: rung.level.title,
+          requires: rung.path.requires,
+          minMonthlyPay: rung.level.monthlyPay,
+          maxMonthlyPay: rung.level.monthlyPay,
+        })
+  const workplaces = fittingWorkplaces(world, rung?.path.categoryId)
   if (!occupation || workplaces.length === 0) {
     return { hired: false, workplaceId: null, pay: 0 as Money }
   }
@@ -4552,6 +4579,34 @@ export function resolvePending(world: World, choice: string): void {
         break
       }
       if (choice === 'accept' && pending.occupationId && pending.workplaceId !== null && pending.monthlyPay !== null) {
+        /**
+         * A LADDER RUNG IS ACCEPTED ONTO THE LADDER, not into a loose job:
+         * the employment record has to carry `pathId` and `pathLevel` or the
+         * skills never grow and the climb never starts.
+         */
+        const rung = findRung(FIRST_SLICE, pending.occupationId)
+        if (rung !== undefined) {
+          const previous = world.employment.get(person.id)
+          world.employment.set(person.id, {
+            personId: person.id,
+            occupationId: rung.level.id,
+            workplaceId: pending.workplaceId,
+            monthlyPay: pending.monthlyPay,
+            startedAtTick: pending.tick,
+            performance: previous?.performance ?? Math.floor((person.traits.diligence + 500) / 2),
+            trackId: null,
+            rungSinceTick: pending.tick,
+            pathId: rung.path.id,
+            pathLevel: rung.level.level,
+          })
+          recordEvent(world, pending.tick, {
+            type: 'hired',
+            subjectId: person.id,
+            placeId: pending.workplaceId,
+            detail: rung.level.title,
+          })
+          break
+        }
         const occupation = occupationById(pending.occupationId)
         hirePerson(world, pending.tick, person, occupation, pending.workplaceId, pending.monthlyPay, [
           factor('own-choice', 1000),
@@ -9060,6 +9115,22 @@ function rungViewFor(
   }
 }
 
+/**
+ * WORKPLACES THAT FIT THE TRADE (owner: "the company names to which you get
+ * hired to don't make sense").
+ *
+ * Falls back to every workplace in town where the category has no home of
+ * its own — twelve premises cannot house fifteen trades, and an honest
+ * fallback beats a wrong sign over the door.
+ */
+function fittingWorkplaces(world: World, categoryId: string | undefined) {
+  const all = placesOfKind(world, 'workplace')
+  if (categoryId === undefined) return all
+  const wanted = workplaceNamesFor(categoryId)
+  const fitting = all.filter((place) => wanted.includes(place.name))
+  return fitting.length > 0 ? fitting : all
+}
+
 /** Do they hold these papers? */
 export function holdsLicence(world: World, personId: EntityId, licence: LicenceId): boolean {
   return (world.licences.get(personId) ?? []).includes(licence)
@@ -9198,39 +9269,41 @@ export function joinPathPlayer(world: World, pathId: string): { done: boolean; r
     return { done: false, reason: 'Your own business takes every hour you have.' }
   }
 
-  const workplace = placesOfKind(world, 'workplace')[0]
-  if (workplace === undefined) return { done: false, reason: 'There is nowhere in town to do it.' }
-
-  logVerb(world, 'take-job', pathId)
-  const previous = world.employment.get(person.id)
-  if (previous !== undefined) {
-    recordEvent(world, world.tick, {
-      type: 'left-job',
-      subjectId: person.id,
-      detail: 'for another trade',
-    })
+  if (world.player.pending !== null) {
+    return { done: false, reason: 'A decision is already waiting.' }
   }
-  world.employment.set(person.id, {
+  if (fittingWorkplaces(world, path.categoryId).length === 0) {
+    return { done: false, reason: 'There is nowhere in town to do it.' }
+  }
+
+  /**
+   * YOU ARE INTERVIEWED FOR IT (owner, playing: "you also dont get
+   * interviewed for the job or nothing you just get it doesnt matter").
+   *
+   * This verb used to write the employment record on the spot. Every job in
+   * the occupation table has gone through a real room since M-CAREER §4 —
+   * three ways to play it, and a roll that can say no — and a career ladder
+   * was quietly exempt. The asking is the same asking now: same pending,
+   * same approaches, same odds, and the offer that follows can still be
+   * turned down.
+   */
+  const rng = openStream(world.seed, Stream.Employment, person.id, world.tick + 9999)
+  logVerb(world, 'take-job', pathId)
+  const opened = raisePending(world, {
+    tick: world.tick,
+    kind: 'interview',
     personId: person.id,
-    occupationId: entry.id,
-    workplaceId: workplace.id,
-    monthlyPay: atTodaysPrices(world, entry.monthlyPay) as Money,
-    startedAtTick: world.tick,
-    performance: previous?.performance ?? Math.floor((person.traits.diligence + 500) / 2),
-    trackId: null,
-    rungSinceTick: world.tick,
-    pathId: path.id,
-    pathLevel: entry.level,
+    otherId: null,
+    occupationId: encodeInterview(entry.id, rng.nextIntInclusive(0, 999)),
+    workplaceId: null,
+    monthlyPay: null,
+    placeId: null,
+    options: [...INTERVIEW_APPROACHES],
   })
-  recordEvent(world, world.tick, {
-    type: 'hired',
-    subjectId: person.id,
-    placeId: workplace.id,
-    detail: entry.title,
-  })
+  if (!opened) return { done: false, reason: 'There is already a decision waiting.' }
   return {
     done: true,
-    reason: `${entry.title} at ${formatMoney(atTodaysPrices(world, entry.monthlyPay) as Money)} a month. Everybody starts here.`,
+    reason: `They will see you about the ${entry.title}'s job.`,
   }
 }
 

@@ -766,13 +766,20 @@ describe('living in halls', () => {
     // fees already paid for it.
     const own = createWorld(makeSeed(4141), 300)
     advanceTicks(own, 25 * 12)
+    /**
+     * SOMEBODY WHO ACTUALLY PAYS FOR A ROOF, not merely the first person
+     * living alone. This used to take the first match and assert it had
+     * costs, which is an incidental fact about one seed: a change elsewhere
+     * in the world shifted who that person was to somebody with none, and
+     * the test failed for a reason that had nothing to do with halls.
+     */
     const alone = livingPeople(own).find((person) => {
       const age = ageAt(person.birthTick, own.tick)
       if (age < 19 || age > 30) return false
       const household =
         person.householdId === null ? undefined : own.households.get(person.householdId)
       if (household === undefined || household.memberIds.length !== 1) return false
-      return true
+      return householdCosts(own, household) > 0
     })
     if (alone === undefined) return
     const household = own.households.get(alone.householdId as never)

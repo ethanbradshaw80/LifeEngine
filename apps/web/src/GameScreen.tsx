@@ -38,6 +38,7 @@ import { FrontPage } from './FrontPage.js'
 import { RealEstate } from './RealEstate.js'
 import { BusinessTab } from './BusinessTab.js'
 import { JobsTab } from './JobsTab.js'
+import { heldSkills, standingOf } from '@life-engine/engine'
 import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
@@ -1219,8 +1220,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               },
             ]
             const causes = wellbeingCausesOf(world, person.id, world.tick)
-            const word = (trait: number, high: string, low: string): string | null =>
-              trait >= 700 ? `Highly ${high}` : trait <= 300 ? low : null
+            /**
+             * EVERY TRAIT SAYS SOMETHING NOW (owner: "is there a way to
+             * actually see your traits and stats and stuff I dont see it").
+             *
+             * It only spoke for the EXTREMES — above 700 or below 300 — so an
+             * ordinary person, which is most people, opened this panel and
+             * found no character section at all. The middle is a real answer
+             * and gets real words; still words rather than numbers, because a
+             * trait fixed at birth is who somebody IS and printing 412/1000
+             * invites grinding a thing that cannot be ground (spec §7).
+             */
+            const word = (trait: number, high: string, low: string): string =>
+              trait >= 700 ? `Highly ${high}` : trait <= 300 ? low : `Fairly ${high}`
             // CHARACTER IS SHOWN IN WORDS, NOT NUMBERS (spec §7). A trait
             // fixed at birth is who somebody IS; printing it as 412/1000
             // invites the player to grind a thing that cannot be ground.
@@ -1230,7 +1242,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               word(person.traits.sociability, 'sociable', 'Keeps to themselves'),
               word(person.traits.curiosity, 'curious', 'Incurious'),
               word(person.traits.diligence, 'diligent', 'Casual about work'),
-            ].filter((chip): chip is string => chip !== null)
+            ]
 
             return (
               <section className="stats-panel">
@@ -1271,6 +1283,39 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </div>
                   </div>
                 ))}
+                {/*
+                  WHAT THE WORK LEFT BEHIND (jobs revamp). Skills existed in
+                  the engine and appeared NOWHERE — the Jobs screen could say
+                  "you are novice" against a requirement, and there was no
+                  page anywhere that simply listed what somebody was good at.
+                */}
+                {(() => {
+                  const held = heldSkills(world.skills.get(person.id))
+                  if (held.length === 0) return null
+                  return (
+                    <>
+                      <div className="stats-group">What you are good at · earned by doing it</div>
+                      {held.map((entry) => (
+                        <div className="stat-row" key={entry.skill.id}>
+                          <div className="stat-top">
+                            <span className="stat-name" title={entry.skill.blurb}>
+                              {entry.skill.label}
+                            </span>
+                            <span className="stat-num">
+                              {standingOf(entry.level)} · {String(entry.level)}/5
+                            </span>
+                          </div>
+                          <div className="stat-bar">
+                            <i
+                              className="f-smart"
+                              style={{ width: `${String(Math.round((entry.thousandths / 5000) * 100))}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )
+                })()}
                 {chips.length > 0 && (
                   <>
                     <div className="stats-group">Character · who you are</div>

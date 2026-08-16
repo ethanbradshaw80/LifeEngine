@@ -26,6 +26,7 @@ import {
   joinPathPlayer,
   licencesFor,
   pathsFor,
+  resolvePending,
   setPlayer,
 } from '../src/player.js'
 
@@ -43,6 +44,31 @@ function aWorker(seed = 4242) {
   return { world, person }
 }
 
+/**
+ * THE WHOLE HIRING, as a player actually walks it (owner: "you also dont get
+ * interviewed for the job or nothing you just get it doesnt matter").
+ *
+ * Ask → the room → the offer → accept. These tests used to assert that
+ * `joinPathPlayer` hired you on the spot, which is precisely the behaviour
+ * he objected to, so they were rewritten rather than kept green.
+ *
+ * The room can say NO, and that is the point of it, so this tries a few
+ * months before giving up.
+ */
+function hireOnto(world: ReturnType<typeof createWorld>, pathId: string): boolean {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    ;(world.player as { pending: unknown }).pending = null
+    const asked = joinPathPlayer(world, pathId)
+    if (!asked.done) return false
+    if (world.player.pending?.kind === 'interview') resolvePending(world, 'straight')
+    if (world.player.pending?.kind === 'job-offer') resolvePending(world, 'accept')
+    ;(world.player as { pending: unknown }).pending = null
+    if (world.employment.get(world.player.personId as never)?.pathId === pathId) return true
+    advanceTicks(world, 1)
+  }
+  return false
+}
+
 /** Months, clearing anything the world wants to ask about. */
 function run(world: ReturnType<typeof createWorld>, months: number): void {
   for (let i = 0; i < months; i += 1) {
@@ -55,7 +81,7 @@ function run(world: ReturnType<typeof createWorld>, months: number): void {
 describe('starting on a ladder', () => {
   it('puts you on the bottom rung and pays what the table says', () => {
     const { world, person } = aWorker()
-    expect(joinPathPlayer(world, 'retail-cashier').done).toBe(true)
+    expect(hireOnto(world, 'retail-cashier'), 'never got through the room').toBe(true)
     const job = world.employment.get(person.id)
     expect(job?.pathId).toBe('retail-cashier')
     expect(job?.pathLevel).toBe(1)
@@ -101,7 +127,9 @@ describe('starting on a ladder', () => {
     expect(earnLicencePlayer(world, 'cdl').done).toBe(true)
     expect(holdsLicence(world, person.id, 'cdl')).toBe(true)
     expect(joinBar(world, person.id, haulage)).toBeNull()
+    // And now the asking is allowed — it opens a room rather than a job.
     expect(joinPathPlayer(world, 'truck-driver').done).toBe(true)
+    expect(world.player.pending?.kind).toBe('interview')
   })
 
   it('charges for the papers out of the wallet', () => {
@@ -129,7 +157,7 @@ describe('starting on a ladder', () => {
 describe('a month at the work', () => {
   it('leaves the skill that work teaches, and no other', () => {
     const { world, person } = aWorker()
-    expect(joinPathPlayer(world, 'retail-cashier').done).toBe(true)
+    expect(hireOnto(world, 'retail-cashier')).toBe(true)
     expect(levelOf(world.skills.get(person.id), 'customer-service')).toBe(0)
 
     run(world, 18)
@@ -147,7 +175,7 @@ describe('a month at the work', () => {
 describe('the rung above', () => {
   it('refuses while the months are short, and names the shortfall', () => {
     const { world } = aWorker()
-    joinPathPlayer(world, 'retail-cashier')
+    hireOnto(world, 'retail-cashier')
     const result = climbPathPlayer(world)
     expect(result.done).toBe(false)
     expect(result.reason).toContain('month')
@@ -160,7 +188,7 @@ describe('the rung above', () => {
      * Service 3, and a year on the till supplies both.
      */
     const { world, person } = aWorker()
-    joinPathPlayer(world, 'retail-cashier')
+    hireOnto(world, 'retail-cashier')
     run(world, 20)
 
     const climbed = climbPathPlayer(world)
@@ -172,7 +200,7 @@ describe('the rung above', () => {
 
   it('stops at the top of the ladder', () => {
     const { world, person } = aWorker()
-    joinPathPlayer(world, 'trades-electrician')
+    hireOnto(world, 'trades-electrician')
     const job = world.employment.get(person.id)
     if (!job) return
     // Stand them on the last rung and ask for another.
@@ -192,13 +220,13 @@ describe('changing trades', () => {
      */
     const { world, person } = aWorker()
     // A long career on the tools, with the skills to show for it.
-    joinPathPlayer(world, 'trades-electrician')
+    hireOnto(world, 'trades-electrician')
     run(world, 60)
     const earned = world.skills.get(person.id)
     expect(levelOf(earned, 'technical-knowledge')).toBeGreaterThanOrEqual(2)
 
     // Now move into a different trade entirely.
-    expect(joinPathPlayer(world, 'retail-cashier').done).toBe(true)
+    expect(hireOnto(world, 'retail-cashier')).toBe(true)
     const job = world.employment.get(person.id)
     expect(job?.pathId).toBe('retail-cashier')
     // THE BOTTOM RUNG. Not the third, however much he knows.
@@ -207,10 +235,10 @@ describe('changing trades', () => {
 
   it('keeps what they learned — a switch costs the rung, not the history', () => {
     const { world, person } = aWorker()
-    joinPathPlayer(world, 'trades-electrician')
+    hireOnto(world, 'trades-electrician')
     run(world, 60)
     const before = world.skills.get(person.id)?.['technical-knowledge'] ?? 0
-    joinPathPlayer(world, 'retail-cashier')
+    hireOnto(world, 'retail-cashier')
     const after = world.skills.get(person.id)?.['technical-knowledge'] ?? 0
     // The years happened. Nothing takes them away.
     expect(after).toBe(before)
@@ -243,5 +271,44 @@ describe('the screen can always say why', () => {
     expect(bar).not.toBeNull()
     expect(refusal.done).toBe(false)
     expect(refusal.reason).toBe(bar)
+  })
+})
+
+/**
+ * THE TOWN IS NOT ON THE LADDERS YET, AND THAT IS DELIBERATE.
+ *
+ * It was built and then TAKEN BACK OUT, because putting townspeople on
+ * career paths broke four separate invariants at once and the suite caught
+ * every one:
+ *
+ *   the population collapsed — 150 years ending with 45 people against a
+ *   floor of 59 — because a share of every cohort stopped reaching the
+ *   occupations the rest of the simulation is tuned around;
+ *   graduates stopped following their field, since paths carry no notion of
+ *   a major;
+ *   pay-band checks failed, because a rung id is not an occupation id and
+ *   `occupationById` returns a zero band for one;
+ *   and a military promotion test read "farm manager is not a rank".
+ *
+ * The last two are the real obstacle and they are the same obstacle: a job
+ * on a ladder stores a RUNG id in `occupationId`, and the rest of the world
+ * assumes that field names something in the occupation table. Until rungs
+ * are first-class there, the town cannot hold one safely.
+ *
+ * `runLadderClimbs` stays in `systems.ts` and is inert while nobody in town
+ * is on a path — so the day rungs become first-class, the climbing already
+ * works. The PLAYER's ladders are unaffected and fully tested above.
+ */
+describe('the player climbs, and is never handed it', () => {
+  it('never hands the player a promotion', () => {
+    // The owner's whole complaint about the old ladder was that promotion
+    // happened TO you. The town's pass skips the player deliberately.
+    const { world, person } = aWorker()
+    hireOnto(world, 'retail-cashier')
+    run(world, 40)
+    // Forty months is well past the twelve the second rung asks for.
+    expect(world.employment.get(person.id)?.pathLevel).toBe(1)
+    // It is there for the taking — the player just has to take it.
+    expect(climbPathPlayer(world).done).toBe(true)
   })
 })

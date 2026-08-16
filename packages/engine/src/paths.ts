@@ -259,3 +259,52 @@ export function deadEndsIn(path: CareerPath): readonly string[] {
   }
   return found
 }
+
+/**
+ * WHERE THIS KIND OF WORK ACTUALLY HAPPENS (owner, playing: "the company
+ * names to which you get hired to don't make sense").
+ *
+ * He is right and it was crude: hiring picked a workplace at RANDOM from the
+ * twelve the town has, so a nurse could be taken on at the lumber yard and a
+ * cashier at the courthouse. The name was drawn from a hat with no thought
+ * about what the job was.
+ *
+ * Matched by category against the gazetteer this world already ships. Not
+ * exhaustive on purpose — where nothing fits, any workplace will do, because
+ * a town of twelve premises cannot have a home for all fifteen trades and
+ * pretending otherwise would be worse than admitting it.
+ */
+const WORKPLACES_BY_CATEGORY: Readonly<Record<string, readonly string[]>> = {
+  'retail-service': ['the grocery on Main', 'the lumber yard'],
+  hospitality: ['the diner on Second Street'],
+  healthcare: ['the county hospital'],
+  law: ['the courthouse'],
+  'public-service': ['the courthouse', 'the town hall'],
+  'finance-business': ['the savings bank'],
+  transportation: ['the rail depot', 'the grain elevator'],
+  trades: ["Halloran's garage", 'the machine shop', 'the lumber yard'],
+  agriculture: ['the grain elevator'],
+  education: ['the public library'],
+  management: ['the savings bank', 'the paper mill'],
+  technology: ['the telephone exchange'],
+  entertainment: ['the telephone exchange'],
+  'personal-services': ['the grocery on Main'],
+  creative: ['the public library'],
+}
+
+/** The names a trade of this kind would plausibly hang its sign outside. */
+export function workplaceNamesFor(categoryId: string): readonly string[] {
+  return WORKPLACES_BY_CATEGORY[categoryId] ?? []
+}
+
+/** Find a rung anywhere in a set of ladders, by its own id. */
+export function findRung(
+  paths: readonly CareerPath[],
+  levelId: string,
+): { readonly path: CareerPath; readonly level: PathLevel } | undefined {
+  for (const path of paths) {
+    const level = path.levels.find((entry) => entry.id === levelId)
+    if (level !== undefined) return { path, level }
+  }
+  return undefined
+}

@@ -408,10 +408,18 @@ describe('content ids out of a save never throw (resistance 2)', () => {
     expect(schoolFor(world, 'orbital-drop-course')).toBeNull()
     expect(unitFor(world, 'the-void-watch')).toBeNull()
 
-    // And an occupation id from a later build reads as itself rather than
-    // killing the worker mid-tick.
+    // And an occupation id from a later build reads as READABLE WORDS
+    // rather than killing the worker mid-tick.
+    //
+    // It used to assert the raw id came back untouched. That was fine until
+    // jobs could sit on a career ladder whose rungs are not in the
+    // occupation table, and the game's own header started printing
+    // "police-officer" and "shift-lead" at the player. The fallback
+    // humanises now; what this test is really for — an unknown id does not
+    // throw, and carries no pay band it has not earned — is unchanged.
     const job = occupationById('drone-wrangler')
-    expect(job.title).toBe('drone-wrangler')
+    expect(job.title).toBe('drone wrangler')
+    expect(job.id).toBe('drone-wrangler')
     expect(job.maxMonthlyPay).toBe(0)
 
     // The real ones still resolve, obviously.

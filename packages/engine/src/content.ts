@@ -1846,10 +1846,19 @@ export function isHigherEducation(level: EducationLevel | null): boolean {
  * written by a later build.
  */
 export function occupationById(id: string): Occupation {
+  /**
+   * THE FALLBACK IS READ BY PLAYERS, so it has to be readable.
+   *
+   * Since the jobs revamp a job can sit on one of the career LADDERS, whose
+   * rungs are not in this table — and the fallback printed the raw id, so
+   * the header of the game read "police-officer" and "shift-lead". Caught
+   * in a screenshot of my own work. Hyphens become spaces; nothing else
+   * about the fallback changes.
+   */
   return (
     OCCUPATIONS.find((o) => o.id === id) ?? {
       id,
-      title: id,
+      title: id.replace(/-/g, ' '),
       requires: 'none',
       minMonthlyPay: 0 as Money,
       maxMonthlyPay: 0 as Money,

@@ -107,7 +107,7 @@ import {
   eligibleSpecialties,
 } from './service.js'
 import { placesOfKind } from './worldgen.js'
-import { afterAMonth } from './skills.js'
+import { afterAMonth, meetsGates } from './skills.js'
 import { FIRST_SLICE } from './pathcontent.js'
 import { levelOfPath, pathById } from './paths.js'
 
@@ -1694,22 +1694,106 @@ export function dismissFromBusiness(
  * decoration. Cheap: a few array reads per employed adult, no allocation
  * where the job teaches nothing.
  */
-function runSkillGrowth(world: World): void {
+function runSkillGrowth(world: World, tick: Tick): void {
   for (const [personId, job] of world.employment) {
     if (job.pathId === undefined || job.pathLevel === undefined) continue
     const person = world.people.get(personId)
     if (!person || person.deathTick !== null) continue
     const path = pathById(FIRST_SLICE, job.pathId)
     const level = path === undefined ? undefined : levelOfPath(path, job.pathLevel)
-    if (level === undefined || level.teaches.length === 0) continue
-    const before = world.skills.get(personId) ?? {}
-    const after = afterAMonth(before, level.teaches)
-    if (after !== before) world.skills.set(personId, after)
+    if (level === undefined) continue
+
+    if (level.teaches.length > 0) {
+      const before = world.skills.get(personId) ?? {}
+      const after = afterAMonth(before, level.teaches)
+      if (after !== before) world.skills.set(personId, after)
+    }
+
+    /**
+     * WHAT THE WORK DOES TO THE PERSON DOING IT (owner's ruling 4: stress
+     * and happiness ship WITH jobs).
+     *
+     * NOT A NEW SYSTEM. Wellbeing already exists, runs 0-1000, and keeps
+     * the plain words for its own "why" panel — so a job's stress and
+     * happiness feed THAT rather than standing up a second mood model
+     * beside it. Two sources of truth for how somebody feels is exactly the
+     * shape this codebase keeps having to undo.
+     *
+     * The spec's rows are -2..2 and land here as a small monthly pull, so
+     * an executive's chair is a genuine trade — more of both — rather than
+     * a reward with no cost. Quarterly, because a nudge every month from
+     * the same desk would swamp everything else that moves it.
+     */
+    if (tick % 3 !== 0) continue
+    const net = level.happiness - level.stress
+    if (net === 0) continue
+    nudgeWellbeing(
+      world,
+      tick,
+      personId,
+      net * 4,
+      net > 0 ? `the work at ${level.title}` : `the grind of ${level.title}`,
+    )
+  }
+}
+
+/**
+ * THE TOWN CLIMBS ITS OWN LADDERS (jobs revamp, Law 2).
+ *
+ * A probe found thirteen people on paths after forty years and every one of
+ * them still on the entry rung: climbing was a PLAYER verb, so the town's
+ * ladders were decoration. Nobody in the world could ever become a store
+ * manager unless the player did it.
+ *
+ * The gates are the player's gates, read the same way — months at the rung
+ * below, the skills the table asks for, the schooling, the papers. No roll:
+ * somebody who has met the requirements is promoted, deterministically,
+ * because a board that sometimes says no for no reason is not a rule.
+ *
+ * The PLAYER is skipped. They go and take it themselves, which is the whole
+ * point of `climbPathPlayer` and of the owner's complaint about promotion
+ * being something that happened to you.
+ */
+function runLadderClimbs(world: World, tick: Tick): void {
+  for (const [personId, job] of world.employment) {
+    if (personId === world.player.personId) continue
+    if (job.pathId === undefined || job.pathLevel === undefined) continue
+    const person = world.people.get(personId)
+    if (!person || person.deathTick !== null) continue
+    const path = pathById(FIRST_SLICE, job.pathId)
+    if (path === undefined) continue
+    const next = levelOfPath(path, job.pathLevel + 1)
+    if (next === undefined) continue
+    if (tick - job.rungSinceTick < next.monthsRequired) continue
+    if (!meetsGates(world.skills.get(personId), next.needs)) continue
+    const education = world.education.get(personId)
+    if (
+      next.needsLevel !== undefined &&
+      educationRank(education?.level ?? 'none') < educationRank(next.needsLevel)
+    ) {
+      continue
+    }
+    if (
+      next.needsLicence !== undefined &&
+      !(world.licences.get(personId) ?? []).includes(next.needsLicence)
+    ) {
+      continue
+    }
+
+    world.employment.set(personId, {
+      ...job,
+      occupationId: next.id,
+      monthlyPay: atTodaysPrices(world, next.monthlyPay) as Money,
+      pathLevel: next.level,
+      rungSinceTick: tick,
+    })
+    recordEvent(world, tick, { type: 'promoted', subjectId: personId, detail: next.title })
   }
 }
 
 export function runEmployment(world: World, tick: Tick): void {
-  runSkillGrowth(world)
+  runSkillGrowth(world, tick)
+  runLadderClimbs(world, tick)
   runReviews(world, tick)
   runWorkMoments(world, tick)
   runBusinessHiring(world, tick)
@@ -1909,6 +1993,26 @@ export function runEmployment(world: World, tick: Tick): void {
     // Headhunting survives, because a rival firm poaching somebody senior
     // is a real thing rather than a gift — it lives in considerBetterJob,
     // where a person's own record is already in hand.
+    /**
+     * SOME OF THE TOWN GOES ON A LADDER (jobs revamp, Law 2).
+     *
+     * A promotion rule binding only the player is a penalty wearing a rule's
+     * clothes, so townspeople take the same paths, learn from the same work
+     * and climb by the same gates.
+     *
+     * THROUGH `hirePerson`, NOT AROUND IT. The first version wrote the
+     * employment record inline and skipped the causal record and the
+     * left-job event that every other hire in this world produces. It also
+     * took two probes to find that the code ran at all — see
+     * `ladders.test.ts`.
+     *
+     * A QUIET SHARE. Measured at two-in-five this collapsed the town: 150
+     * years ended with 45 people where the band is 59+, and completed
+     * families fell out of their band too, because two fifths of every
+     * cohort stopped reaching the occupations the rest of the simulation is
+     * tuned around. One in six leaves the town's economy where it was while
+     * still putting real people on real ladders.
+     */
     if (person.id === world.player.personId) continue
 
     const rejected = eligible
