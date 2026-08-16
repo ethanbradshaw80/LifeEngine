@@ -218,27 +218,155 @@ Three consequences:
 
 ## 9. Unit identity
 
-Foundation §13. Today a unit is a label.
+Foundation §13. **Measured first, and it is worse than "a unit is a label":
+most people are in no unit at all.** `SPECIAL_UNITS` holds six elite units you
+try out for, and `record.unitId` is `null` for everybody else. An ordinary
+soldier serves nowhere.
+
+So step one is not history or reputation. **Step one is that everybody who
+serves is assigned to a unit** — a line unit with a name, a home station, a
+branch and a trade mix. The six special units stay exactly what they are: the
+ones you have to earn.
+
+Then:
 
 - Its own **history**: where it has been, which wars, what it lost.
 - **Losses that accumulate** and are readable.
 - A **reputation** that means something to the people posted into it.
-- If a player spends a decade in one, it should feel like somewhere they are
-  rather than a line on a record.
+- The squad in §6 is **drawn from it**, which is what makes "your unit is
+  taking volunteers" stop being a lie.
+
+### 9.1 Unit awards — the owner's ruling, researched
+
+> *"unit awards are different from people awards"*
+
+He is right, and the difference is sharper than it first looks. Two real
+mechanics matter and both are gameable in the honest sense:
+
+**One — the award goes to the unit, for a period.** Not to a person, for an
+act. The citation names the unit and names the dates. Precedence, highest
+first:
+
+| Award | Earned for |
+|---|---|
+| **Presidential Unit Citation** | Gallantry and esprit de corps under extremely difficult and hazardous conditions — the unit equivalent of the highest individual decorations |
+| **Valorous Unit Award** | Extraordinary heroism in action; the unit standard is the individual Silver Star standard |
+| **Meritorious Unit Commendation** | Exceptionally meritorious conduct or outstanding service, **combat or not**, over a sustained period (the Army's runs six months) |
+
+The naval and air services carry their own equivalents — Navy Unit
+Commendation, Gallant Unit Citation, Meritorious Unit Award — and there is a
+**Joint** award for units serving under a joint command. Branch parity is
+easy content and the game already has three branches to spend it on.
+
+That last row is the one that changes the game most: **a unit award can be
+earned with nobody firing a shot.** A maintenance unit, a hospital, a supply
+battalion — they can be decorated for doing a hard job well for six months.
+That is the single best answer to "the military is only worth playing in a
+war", and it costs one award type.
+
+**Two — permanent versus temporary wear. This is the mechanic.**
+
+- You were **assigned and present during the cited period** → you wear it
+  **permanently**, for the rest of your life. It is on your record at the
+  funeral.
+- You **arrived afterwards** → you wear it **temporarily**, and **only while
+  you are in that unit.** Post out, and it comes off your chest.
+
+That is a real rule, and it is a *magnificent* game mechanic, because it
+encodes belonging. Two soldiers stand next to each other wearing the same
+ribbon, and one of them earned it and one of them inherited it, and both of
+them know which is which. A player who transfers into a famous unit gets to
+wear its history — and loses it when they leave. A player who was *there*
+keeps it forever.
+
+It also means the service record needs to say **which kind**, and the
+after-action reports of §5 are what prove it.
+
+**Three — campaign streamers.** A unit's colours carry an embroidered
+streamer for each campaign it took part in; the practice grew out of
+inscribing battle names on the colours during the Civil War. This is the
+readable form of §9's "history": a unit's flag *is* its lineage, and a player
+can look at it. When our unit takes part in a war, its colours get a streamer
+with that war's name and years, permanently. A unit standing up in 2041 has a
+bare staff. One that has been fighting since 1970 does not.
+
+**What this must not become:** a collection screen. No completion percentage,
+no "3 of 7 unit awards". The record shows what the unit did and where the
+player was standing when it did it. Nothing more.
+
+Sources: [Presidential Unit Citation](https://en.wikipedia.org/wiki/Presidential_Unit_Citation_(United_States)) · [Valorous Unit Award](https://en.wikipedia.org/wiki/Valorous_Unit_Award) · [Meritorious Unit Commendation](https://en.wikipedia.org/wiki/Meritorious_Unit_Commendation) · [Joint Meritorious Unit Award](https://en.wikipedia.org/wiki/Joint_Meritorious_Unit_Award) · [Navy Unit Commendation](https://en.wikipedia.org/wiki/Navy_Unit_Commendation) · [Gallant Unit Citation](https://en.wikipedia.org/wiki/Gallant_Unit_Citation) · [HRC unit award wear rules](https://www.hrc.army.mil/content/Unit%20Award%20Info) · [DA PAM 670-1 §22-10](https://ar670.com/guide/da-pam-670-1-22-10-u-s-and-foreign-unit-awards/) · [Named campaign streamers](https://www.army.mil/article/26512/named_campaign_streamers_for_unit_colors)
 
 ---
 
 ## 10. Peacetime
 
 Most of a military career is not a war, and today the years between
-deployments are empty.
+deployments are empty. The owner asked for things to actually do.
 
-- Exercises and field problems.
-- Schools and qualifications (some of this exists).
-- Inspections, duty, the administrative grind.
-- The people: a first sergeant who has it in for you, a good officer, a bad
-  one.
-- Promotion and stagnation felt month to month rather than at a board.
+**The rule that keeps this from becoming chores:** peacetime should generate
+*a life*, not a task list. Most months should pass with a line of texture and
+no decision. When a decision does come, it should matter for years.
+
+### 10.1 More schools, per branch
+
+Schools exist and are the strongest thing we already have — extend rather
+than invent. Each is months of your life, a qualification on the record, and
+a different career afterwards.
+
+- **Leadership schools by grade** — the ladder every NCO actually climbs, and
+  a hard gate on promotion. Failing one costs you years.
+- **Trade schools deeper in your own MOS** — advanced, senior, master. A
+  mechanic who is *the* mechanic.
+- **Badge schools** — jump, air assault, dive, survival. Short, brutal, and
+  they change which units will take you (§9's real gate).
+- **Instructor duty** — you go *back* to the school to teach. Two or three
+  years, no deployment, and a reputation that follows you.
+- **Joint and staff courses** for officers, which is how a career stops being
+  a platoon and becomes a headquarters.
+
+### 10.2 Things that happen through the year
+
+- **Field exercises** — a month in the mud pretending. Squad bonds move (§6),
+  people get hurt for real (§4.5), and units get graded.
+- **Inspections and evaluations** — the unit's grade, not yours, which is
+  where §9's reputation comes from and where the **Meritorious Unit
+  Commendation** is earned.
+- **Ranges and quals** — routine, but a bad one in front of the wrong person
+  costs you.
+- **Duty rosters** — CQ, staff duty, the weekend you lose. Small, frequent,
+  and the honest texture of the job.
+- **Details** — the working party nobody wanted. Cheap, and instantly
+  recognisable to anyone who has served.
+- **Ceremony** — change of command, a retirement, a memorial. This is where
+  the unit's history gets said out loud.
+- **Humanitarian and disaster response** — a real peacetime mission, it can
+  go wrong, and it earns real awards without a war.
+- **Training accidents** — §4.5 lives here too, and this is where peacetime
+  stops being safe.
+
+### 10.3 The people
+
+- A first sergeant who has it in for you, or a good officer, or a bad one —
+  **a named person whose opinion moves your evaluations for years.**
+- Reenlistment moments: they want you to stay, and the bonus is real money
+  against a life you could have instead.
+- Barracks life, and the friend who gets in trouble and takes you with him
+  (Article 15 already exists — peacetime is when it should fire).
+
+### 10.4 Promotion and stagnation felt month to month
+
+Not just at a board. You should be able to see it coming: the year you are
+clearly ahead, the year you are clearly not, and the quiet realisation that
+the next grade is not going to happen. High-year tenure already ends careers
+(`HIGH_YEAR_TENURE_TIG = 72`) — the player should *feel* that clock, not be
+told about it on the last month.
+
+### 10.5 The honest risk
+
+Too much peacetime is boredom, which is the thing being modelled and also the
+thing that makes people stop playing. **Measure it:** share of service months
+that produce a decision, and share that produce any text at all. If a decade
+of peace reads as ten identical years, it has failed even if it is accurate.
 
 ---
 
@@ -282,14 +410,53 @@ Every one of these is a number to report, not a claim to make:
   it (they should not track each other).
 - Squad deaths per tour, and how many of the dead the player actually knew.
 - Non-combat share of all casualties.
+- Share of service months producing a decision, and share producing any text
+  at all (§10.5 — the boredom guard).
+- Unit awards earned in peace versus in war (both should be non-zero).
+- Share of a veteran's unit awards worn permanently versus temporarily.
 
 ---
 
-## 14. Open questions
+## 14. The three questions, answered
 
-1. Does an after-action report ever contradict what the character believed at
-   the time — and should the game show that seam explicitly?
-2. Should a unit's history be generated backwards at worldgen (it fought in
-   1971) or only accumulate from play forward?
-3. How much peacetime is too much before it becomes the boredom it is
-   modelling?
+**1. The after-action report is modelled on the real thing.**
+
+> *"I think the after action report should be how its based upon in real
+> life."*
+
+So it is a **document, written by somebody, for the record** — not a results
+screen addressed to the player. It has an author, a date, a unit, a place and
+a dry institutional voice. It says what the unit was doing, what happened,
+what it cost, and what it assessed of the enemy — and enemy assessments in
+real reports are **estimates, hedged**, not scores.
+
+Two consequences follow from "real":
+
+- **It can be wrong, and it is never corrected.** Reports are written from
+  what was known at the time. If it says twelve and it was eight, it says
+  twelve forever. §5.3's asymmetry stands — but now the seam runs the *other*
+  way too: sometimes the record knows more than the character did, and
+  sometimes it knows less.
+- **It outlives everyone in it.** Filed in the service record, readable
+  decades later, readable by a descendant. That is the payoff.
+
+**2. Unit history accumulates from play. Nothing is invented backwards.**
+
+> *"units get accumulated from play"*
+
+A unit that stands up in 2041 has a bare staff and no honours, and that is
+correct — it has not done anything yet. History is earned in the century the
+player is living through, which also means **the player's own tours are part
+of the unit's lineage** for every soldier who comes after. Awards and
+streamers are earned per §9.1, with permanent-versus-temporary wear making
+"were you there" a fact the record keeps.
+
+The one thing this costs: worldgen units start blank, so the earliest players
+serve in units with no story. That is honest, and by 1990 it will not be true
+any more.
+
+**3. Peacetime gets things to do.** Answered in full at §10 — more schools per
+branch, exercises, inspections, duty and details, instructor tours,
+humanitarian missions, named people whose opinion of you compounds, and
+promotion pressure felt month to month. With a measurement (§10.5) to catch
+it if a decade of peace reads as ten identical years.
