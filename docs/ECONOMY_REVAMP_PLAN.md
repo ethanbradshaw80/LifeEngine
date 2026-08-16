@@ -222,6 +222,13 @@ economy was never the problem, and **most of "a trillion" is nominal
 inflation nobody labels.** That reframes his complaint: the number is ~93×
 more alarming than the reality, and nothing on screen says so.
 
+**THE PAY TABLES DID NOT NEED REPRICING AFTER ALL**, and only measuring the
+allowance showed it. Serving median TOTAL compensation is $1,893 against a
+civilian $2,182, with take-home level ($96 against $92) — military slightly
+under on gross, level in the hand, which is the real relationship. The first
+measurement (71 of 74 ladders above a colonel) looked like a pay-table problem
+and was actually the missing allowance wearing its clothes.
+
 **THE MILITARY, both halves.** The pay table was priced against the old
 47-occupation world; the jobs revamp then put 310 rungs around it without
 re-checking, and 71 of 74 ladders now top out above a colonel. But the

@@ -266,6 +266,46 @@ for new work is below that.
   models, trade-tagged scenes, two written officer moments, the recruiter's
   wall.
 
+### THE ECONOMY REVAMP (2026-08-16, v182-183) — fixes done, sinks not started
+
+Owner's report, playing with his brother. `docs/ECONOMY_REVAMP_PLAN.md` has
+every finding with its measurement. What landed:
+
+- **The monthly chip was 13.7x out.** Promised $522.55, wallet moved
+  $7,152.87. `personalIncome` omitted the business draw AND all investment
+  income. The draw's exclusion is CORRECT for the crediting path —
+  `runBusinesses` already paid it — but nobody added it back to the FORECAST.
+  `monthAheadFor` is now one itemised answer and `personalMonthlyNet` is its
+  `.net`. **Not display-only**: it also sizes chapter-13 plans, which were
+  being computed from a fraction of a business owner's real disposable income.
+- **`monthahead.test.ts` holds the forecast against the tick** — project a
+  month, advance one, subtract. Within a third per month, a tenth over six.
+- **The absurd tail was a typo-shaped bug.** `COMPANY_CEILING_MULTIPLE` was
+  **200** while its own comment said "Twenty times". Through `earningBaseOf`'s
+  taper that is an earning base of ~11x founding capital against ~74x, with
+  valuation multiplying annual profit by eight on top. Now 20, as documented.
+- **Most of "a trillion" is inflation nobody labels.** Measured over 110 years
+  with no player: richest townsman $108M nominal, price level **93x** — about
+  $1.2M in 1970 money. The town's own economy was never the problem.
+- **The military had no compensation model at all.** `finances.ts` had never
+  mentioned `isServing` — no quarters, no rations, no allowance, so a soldier
+  paid full market rent out of a cash wage priced as though they did not.
+  `quartersAndRationsFor` rides `supportOf` because it is untaxed, and scales
+  off the world's own rent model. MEASURED after: serving total comp $1,893
+  against civilian $2,182 with take-home level — **so the pay TABLES did not
+  need repricing after all**, which is what the first measurement suggested.
+
+**NOT DONE, and both need his ruling rather than more work:**
+
+1. **The lifestyle taper.** Measuring it against "stop the absurd tail"
+   reversed the argument — letting the rich save a larger share, as they do in
+   life, makes fortunes accumulate FASTER. His complaint about that line was
+   legibility, which is fixed.
+2. **Money sinks.** Seven were offered — property tiers, buying the town's
+   trades, philanthropy that visibly changes the town, politics, patronage,
+   upkeep-heavy luxuries, a family trust. He has not picked, and the standing
+   rule above says ask rather than invent scope.
+
 ### Recurring failure shapes, worth knowing before writing more
 
 These have each cost real time more than once:
