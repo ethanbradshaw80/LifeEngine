@@ -1,6 +1,15 @@
 # Resume Here
 
-> **RELEASED 2026-08-10** — live at https://causagames.itch.io/the-life-simulator (build 4e2a5cf, SIMULATION_VERSION 157, American Heartland only). First two days: 292 views, 102 browser plays, 4 collections.
+> **RELEASED 2026-08-16 — v186, the Work & Money update.** Notes in
+> `RELEASE_NOTES_v186.md`; zip built by `npm run pack:itch` and VERIFIED by
+> unpacking it, serving it as itch would, and playing a life out of it — the
+> front page, the birth certificate and the worker all run from the package.
+> SIMULATION_VERSION 186, SCHEMA_VERSION 77, 1677 tests green across 138
+> files.
+>
+> Previously released 2026-08-10 at SIMULATION_VERSION 157 (build 4e2a5cf,
+> American Heartland only). First two days: 292 views, 102 browser plays, 4
+> collections.
 
 **Paste this into a new Claude Code session started in `Documents\LifeEngine`:**
 
