@@ -2780,6 +2780,13 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
 export interface MonthAhead {
   /** Wages, pensions and support, after withholding — this person's share. */
   readonly earned: Money
+  /**
+   * WHAT THE TAXMAN TOOK ON THE WAY, for a note beside the wage rather than
+   * a row of its own. The card used to carry it as a separate outgoing,
+   * which was right when the income lines were GROSS — they are net now, so
+   * a second line reads as the tax being taken twice.
+   */
+  readonly withheld: Money
   /** What their businesses paid them last month. */
   readonly draw: Money
   /** What their tenanted property brings in. */
@@ -2807,6 +2814,7 @@ export interface MonthAhead {
 export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
   const nothing: MonthAhead = {
     earned: 0 as Money,
+    withheld: 0 as Money,
     draw: 0 as Money,
     rent: 0 as Money,
     interest: 0 as Money,
@@ -2907,6 +2915,11 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
 
   return {
     earned: mine,
+    withheld: withholdingFor(
+      gross,
+      world.economy.priceLevelPerMille,
+      world.policy.incomeTaxPerMille,
+    ) as Money,
     draw,
     rent,
     interest,
@@ -3043,7 +3056,24 @@ export function runFinances(world: World, tick: Tick): void {
        * player comparing it with their salary is not confused by the gap
        * that withholding makes.
        */
-      creditPerson(world, memberId, earned, support > 0 ? 'Pay and support — after tax' : 'Pay — after tax')
+      /**
+       * WHOSE PAY, BY NAME (owner, seeing two identical "Pay and support"
+       * lines on his own statement). A married couple share one wallet under
+       * H0, so a spouse's wage genuinely lands in the same pot and belongs
+       * on the same statement — but two rows with the same words and
+       * different numbers read as a duplicate rather than as two people.
+       */
+      const theirs = world.people.get(memberId)
+      const whose =
+        memberId === world.player.personId || theirs === undefined
+          ? ''
+          : ` — ${theirs.givenName}`
+      creditPerson(
+        world,
+        memberId,
+        earned,
+        `${support > 0 ? 'Pay and support' : 'Pay'}${whose === '' ? ' — after tax' : whose}`,
+      )
       earners.push({ personId: memberId, income: earned })
       income += earned
     }

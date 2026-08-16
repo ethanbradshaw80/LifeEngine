@@ -1630,7 +1630,23 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                */
               const mine: { key: string; label: string; amount: Money }[] = []
               if (month.earned > 0) {
-                mine.push({ key: 'earned', label: 'Wages and pay — after tax', amount: month.earned })
+                /**
+                 * THE TAX IS A NOTE ON THE WAGE, NOT A ROW OF ITS OWN.
+                 *
+                 * It used to be its own outgoing line, which was RIGHT when
+                 * the income lines above it were gross — a reviewer once
+                 * reconciled a payslip with the tax hidden and reasonably
+                 * suspected a phantom salary. The lines are net now, so a
+                 * second row read as the tax coming off twice.
+                 */
+                mine.push({
+                  key: 'earned',
+                  label:
+                    month.withheld > 0
+                      ? `Wages and pay — after ${formatMoney(month.withheld)} tax`
+                      : 'Wages and pay',
+                  amount: month.earned,
+                })
               }
               if (month.draw > 0) {
                 mine.push({ key: 'draw', label: 'Drawn from the business', amount: month.draw })
@@ -1822,12 +1838,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         itemisation sums. The UI never rendered it, so the
                         reviewer reconciled a payslip with its tax line
                         hidden and reasonably suspected a phantom salary. */}
-                    {ledger.taxWithheld > 0 && (
-                      <li className="ledger-row out">
-                        <span className="ledger-label">Tax withheld</span>
-                        <span className="ledger-amount">−{formatMoney(ledger.taxWithheld)}</span>
-                      </li>
-                    )}
                     <li className="ledger-row subtotal">
                       <span className="ledger-label">Coming in — you</span>
                       <span className="ledger-amount">{formatMoney(comingIn)}</span>

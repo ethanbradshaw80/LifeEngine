@@ -328,7 +328,13 @@ export function Bank({
               )}
 
               <div className="re-slider-label">
-                Settle {formatMoney(trustAmount as Money)} — {(trustShare / 10).toFixed(0)}% of what you hold
+                Settle {formatMoney(trustAmount as Money)} — {(trustShare / 10).toFixed(0)}% of what
+                you hold
+                {/* SAY THE FLOOR WHILE THEY ARE STILL MOVING THE SLIDER, not
+                    only once they let go on a number that is too small. */}
+                {trustAmount < trust.minimum && (
+                  <span className="muted small"> · least is {formatMoney(trust.minimum)}</span>
+                )}
               </div>
               <input
                 className="re-slider"

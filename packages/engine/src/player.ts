@@ -9730,8 +9730,20 @@ export function commissionBuildPlayer(
 // THE FAMILY TRUST (the money sinks, third of them)
 // ---------------------------------------------------------------------------
 
-/** The smallest sum the lawyers will draw papers for, in base-year cents. */
-export const TRUST_MINIMUM = dollars(8_000)
+/**
+ * THE SMALLEST SUM THE LAWYERS WILL DRAW PAPERS FOR, in base-year cents.
+ *
+ * MEASURED IN THE BROWSER, which is the only place this was ever going to
+ * show up: at $8,000 of 1970 money the floor reads as **$173,528** by 2056,
+ * and a serving officer with $273,950 to her name was told a quarter of
+ * everything she had was not enough to start one. A trust nobody can open is
+ * not a sink, it is a locked door with a price on it.
+ *
+ * $1,200 base-year is about ten thousand in today's money — enough that it
+ * is a real decision and a real sum, low enough that an ordinary good career
+ * reaches it rather than only a fortune.
+ */
+export const TRUST_MINIMUM = dollars(1_200)
 
 export interface TrustView {
   readonly exists: boolean
