@@ -12,6 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { createWorld } from '../src/index.js'
 import {
@@ -130,8 +131,8 @@ describe('tempo comes from the war', () => {
     const hot: number[] = []
     const quiet: number[] = []
     for (let i = 0; i < 400; i += 1) {
-      hot.push(tempoFor(world, i as never, 500 + i, 1, 900))
-      quiet.push(tempoFor(world, i as never, 500 + i, 1, 200))
+      hot.push(tempoFor(world, i as never, (500 + i) as EntityId, 1, 900))
+      quiet.push(tempoFor(world, i as never, (500 + i) as EntityId, 1, 200))
     }
     const mean = (xs: number[]): number => xs.reduce((a, b) => a + b, 0) / xs.length
     expect(mean(hot)).toBeGreaterThan(mean(quiet))
@@ -140,7 +141,7 @@ describe('tempo comes from the war', () => {
   it('and two people in the same war still get different tours', () => {
     const world = createWorld(makeSeed(21))
     const seen = new Set<number>()
-    for (let i = 0; i < 200; i += 1) seen.add(tempoFor(world, 40 as never, 700 + i, 1, 600))
+    for (let i = 0; i < 200; i += 1) seen.add(tempoFor(world, 40 as never, (700 + i) as EntityId, 1, 600))
     // A theatre is not one place.
     expect(seen.size).toBeGreaterThan(20)
   })

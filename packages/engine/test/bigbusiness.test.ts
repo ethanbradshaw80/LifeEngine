@@ -381,8 +381,8 @@ describe('a business is a job', () => {
     const kind = business === undefined ? undefined : businessKindById(business.kindId)
     if (!business || !kind) return
 
-    const whole = monthlyProfitFor(business, kind, 'steady', 0, 800, 0)
-    const evenings = monthlyProfitFor(business, kind, 'steady', 0, 400, 0)
+    const whole = monthlyProfitFor(business, kind, 'expansion', 0, 800, 0)
+    const evenings = monthlyProfitFor(business, kind, 'expansion', 0, 400, 0)
     expect(evenings, 'half the attention should not earn the same').toBeLessThan(whole)
 
     // And the condition the month reads is exactly "holds a job AND the

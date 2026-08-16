@@ -25,7 +25,6 @@ import {
   householdCosts,
   householdIncome,
   isHomeless,
-  moneyOnHand,
   personalIncome,
   startUnemployment,
   supportOf,

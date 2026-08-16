@@ -56,6 +56,7 @@ import type {
   EducationLevel,
   EmploymentRecord,
   Household,
+  LicenceId,
   Person,
   Place,
   Relationship,
@@ -90,6 +91,8 @@ import {
   startUnemployment,
   passOnHomes,
   passWalletToSurvivor,
+  earnLicence,
+  liquidShareOf,
 } from './finances.js'
 import { householdIncome as schoolIncomeOf } from './finances.js'
 import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from './health.js'
@@ -111,7 +114,7 @@ import {
 import { placesOfKind } from './worldgen.js'
 import { afterAMonth, meetsGates } from './skills.js'
 import { FIRST_SLICE } from './pathcontent.js'
-import { levelOfPath, pathAvailableIn, pathById, workplaceNamesFor } from './paths.js'
+import { levelOfPath, licenceById, pathAvailableIn, pathById, workplaceNamesFor } from './paths.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
 
@@ -1795,11 +1798,21 @@ function runLadderClimbs(world: World, tick: Tick): void {
     ) {
       continue
     }
-    if (
-      next.needsLicence !== undefined &&
-      !(world.licences.get(personId) ?? []).includes(next.needsLicence)
-    ) {
-      continue
+    /**
+     * THE WALL MID-CLIMB, AND WHY IT WAS WORSE THAN THE ONE AT THE DOOR.
+     *
+     * This skipped anybody short of the papers, for ever. A townsperson who
+     * reached the rung below a certificate simply stopped there for the rest
+     * of their working life — everything else about them ready, nothing in
+     * the world able to move them.
+     *
+     * Now they go and sit it, out of their own wallet, at the moment it is
+     * the only thing left in the way. If they cannot afford the course they
+     * wait where they are and try again next month, which is what actually
+     * happens to people.
+     */
+    if (next.needsLicence !== undefined && !holdsPapers(world, personId, next.needsLicence)) {
+      if (!earnLicence(world, personId, next.needsLicence).done) continue
     }
 
     world.employment.set(personId, {
@@ -1872,6 +1885,26 @@ function runLadderClimbs(world: World, tick: Tick): void {
  */
 const LADDER_SHARE = 6
 
+/** Does this person already hold these papers? */
+function holdsPapers(world: World, personId: EntityId, licence: LicenceId): boolean {
+  return (world.licences.get(personId) ?? []).includes(licence)
+}
+
+/**
+ * COULD THEY GO AND GET THESE PAPERS? Held already, or affordable.
+ *
+ * Asked BEFORE a ladder is chosen so that a trade nobody could pay to enter
+ * does not sit in the weighted draw pretending to be an option — the pick
+ * would otherwise land on it, fail at the till, and drop the person out of
+ * hiring for the month for no reason they could ever see.
+ */
+function canSitFor(world: World, personId: EntityId, licence: LicenceId): boolean {
+  if (holdsPapers(world, personId, licence)) return true
+  const papers = licenceById(licence)
+  if (papers === undefined) return false
+  return liquidShareOf(world, personId) >= atTodaysPrices(world, papers.cost)
+}
+
 /**
  * PUT SOMEBODY AT THE BOTTOM OF A CAREER LADDER. True if it happened.
  *
@@ -1906,7 +1939,24 @@ function startOnALadder(
   const open = FIRST_SLICE.filter((path) => {
     if (!pathAvailableIn(path, year)) return false
     const entry = path.levels[0]
-    if (entry === undefined || entry.needsLicence !== undefined) return false
+    if (entry === undefined) return false
+    /**
+     * THE PAPERS ARE A PRICE, NOT A WALL (owner: "fix the licence gap").
+     *
+     * This used to skip any ladder wanting a certificate on its first rung,
+     * which quietly made TWELVE of the seventy-four player-only: the lorry,
+     * the salon, the cockpit, the fire station, the trading floor. The town
+     * could not enter them because nothing in the world let a townsperson go
+     * and sit an exam.
+     *
+     * Now they can — the same `earnLicence` the player's verb calls — so the
+     * gate is whether they can AFFORD the course, which is a real barrier
+     * and the honest one. Somebody with nothing in the bank still cannot
+     * become a pilot.
+     */
+    if (entry.needsLicence !== undefined && !canSitFor(world, person.id, entry.needsLicence)) {
+      return false
+    }
     if (!meetsRequirement(education.level, entry.needsLevel ?? path.requires)) return false
     // The body closes these doors too, exactly as it does the town's own
     // trades — an amputee is not a roofer (M-HEALTH §4).
@@ -1923,6 +1973,12 @@ function startOnALadder(
   const path = rng.pickWeighted(open, weights)
   const rung = path.levels[0]
   if (rung === undefined) return false
+
+  // Sit the exam BEFORE the job, and only once the ladder is chosen — nobody
+  // buys papers they have no use for. The money leaves the wallet here.
+  if (rung.needsLicence !== undefined && !earnLicence(world, person.id, rung.needsLicence).done) {
+    return false
+  }
 
   // The rung is an ordinary occupation now, so the offer is drawn from its
   // band the same way every other wage in this world is.
@@ -2563,8 +2619,37 @@ function considerBetterJob(
   // read the whole occupation list and let a shop clerk move to chief of
   // medicine because it pays more and a degree is a degree.
   const standing = meritedRung(job.occupationId, job.performance)
+  /**
+   * LEAVING A CAREER COSTS WHAT THE CAREER WAS GOING TO PAY.
+   *
+   * MEASURED, and it was the whole reason the town's ladders looked empty.
+   * Over forty years FIFTY townspeople started a career path and only TEN
+   * were still on one at the end. Fourteen of the leavers had simply retired
+   * — but sixteen were poached into exactly two town jobs, `sergeant` and
+   * `constable`, because those pay more than the third rung of a ladder and
+   * an ambitious climber's standing let them in.
+   *
+   * The bug is the comparison, not the poaching. Somebody three rungs up a
+   * career is not choosing between this month's wage and that one's; they
+   * are choosing between the job above them and the offer. Comparing against
+   * what they hold made every ladder leak from the middle, so the town filled
+   * the police station with half-trained accountants and nobody ever reached
+   * the top of anything.
+   *
+   * So a person ON a path is measured against the rung they are climbing
+   * TOWARDS. They still leave — for something genuinely better than their own
+   * prospects, and freely once they are at the top of their ladder with
+   * nothing above them. That is a career change rather than a leak.
+   */
+  const climbing = job.pathId === undefined ? undefined : pathById(FIRST_SLICE, job.pathId)
+  const aiming =
+    climbing === undefined || job.pathLevel === undefined
+      ? undefined
+      : levelOfPath(climbing, job.pathLevel + 1)
+  const worthStaying = aiming === undefined ? typicalPay(current) : aiming.monthlyPay
+
   const better = OCCUPATIONS.filter(
-    (o) => meetsRequirement(education.level, o.requires) && typicalPay(o) > typicalPay(current),
+    (o) => meetsRequirement(education.level, o.requires) && typicalPay(o) > worthStaying,
   ).filter((o) => {
     if (!topSeatOpen(world, o.id)) return false
     if (isEntryWork(o.id)) return true

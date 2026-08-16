@@ -32,6 +32,10 @@ import { factor, recordDecision, recordEvent } from './records.js'
 import { spouseOf } from './relationships.js'
 import { outOfPocketFor } from './benefits.js'
 import { atTodaysPrices } from './economy.js'
+// For `earnLicence` at the foot of this file: the town and the player sit
+// the same papers, so both need the table and the words for the price.
+import { licenceById } from './paths.js'
+import { formatMoney } from '@life-engine/shared'
 import {
   LONG_HOURS_WAGE_PER_MILLE,
   insurancePremiumFor,
@@ -5923,4 +5927,52 @@ export function seedFoundingAccounts(world: World, household: Household, amount:
     })
     remainder = 0
   }
+}
+
+/**
+ * SITTING FOR A LICENCE — the one road, for the player and the town alike.
+ *
+ * THE GAP THIS CLOSES (owner, on reading the module's own limits): twelve of
+ * the seventy-four career ladders ask for papers on their FIRST rung — the
+ * lorry, the salon, the cockpit, the fire station, the trading floor — and
+ * townspeople had no way on earth to get any. Those trades were player-only
+ * by omission rather than by design, and the same wall stood mid-climb: an
+ * NPC who reached a rung wanting a certificate simply stopped there for the
+ * rest of their working life.
+ *
+ * It lives HERE because money moves and finances.ts is money's single writer
+ * (Law 12), and because it is the only place both `player.ts` and
+ * `systems.ts` can reach without a cycle — the town's hiring cannot import
+ * the player's verbs, and this is exactly the "one function, two callers"
+ * shape that keeps a screen and a simulation from disagreeing.
+ *
+ * The terms are the owner's own: the cost, at today's prices, out of the
+ * wallet, and the paper in hand. No roll — somebody who can pay for the
+ * course and wants it, sits it.
+ */
+export function earnLicence(
+  world: World,
+  personId: EntityId,
+  licenceId: string,
+): { done: boolean; reason: string } {
+  const licence = licenceById(licenceId)
+  if (licence === undefined) return { done: false, reason: 'No such qualification.' }
+  if ((world.licences.get(personId) ?? []).includes(licence.id)) {
+    return { done: false, reason: 'You already hold it.' }
+  }
+  const cost = atTodaysPrices(world, licence.cost) as Money
+  const paid = debitPerson(world, personId, cost)
+  if (paid < cost) {
+    // Never take a part-payment for a whole qualification.
+    if (paid > 0) creditPerson(world, personId, paid)
+    return { done: false, reason: `It costs ${formatMoney(cost)} and you cannot cover it.` }
+  }
+
+  world.licences.set(personId, [...(world.licences.get(personId) ?? []), licence.id])
+  recordEvent(world, world.tick, {
+    type: 'qualified',
+    subjectId: personId,
+    detail: licence.title,
+  })
+  return { done: true, reason: `You hold ${licence.title}. ${formatMoney(cost)} to sit it.` }
 }

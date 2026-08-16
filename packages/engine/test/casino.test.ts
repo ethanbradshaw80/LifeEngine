@@ -18,7 +18,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
+import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
   STAKES,
@@ -100,7 +100,7 @@ describe('the house always wins', () => {
       // smaller sample measures whether it happened to land rather than
       // what the machine does.
       for (let i = 0; i < 100_000; i += 1) {
-        const r = playTable(world, 500, i as never, game, 10_000 as Money, 'stand', 500, i)
+        const r = playTable(world, 500 as Tick, i as EntityId, game, 10_000 as Money, 'stand', 500, i)
         net += r.net
         wagered += r.wagered
       }
@@ -121,7 +121,7 @@ describe('the house always wins', () => {
     const world = createWorld(makeSeed(7))
     const seen = new Set<number>()
     for (let visit = 0; visit < 40; visit += 1) {
-      seen.add(playTable(world, 12 as never, 500, 'blackjack', 10_000 as Money, 'stand', 500, visit).returned)
+      seen.add(playTable(world, 12 as Tick, 500 as EntityId, 'blackjack', 10_000 as Money, 'stand', 500, visit).returned)
     }
     expect(seen.size).toBeGreaterThan(1)
   })
@@ -137,7 +137,7 @@ describe('poker is the one you can beat', () => {
     // Six thousand sessions: the rake is eight per-mille an hour and the
     // swing is a hundred times that, so a small sample says nothing.
     for (let i = 0; i < 6_000; i += 1) {
-      net += playSession(world, i as never, 900 + i, mid, mid.buyIn, mid.fieldStrength, 5, i).net
+      net += playSession(world, i as Tick, (900 + i) as EntityId, mid, mid.buyIn, mid.fieldStrength, 5, i).net
     }
     expect(net).toBeLessThan(0)
   })
@@ -148,7 +148,7 @@ describe('poker is the one you can beat', () => {
     const run = (skill: number): number => {
       let net = 0
       for (let i = 0; i < 6_000; i += 1) {
-        net += playSession(world, i as never, 900 + i, mid, mid.buyIn, skill, 5, i).net
+        net += playSession(world, i as Tick, (900 + i) as EntityId, mid, mid.buyIn, skill, 5, i).net
       }
       return net
     }
@@ -162,7 +162,7 @@ describe('poker is the one you can beat', () => {
     let losing = 0
     const N = 1_000
     for (let i = 0; i < N; i += 1) {
-      if (playSession(world, i as never, 900 + i, mid, mid.buyIn, 850, 5, i).net < 0) losing += 1
+      if (playSession(world, i as Tick, (900 + i) as EntityId, mid, mid.buyIn, 850, 5, i).net < 0) losing += 1
     }
     // If a good player won most nights nobody would sit down with them
     // twice, and the game would not exist.
@@ -217,7 +217,7 @@ describe('tournaments pay top-heavy, and the whole pool', () => {
       let wins = 0
       const N = 4_000
       for (let i = 0; i < N; i += 1) {
-        if (playTournament(world, i as never, 800 + i, event, event.buyIn, 820, i).finish === 1) {
+        if (playTournament(world, i as Tick, (800 + i) as EntityId, event, event.buyIn, 820, i).finish === 1) {
           wins += 1
         }
       }
@@ -256,7 +256,7 @@ describe('tournaments pay top-heavy, and the whole pool', () => {
       let net = 0
       const N = 4_000
       for (let i = 0; i < N; i += 1) {
-        net += playTournament(world, i as never, 800 + i, event, event.buyIn, 900, i).net
+        net += playTournament(world, i as Tick, (800 + i) as EntityId, event, event.buyIn, 900, i).net
       }
       expect(net / (N * event.buyIn), event.id).toBeLessThan(1)
     }
@@ -266,7 +266,7 @@ describe('tournaments pay top-heavy, and the whole pool', () => {
 describe('chips are the wall', () => {
   it('a table cannot reach money that is not on it', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     expect(buyChipsPlayer(world, 1_000_000 as Money).done).toBe(true)
     const walletAfterBuying = walletOf(world, personId)
 
@@ -293,7 +293,7 @@ describe('chips are the wall', () => {
 
   it('cashing out puts it back, to the cent', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     const before = walletOf(world, personId)
     expect(buyChipsPlayer(world, 2_500_000 as Money).done).toBe(true)
     expect(walletOf(world, personId)).toBe(before - 2_500_000)
@@ -305,7 +305,7 @@ describe('chips are the wall', () => {
 
   it('will not sell chips to somebody who cannot pay', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     const accounts = accountsOf(world, personId)
     ;(world.accounts as Map<number, typeof accounts>).set(personId, {
       ...accounts,
@@ -319,7 +319,7 @@ describe('chips are the wall', () => {
 describe('it can take hold, and it can be walked back', () => {
   it('going back to the window again and again is what tightens it', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     expect(holdLevelOf(gamblerOf(world, personId))).toBe('none')
     // Buying in for a large share of everything, over and over, inside the
     // same month — which is what chasing looks like from the outside.
@@ -332,7 +332,7 @@ describe('it can take hold, and it can be walked back', () => {
 
   it('one ordinary night is not a problem, and is never described as one', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     // A small buy-in against a large wallet: what most people do.
     expect(buyChipsPlayer(world, 20_000 as Money).done).toBe(true)
     expect(holdLevelOf(gamblerOf(world, personId))).toBe('none')
@@ -340,7 +340,7 @@ describe('it can take hold, and it can be walked back', () => {
 
   it('asking for help is open to anybody, and always works', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     for (let i = 0; i < 60; i += 1) {
       buyChipsPlayer(world, 9_000_000 as Money)
       cashOutPlayer(world)
@@ -360,7 +360,7 @@ describe('it can take hold, and it can be walked back', () => {
   it('recovery is faster than merely not playing', () => {
     const build = (): { world: World; personId: number } => {
       const world = playerAged(4242, 34)
-      const personId = world.player.personId ?? 0
+      const personId = (world.player.personId as EntityId)
       for (let i = 0; i < 60; i += 1) {
         buyChipsPlayer(world, 9_000_000 as Money)
         cashOutPlayer(world)
@@ -372,8 +372,8 @@ describe('it can take hold, and it can be walked back', () => {
     expect(seekHelpPlayer(trying.world).done).toBe(true)
     advanceTicks(drifting.world, 24)
     advanceTicks(trying.world, 24)
-    expect(gamblerOf(trying.world, trying.personId).hold).toBeLessThan(
-      gamblerOf(drifting.world, drifting.personId).hold,
+    expect(gamblerOf(trying.world, trying.personId as EntityId).hold).toBeLessThan(
+      gamblerOf(drifting.world, drifting.personId as EntityId).hold,
     )
   })
 })
@@ -381,7 +381,7 @@ describe('it can take hold, and it can be walked back', () => {
 describe('poker skill is earned', () => {
   it('nobody starts with any, and playing is what builds it', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     expect(gamblerOf(world, personId).pokerSkill).toBe(0)
     expect(buyChipsPlayer(world, 30_000_000 as Money).done).toBe(true)
     for (let i = 0; i < 20; i += 1) {
@@ -403,7 +403,7 @@ describe('the key hand', () => {
   function someHand(): NonNullable<ReturnType<typeof keyHandFor>> {
     const world = createWorld(makeSeed(3))
     for (let i = 0; i < 500; i += 1) {
-      const hand = keyHandFor(world, i as never, 700 + i, i, 600)
+      const hand = keyHandFor(world, i as never, (700 + i) as EntityId, i, 600)
       if (hand !== null) return hand
     }
     throw new Error('no key hand in five hundred sessions')
@@ -455,7 +455,7 @@ describe('the key hand', () => {
     const world = createWorld(makeSeed(3))
     let fired = 0
     for (let i = 0; i < 600; i += 1) {
-      if (keyHandFor(world, i as never, 400 + i, i, 500) !== null) fired += 1
+      if (keyHandFor(world, i as never, (400 + i) as EntityId, i, 500) !== null) fired += 1
     }
     expect(fired / 600).toBeGreaterThan(0.1)
     expect(fired / 600).toBeLessThan(0.45)
@@ -467,7 +467,7 @@ describe('the key hand', () => {
       let total = 0
       let n = 0
       for (let i = 0; i < 2_000; i += 1) {
-        const hand = keyHandFor(world, i as never, 400 + i, i, skill)
+        const hand = keyHandFor(world, i as never, (400 + i) as EntityId, i, skill)
         if (hand !== null) {
           total += hand.aheadPerMille
           n += 1
@@ -482,7 +482,7 @@ describe('the key hand', () => {
 describe('the results screens have something to show', () => {
   it('a session leaves a recap on the record', () => {
     const world = playerAged(4242, 34)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     expect(buyChipsPlayer(world, 30_000_000 as Money).done).toBe(true)
     // Play until one lands without a key hand holding it open.
     for (let i = 0; i < 12; i += 1) {

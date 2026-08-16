@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { setPlayer, scaleUpPlayer, takePublicPlayer, ipoBar, businessOf } from '../src/player.js'
 import {
@@ -20,7 +20,6 @@ import {
   valuationOf,
   annualRevenueOf,
   founderSalaryOf,
-  CAPITAL_CEILING_MULTIPLE,
   COMPANY_CEILING_MULTIPLE,
 } from '../src/business.js'
 import {
@@ -90,7 +89,7 @@ describe('a trade becomes a company', () => {
     expect(founderSalaryOf(business, kind)).toBe(0)
 
     expect(scaleUpPlayer(world).done).toBe(true)
-    const grown = businessOf(world, world.player.personId ?? 0)
+    const grown = businessOf(world, (world.player.personId as EntityId))
     expect(grown).toBeDefined()
     if (grown === undefined) return
     expect(grown.scaledAtTick).not.toBeNull()
@@ -122,7 +121,7 @@ describe('a trade becomes a company', () => {
 describe('taking it public', () => {
   it('a trade cannot list, and the refusal says why', () => {
     const { world } = withCompany(7788)
-    const bar = ipoBar(world, world.player.personId ?? 0)
+    const bar = ipoBar(world, (world.player.personId as EntityId))
     expect(bar).not.toBeNull()
     expect(bar).toContain('company')
   })
@@ -181,14 +180,14 @@ describe('taking it public', () => {
     expect(scaleUpPlayer(world).done).toBe(true)
     expect(takePublicPlayer(world).done).toBe(true)
     expect(takePublicPlayer(world).done).toBe(false)
-    expect(ipoBar(world, world.player.personId ?? 0)).toBe('It is already public.')
+    expect(ipoBar(world, (world.player.personId as EntityId))).toBe('It is already public.')
   })
 
   it('the listed company keeps trading like any other stock', () => {
     const { world } = withCompany(7788)
     expect(scaleUpPlayer(world).done).toBe(true)
     expect(takePublicPlayer(world).done).toBe(true)
-    const stockId = businessOf(world, world.player.personId ?? 0)?.listedStockId ?? ''
+    const stockId = businessOf(world, (world.player.personId as EntityId))?.listedStockId ?? ''
 
     advanceTicks(world, 24)
     // A price that moves, a history that grows, and analyst coverage — the
@@ -211,7 +210,7 @@ describe('and it can fail', () => {
     const { world } = withCompany(7788)
     expect(scaleUpPlayer(world).done).toBe(true)
     expect(takePublicPlayer(world).done).toBe(true)
-    const personId = world.player.personId ?? 0
+    const personId = (world.player.personId as EntityId)
     const stockId = businessOf(world, personId)?.listedStockId ?? ''
     expect(accountsOf(world, personId).holdings.some((h) => h.stockId === stockId)).toBe(true)
 

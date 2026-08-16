@@ -164,9 +164,14 @@ describe('the town lives under the same rule', () => {
         // long-server has to show a bust AFTER their last reenlistment —
         // the innocent explanation — or they walked through the back door.
         if (grade < INDEFINITE_MIN_GRADE) {
-          const lastSigned = world.events
-            .filter((e) => e.type === 'reenlisted' && e.subjectId === record.personId)
-            .reduce((latest, e) => Math.max(latest, e.tick), record.enlistedAtTick)
+          // A plain number, not a Tick: `Math.max` returns number and the
+          // reduce would otherwise infer the branded type for its accumulator
+          // and reject its own result.
+          let lastSigned: number = record.enlistedAtTick
+          for (const e of world.events) {
+            if (e.type !== 'reenlisted' || e.subjectId !== record.personId) continue
+            lastSigned = Math.max(lastSigned, e.tick)
+          }
           const bustedSince = world.events.some(
             (e) =>
               e.type === 'disciplined' &&

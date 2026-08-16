@@ -27,6 +27,7 @@ import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './co
 import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
+  earnLicence,
   canAfford,
   creditPerson,
   debitPerson,
@@ -9421,24 +9422,16 @@ export function earnLicencePlayer(world: World, licenceId: string): { done: bool
   const guard = verbPerson(world)
   if ('reason' in guard) return { done: false, reason: guard.reason }
   const { person } = guard
-  const licence = licenceById(licenceId)
-  if (licence === undefined) return { done: false, reason: 'No such qualification.' }
-  if (holdsLicence(world, person.id, licence.id)) {
-    return { done: false, reason: 'You already hold it.' }
-  }
-  const cost = atTodaysPrices(world, licence.cost) as Money
-  const paid = debitPerson(world, person.id, cost)
-  if (paid < cost) {
-    if (paid > 0) creditPerson(world, person.id, paid)
-    return { done: false, reason: `It costs ${formatMoney(cost)} and you cannot cover it.` }
-  }
-
-  logVerb(world, 'earn-licence', licence.id)
-  world.licences.set(person.id, [...(world.licences.get(person.id) ?? []), licence.id])
-  recordEvent(world, world.tick, {
-    type: 'qualified',
-    subjectId: person.id,
-    detail: licence.title,
-  })
-  return { done: true, reason: `You hold ${licence.title}. ${formatMoney(cost)} to sit it.` }
+  /**
+   * THE SAME ROAD THE TOWN TAKES. `earnLicence` in finances.ts is the whole
+   * of it — the price, the wallet, the paper, the record. This verb is now
+   * the guard and the log around it, so a townsperson sitting for a lorry
+   * licence and the player sitting for one cannot come to differ.
+   *
+   * The log fires only on success, which is the change: it used to be
+   * written before the money moved.
+   */
+  const done = earnLicence(world, person.id, licenceId)
+  if (done.done) logVerb(world, 'earn-licence', licenceId)
+  return done
 }

@@ -521,8 +521,12 @@ describe('the reenlistment school option', () => {
 
     // Flagged: every course in the catalogue closes at once, which is the
     // cleanest way to reach "nothing open" without rigging seat counts.
+    // `disciplined` is the event `flagStatus` actually reads. This said
+    // 'article15', which is a PENDING kind and not an event type at all — so
+    // it wrote a nonsense event nothing looks at, the schools never closed,
+    // and the escape hatch below made the test pass while proving nothing.
     recordEvent(world, world.tick, {
-      type: 'article-15',
+      type: 'disciplined',
       subjectId: soldier.id,
       detail: 'test',
     })
@@ -543,8 +547,12 @@ describe('the reenlistment school option', () => {
       .sort((a, b) => a.id - b.id)[0]
     if (!soldier) return
     enlist(world, soldier.id)
+    // `disciplined` is the event `flagStatus` actually reads. This said
+    // 'article15', which is a PENDING kind and not an event type at all — so
+    // it wrote a nonsense event nothing looks at, the schools never closed,
+    // and the escape hatch below made the test pass while proving nothing.
     recordEvent(world, world.tick, {
-      type: 'article-15',
+      type: 'disciplined',
       subjectId: soldier.id,
       detail: 'test',
     })

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { seed as makeSeed } from '@life-engine/shared'
+import type { Tick } from '@life-engine/shared'
 import { createWorld } from '../src/worldgen.js'
 import { fitAdaptation, runHealth } from '../src/health.js'
 import { barredFromWork, canRun, effectsOf } from '../src/conditions.js'
@@ -23,7 +25,7 @@ describe('irreversible wounds', () => {
    * with an amputation, not how often one happens.
    */
   function recoverFrom(kind: string, peakSeverity: number) {
-    const world = createWorld({ seed: 909, townSize: 'small' })
+    const world = createWorld(makeSeed(909), 100)
     const personId = [...world.people.keys()][0]!
     const before = world.health.get(personId)!
     world.health.set(personId, {
@@ -35,7 +37,7 @@ describe('irreversible wounds', () => {
       // player described, the one where he "rested and healed right back up".
       severity: 1,
       peakSeverity,
-      sinceTick: world.tick - 6,
+      sinceTick: (world.tick - 6) as Tick,
       ailmentServiceConnected: true,
     })
     runHealth(world, world.tick)
@@ -48,7 +50,7 @@ describe('irreversible wounds', () => {
     // times in three; a single passing run would have proved nothing at
     // all. Every seed must leave the record, not most of them.
     for (let seed = 0; seed < 40; seed += 1) {
-      const world = createWorld({ seed, townSize: 'small' })
+      const world = createWorld(makeSeed(seed), 100)
       const personId = [...world.people.keys()][0]!
       const before = world.health.get(personId)!
       world.health.set(personId, {
@@ -58,7 +60,7 @@ describe('irreversible wounds', () => {
         ailmentSite: 'leg',
         severity: 1,
         peakSeverity: 420,
-        sinceTick: world.tick - 6,
+        sinceTick: (world.tick - 6) as Tick,
         ailmentServiceConnected: true,
       })
       runHealth(world, world.tick)
@@ -87,7 +89,7 @@ describe('irreversible wounds', () => {
     // that heals clean has to stay possible.
     let cleanRecoveries = 0
     for (let seed = 0; seed < 40; seed += 1) {
-      const world = createWorld({ seed, townSize: 'small' })
+      const world = createWorld(makeSeed(seed), 100)
       const personId = [...world.people.keys()][0]!
       const before = world.health.get(personId)!
       world.health.set(personId, {
@@ -97,7 +99,7 @@ describe('irreversible wounds', () => {
         ailmentSite: 'leg',
         severity: 1,
         peakSeverity: 420,
-        sinceTick: world.tick - 6,
+        sinceTick: (world.tick - 6) as Tick,
       })
       runHealth(world, world.tick)
       if (world.health.get(personId)!.disability === before.disability) cleanRecoveries += 1
@@ -116,7 +118,7 @@ describe('irreversible wounds', () => {
  */
 describe('a permanent wound is felt', () => {
   function withLostLeg() {
-    const world = createWorld({ seed: 909, townSize: 'small' })
+    const world = createWorld(makeSeed(909), 100)
     const personId = [...world.people.keys()][0]!
     const before = world.health.get(personId)!
     world.health.set(personId, {

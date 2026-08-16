@@ -44,7 +44,7 @@ import {
 import { livingPeople } from '../src/systems.js'
 import { homeland, sueForPeace } from '../src/geopolitics.js'
 import { ownershipCostOf } from '../src/realestate.js'
-import { accountsOf, creditPerson, walletOf } from '../src/finances.js'
+import { creditPerson, walletOf } from '../src/finances.js'
 import { clearanceBonusOf } from '../src/crime.js'
 import { BASELINE_INCOME_RATE, withholdingFor } from '../src/tax.js'
 

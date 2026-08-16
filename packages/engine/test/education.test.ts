@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
@@ -411,9 +412,9 @@ describe('tuition and student loans', () => {
     expect(before.size).toBeGreaterThan(0)
     advanceTicks(own, 2)
     for (const [personId, missed] of before) {
-      const record = own.education.get(personId)
+      const record = own.education.get(personId as EntityId)
       if (record?.enrolledIn === null || record?.enrolledIn === undefined) continue
-      const loan = accountsOf(own, personId).loans.find((l) => l.kind === 'student')
+      const loan = accountsOf(own, personId as EntityId).loans.find((l) => l.kind === 'student')
       if (loan === undefined) continue
       expect(loan.missedMonths).toBeLessThanOrEqual(missed)
     }

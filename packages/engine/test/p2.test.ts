@@ -39,7 +39,7 @@ import { enlistPerson } from '../src/service.js'
 import { SPECIALTIES } from '../src/content.js'
 import { monthlyConceptionChance } from '../src/systems.js'
 import { relationshipKey } from '../src/types.js'
-import type { Person, World } from '../src/types.js'
+import type { HealthRecord, Person, World } from '../src/types.js'
 
 // ---------------------------------------------------------------------------
 // Scenario builders
@@ -543,7 +543,7 @@ describe('convalesce stance', () => {
 
     const record = world.health.get(a.id)
     world.health.set(a.id, {
-      ...(record ?? {
+      ...((record ?? {
         personId: a.id,
         ailment: null,
         ailmentKind: null,
@@ -556,7 +556,7 @@ describe('convalesce stance', () => {
         marks: [],
         serviceDisability: 0,
         ailmentServiceConnected: false,
-      }),
+      }) as HealthRecord),
       ailment: 'illness' as const,
       severity: 640,
       peakSeverity: 640,

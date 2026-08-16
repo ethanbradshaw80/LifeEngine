@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { seed as makeSeed } from '@life-engine/shared'
 import { createWorld } from '../src/worldgen.js'
 import { advanceTicks } from '../src/tick.js'
 import { ageAt } from '../src/clock.js'
@@ -24,7 +25,7 @@ import type { Money, Tick } from '@life-engine/shared'
 describe('the BA', () => {
   /** A discharged veteran carrying a service-connected disability. */
   function veteran(serviceDisability: number) {
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     const personId = [...world.people.keys()][0]!
     const health = world.health.get(personId)!
     world.health.set(personId, {
@@ -80,7 +81,7 @@ describe('the BA', () => {
 
 describe('the coverage resolver', () => {
   it('charges a service-connected veteran nothing for their care', () => {
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     const personId = [...world.people.keys()][0]!
     const health = world.health.get(personId)!
     world.health.set(personId, { ...health, serviceDisability: 450 })
@@ -106,7 +107,7 @@ describe('the coverage resolver', () => {
      * passed by finding nobody at all. What is under test is the RESOLVER,
      * so the situation is constructed and the claim is exact.
      */
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     advanceTicks(world, 12 * 30)
     const personId = [...world.people.keys()].find((id) => {
       const person = world.people.get(id)
@@ -133,7 +134,7 @@ describe('the coverage resolver', () => {
   })
 
   it('never charges more than the out-of-pocket maximum', () => {
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     advanceTicks(world, 12 * 30)
     const personId = [...world.people.keys()].find((id) => world.employment.has(id))
     expect(personId).toBeDefined()
@@ -150,7 +151,7 @@ describe('the coverage resolver', () => {
 
 describe('the stored grant (spec 3a, the schema half)', () => {
   it('a grant never lowers what a veteran already had', () => {
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     const personId = [...world.people.keys()][0]!
     const health = world.health.get(personId)!
     world.health.set(personId, { ...health, serviceDisability: 400, baRating: 500 })
@@ -163,7 +164,7 @@ describe('the stored grant (spec 3a, the schema half)', () => {
   })
 
   it('the granted rating raises the pension, not a second payment', () => {
-    const world = createWorld({ seed: 707, townSize: 'small' })
+    const world = createWorld(makeSeed(707), 100)
     const personId = [...world.people.keys()][0]!
     const health = world.health.get(personId)!
     world.health.set(personId, { ...health, serviceDisability: 300, baRating: null })

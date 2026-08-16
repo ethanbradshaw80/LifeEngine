@@ -7,6 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
@@ -47,7 +48,7 @@ function stubPerson(id: number, dead = false): Person {
 }
 
 function team(world: World, tick: number): SquadMember[] {
-  return squadSpecsFor(world, tick as never, 500, 1).map((spec, i) => ({
+  return squadSpecsFor(world, tick as never, 500 as EntityId, 1).map((spec, i) => ({
     personId: (9_000 + i) as never,
     role: spec.role,
     nickname: spec.nickname,
@@ -59,7 +60,7 @@ function team(world: World, tick: number): SquadMember[] {
 describe('a squad is people, not a roster', () => {
   it('is a fireteam, with the roles a fireteam has', () => {
     const world = createWorld(makeSeed(3))
-    const specs = squadSpecsFor(world, 10 as never, 500, 1)
+    const specs = squadSpecsFor(world, 10 as never, 500 as EntityId, 1)
     expect(specs.length).toBe(SQUAD_SIZE)
     expect(specs.some((spec) => spec.role === 'leader')).toBe(true)
     expect(specs.some((spec) => spec.role === 'medic')).toBe(true)
@@ -68,7 +69,7 @@ describe('a squad is people, not a roster', () => {
   it('nobody in it is called the same thing as anybody else', () => {
     const world = createWorld(makeSeed(3))
     for (let tour = 1; tour <= 30; tour += 1) {
-      const specs = squadSpecsFor(world, (tour * 7) as never, 500, tour)
+      const specs = squadSpecsFor(world, (tour * 7) as never, 500 as EntityId, tour)
       const names = specs.map((spec) => spec.nickname)
       // Two men called Doc in one team is a bug, not colour.
       expect(new Set(names).size, `tour ${String(tour)}`).toBe(names.length)
@@ -77,7 +78,7 @@ describe('a squad is people, not a roster', () => {
 
   it('they are not five identical soldiers', () => {
     const world = createWorld(makeSeed(3))
-    const specs = squadSpecsFor(world, 10 as never, 500, 1)
+    const specs = squadSpecsFor(world, 10 as never, 500 as EntityId, 1)
     expect(new Set(specs.map((spec) => spec.competence)).size).toBeGreaterThan(1)
   })
 
@@ -88,7 +89,7 @@ describe('a squad is people, not a roster', () => {
     let leaders = 0
     let others = 0
     for (let tour = 1; tour <= 200; tour += 1) {
-      for (const spec of squadSpecsFor(world, tour as never, 400 + tour, tour)) {
+      for (const spec of squadSpecsFor(world, tour as never, (400 + tour) as EntityId, tour)) {
         if (spec.role === 'leader') {
           leaderTotal += spec.competence
           leaders += 1
@@ -103,8 +104,8 @@ describe('a squad is people, not a roster', () => {
 
   it('the same tour spins up the same squad — a reload does not reroll it', () => {
     const world = createWorld(makeSeed(3))
-    const a = squadSpecsFor(world, 42 as never, 777, 2)
-    const b = squadSpecsFor(world, 42 as never, 777, 2)
+    const a = squadSpecsFor(world, 42 as never, 777 as EntityId, 2)
+    const b = squadSpecsFor(world, 42 as never, 777 as EntityId, 2)
     expect(a.map((s) => s.nickname)).toEqual(b.map((s) => s.nickname))
     expect(a.map((s) => s.competence)).toEqual(b.map((s) => s.competence))
   })

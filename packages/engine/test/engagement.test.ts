@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { createWorld } from '../src/index.js'
 import {
@@ -92,8 +93,8 @@ describe('the sequence survives the round trip', () => {
 describe('the roll is drawn once and carried', () => {
   it('the same contact is the same contact however many times it is asked', () => {
     const world = createWorld(makeSeed(8))
-    const a = engagementRoll(world, 30 as never, 900, 4)
-    const b = engagementRoll(world, 30 as never, 900, 4)
+    const a = engagementRoll(world, 30 as never, 900 as EntityId, 4)
+    const b = engagementRoll(world, 30 as never, 900 as EntityId, 4)
     // Choices bend the seed; they never re-roll it. Without this a player
     // could reload for a better firefight and the choices would stop being
     // choices.
@@ -103,7 +104,7 @@ describe('the roll is drawn once and carried', () => {
   it('and different contacts are different', () => {
     const world = createWorld(makeSeed(8))
     const seen = new Set<number>()
-    for (let i = 0; i < 200; i += 1) seen.add(engagementRoll(world, 30 as never, 900, i))
+    for (let i = 0; i < 200; i += 1) seen.add(engagementRoll(world, 30 as never, 900 as EntityId, i))
     expect(seen.size).toBeGreaterThan(50)
   })
 })
@@ -185,7 +186,7 @@ describe('the sequence rides on the scene encoding', () => {
   })
 
   it('every sequence contains exactly one plain decision', () => {
-    for (const threat of ['light', 'heavy', 'overrun']) {
+    for (const threat of (['light', 'heavy', 'overrun'] as const)) {
       for (const defining of [false, true]) {
         const beats = beatsFor(threat, defining)
         const asks = beats.filter((b) => b === 'decision')
@@ -236,7 +237,7 @@ describe('the follow-on is its own question', () => {
   })
 
   it('none of the three answers is free', () => {
-    for (const choice of ['push', 'hold', 'cover']) {
+    for (const choice of (['push', 'hold', 'cover'] as const)) {
       const odds = followOnOdds(choice, false)
       expect(odds.heLives, choice).toBeGreaterThan(0)
       expect(odds.heLives, choice).toBeLessThan(1000)

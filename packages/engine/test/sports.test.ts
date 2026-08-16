@@ -15,6 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
@@ -101,7 +102,6 @@ describe('most people do not make it', () => {
    * spread of twelve-year-olds rather than asserted about one.
    */
   it('the pipeline narrows hard at every step', () => {
-    const world = createWorld(makeSeed(31))
     let tried = 0
     let madeSchool = 0
     let madeVarsity = 0
@@ -284,7 +284,7 @@ describe('the season simulates from the stats', () => {
     const total = (record: AthleteRecord): number => {
       let points = 0
       for (let year = 0; year < 200; year += 1) {
-        points += playSeason(world, year as never, 500 + year, record, year).points
+        points += playSeason(world, year as never, (500 + year) as EntityId, record, year).points
       }
       return points
     }
@@ -302,7 +302,7 @@ describe('the season simulates from the stats', () => {
       level: 'pro',
     }
     const lines = Array.from({ length: 120 }, (_unused, year) =>
-      playSeason(world, year as never, 900 + year, star, year),
+      playSeason(world, year as never, (900 + year) as EntityId, star, year),
     )
     const points = lines.map((line) => line.points)
     const best = Math.max(...points)
@@ -336,7 +336,7 @@ describe('it is wired into a life', () => {
 /** Kept out of the import list above so the test reads as a claim about
  *  the seam rather than about a helper. */
 function sportsWageWrapper(world: ReturnType<typeof createWorld>, personId: number): number {
-  const record = world.athletes.get(personId)
+  const record = world.athletes.get(personId as EntityId)
   return record === undefined || record.level !== 'pro' ? 0 : record.wage
 }
 
@@ -474,7 +474,7 @@ describe('a fighter climbs, and can fall', () => {
       let won = 0
       const record = fighter(over)
       for (let i = 0; i < 1_000; i += 1) {
-        if (runFight(world, i as never, 3_000 + i, record, i).won) won += 1
+        if (runFight(world, i as never, (3_000 + i) as EntityId, record, i).won) won += 1
       }
       return won / 1_000
     }
@@ -486,8 +486,8 @@ describe('a fighter climbs, and can fall', () => {
 
   it('a champion earns far more per fight than a prospect', () => {
     const world = createWorld(makeSeed(77))
-    const prospect = runFight(world, 5 as never, 4_000, fighter(70), 3)
-    const champ = runFight(world, 5 as never, 4_000, fighter(70, { champion: true }), 3)
+    const prospect = runFight(world, 5 as never, 4_000 as EntityId, fighter(70), 3)
+    const champ = runFight(world, 5 as never, 4_000 as EntityId, fighter(70, { champion: true }), 3)
     expect(champ.purse).toBeGreaterThan(prospect.purse * 5)
   })
 })
@@ -542,11 +542,11 @@ describe('fame, money, and what comes after', () => {
     const world = createWorld(makeSeed(51))
     // Obscurity is a kind of protection, and the model says so.
     for (let i = 0; i < 200; i += 1) {
-      expect(rollScandal(world, i as never, 6_000 + i, 100)).toBeNull()
+      expect(rollScandal(world, i as never, (6_000 + i) as EntityId, 100)).toBeNull()
     }
     let hit = 0
     for (let i = 0; i < 400; i += 1) {
-      if (rollScandal(world, i as never, 6_000 + i, 800) !== null) hit += 1
+      if (rollScandal(world, i as never, (6_000 + i) as EntityId, 800) !== null) hit += 1
     }
     // Real, and still rare — a famous life is not a scandal every year.
     expect(hit).toBeGreaterThan(0)

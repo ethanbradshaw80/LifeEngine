@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import {
   MONTHS_BETWEEN_FIGHTS,
@@ -52,7 +52,7 @@ function rich(seed: number, years: number): World {
 describe('a fighter cannot fight every month', () => {
   it('a camp takes months, and the refusal says so', () => {
     const world = rich(4242, 34)
-    const id = world.player.personId ?? 0
+    const id = (world.player.personId as EntityId)
     world.athletes.set(id, {
       ...freshAthlete(id, 'combat', 'lightweight', { striking: 70, power: 70 }, 90),
       level: 'pro',
@@ -69,7 +69,7 @@ describe('a fighter cannot fight every month', () => {
 
   it('and the wait actually ends', () => {
     const world = rich(4242, 34)
-    const id = world.player.personId ?? 0
+    const id = (world.player.personId as EntityId)
     world.athletes.set(id, {
       ...freshAthlete(id, 'combat', 'lightweight', { striking: 70, power: 70 }, 90),
       level: 'pro',

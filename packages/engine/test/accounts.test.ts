@@ -25,7 +25,7 @@ import {
   walletHolderOf,
   walletOf,
 } from '../src/finances.js'
-import type { World } from '../src/types.js'
+import type { Person, World } from '../src/types.js'
 import { partnerOf } from '../src/relationships.js'
 
 function grown(seedValue = 12345, ticks = 240): World {
@@ -92,7 +92,7 @@ describe('people hold the money', () => {
       if (householdCosts(world, household) <= 0) continue
       const head = [...household.memberIds]
         .map((id) => world.people.get(id))
-        .filter((p) => p !== undefined && p.deathTick === null)
+        .filter((p): p is Person => p !== undefined && p.deathTick === null)
         .sort((a, b) => a.birthTick - b.birthTick || a.id - b.id)[0]
       const headWallet = head === undefined ? -1 : walletHolderOf(world, head.id)
       for (const memberId of household.memberIds) {

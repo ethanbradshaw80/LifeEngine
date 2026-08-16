@@ -45,6 +45,24 @@ npm run check
 ```
 Typecheck all workspaces, then run every test. **Run this before any commit.**
 
+**It genuinely passes now (2026-08-16), and had not for a long time.** The
+engine's TEST tsconfig carried 98 errors — tests are type-checked by a
+stricter project than vitest runs, so they went green while never compiling.
+Two of them were real bugs, not noise:
+
+- `createWorld({ seed: 909, townSize: 'small' })` in three files passed an
+  OBJECT where the seed goes. It coerces to 0 in the bitwise hashing, so every
+  one of those tests built the *same* world whatever number was written on it.
+  Fixed to real seeds; all 26 still pass.
+- `schoolhouse.test.ts` recorded an event of type `'article15'`, which is a
+  PENDING kind and not an event type at all. `flagStatus` reads `disciplined`,
+  so the flag never landed, the schools never closed, and the test's own
+  escape hatch (`if (open.length > 0) return`) made it pass while proving
+  nothing.
+
+The rest were branded-type slips — raw `number` where `EntityId`/`Tick` is
+wanted, and `personId ?? 0` widening the brand to `0 | EntityId`.
+
 ```bash
 npm test
 ```
@@ -352,6 +370,22 @@ and the whole business module. What has shipped since:
     band of 59+. And a degree still points somewhere — the fix was giving a
     RUNG `preferredMajors` so a nursing degree pointing at the healthcare
     ladder counts, not the guard that kept graduates off ladders entirely.
+  - **THE LADDERS WERE LEAKING FROM THE MIDDLE** (v181). Over forty years
+    FIFTY townspeople started a path and only TEN were still on one. Fourteen
+    had retired; sixteen were poached into exactly two jobs — `sergeant` and
+    `constable` — because those pay more than a third rung and a climber's
+    standing let them in. `considerBetterJob` compared the offer against what
+    somebody HOLDS; for a person on a ladder it now compares against the rung
+    they are climbing TOWARDS, which is what they are actually giving up.
+    Measured after: 10% of the employed on ladders → **19%**, distinct ladders
+    in use 7 → **12**, highest rung reached 4 → **5**. Intake untouched, so
+    the population band never moved.
+  - **AND THE TOWN CAN SIT FOR ITS PAPERS** (v181). Twelve of the 74 ladders
+    ask for a licence on the FIRST rung — lorry, salon, cockpit, fire station,
+    trading floor — and nothing let an NPC get one, so those trades were
+    player-only by omission. The same wall stood mid-climb: anybody reaching a
+    rung wanting a certificate stopped there for life. `earnLicence` in
+    finances.ts is now the one road both the player's verb and the town take.
 
 **The recurring failure shape this module added to the list:** a test that
 hand-rolls the same arithmetic as the code it is testing will pass beside the

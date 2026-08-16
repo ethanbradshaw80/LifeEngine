@@ -58,7 +58,50 @@ describe('the town is actually on them', () => {
     const share = (onLadders().length * 100) / employed.length
     expect(employed.length).toBeGreaterThan(40)
     expect(share, 'the ladders have swallowed the town').toBeLessThan(45)
-    expect(share, 'nobody is on a ladder worth the name').toBeGreaterThan(3)
+    /**
+     * MEASURED AT 19 PER CENT, and the floor is well under it so the test
+     * fails on a regression rather than on noise. It was 10 per cent until
+     * the middle of every ladder stopped leaking — see the poaching rule in
+     * `considerBetterJob`. Raising the INTAKE share instead is the move that
+     * collapsed the town, so if this number needs to grow, grow it by
+     * keeping people rather than by taking more.
+     */
+    expect(share, 'nobody is on a ladder worth the name').toBeGreaterThan(10)
+  })
+
+  it('spreads them across the town’s trades, not into one corner', () => {
+    // Twelve distinct ladders at the measured seed. Seven before the leak
+    // was closed — and the two jobs it leaked INTO were the same two every
+    // time, so the town filled its police station with half-trained
+    // accountants and nobody reached the top of anything.
+    const used = new Set(onLadders().map((entry) => entry.job?.pathId))
+    expect(used.size, 'the whole town is on the same few ladders').toBeGreaterThan(7)
+  })
+
+  it('carries somebody to the top half of a ladder', () => {
+    /**
+     * THE POINT OF A CAREER, and the thing thin spread was hiding: before
+     * the leak was closed nobody in town got past rung 4, because the middle
+     * of every ladder was where people were poached away from. Somebody
+     * reaches rung 5 now — a whole climb, in a life.
+     */
+    const highest = onLadders().reduce((top, entry) => Math.max(top, entry.job?.pathLevel ?? 0), 0)
+    expect(highest, 'nobody in town ever gets past the lower rungs').toBeGreaterThanOrEqual(4)
+  })
+
+  it('sends people to sit for the papers their trade demands', () => {
+    /**
+     * THE LICENCE GAP (owner: "fix the licence gap"). Twelve of the
+     * seventy-four ladders ask for papers on the FIRST rung and the town had
+     * no way to get any, so those trades were player-only by omission. The
+     * wall stood mid-climb too: an NPC who reached a rung wanting a
+     * certificate stopped there for the rest of their working life.
+     *
+     * They pay for it out of their own wallet now, through the same
+     * `earnLicence` the player's verb calls.
+     */
+    const papers = [...world.licences.values()].reduce((n, held) => n + held.length, 0)
+    expect(papers, 'nobody in town ever qualified for anything').toBeGreaterThan(0)
   })
 
   it('never seats anybody above the bottom of a ladder they just joined', () => {

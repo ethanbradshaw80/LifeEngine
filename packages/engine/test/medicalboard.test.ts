@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Tick } from '@life-engine/shared'
+import type { EntityId, Tick } from '@life-engine/shared'
 import { createWorld } from '../src/worldgen.js'
 import { advanceTicks } from '../src/tick.js'
 import { ageAt } from '../src/clock.js'
@@ -29,14 +29,14 @@ function servingPlayer(seed: number) {
 }
 
 function setDisability(world: ReturnType<typeof createWorld>, personId: number, value: number) {
-  const health = world.health.get(personId)!
-  world.health.set(personId, { ...health, disability: value, serviceDisability: value })
+  const health = world.health.get(personId as EntityId)!
+  world.health.set(personId as EntityId, { ...health, disability: value, serviceDisability: value })
 }
 
 describe('the wound floors', () => {
   it('a partial eye injury no longer ends a career', () => {
     // The player's exact case: heal up from an eye wound, career survives.
-    const world = createWorld({ seed: 909, townSize: 'small' })
+    const world = createWorld(makeSeed(909), 100)
     const personId = [...world.people.keys()][0]!
     const before = world.health.get(personId)!
     world.health.set(personId, {
@@ -57,7 +57,7 @@ describe('the wound floors', () => {
   })
 
   it('a blinding eye injury still lands past the bar', () => {
-    const world = createWorld({ seed: 909, townSize: 'small' })
+    const world = createWorld(makeSeed(909), 100)
     const personId = [...world.people.keys()][1]!
     const before = world.health.get(personId)!
     world.health.set(personId, {
