@@ -22,6 +22,7 @@
  * on the You panel. Nobody chooses their own temperament.
  */
 
+import { WORKING_AGE } from './content.js'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Household, Person, World } from './types.js'
@@ -197,7 +198,7 @@ const MOTHER_MAIDEN_FALLBACK = 'Hartley'
  * default is what it builds.
  */
 /** Old enough to hold a job — the age the town itself hires from. */
-const WORKING_AGE = 18
+
 
 export function planBirth(
   world: World,

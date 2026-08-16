@@ -12,7 +12,7 @@ import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
 import { ageAt, isBirthdayMonth, toDate } from './clock.js'
 import { barredFromWork } from './conditions.js'
-import {
+import { WORKING_AGE,
   educationRank,
   isHigherEducation,
   meetsRequirement,
@@ -157,7 +157,7 @@ export const RAISE_MIN_PERFORMANCE = 350
 export const WARNING_PERFORMANCE = 240
 export const DISMISSAL_PERFORMANCE = 200
 
-const WORKING_AGE = 18
+
 const RETIREMENT_AGE = 66
 const LEAVE_HOME_AGE = 19
 /** Months a household must exist before it will consider moving again. */

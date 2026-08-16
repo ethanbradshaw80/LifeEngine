@@ -53,6 +53,19 @@ export const WORKPLACE_NAMES: readonly string[] = [
   "the diner on Second Street", 'the savings bank', "Halloran's garage", 'the courthouse',
 ]
 
+/**
+ * THE AGE THE WORLD LETS YOU WORK, sign, and be held to a bargain.
+ *
+ * ONE CONSTANT, because there were three: `systems.ts` and `birth.ts` each
+ * kept a private copy and the PLAYER'S OWN VERBS kept none at all. That gap
+ * shipped — a player reported his brother taking a job as a plumbing helper
+ * at NOUGHT YEARS OLD on the v186 build.
+ *
+ * Two parallel definitions of the same rule is a failure shape this codebase
+ * has written down before. This is the definition.
+ */
+export const WORKING_AGE = 18
+
 export const CIVIC_NAMES: readonly string[] = ['the town hall', 'the public library']
 
 /**

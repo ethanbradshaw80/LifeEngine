@@ -24,7 +24,7 @@ import { dollars } from '@life-engine/shared'
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { ageAt, toDate } from './clock.js'
 import { formatMoney, TICKS_PER_YEAR } from '@life-engine/shared'
-import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './content.js'
+import { WORKING_AGE, isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './content.js'
 import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
@@ -3722,6 +3722,38 @@ function verbPerson(world: World): { person: Person } | { reason: string } {
   if (!person || person.deathTick !== null) return { reason: 'Nobody is being played.' }
   if (world.player.pending !== null) return { reason: 'A decision is already waiting.' }
   return { person }
+}
+
+/**
+ * IS THIS PERSON OLD ENOUGH TO BE HELD TO A BARGAIN? Null when they are.
+ *
+ * THE BUG THIS EXISTS FOR, reported on the v186 build within hours of
+ * release: "my brother just started playing and he landed a job as a plumber
+ * helper at 0 years old."
+ *
+ * `verbPerson` — the guard EVERY player verb passes through — checked that
+ * somebody was alive and that no decision was already waiting, and nothing
+ * else. Not one verb in the game asked how old they were. The career ladders
+ * made it reachable: `joinBar` gates on schooling, licences and skills, a
+ * newborn's schooling is 'none' which satisfies a ladder requiring 'none',
+ * and the path validator GUARANTEES an entry rung has no skill gates — so
+ * every one of the ladders open to a school leaver was open to an infant.
+ *
+ * It was never only the job. A baby could also sit a pilot's licence, settle
+ * a family trust, endow the library and commission a manor, because those
+ * verbs were written to the same guard.
+ *
+ * NOT PUT INSIDE `verbPerson`, deliberately: plenty of verbs SHOULD work for
+ * a child — the school choices and the childhood moments are the game at
+ * that age. This is the bar for work, money and contracts, and it is applied
+ * where those live.
+ */
+export function tooYoungBar(world: World, personId: EntityId, forWhat: string): string | null {
+  const person = world.people.get(personId)
+  if (person === undefined) return null
+  const age = ageAt(person.birthTick, world.tick)
+  if (age >= WORKING_AGE) return null
+  return `You are ${String(age)}. Nobody ${forWhat} at that age.`
 }
 
 /** Append a player input to the replay log. Exported for crime.ts, whose
@@ -9245,6 +9277,9 @@ export function pathsFor(world: World): readonly PathView[] {
 export function joinBar(world: World, personId: EntityId, path: CareerPath): string | null {
   const person = world.people.get(personId)
   if (!person || person.deathTick !== null) return 'Nobody is being played.'
+  // THE ONE THAT SHIPPED. See `tooYoungBar`.
+  const young = tooYoungBar(world, personId, 'takes work')
+  if (young !== null) return young
   const year = toDate(world, world.tick).year
   if (!pathAvailableIn(path, year)) return 'Nobody does that work in this town yet.'
   const entry = path.levels[0]
@@ -9454,6 +9489,8 @@ export function earnLicencePlayer(world: World, licenceId: string): { done: bool
   const guard = verbPerson(world)
   if ('reason' in guard) return { done: false, reason: guard.reason }
   const { person } = guard
+  const young = tooYoungBar(world, person.id, 'sits for those papers')
+  if (young !== null) return { done: false, reason: young }
   /**
    * THE SAME ROAD THE TOWN TAKES. `earnLicence` in finances.ts is the whole
    * of it — the price, the wallet, the paper, the record. This verb is now
@@ -9510,6 +9547,8 @@ export function giveBar(
   placeId: EntityId,
   tier: GiftTier,
 ): string | null {
+  const young = tooYoungBar(world, personId, 'signs money away')
+  if (young !== null) return young
   const place = world.places.get(placeId)
   if (place === undefined) return 'There is no such place.'
   if (place.kind !== 'school' && place.kind !== 'civic') {
@@ -9653,6 +9692,8 @@ export function commissionBar(
   neighbourhoodPlaceId: EntityId,
   type: PropertyType,
 ): string | null {
+  const young = tooYoungBar(world, personId, 'commissions a building')
+  if (young !== null) return young
   const place = world.places.get(neighbourhoodPlaceId)
   if (place === undefined || place.kind !== 'neighbourhood') return 'You cannot build there.'
   if (buildTierFor(type) === undefined) return 'Nobody builds those.'
@@ -9788,6 +9829,8 @@ export function trustViewFor(world: World): TrustView {
  * Read by the screen and by the verb — the bar pattern.
  */
 export function trustBar(world: World, personId: EntityId, amount: Money): string | null {
+  const young = tooYoungBar(world, personId, 'settles a trust')
+  if (young !== null) return young
   const minimum = atTodaysPrices(world, TRUST_MINIMUM) as Money
   if (amount < minimum) {
     return `A trust is drawn up for ${formatMoney(minimum)} or more.`
