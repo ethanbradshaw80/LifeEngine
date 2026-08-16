@@ -175,12 +175,26 @@ describe('the month belongs to the person, not the building', () => {
     const world = createWorld(makeSeed(4242), 140)
     advanceTicks(world, 30 * 12)
     // Somebody grown, still under a roof with several other adults.
+    /**
+     * THE ROOF HAS TO HOLD SOMEBODY OUTSIDE THE UNIT, or this test asserts
+     * nothing and fails by luck.
+     *
+     * It used to take the first grown person under a roof of four or more,
+     * and rely on that roof happening to contain somebody who was not part of
+     * their financial unit. When the garrison work shifted which ids came
+     * first, it landed on a plain nuclear family — four under the roof, four
+     * in the unit — and reported "expected 4 to be less than 4". Nothing was
+     * broken; the test simply had not asked for the situation it measures.
+     */
     const person = [...world.people.values()]
       .filter((p) => p.deathTick === null && p.householdId !== null)
       .filter((p) => {
         const age = ageAt(p.birthTick, world.tick)
+        if (age < 19 || age > 30) return false
         const roof = world.households.get(p.householdId as never)
-        return age >= 19 && age <= 30 && (roof?.memberIds.length ?? 0) >= 4
+        if ((roof?.memberIds.length ?? 0) < 4) return false
+        const unit = new Set(financialUnitOf(world, p.id))
+        return (roof?.memberIds ?? []).some((id) => !unit.has(id))
       })
       .sort((a, b) => a.id - b.id)[0]
     if (person === undefined) return

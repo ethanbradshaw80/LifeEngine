@@ -88,7 +88,11 @@ describe('accidents wound more often than they kill', () => {
 
   it('the population still holds its historical bands', () => {
     const world = grownWorld(600)
-    const living = livingPeople(world).length
+    // THE TOWN, not everybody the world contains. Soldiers posted in from
+    // outside live at a station in another state (MILITARY_DEPTH_PLAN §9.0),
+    // and counting them read as the town ballooning to 234 when it had not
+    // moved at all. Same correction as `simulation.test.ts`'s ratio guard.
+    const living = livingPeople(world).filter((p) => p.fromAway === undefined).length
     expect(living).toBeGreaterThan(50) // fewer accident deaths must not shrink the town
     expect(living).toBeLessThan(220) // nor balloon it
   })

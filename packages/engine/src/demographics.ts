@@ -299,6 +299,21 @@ export function fertilityCohort(world: World): FertilityCohort {
   const firstChildAges: number[] = []
   for (const person of world.people.values()) {
     if (person.sex !== 'female') continue
+    /**
+     * THE TOWN'S FERTILITY IS THE TOWN'S — the same rule as the yearly rows
+     * above, and it bites harder here.
+     *
+     * Roughly one in six people posted in from outside is a woman, and this
+     * engine records the children of THIS town. Hers were born wherever she
+     * came from, if she had any, and that place is not simulated. Counting
+     * her as a completed family with no children is counting a family this
+     * world never watched.
+     *
+     * Measured: it dragged completed-family fertility from 1.85 to 1.16 and
+     * tripped `d2.test.ts`'s believable band — a collapse that never
+     * happened, read off a denominator that had quietly changed.
+     */
+    if (person.fromAway !== undefined) continue
     const windowStart = person.birthTick + FERTILITY_MIN_AGE * TICKS_PER_YEAR
     if (windowStart < 0) continue // already fertile when the record began
     const windowEnd = person.birthTick + (FERTILITY_MAX_AGE + 1) * TICKS_PER_YEAR

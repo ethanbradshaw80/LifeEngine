@@ -1653,14 +1653,30 @@ function garrisonTargetFor(world: World): number {
  * people that a roster has somebody to answer for it. `years` is time already
  * served elsewhere, which is what makes the rank honest.
  */
+/**
+ * THE PAIRING HAS TO SATISFY THE WALL, or intake manufactures the exact
+ * person the service separates.
+ *
+ * `INDEFINITE_MIN_GRADE` is 5 and `INDEFINITE_AT_YEARS` is 12: nobody serves
+ * past twelve years below grade five without a bust on their record to
+ * explain it, and `indefinite.test.ts` polices it across five seeds. A first
+ * draft put arrivals at rank 3 with SEVEN years, which is a career corporal
+ * already — five more years and he trips a wall he never walked through.
+ *
+ * So nobody arrives below rank 4 with more than five years in, which leaves
+ * every below-line arrival the same runway a local recruit gets. It is also
+ * the more honest table: real promotion to grade five lands around six years,
+ * and a table where it took ten was modelling a slower army than the one this
+ * engine's own promotion pass runs.
+ */
 const ARRIVAL_GRADES: readonly { rank: number; years: number; weight: number }[] = [
   { rank: 0, years: 0, weight: 300 },
-  { rank: 1, years: 2, weight: 240 },
-  { rank: 2, years: 4, weight: 190 },
-  { rank: 3, years: 7, weight: 130 },
-  { rank: 4, years: 10, weight: 80 },
-  { rank: 5, years: 14, weight: 40 },
-  { rank: 6, years: 18, weight: 20 },
+  { rank: 1, years: 1, weight: 240 },
+  { rank: 2, years: 3, weight: 190 },
+  { rank: 3, years: 5, weight: 130 },
+  { rank: 4, years: 7, weight: 80 },
+  { rank: 5, years: 11, weight: 40 },
+  { rank: 6, years: 15, weight: 20 },
 ]
 
 /**
@@ -1839,7 +1855,27 @@ function postIn(
     baseId: base.id,
     monthlyPay: servicePayOn(branch, grade.rank),
     performance: Math.floor((person.traits.diligence + 500) / 2),
-    termMonthsLeft: rng.nextIntInclusive(6, SERVICE_TERM_MONTHS),
+    /**
+     * THE CONTRACT RUNS OFF THE ENLISTMENT DATE, not off a die.
+     *
+     * A first draft gave arrivals a random `termMonthsLeft` to stagger them,
+     * and that quietly walked them through the twelve-year wall. A career
+     * that begins in this town signs four-year contracts from day one, so its
+     * term ends land on a four-year grid — 4, 8, TWELVE — and the wall gets
+     * asked its question at exactly the year it exists to police
+     * (`INDEFINITE_AT_YEARS`, `INDEFINITE_MIN_GRADE`). An arrival whose term
+     * ended at eleven-and-a-half and again at fifteen-and-a-half was never
+     * asked, and stood there at thirteen years as a career corporal with no
+     * bust on his record to explain it. `indefinite.test.ts` caught it.
+     *
+     * Reckoning the remainder from the years already served puts them back on
+     * the same grid as everybody else, which is also just true: a contract
+     * has dates, and they follow from the day somebody signed.
+     */
+    termMonthsLeft: Math.max(
+      1,
+      SERVICE_TERM_MONTHS - ((grade.years * 12) % SERVICE_TERM_MONTHS),
+    ),
     termMonths: SERVICE_TERM_MONTHS,
     dischargedAtTick: null,
     dischargeReason: null,
