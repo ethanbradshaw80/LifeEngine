@@ -22,6 +22,9 @@ import {
   bondWith,
   phaseFor,
   squadLineFor,
+  rankTitle,
+  specialtyFor,
+  specialtyTitleFor,
   tempoWords,
 } from '@life-engine/engine'
 import type { Deployment, World } from '@life-engine/engine'
@@ -158,6 +161,40 @@ export function TourPanel({
                       {bondWords(bondWith(member, world.tick))}
                     </div>
                   )}
+                  {/**
+                    * WHO HE ACTUALLY IS (MILITARY_DEPTH_PLAN §9.0).
+                    *
+                    * The squad used to be five invented strangers, so a
+                    * surname and a nickname were the whole of what existed
+                    * to show. They are drawn from the player's own unit now
+                    * — real people with a rank, a trade and a hometown —
+                    * and a row that still said only "Garcia 'Halo'" would be
+                    * hiding the entire point of the change.
+                    *
+                    * This is the same line the roster and the person screen
+                    * give, so the man beside you in a firefight reads as the
+                    * man you have been standing next to at the station.
+                    */}
+                  {(() => {
+                    const record = world.service.get(member.personId)
+                    if (record === undefined || person === undefined) return null
+                    const rank = rankTitle(
+                      world,
+                      record.branch,
+                      record.rank,
+                      record.commissioned === true,
+                    )
+                    const trade = specialtyTitleFor(
+                      specialtyFor(world, record.specialtyId),
+                      record.commissioned === true,
+                    )
+                    return (
+                      <div className="sub muted">
+                        {rank} · {trade}
+                        {person.fromAway !== undefined && ` · from ${person.fromAway}`}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <span className={`sq-state s-${state}`}>
                   <i className={`sq-dot d-${state}`} aria-hidden="true" />

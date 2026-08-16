@@ -89,6 +89,7 @@ import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 import { bareName } from './text.js'
+import { eventsFor } from './eventindex.js'
 
 /** Planned tour length, months. */
 const TOUR_MONTHS = 10
@@ -869,6 +870,22 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
  * drawn, so the man who is good at this is good at it for a reason the game
  * can point at.
  */
+/**
+ * THE TICK SOMEBODY ARRIVED AT THE POSTING THEY HOLD NOW.
+ *
+ * Their last `changed-post`, or their enlistment if they have never moved.
+ * Two people have served together since the LATER of their two arrivals,
+ * which is the honest answer to "how long have you known him".
+ */
+function postedSince(world: World, personId: EntityId): Tick {
+  const record = world.service.get(personId)
+  let since = record?.enlistedAtTick ?? (0 as Tick)
+  for (const event of eventsFor(world, personId)) {
+    if (event.type === 'changed-post' && event.tick > since) since = event.tick
+  }
+  return since
+}
+
 export function squadFromUnit(
   world: World,
   tick: Tick,
@@ -921,7 +938,20 @@ export function squadFromUnit(
         120,
         Math.min(1000, (record?.performance ?? 500) + (record?.rank ?? 0) * 25),
       ),
-      sinceTick: record?.unitSinceTick ?? tick,
+      /**
+       * SINCE YOU BOTH GOT HERE, not since this tour started.
+       *
+       * THE OWNER'S REPORT: "all it says is 'getting to know them' every
+       * single time even if its the same NPC." Bond is months x 28, so
+       * dating it from the tour meant every tour opened at zero and the
+       * first band lasted longer than the tour did — the only line most
+       * players ever saw. These are people he has served beside at home,
+       * and the clock should say so.
+       */
+      sinceTick: Math.min(
+        tick,
+        Math.max(postedSince(world, pick.personId), postedSince(world, ownerId)),
+      ) as Tick,
     })
   }
 
