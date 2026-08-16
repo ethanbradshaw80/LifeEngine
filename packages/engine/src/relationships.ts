@@ -27,7 +27,7 @@ import { looksOf } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
 import { openStream, Stream, type Rng } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
-import { isOffMap } from './types.js'
+import { isOffMap, localityOf } from './types.js'
 import { relationshipKey } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -186,12 +186,21 @@ function couldCourt(
   partners?: ReadonlyMap<EntityId, EntityId>,
 ): boolean {
   if (a.sex === b.sex) return false // simplification — see the note in §Births
-  // NOT SOMEBODY WHO IS NOT HERE. This function gates on sex, age, kin and an
-  // existing partner and has never asked where either person lives, because
-  // until the garrisons were filled from outside the town, everybody was
-  // here. Measured at seed 4242 over 60 years, without this line: 245
-  // courtships and 78 marriages to soldiers stationed elsewhere.
-  if (isOffMap(a) || isOffMap(b)) return false
+  /**
+   * YOU MEET WHOEVER IS WHERE YOU ARE (owner's model, `localityOf`).
+   *
+   * This function has always gated on sex, age, kin and an existing partner
+   * and never once asked where either person lives — harmless while the town
+   * was the whole world, and wrong the moment it was not.
+   *
+   * THIS GATES MEETING, NOT KEEPING. An existing courtship or marriage is
+   * advanced elsewhere and is deliberately left alone: soldiers do marry the
+   * person from back home, they go on leave, and letters exist. What distance
+   * prevents is striking up something new with a stranger four hundred miles
+   * away.
+   */
+  const here = localityOf(world, a)
+  if (here === null || here !== localityOf(world, b)) return false
   const aPartnered = partners !== undefined ? partners.has(a.id) : partnerOf(world, a.id) !== null
   const bPartnered = partners !== undefined ? partners.has(b.id) : partnerOf(world, b.id) !== null
   if (aPartnered || bPartnered) return false
@@ -382,10 +391,36 @@ function formFriendships(world: World, tick: Tick, living: Person[]): void {
     counts.set(relationship.b, (counts.get(relationship.b) ?? 0) + 1)
   }
 
+  /**
+   * PEOPLE MEET INSIDE THE PLACE THEY ARE IN, and bucketing by that is both
+   * the correct model and the fix for this pass's cost.
+   *
+   * It was living × living. Filling the garrisons roughly doubled the
+   * population, which quadrupled it, and the engine suite went from ~450s to
+   * 3,424s with two tests timing out. Every one of those extra comparisons
+   * was a townsperson being weighed against a soldier four hundred miles
+   * away — work that was wrong before it was slow.
+   *
+   * Bucketing does both jobs at once: the town is compared against the town,
+   * each station against itself, and nobody against somewhere they have never
+   * been.
+   */
+  const byLocality = new Map<string, Person[]>()
+  for (const person of living) {
+    const where = localityOf(world, person)
+    if (where === null) continue
+    const bucket = byLocality.get(where)
+    if (bucket === undefined) byLocality.set(where, [person])
+    else bucket.push(person)
+  }
+
   for (const person of living) {
     const age = ageAt(person.birthTick, tick)
     if (age < MIN_SOCIAL_AGE) continue
     if ((counts.get(person.id) ?? 0) >= MAX_FRIENDS) continue
+    const where = localityOf(world, person)
+    if (where === null) continue
+    const neighbours = byLocality.get(where) ?? []
 
     const rng = openStream(world.seed, Stream.Relationships, person.id, tick)
     if (!rng.chance(person.traits.sociability, 26_000)) continue
@@ -396,7 +431,7 @@ function formFriendships(world: World, tick: Tick, living: Person[]): void {
     const candidates: Person[] = []
     const weights: number[] = []
 
-    for (const otherPerson of living) {
+    for (const otherPerson of neighbours) {
       if (otherPerson.id === person.id) continue
       if (world.relationships.has(relationshipKey(person.id, otherPerson.id))) continue
 

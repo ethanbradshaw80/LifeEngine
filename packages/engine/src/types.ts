@@ -143,6 +143,47 @@ export function isOffMap(person: Person): boolean {
   return person.movedAwayTick !== undefined
 }
 
+/**
+ * WHERE SOMEBODY ACTUALLY IS — the fact the social model was missing.
+ *
+ * OWNER, setting the model out straight: *"ashcroft is a town in a state in
+ * america. When we go and join say the military and get stationed in fort
+ * bragg for example that is in North Carolina away from ashcroft."*
+ *
+ * That one sentence resolves a tangle I had been solving twice and wrongly.
+ * A first attempt barred soldiers from courtship as though they were a lesser
+ * class of person; a second opened it up and produced 141 marriages between
+ * townspeople and soldiers stationed in another state, neither of whom moved.
+ * Both were special pleading about WHO somebody is. The real rule is about
+ * WHERE they are, it needs no exceptions, and it is one line:
+ *
+ *     you can meet whoever is where you are.
+ *
+ * Returns null for somebody this world can no longer place — they have gone
+ * home to a town it names and does not simulate.
+ *
+ * PRESET-NEUTRAL by construction (owner's ruling): it answers "the same
+ * place" and never "which place", so no state, country or installation name
+ * appears here. Classic gets its fictional stations and Real World Mode can
+ * ground the same mechanic in real geography without touching this.
+ */
+export function localityOf(world: World, person: Person): string | null {
+  if (person.deathTick !== null) return null
+  if (person.movedAwayTick !== undefined) return null
+  // THE UNIFORM DECIDES FIRST. Enlisting posts you to a station, and that
+  // station is not this town — which is true of the town's OWN children the
+  // month they sign, and is the whole point of the model.
+  const record = world.service.get(person.id)
+  if (record !== undefined && record.dischargedAtTick === null) {
+    return `base:${String(record.baseId)}`
+  }
+  // Everyone else is in the town, which is ONE place: its neighbourhoods are
+  // streets, not separate towns, and people who live on different streets
+  // plainly still meet.
+  if (person.householdId !== null) return 'town'
+  return null
+}
+
 
 
 // ---------------------------------------------------------------------------
