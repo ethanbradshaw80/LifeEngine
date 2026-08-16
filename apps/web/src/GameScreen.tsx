@@ -37,6 +37,7 @@ import {
 import { FrontPage } from './FrontPage.js'
 import { RealEstate } from './RealEstate.js'
 import { BusinessTab } from './BusinessTab.js'
+import { JobsTab } from './JobsTab.js'
 import { CityHall } from './CityHall.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
@@ -46,11 +47,7 @@ import {
   childrenIdsOf,
   compatibility,
   courtshipBar,
-  DISMISSAL_PERFORMANCE,
   proposalBar,
-  RAISE_MIN_PERFORMANCE,
-  WARNING_PERFORMANCE,
-  enrolmentBar,
   decorationsOf,
   badgesOf,
   deploymentsOf,
@@ -70,7 +67,6 @@ import {
   personalMonthlyNet,
   partnerOf,
   newsSince,
-  OCCUPATIONS,
   occupationById,
   other,
   relationshipsOf,
@@ -81,7 +77,6 @@ import {
   veteranUnlocks,
 } from '@life-engine/engine'
 import {
-  atTodaysPrices,
   arrearsOf,
   boardStandingFor,
   eventsFor,
@@ -98,10 +93,6 @@ import {
   branchName,
   crimeNewsSince,
   enlistmentBar,
-  hiringBar,
-  serviceEdgeFor,
-  isEntryWork,
-  placeOf,
   isJailed,
   healthOf,
   isDeployed,
@@ -121,7 +112,7 @@ import {
   unitOptionsFor,
   isOnProbation,
 } from '@life-engine/engine'
-import type { EducationLevel, EventType, Person, Relationship, World } from '@life-engine/engine'
+import type { EventType, Person, Relationship, World } from '@life-engine/engine'
 import {
   articleFor,
   criminalRecordOf,
@@ -134,7 +125,6 @@ import { formatMoney } from '@life-engine/shared'
 import { Avatar } from './Avatar.js'
 import { TownStats } from './TownStats.js'
 import { RecruitingStationView } from './RecruitingStation.js'
-import { majorById } from '@life-engine/engine'
 import { Bank } from './Bank.js'
 import { Market } from './Market.js'
 import { Casino } from './Casino.js'
@@ -357,18 +347,6 @@ const TABS: readonly { id: Tab; icon: string; label: string }[] = [
 ]
 
 
-// The same levels said as a PERSON'S schooling rather than a job's
-// requirement — "secondary school", not "secondary schooling" (P3).
-const LEVEL_WORDS: Record<EducationLevel, string> = {
-  none: 'no schooling',
-  primary: 'elementary school',
-  middle: 'middle school',
-  secondary: 'high school',
-  trade: 'trade school',
-  college: 'college',
-  graduate: 'graduate school',
-}
-
 const HEALTH_EVENTS: ReadonlySet<EventType> = new Set([
   'was-injured',
   'fell-ill',
@@ -443,27 +421,6 @@ function tieSpan(from: number, tick: number): string | null {
   return spanWords(tick - from)
 }
 
-/**
- * P3 — where you stand at work, in words.
- *
- * performance is a 0-1000 the engine has always kept and never shown, and it
- * decides three real things: the annual raise (nothing below
- * RAISE_MIN_PERFORMANCE), the foreman's warning (WARNING_PERFORMANCE) and
- * dismissal (DISMISSAL_PERFORMANCE). The thresholds are imported from the
- * engine rather than retyped, so this can never describe a model that has
- * moved on.
- */
-function standingWords(performance: number): string {
-  if (performance >= 800) return 'held up as an example'
-  if (performance >= 650) return 'well thought of'
-  if (performance >= 450) return 'solid'
-  if (performance >= RAISE_MIN_PERFORMANCE) return 'getting by'
-  // Between the raise line and the warning line: safe, but going nowhere.
-  if (performance >= WARNING_PERFORMANCE) return 'coasting'
-  if (performance >= DISMISSAL_PERFORMANCE) return 'slipping'
-  return 'a bad month from being let go'
-}
-
 /** Schooling, judged the way a school report would put it. */
 /**
  * THE SAME NUMBER, SAID THE WAY A SCHOOL SAYS IT (education master §2).
@@ -484,14 +441,6 @@ export function gpaOf(attainment: number): { figure: string; letter: string } {
   const letter =
     points >= 3.5 ? 'A' : points >= 2.5 ? 'B' : points >= 1.5 ? 'C' : points >= 1 ? 'D' : 'F'
   return { figure: points.toFixed(1), letter }
-}
-
-function attainmentWords(attainment: number): string {
-  if (attainment >= 800) return 'top of the class'
-  if (attainment >= 650) return 'a good student'
-  if (attainment >= 450) return 'a fair student'
-  if (attainment >= 300) return 'scraped through'
-  return 'school was not for you'
 }
 
 /** A tie's strength as a bar. Decorative twin of the words beside it. */
@@ -658,7 +607,7 @@ function RibbonRack({ world, personId }: { readonly world: World; readonly perso
   )
 }
 
-export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onApplyJob, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onExtraDuty, onAct, notice }: Props) {
+export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, onRequestEnlist, onRequestSchool, onTryUnit, onRequestDeploy, onFitnessTest, onExtraDuty, onAct, notice }: Props) {
   const [openWhy, setOpenWhy] = useState<ReadonlySet<number>>(new Set())
   // Which news articles are open. Keyed by tick+headline: news items have no
   // id of their own because they are derived from events, not stored.
@@ -2166,188 +2115,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
         </div>
       )}
 
+      {/* THE OWNER'S JOBS & CAREERS SCREEN (his `jobs-ui.html`), which
+          supersedes the flat list that used to live here: ladders rather
+          than a wall of one-off titles, and every shut door says why. */}
       {tab === 'jobs' && (
+        /* IN A PANEL, like every other tab. Without it the screen renders
+           but cannot be SCROLLED (owner: "You cant scroll on it or anything
+           tho") — `.panel` is what gives a tab its scrolling box, and a
+           long list of ladders overflows it immediately. */
         <div className="panel" aria-label="Jobs">
-          {job && (
-            <>
-              <h3>Your work</h3>
-              <dl className="facts">
-                <dt>{occupationById(job.occupationId).title}</dt>
-                <dd>
-                  {formatMoney(annualPay(job.monthlyPay))} a year
-                  {world.places.get(job.workplaceId) && (
-                    <span className="muted small"> · at {world.places.get(job.workplaceId)?.name}</span>
-                  )}
-                  <span className="muted small"> · since {formatYear(world, job.startedAtTick)}</span>
-                  <span className="verb-row">
-                    <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 'ask-raise' })}>
-                      💵 Ask for a raise
-                    </button>
-                    {confirming === 'quit-job' ? (
-                      <button type="button" className="apply" disabled={busy} onClick={() => { setConfirming(null); onAct({ verb: 'quit-job' }) }}>
-                        📦 Quit — for certain?
-                      </button>
-                    ) : (
-                      <button type="button" className="apply" disabled={busy} onClick={() => setConfirming('quit-job')}>
-                        📦 Quit
-                      </button>
-                    )}
-                  </span>
-                </dd>
-                {/* P3 — the standing the raise, the warning and the sack are
-                    all judged on. The thresholds come from the engine. */}
-                <dt>Standing</dt>
-                <dd>
-                  <span className="tie-gauge">
-                    <StrengthMeter strength={job.performance} />
-                    <span className="muted small">{standingWords(job.performance)}</span>
-                  </span>
-                  <p className="muted small tie-note">
-                    {job.performance < DISMISSAL_PERFORMANCE
-                      ? 'Below this line the job may not keep itself.'
-                      : job.performance < WARNING_PERFORMANCE
-                        ? 'Keep sliding and the job will not keep itself.'
-                        : job.performance < RAISE_MIN_PERFORMANCE
-                          ? 'Good enough to keep, not good enough for a raise at the year’s turn.'
-                          : 'Good enough that the year’s turn should bring something.'}
-                  </p>
-                </dd>
-              </dl>
-            </>
-          )}
-          {isServing(world, person.id) && (
-            <p className="muted">You are serving — see the Service tab.</p>
-          )}
-          {(() => {
-            // P3 — what schooling actually happened. attainment has shaped
-            // every hire since M1 and was never on screen.
-            const education = world.education.get(person.id)
-            if (!education) return null
-            const finished = education.level !== 'none'
-            return (
-              <>
-                <h3>Schooling</h3>
-                <dl className="facts">
-                  <dt>{finished ? LEVEL_WORDS[education.level] : 'no schooling yet'}</dt>
-                  <dd>
-                    <span className="tie-gauge">
-                      <StrengthMeter strength={education.attainment} />
-                      <span className="muted small">
-                        <b className="tabular">{gpaOf(education.attainment).figure}</b>{' '}
-                        {gpaOf(education.attainment).letter} ·{' '}
-                        {attainmentWords(education.attainment)}
-                      </span>
-                    </span>
-                    {education.enrolledIn !== null && education.completesAtTick !== null && (
-                      <p className="muted small tie-note">
-                        In {LEVEL_WORDS[education.enrolledIn]} — finishes{' '}
-                        {formatDate(world, education.completesAtTick)}.
-                      </p>
-                    )}
-                    {majorById(education.major) !== undefined && (
-                      <p className="muted small tie-note">
-                        Reading {majorById(education.major)?.title}.
-                      </p>
-                    )}
-                    {education.schooling !== undefined && education.level !== 'none' && (
-                      <p className="muted small tie-note">
-                        {education.schooling === 'private'
-                          ? 'Privately schooled.'
-                          : 'State schooled.'}
-                      </p>
-                    )}
-                  </dd>
-                </dl>
-              </>
-            )
-          })()}
-          {(() => {
-            // P2: the engine's own gate (enrolmentBar), so the block can
-            // never appear when the verb would refuse.
-            if (enrolmentBar(world, person, world.tick) !== null) return null
-            return (
-              <>
-                <h3>School</h3>
-                <p className="muted small">The window is open until 25 — the schoolhouse takes them younger.</p>
-                <div className="svc-actions">
-                  <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 're-enrol', level: 'college' })}>
-                    🎓 Enrol in college
-                  </button>
-                  <button type="button" className="apply" disabled={busy} onClick={() => onAct({ verb: 're-enrol', level: 'trade' })}>
-                    🔧 Enrol in trade school
-                  </button>
-                </div>
-              </>
-            )
-          })()}
-          <h3>Work in town</h3>
-          {/* THE OPENINGS LIST, built to the owner's `careers.html`.
-              A locked job is SHOWN WITH ITS REASON rather than hidden —
-              "Earned by climbing: constable then sergeant" is on the row,
-              because a door you cannot see is indistinguishable from a
-              door that is not there. `hiringBar` is the engine's own
-              answer, so the greyed row and the refusal cannot disagree. */}
-          <ul className="openings">
-            {[...OCCUPATIONS]
-              .sort((a, b) => b.minMonthlyPay - a.minMonthlyPay)
-              .map((occupation) => {
-                const mine = job?.occupationId === occupation.id
-                const bar = hiringBar(world, person, occupation.id, world.tick)
-                const edge = serviceEdgeFor(world, person.id, occupation.id)
-                const entry = isEntryWork(occupation.id)
-                const place = placeOf(occupation.id)
-                return (
-                  <li
-                    key={occupation.id}
-                    className={mine ? 'opening current' : bar === null ? 'opening' : 'opening locked'}
-                  >
-                    <div className="op-r1">
-                      <span className="op-ti">{occupation.title}</span>
-                      <span className="op-pay tabular">
-                        {/* AT TODAY'S PRICES (playtest: "The Jobs tab listed
-                            'bookkeeper — $5,004.00/yr,' but the actual
-                            interview offer... was '$25,809.84/yr' — roughly
-                            5x"). The band is stored in base-year cents and
-                            this line printed it raw, so the gap between the
-                            listing and the offer was simply fifty years of
-                            inflation. Career.tsx's Openings sub-tab already
-                            converts; this was the one listing that did not,
-                            which is also why the two screens disagreed. */}
-                        {formatMoney(annualPay(atTodaysPrices(world, occupation.minMonthlyPay) as Money))}/yr
-                      </span>
-                    </div>
-                    <div className="op-emp">
-                      {place === undefined
-                        ? 'no ladder — work in its own right'
-                        : `${place.track.title} track${entry ? ' · entry' : ''}`}
-                    </div>
-                    <div className="op-tags">
-                      {entry && <span className="tag entry">Entry rung</span>}
-                      {bar === null && <span className="tag ok">Qualified</span>}
-                      {edge && <span className="tag edge">Your service — edge</span>}
-                    </div>
-                    {bar !== null && <div className="op-why">🔒 {bar}</div>}
-                    {!mine && age >= 18 && !isServing(world, person.id) && (
-                      <button
-                        type="button"
-                        className="op-apply"
-                        disabled={busy || bar !== null}
-                        title={bar ?? undefined}
-                        onClick={() => onApplyJob(occupation.id)}
-                      >
-                        {bar === null ? 'Apply' : 'Not open to you'}
-                      </button>
-                    )}
-                    {mine && <div className="op-why">This is the work you do.</div>}
-                  </li>
-                )
-              })}
-          </ul>
-          <p className="note small">
-            You apply and you interview — the town does not hand anybody a job. Ladders are
-            entered at the bottom and climbed; what your service taught you is an edge in the
-            room, not a shortcut past it.
-          </p>
+          <JobsTab world={world} onAct={onAct} busy={busy} />
         </div>
       )}
 

@@ -5583,3 +5583,257 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
   background: color-mix(in srgb, var(--accent) 12%, var(--panel));
 }
 .career-note.bad { color: var(--bad); }
+
+/* ---------------------------------------------------------------------------
+   JOBS & CAREERS (the owner's jobs-ui.html, in this game's own clothes)
+
+   His mockup is a light-on-dark card grid with pill categories. The colours
+   and radii here are the ones the rest of this app already uses, so the screen
+   belongs to the game rather than looking like a page from somewhere else.
+   --------------------------------------------------------------------------- */
+/*
+  THE SCROLLING BOX (owner: "You cant scroll on it or anything tho").
+
+  The screen had no scrolling at all, so everything below the first card was
+  rendered, laid out, and impossible to reach.
+  
+  THE PANEL OWNS THE SCROLL, not this. A first fix gave `.jobs` its own
+  `max-height` and `overflow-y`, which worked and put TWO scrollbars side by
+  side — the inner box was taller than the panel around it, so both of them
+  scrolled. The tab's panel is already a scrolling box; this just needs to
+  stop fighting it.
+*/
+.jobs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem;
+}
+
+.jobs-head h3 {
+  margin-bottom: 0.2rem;
+}
+.jobs-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.8rem 0 1rem;
+}
+.jobs-bubble {
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--fg);
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.jobs-bubble.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+.jobs-section {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.jobs-section.shut {
+  color: var(--bad);
+}
+.jobs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.6rem;
+}
+.jobs-card {
+  position: relative;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.85rem;
+  cursor: pointer;
+  color: var(--fg);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.jobs-card:hover {
+  border-color: var(--accent);
+}
+.jobs-card.is-shut {
+  opacity: 0.62;
+}
+.jobs-card-flag {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--bg);
+  background: var(--ok);
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+}
+.jobs-card-title {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.jobs-card-path {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.jobs-card-pay {
+  color: var(--ok);
+  font-weight: 700;
+}
+.jobs-card-blurb {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.jobs-card-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.jobs-card-why {
+  font-size: 0.75rem;
+  color: var(--bad);
+  border-top: 1px solid var(--line);
+  padding-top: 0.4rem;
+}
+.jobs-back {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 0.4rem;
+}
+.jobs-rungs {
+  list-style: none;
+  padding: 0;
+  margin: 0.6rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.jobs-rung {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.7rem;
+}
+.jobs-rung.is-held {
+  border-color: var(--ok);
+  background: rgba(255, 255, 255, 0.03);
+}
+.jobs-rung-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+.jobs-rung-level {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--line);
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+.jobs-rung-title {
+  font-weight: 700;
+}
+.jobs-rung-pay {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.jobs-rung-blurb {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0.35rem 0;
+}
+.jobs-chip {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--ok);
+  color: var(--bg);
+}
+.jobs-asks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.jobs-ask {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+.jobs-bars {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: var(--bad);
+}
+.jobs-stat {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+.jobs-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: none;
+  border: none;
+  color: var(--fg);
+  cursor: pointer;
+  padding: 0;
+}
+.jobs-licences {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.jobs-licences li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+.jobs-licences li.is-held {
+  border-color: var(--ok);
+}
+.jobs-licence-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.jobs-licence-blurb {
+  font-size: 0.76rem;
+  color: var(--muted);
+}

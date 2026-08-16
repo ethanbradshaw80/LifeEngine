@@ -86,6 +86,9 @@ import {
   investPlayer,
   buySharesPlayer,
   takeStakePlayer,
+  joinPathPlayer,
+  climbPathPlayer,
+  earnLicencePlayer,
   sellSharesPlayer,
   chooseSpendStance,
   courtFriend,
@@ -170,6 +173,9 @@ export type VerbRequest =
   | { readonly verb: 'invest'; readonly sectorId: string; readonly cents: number; readonly retirement: boolean }
   | { readonly verb: 'buy-shares'; readonly stockId: string; readonly cents: number; readonly retirement: boolean }
   | { readonly verb: 'take-stake'; readonly stockId: string; readonly perMille: number }
+  | { readonly verb: 'join-path'; readonly pathId: string }
+  | { readonly verb: 'climb-path' }
+  | { readonly verb: 'earn-licence'; readonly licenceId: string }
   | { readonly verb: 'sell-shares'; readonly stockId: string; readonly retirement: boolean }
   | { readonly verb: 'divest'; readonly sectorId: string; readonly retirement: boolean }
   | { readonly verb: 'borrow'; readonly kind: 'personal' | 'auto' | 'mortgage'; readonly cents: number }
@@ -603,6 +609,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
             outcome = { ok: r.moved, reason: r.reason }
             break
           }
+          case 'join-path': { const r = joinPathPlayer(world, a.pathId); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'climb-path': { const r = climbPathPlayer(world); outcome = { ok: r.done, reason: r.reason }; break }
+          case 'earn-licence': { const r = earnLicencePlayer(world, a.licenceId); outcome = { ok: r.done, reason: r.reason }; break }
           case 'take-stake': { const r = takeStakePlayer(world, a.stockId, a.perMille); outcome = { ok: r.done, reason: r.reason }; break }
           case 'buy-shares': {
             const r = buySharesPlayer(world, a.stockId, a.cents, a.retirement)
