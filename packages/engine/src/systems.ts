@@ -10,7 +10,7 @@
 
 import type { EntityId, Money, Tick } from '@life-engine/shared'
 import { entityId, TICKS_PER_YEAR } from '@life-engine/shared'
-import { ageAt, isBirthdayMonth } from './clock.js'
+import { ageAt, isBirthdayMonth, toDate } from './clock.js'
 import { barredFromWork } from './conditions.js'
 import {
   educationRank,
@@ -18,6 +18,7 @@ import {
   meetsRequirement,
   OCCUPATIONS,
   occupationById,
+  rungPlaceOf,
   typicalPay,
   PRIVATE_SCHOOL_TUITION,
   majorsFor,
@@ -56,6 +57,7 @@ import type {
   EmploymentRecord,
   Household,
   Person,
+  Place,
   Relationship,
   Sex,
   World,
@@ -109,7 +111,7 @@ import {
 import { placesOfKind } from './worldgen.js'
 import { afterAMonth, meetsGates } from './skills.js'
 import { FIRST_SLICE } from './pathcontent.js'
-import { levelOfPath, pathById } from './paths.js'
+import { levelOfPath, pathAvailableIn, pathById, workplaceNamesFor } from './paths.js'
 
 // --- Tunables. Named so the numbers are not scattered as bare literals. ------
 
@@ -1807,8 +1809,143 @@ function runLadderClimbs(world: World, tick: Tick): void {
       pathLevel: next.level,
       rungSinceTick: tick,
     })
-    recordEvent(world, tick, { type: 'promoted', subjectId: personId, detail: next.title })
+    /**
+     * A CIVILIAN PROMOTION IS `promoted-at-work`, NOT `promoted`.
+     *
+     * `promoted` is the UNIFORM's event — service.ts raises it for a rank —
+     * and the town's own career tracks have always used `promoted-at-work`
+     * for a rung. This function was written with the wrong one, which was
+     * invisible for a whole release because no NPC had a `pathId` and the
+     * line never ran.
+     *
+     * The moment the town went onto the ladders it fired, and six tests
+     * across three files failed at once: a discharged veteran who climbed a
+     * civilian ladder produced a `promoted` event reading "warehouse lead",
+     * and every check that "every promotion is a rank on this branch's
+     * ladder" was suddenly looking at a warehouse.
+     *
+     * `detail` is the OCCUPATION ID here, matching `promoteWithin` above, so
+     * the story and the explainer render it the same way.
+     */
+    recordEvent(world, tick, {
+      type: 'promoted-at-work',
+      subjectId: personId,
+      detail: next.id,
+    })
+    /**
+     * AND WHY — Law 3, which a test caught this missing.
+     *
+     * `promoteWithin` above records both an event and a decision, and the
+     * claim the town makes is that no promotion happens without a cause on
+     * the record. This raised the event alone, so the moment townspeople
+     * started climbing paths the world contained promotions nothing could
+     * explain.
+     *
+     * The inputs are the gates that were actually cleared, which is the
+     * honest answer to "why them": the months they stood on the rung below
+     * and the skills the table asked for.
+     */
+    recordDecision(world, tick, {
+      subjectId: personId,
+      decision: 'employment-change',
+      significance: 'major',
+      inputs: [
+        factor('steady-pay', Math.min(1000, (tick - job.rungSinceTick) * 8)),
+        factor('qualified-for-role', 400 + next.needs.length * 100),
+      ],
+      chosen: `promoted to ${next.title}`,
+      rejected: ['staying where they were'],
+      streamId: Stream.Career,
+    })
   }
+}
+
+/**
+ * HOW MANY OF THE TOWN'S NEW HIRES START A LADDER: one in this many.
+ *
+ * MEASURED, not chosen. At two in five the town collapsed — 150 years ended
+ * with 45 people against a band of 59+, because two fifths of every cohort
+ * stopped reaching the occupations the rest of the simulation is tuned
+ * around. Six leaves the economy where it was while still putting real
+ * people on real ladders. Change it and re-measure `invariants.test.ts` and
+ * `demographics.test.ts`; do not change it and hope.
+ */
+const LADDER_SHARE = 6
+
+/**
+ * PUT SOMEBODY AT THE BOTTOM OF A CAREER LADDER. True if it happened.
+ *
+ * WHAT THEY STUDIED STILL POINTS SOMEWHERE, and this is the part the first
+ * attempt got wrong. Diverting people onto paths at random pulled chemistry
+ * and nursing graduates into retail and dropped `pulls graduates toward the
+ * work their field is for` to 60 against a floor of 67. The guard then bolted
+ * on — only divert people whose field has no opening — worked by keeping
+ * graduates OFF the ladders, which is not putting the town on them.
+ *
+ * The fix is upstream, in `content.ts`: a rung now carries `preferredMajors`
+ * from its category, so a nursing degree pointing at the healthcare ladder is
+ * a match that COUNTS. This function then does what the town's own hiring
+ * does — weights a matching field up rather than requiring it — and a
+ * graduate is more likely to start the ladder their degree is for.
+ *
+ * ENTRY RUNGS ONLY, and never one that wants papers: an NPC has no way to go
+ * and buy a licence, so a ladder gated on one at the front door would be a
+ * career nobody in the town could ever hold.
+ */
+function startOnALadder(
+  world: World,
+  tick: Tick,
+  person: Person,
+  education: EducationRecord,
+  workplaces: readonly Place[],
+  rng: Rng,
+): boolean {
+  const year = toDate(world, tick).year
+  const field = education.major ?? null
+
+  const open = FIRST_SLICE.filter((path) => {
+    if (!pathAvailableIn(path, year)) return false
+    const entry = path.levels[0]
+    if (entry === undefined || entry.needsLicence !== undefined) return false
+    if (!meetsRequirement(education.level, entry.needsLevel ?? path.requires)) return false
+    // The body closes these doors too, exactly as it does the town's own
+    // trades — an amputee is not a roofer (M-HEALTH §4).
+    return !barredFromWork(world, person.id, entry.id)
+  })
+  if (open.length === 0) return false
+
+  const weights = open.map((path) => {
+    const entry = occupationById(path.levels[0]?.id ?? '')
+    const wanted = entry.preferredMajors
+    if (wanted === undefined || field === null) return 1
+    return wanted.includes(field) ? MAJOR_PULL : 1
+  })
+  const path = rng.pickWeighted(open, weights)
+  const rung = path.levels[0]
+  if (rung === undefined) return false
+
+  // The rung is an ordinary occupation now, so the offer is drawn from its
+  // band the same way every other wage in this world is.
+  const occupation = occupationById(rung.id)
+  const pay = atTodaysPrices(
+    world,
+    rng.nextIntInclusive(occupation.minMonthlyPay, occupation.maxMonthlyPay),
+  ) as Money
+
+  // WHERE THIS KIND OF WORK HAPPENS (owner: "the company names to which you
+  // get hired to don't make sense"). Falls back to any workplace, because a
+  // town of twelve premises cannot house all fifteen trades.
+  const wanted = workplaceNamesFor(path.categoryId)
+  const fitting = workplaces.filter((place) => wanted.includes(place.name))
+  const where = fitting.length > 0 ? rng.pick(fitting) : rng.pick(workplaces)
+
+  // Through `hirePerson`, which derives the path from the occupation and
+  // writes the causal record and the left-job event every hire produces.
+  hirePerson(world, tick, person, occupation, where.id, pay, [
+    factor('qualified-for-role', 400 + educationRank(education.level) * 100),
+    factor('ambition', person.traits.ambition),
+  ], [`to take ordinary work instead of starting as ${withArticle(occupation.title)}`])
+  return true
 }
 
 export function runEmployment(world: World, tick: Tick): void {
@@ -2035,6 +2172,11 @@ export function runEmployment(world: World, tick: Tick): void {
      */
     if (person.id === world.player.personId) continue
 
+    if (rng.chance(1, LADDER_SHARE)) {
+      const started = startOnALadder(world, tick, person, education, workplaces, rng)
+      if (started) continue
+    }
+
     const rejected = eligible
       .filter((o) => o.id !== chosen.id)
       .map((o) => `to take work as ${withArticle(o.title)}`)
@@ -2065,6 +2207,21 @@ export function hirePerson(
       detail: occupationById(previous.occupationId).title,
     })
   }
+  /**
+   * WHICH OF THE OWNER'S LADDERS THIS IS, DERIVED HERE AND NOWHERE ELSE.
+   *
+   * The reverted first attempt at putting the town on paths set `pathId`
+   * back onto the record at ONE call site, after the fact. Every other way
+   * into a rung — the player's own application from the job board, a
+   * business hiring somebody, a poach — produced a person standing on a
+   * ladder rung with no idea they were on a ladder, so they never grew the
+   * skills and never climbed.
+   *
+   * The occupation IS the rung, so the answer is a lookup, and doing it at
+   * the single writer means there is no way to be hired onto a path without
+   * being on it. Absent for ordinary town work, exactly as before.
+   */
+  const onPath = rungPlaceOf(occupation.id)
   world.employment.set(person.id, {
     personId: person.id,
     occupationId: occupation.id,
@@ -2077,6 +2234,9 @@ export function hirePerson(
     // town's work, not every job it is possible to hold.
     trackId: placeOf(occupation.id)?.track.id ?? null,
     rungSinceTick: tick,
+    ...(onPath === undefined
+      ? {}
+      : { pathId: onPath.pathId, pathLevel: onPath.rung + 1 }),
   })
   recordEvent(world, tick, {
     type: 'hired',

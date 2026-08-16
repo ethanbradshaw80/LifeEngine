@@ -103,6 +103,30 @@ function aFounder(seed = 12345) {
     advanceTicks(world, 1)
   }
   ;(world.player as { pending: unknown }).pending = null
+
+  /**
+   * A GOING CONCERN, TWO YEARS IN — which is what every test below assumes
+   * and what the fixture did not actually guarantee.
+   *
+   * It produced whatever that seed's shop happened to become. When the town
+   * went onto the career ladders the draws shifted, this shop had three bad
+   * months, and the failure warning emptied its till BY DESIGN — so three
+   * tests about raising money, valuing a business and the expansion ladder
+   * all failed for a reason none of them is about.
+   *
+   * Topping the capital up does not weaken any claim here: every one of them
+   * is about the equity and expansion machinery, and a business's fortunes
+   * are `finances.test.ts`'s subject. It makes the fixture say what it always
+   * meant instead of leaving it to the draw.
+   */
+  const trading = businessOf(world, person.id)
+  if (trading !== undefined) {
+    world.businesses.set(trading.id, {
+      ...trading,
+      capital: 50_000_000 as Money,
+      badMonths: 0,
+    })
+  }
   return { world, person }
 }
 

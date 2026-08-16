@@ -24,7 +24,7 @@
  */
 
 import type { Money } from '@life-engine/shared'
-import { educationRank } from './content.js'
+import { educationRank, rungPlaceOf } from './content.js'
 import type { EducationLevel } from './types.js'
 
 /** What a rung asks of you before it opens. */
@@ -221,6 +221,18 @@ export function trackById(id: string): CareerTrack | undefined {
  * its bottom, and the way up is the climb.
  */
 export function isEntryWork(occupationId: string): boolean {
+  /**
+   * AND THE OWNER'S LADDERS OBEY THE SAME RULE (jobs revamp).
+   *
+   * Their rungs became ordinary occupations so pay comparisons would stop
+   * treating them as worthless — but `placeOf` only knows the OLD tracks, so
+   * without this every rung including a vice-presidency answered "not on a
+   * ladder, therefore entry work", and the town would have handed school
+   * leavers the top of a five-rung climb. That is the exact disease Fix 1
+   * was written to cure, re-entering by a new door.
+   */
+  const rung = rungPlaceOf(occupationId)
+  if (rung !== undefined) return rung.rung === 0
   const place = placeOf(occupationId)
   return place === undefined || place.rung === 0
 }
@@ -235,6 +247,18 @@ export function isEntryWork(occupationId: string): boolean {
  * actually stand.
  */
 export function meritedRung(occupationId: string, performance: number): number {
+  /**
+   * A LADDER RUNG IS WORTH ITS OWN HEIGHT, and no more.
+   *
+   * The paths gate on skills and months rather than on `performance`, so
+   * there is no equivalent of "your reviews already clear the next rung's
+   * bar" to read here. Somebody four rungs up a path can therefore be
+   * approached for work at that standing, but not above it — a poach is a
+   * step, never a leap, which is the rule this function exists to hold.
+   */
+  const onPath = rungPlaceOf(occupationId)
+  if (onPath !== undefined) return onPath.rung
+
   const place = placeOf(occupationId)
   if (place === undefined) return 0
   const next = nextRungOf(place.track, place.rung)

@@ -293,6 +293,23 @@ These have each cost real time more than once:
    opened on four locks and no way in. **Test the seam the screen reads,
    not only the table the seam reads from** — `pathseam.test.ts` is that
    test, and it found the flaw on its first run.
+8. **CODE THAT RUNS EVERY TICK AND DOES NOTHING IS NOT TESTED CODE.**
+   `runLadderClimbs` ran monthly over the whole town for an entire release
+   while no NPC had a `pathId`, so its body never executed once. It was
+   raising `promoted` — service.ts's event for a military RANK — where every
+   civilian promotion in this codebase uses `promoted-at-work`. The day the
+   town went onto the ladders it fired and six tests across three files broke
+   together, reporting "warehouse lead is not a rank". This is the third
+   instance of the shape (see the two probes that found code that never ran);
+   the tell is a loop whose guard nothing in the world can currently satisfy.
+9. **TWO CONTENT TABLES SHARING A NAMESPACE WILL SILENTLY REDEFINE EACH
+   OTHER.** Nine ids are in both the town's occupation table and the career
+   ladders — `teacher`, `accountant`, `sergeant`, `partner` and five more.
+   Concatenating `[...OCCUPATIONS, ...RUNGS]` let the later entry win, which
+   repriced nine of the town's own wages without a word (a law partner moved
+   from $1,458-2,396 to $3,300-4,033) and claimed plain schoolteachers for a
+   ladder at rung 2. Found by a test, not by reading. `occupationtables.test.ts`
+   now holds both halves.
 
 ### WHERE IT ACTUALLY IS (2026-08-14, SIMULATION_VERSION 174, SCHEMA_VERSION 75)
 
@@ -323,10 +340,18 @@ and the whole business module. What has shipped since:
     one visible by eye. `climbable()` teaches, at a trickle, whatever the
     rung above demands. The remaining 59 ladders were then covered by
     construction rather than by remembering.
-  - **The town is NOT on these ladders.** They are player careers; NPCs stay
-    on `careers.ts`. That is why pouring in 59 ladders moved no golden and
-    needed no version bump. Wiring the town on broke four invariants and was
-    reverted — see the queue.
+  - **AND THE TOWN IS ON THEM** (2026-08-15, SIMULATION_VERSION 180). One in
+    six new hires starts a ladder, is taught by the work and climbs by the
+    player's own gates. `runLadderClimbs` and `runSkillGrowth` had existed and
+    run over the whole town for a release doing NOTHING, because no NPC ever
+    had a `pathId` — the single blocker was that a rung was not an occupation,
+    so `considerBetterJob` priced it at zero, read every job in town as a
+    raise, and would have pulled anyone off a ladder within a year.
+  - MEASURED, twice, because the first attempt was reverted: the share is one
+    in six, not two in five, which collapsed the town to 45 people against a
+    band of 59+. And a degree still points somewhere — the fix was giving a
+    RUNG `preferredMajors` so a nursing degree pointing at the healthcare
+    ladder counts, not the guard that kept graduates off ladders entirely.
 
 **The recurring failure shape this module added to the list:** a test that
 hand-rolls the same arithmetic as the code it is testing will pass beside the

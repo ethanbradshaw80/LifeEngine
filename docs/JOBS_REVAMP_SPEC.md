@@ -157,11 +157,7 @@ satisfied one of them.
    that plainly did not exist in 1970 (barista, brand designer, video
    production) are mine, not his.
 
-2. **The town is still not on these ladders.** Every one of the 74 is a
-   PLAYER career. NPCs remain on the old `careers.ts` tracks, which is why
-   adding them moved no golden. Wiring the town on was attempted and reverted
-   — it broke four invariants — and is blocked on rungs becoming first-class
-   in the occupation table.
+2. ~~The town is still not on these ladders.~~ **DONE, 2026-08-15** — see §6.
 
 ## 5. Acceptance
 
@@ -179,3 +175,71 @@ satisfied one of them.
   content: Personal Services was sealed outright, because the stylist, the
   trainer, the masseur AND the groomer all demanded a licence at the entry
   rung. Four locks and no way in. The groomer's ticket moved up a rung.
+
+---
+
+## 6. The town on the ladders (2026-08-15)
+
+Law 2 says every person is the main character of their own life, and a
+promotion rule that binds only the player is a penalty wearing a rule's
+clothes. Townspeople now take the same paths, are taught by the same work and
+climb by the same gates.
+
+### What actually blocked it
+
+`runLadderClimbs` and `runSkillGrowth` had both existed for a release and
+both ran every month over the whole town — doing nothing, because no NPC ever
+had a `pathId`. The block was one thing: **a rung was not an occupation.**
+
+`considerBetterJob` ranks work by `typicalPay(occupationById(id))`. A rung
+that is not in the occupation table falls through to a synthetic that pays
+ZERO, so every job in town reads as a raise and the first ambition roll pulls
+the person straight back off their ladder. The town could have been put on the
+paths and would have walked off them within a year or two.
+
+So all 310 rungs became ordinary `Occupation`s in `content.ts` — pay bands
+±10% around the owner's figure so the midpoint is exactly his, schooling from
+the rung or the ladder, and `preferredMajors` mapped from the category.
+
+### The three things it took, each one a bug the first attempt hit
+
+- **A degree still points somewhere.** The first attempt dropped `pulls
+  graduates toward the work their field is for` to 60 against a floor of 67,
+  and the guard bolted on afterwards "fixed" it by keeping graduates OFF the
+  ladders — which is not putting the town on them. The real fix is upstream: a
+  rung carries `preferredMajors`, so a nursing degree pointing at the
+  healthcare ladder is a match that COUNTS. Hiring then weights a matching
+  field up rather than requiring it, exactly as the town's own hiring does.
+- **The share is measured, not chosen.** One in six new hires starts a ladder
+  (`LADDER_SHARE`). At two in five the town collapsed — 150 years ended with
+  45 people against a band of 59+, because two fifths of every cohort stopped
+  reaching the occupations the rest of the simulation is tuned around.
+- **`hirePerson` derives the path, and nothing else does.** The reverted first
+  attempt set `pathId` back onto the record at one call site. Every other way
+  into a rung — the player's own application, a business hiring, a poach —
+  produced somebody standing on a ladder with no idea they were on one, so
+  they never grew a skill and never climbed.
+
+### Two bugs this surfaced that were already in the tree
+
+- **Nine ids mean two different things.** `teacher`, `accountant`, `sergeant`,
+  `partner`, `charge-nurse`, `store-manager`, `shift-lead`,
+  `senior-accountant`, `department-head` are in both tables. Concatenating the
+  rungs second silently REPRICED nine of the town's own wages — a law partner
+  went from $1,458-2,396 to $3,300-4,033 — and claimed plain schoolteachers
+  for a ladder they never joined, at rung 2. The town's table owns a shared
+  id; `occupationtables.test.ts` holds it.
+- **A civilian promotion was raising the military's event.** `runLadderClimbs`
+  emitted `promoted`, which is service.ts's event for a RANK, where the town's
+  own career tracks have always used `promoted-at-work`. Invisible for a whole
+  release because the line never ran. The moment the town went onto the
+  ladders it fired and six tests across three files failed at once: a
+  discharged veteran who climbed a civilian ladder produced a `promoted` event
+  reading "warehouse lead".
+
+### Held by
+
+`townladders.test.ts` — real people on real ladders, the share bounded both
+ways, nobody seated above the bottom of a ladder they just joined, somebody
+above their entry rung, the work teaching the people doing it, and a rung
+paying and reading like any other job.

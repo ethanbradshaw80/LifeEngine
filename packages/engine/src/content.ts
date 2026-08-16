@@ -11,6 +11,10 @@ import type { Money } from '@life-engine/shared'
 import { dollars } from '@life-engine/shared'
 import type { BaseSpec, NationSpec, OfficerRole, ServiceBranchSpec } from './types.js'
 import type { EducationLevel, Occupation } from './types.js'
+// The career ladders, so their rungs can join the occupation table below.
+// Acyclic: pathcontent -> paths -> types -> skills, and none of those reach
+// back here. `imports.test.ts` is the authority on that.
+import { FIRST_SLICE } from './pathcontent.js'
 import type {
   ExposureProfile,
   ServiceSchool,
@@ -1862,14 +1866,12 @@ export function occupationById(id: string): Occupation {
   /**
    * THE FALLBACK IS READ BY PLAYERS, so it has to be readable.
    *
-   * Since the jobs revamp a job can sit on one of the career LADDERS, whose
-   * rungs are not in this table — and the fallback printed the raw id, so
-   * the header of the game read "police-officer" and "shift-lead". Caught
-   * in a screenshot of my own work. Hyphens become spaces; nothing else
-   * about the fallback changes.
+   * It used to print the raw id, so the header of the game read
+   * "police-officer". Hyphens become spaces. Since the ladders became
+   * first-class this fires only for a save written by a later build.
    */
   return (
-    OCCUPATIONS.find((o) => o.id === id) ?? {
+    BY_ID.get(id) ?? {
       id,
       title: id.replace(/-/g, ' '),
       requires: 'none',
@@ -1878,6 +1880,137 @@ export function occupationById(id: string): Occupation {
     }
   )
 }
+
+// ---------------------------------------------------------------------------
+// THE LADDERS' RUNGS ARE OCCUPATIONS TOO (jobs revamp; task "put the town on
+// the ladders").
+//
+// WHY THIS HAD TO COME FIRST, with the mechanism rather than a principle.
+// `considerBetterJob` compares `typicalPay(occupationById(job.occupationId))`
+// against every other job in town. A rung that is not in this table falls to
+// the synthetic above, which pays ZERO — so every job in the world looks like
+// a raise, and the first ambition roll pulls the person straight off their
+// ladder. The town could be put on the paths and would walk off them again
+// within a year or two, which is what "blocked on rungs being first-class"
+// meant.
+//
+// So each of the 310 rungs becomes an ordinary `Occupation`: hiring, pay, tax,
+// the ledger, the header and the retrospective do not know a rung from a job,
+// which is the same promise M-CAREER made for the old tracks.
+// ---------------------------------------------------------------------------
+
+/**
+ * WHAT A LADDER'S GRADUATES STUDIED, by category.
+ *
+ * The paths carry no notion of a major — the owner's tables do not have that
+ * column — and the previous attempt at this broke `pulls graduates toward the
+ * work their field is for` because diverting people onto ladders quietly took
+ * them OUT of the measurement: a rung had no `preferredMajors`, so every
+ * graduate on one dropped out of both sides of the count.
+ *
+ * Mapping the category is the honest fix rather than the guard. A nursing
+ * degree pointing at the healthcare ladder is true, and now it counts.
+ * Categories with no obvious field are left out, exactly like the town's own
+ * labourer and cook: absent means the work does not care what you studied.
+ */
+const MAJORS_BY_PATH_CATEGORY: Readonly<Record<string, readonly string[]>> = {
+  technology: ['computing', 'engineering', 'science'],
+  'finance-business': ['business', 'accounting'],
+  management: ['business'],
+  healthcare: ['health', 'nursing', 'science'],
+  law: ['law'],
+  'public-service': ['criminal-justice'],
+  education: ['education'],
+  trades: ['construction', 'machining', 'electrical'],
+  creative: ['liberal-arts'],
+  agriculture: ['science'],
+}
+
+/**
+ * THE BAND AROUND A RUNG'S ONE FIGURE, in per-mille.
+ *
+ * The owner's tables give a single salary per rung; every occupation in this
+ * world has a band, because two people doing the same job for the same firm
+ * do not earn to the cent. Ten per cent either way keeps the MIDPOINT exactly
+ * his figure, so nothing about the ladder's ordering moves — which matters,
+ * because `considerBetterJob` ranks by midpoint.
+ */
+const RUNG_SPREAD = 100
+
+/**
+ * NINE IDS MEAN TWO DIFFERENT THINGS, and the town's meaning wins.
+ *
+ * MEASURED, by a probe, after a test caught a plain schoolteacher standing on
+ * "rung 2 of the teaching ladder" having never joined it. The owner's paths
+ * and the old M-CAREER tracks are two models of the same careers, so nine ids
+ * appear in both tables — `teacher`, `accountant`, `sergeant`, `partner`,
+ * `charge-nurse`, `store-manager`, `shift-lead`, `senior-accountant`,
+ * `department-head`.
+ *
+ * That did two wrong things at once. It claimed people for ladders they were
+ * never on, AND — because the rung table was concatenated second — it
+ * silently REPRICED the town's own wages: a law partner's band moved from
+ * $1,458-2,396 to $3,300-4,033 without a word. Nine occupations, invisible.
+ *
+ * A colliding id belongs to the table that has always owned it. The path just
+ * happens to use the same word for the same job, and none of the nine is an
+ * ENTRY rung, so nothing about starting a ladder changes.
+ */
+const TOWN_IDS = new Set(OCCUPATIONS.map((o) => o.id))
+
+export const PATH_OCCUPATIONS: readonly Occupation[] = FIRST_SLICE.flatMap((path) =>
+  path.levels.map((level): Occupation => {
+    const majors = MAJORS_BY_PATH_CATEGORY[path.categoryId]
+    return {
+      id: level.id,
+      title: level.title,
+      // A rung's own schooling where it asks for one, otherwise the ladder's.
+      requires: level.needsLevel ?? path.requires,
+      minMonthlyPay: Math.floor((level.monthlyPay * (1000 - RUNG_SPREAD)) / 1000) as Money,
+      maxMonthlyPay: Math.floor((level.monthlyPay * (1000 + RUNG_SPREAD)) / 1000) as Money,
+      ...(majors === undefined ? {} : { preferredMajors: majors }),
+    }
+  }),
+)
+
+/**
+ * WHERE AN OCCUPATION SITS ON A LADDER, or undefined for ordinary work.
+ *
+ * `rung` is ZERO-BASED to match `placeOf` in `careers.ts`, which every
+ * caller of `isEntryWork` and `meritedRung` already reads that way. The
+ * paths number their levels from one.
+ */
+const RUNG_PLACES = new Map<string, { readonly pathId: string; readonly rung: number }>(
+  FIRST_SLICE.flatMap((path) =>
+    path.levels
+      // See TOWN_IDS: a shared id belongs to the town's table, so this does
+      // not claim a plain schoolteacher for the teaching ladder.
+      .filter((level) => !TOWN_IDS.has(level.id))
+      .map((level) => [level.id, { pathId: path.id, rung: level.level - 1 }] as const),
+  ),
+)
+
+export function rungPlaceOf(
+  occupationId: string,
+): { readonly pathId: string; readonly rung: number } | undefined {
+  return RUNG_PLACES.get(occupationId)
+}
+
+/**
+ * EVERY OCCUPATION IN THE WORLD, town work and ladder rungs alike.
+ *
+ * Deliberately NOT what `eligibleStartingWork` hires from. Dropping 74 entry
+ * rungs into the town's hiring pool would make its own trades a quarter of
+ * what they are — the constable's seat, the school and the county hospital
+ * are all tuned around how often those come up. The town goes onto ladders by
+ * an explicit, measured share instead; see `runEmployment`.
+ */
+// THE TOWN'S TABLE IS SECOND ON PURPOSE, so that on the nine colliding ids
+// it overwrites the rung and the wage a save was written against does not
+// move. See TOWN_IDS.
+const BY_ID = new Map<string, Occupation>(
+  [...PATH_OCCUPATIONS, ...OCCUPATIONS].map((o) => [o.id, o]),
+)
 
 /**
  * Midpoint of an occupation's pay band, for comparing offers.
