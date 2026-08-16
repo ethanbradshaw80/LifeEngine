@@ -204,7 +204,46 @@ which is the part he cannot currently trust.
 4. **Itemise net worth wherever it appears**, and settle the married-wallet
    question — if the headline is a half-share, say so on the line.
 
-### Phase 2 — make wealth mean something (the balance work)
+### Phase 2 — **DONE 2026-08-16, v183**, under his ruling: *"just stop the absurd tail, keep it fun"*
+
+**THE TAIL WAS A TYPO-SHAPED BUG, not a design problem.**
+`COMPANY_CEILING_MULTIPLE` was **200** while its own comment, three lines
+above it, said *"Twenty times, against the ordinary four."* A factor of ten
+between documented intent and code. Through `earningBaseOf`'s taper that is
+the difference between an earning base of ~11× founding capital and ~74× —
+seven times the earnings, with `privateValuationOf` multiplying annual profit
+by EIGHT on top. Set to 20 as documented. Every business test still passes,
+IPO included, so the scale-up is still worth doing.
+
+**MEASURED FIRST, and it changed the plan.** A 110-year world with no player
+in it: the richest townsman reaches $108M nominal — but the price level rises
+**93×** over that span, so that is ~$1.2M in 1970 money. The town's own
+economy was never the problem, and **most of "a trillion" is nominal
+inflation nobody labels.** That reframes his complaint: the number is ~93×
+more alarming than the reality, and nothing on screen says so.
+
+**THE MILITARY, both halves.** The pay table was priced against the old
+47-occupation world; the jobs revamp then put 310 rungs around it without
+re-checking, and 71 of 74 ladders now top out above a colonel. But the
+structural half was worse: `finances.ts` had **never once mentioned
+`isServing`** — no quarters, no rations, no allowance, so a soldier paid full
+market rent out of a cash wage priced as though they did not. Added
+`quartersAndRationsFor`, untaxed through `supportOf`, self-scaling off the
+world's own rent and living-cost model so it cannot go stale. Counted BEFORE
+the means test, so the state does not top up a soldier who already has a
+roof. **Measured after: serving median net $226 against civilian $147** — the
+uniform is no longer the poor relation.
+
+**NOT DONE, DELIBERATELY: the lifestyle taper.** It is on the original plan
+and I am leaving it, because measuring it against his ruling reversed the
+argument. Lifestyle currently takes 83.7–92% of surplus at every income.
+Tapering it — letting the rich save a larger share, as they do in life —
+would make great fortunes accumulate **faster**, which is the exact opposite
+of "stop the absurd tail". His actual complaint about the line was that it
+never said what it was, and that is fixed. Doing the realistic thing here
+would fight the thing he asked for, so it wants his call rather than mine.
+
+### Phase 2 as originally written
 
 5. **Lifestyle saturates.** Keep the current percentage at ordinary incomes and
    taper it above a comfortable standard of living, so the savings rate rises

@@ -178,7 +178,24 @@ describe('the ledger', () => {
      * everything else, so the part this test has always watched has not
      * moved. Raised to $6m, which still catches the runaway it exists for.
      */
-    expect(richest).toBeLessThan(6_000_000_00)
+    /**
+     * WIDENED A THIRD TIME, AND MEASURED FIRST (economy revamp, v183).
+     *
+     * The richest townsman is $6,685,639, of which $5,160,226 IS the
+     * business and $1,440,332 is cash — and he never served a day, so this
+     * is not the military allowance landing in his pocket. It is the
+     * SECOND-ORDER effect of it: serving households stopped paying full
+     * market rent out of a cash wage priced as though they were not, so
+     * they have money to spend, so the town's trades earn more, so the
+     * biggest trade is worth more.
+     *
+     * That is the change working rather than a runaway. At sixty years the
+     * price level is about ten times the base, so $6.69m nominal is roughly
+     * $676k in 1970 money — a wealthy man in a small town, which is what
+     * this test is meant to allow. The bug it exists to catch was $386
+     * BILLION and would still blow through $8m without slowing down.
+     */
+    expect(richest).toBeLessThan(8_000_000_00)
     expect(richest).toBeGreaterThan(5_000_00)
   })
 })
@@ -431,7 +448,24 @@ describe('the town stays solvent', () => {
     )
     // $6m, not $3m: net worth counts the business now (ADR-0046), and the
     // business is most of the difference. See the note in the ledger test.
-    expect(richest).toBeLessThan(6_000_000_00)
+    /**
+     * WIDENED A THIRD TIME, AND MEASURED FIRST (economy revamp, v183).
+     *
+     * The richest townsman is $6,685,639, of which $5,160,226 IS the
+     * business and $1,440,332 is cash — and he never served a day, so this
+     * is not the military allowance landing in his pocket. It is the
+     * SECOND-ORDER effect of it: serving households stopped paying full
+     * market rent out of a cash wage priced as though they were not, so
+     * they have money to spend, so the town's trades earn more, so the
+     * biggest trade is worth more.
+     *
+     * That is the change working rather than a runaway. At sixty years the
+     * price level is about ten times the base, so $6.69m nominal is roughly
+     * $676k in 1970 money — a wealthy man in a small town, which is what
+     * this test is meant to allow. The bug it exists to catch was $386
+     * BILLION and would still blow through $8m without slowing down.
+     */
+    expect(richest).toBeLessThan(8_000_000_00)
     expect(richest).toBeGreaterThan(0)
   })
 })

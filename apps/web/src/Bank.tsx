@@ -152,6 +152,9 @@ export function Bank({
    * them so the itemised list and the headline can never disagree.
    */
   const cash = liquidShareOf(world, person.id) as Money
+  // The whole pot behind that share, so the screen can show what it is half
+  // of. Equal to `cash` for anybody whose wallet is their own.
+  const jointCash = (wallet.checking + wallet.savings) as Money
   const investments = (accounts.brokerage + portfolio) as Money
   const businessWorth = businessWorthOf(world, person.id)
   const owned = propertiesOwnedBy(world, person.id)
@@ -201,7 +204,26 @@ export function Bank({
             */}
             <section className="bank-card">
               <h4>What you own</h4>
+              {/*
+                SAY WHAT IT IS A SHARE OF (owner: "Net worth isn't counting
+                all our assest because the net worth is off just from look at
+                it").
+
+                A married couple keeps ONE pot under H0 and this line shows
+                half of it, which is correct and was impossible to tell from
+                the screen — the number simply looked too small, with nothing
+                to compare it against. The couple's total now sits under it in
+                muted text, so the half-share reads as a half-share instead of
+                as a mistake.
+              */}
               <Row label="Your share of the cash" value={formatMoney(cash)} />
+              {jointCash > cash && (
+                <Row
+                  label="— the two of you together hold"
+                  value={formatMoney(jointCash)}
+                  tone="muted"
+                />
+              )}
               {investments > 0 && <Row label="Investments" value={formatMoney(investments)} />}
               {retirement > 0 && <Row label="Retirement" value={formatMoney(retirement)} />}
               {/* EVERY DOOR, not just the one they sleep behind (owner:

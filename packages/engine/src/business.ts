@@ -389,8 +389,27 @@ export const SCALE_UP_YEARS = 8
  * valuation worth having and an IPO worth doing, and it is a BALANCE
  * NUMBER — the spec says so itself ("thresholds are balance numbers —
  * tune, don't quote").
+ *
+ * THE COMMENT SAID TWENTY AND THE CONSTANT SAID 200 (owner, playing with
+ * his brother: "he hit 1 trillion dollar net worth in 110 years by just
+ * doing businesses"). A factor of ten between the documented intent and the
+ * code, and it is the whole absurd tail.
+ *
+ * What 200 actually bought, through `earningBaseOf`'s taper — full return
+ * to 4x founding, 60% marginal to 10x, 35% marginal above:
+ *
+ *     at 20x   the earning base is about 11x founding capital
+ *     at 200x  it is about 74x
+ *
+ * Seven times the earnings, and `privateValuationOf` is EIGHT TIMES annual
+ * profit on top of that. A trade that scaled up was compounding into a
+ * number no town could contain, which is exactly what he watched happen.
+ *
+ * Twenty keeps the scale-up worth doing — it is still five times what an
+ * unscaled trade may hold, and an IPO is still reachable — without the
+ * ceiling being somewhere no business should ever get to.
  */
-export const COMPANY_CEILING_MULTIPLE = 200
+export const COMPANY_CEILING_MULTIPLE = 20
 
 /** Is this business allowed to become a company? Null when it is. */
 export function scaleUpBar(

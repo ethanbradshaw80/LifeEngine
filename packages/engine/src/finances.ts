@@ -120,7 +120,7 @@ import type {
   Person,
   World,
 } from './types.js'
-import { pensionOf, servicePayOf, survivorPensionOf } from './service.js'
+import { pensionOf, quartersAndRationsFor, servicePayOf, survivorPensionOf } from './service.js'
 import { sportsWageOf } from './sports.js'
 import {
   assistanceOf,
@@ -1471,8 +1471,21 @@ export function supportOf(world: World, personId: EntityId, tick: Tick): Money {
   const accounts = accountsOf(world, personId)
   const insurance = unemploymentOf(world, personId, accounts, tick)
   const gross = personalIncome(world, personId)
-  const inHand = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) + insurance) as Money
-  return (insurance + assistanceOf(world, person, inHand, tick)) as Money
+  /**
+   * QUARTERS AND RATIONS ride this channel because they are UNTAXED, which
+   * is the one thing `supportOf` is for. See `quartersAndRationsFor` — a
+   * soldier had been paying full market rent out of a cash wage that was
+   * priced as though they were not.
+   *
+   * COUNTED BEFORE THE MEANS TEST, deliberately. Assistance asks what is
+   * actually in somebody's hand this month; a serving member whose housing
+   * is found is not as short as their cash wage makes them look, and
+   * adding the allowance afterwards would have had the state topping up a
+   * soldier who already had a roof.
+   */
+  const quarters = quartersAndRationsFor(world, personId)
+  const inHand = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) + insurance + quarters) as Money
+  return (insurance + quarters + assistanceOf(world, person, inHand, tick)) as Money
 }
 
 /**

@@ -70,6 +70,8 @@ import {
   officerPayOn,
   offenceById,
   isFelony,
+  rentFor,
+  LIVING_COST_ADULT,
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
@@ -4196,3 +4198,46 @@ export function runSchools(world: World, tick: Tick): void {
     })
   }
 }// The failing bar now ages with the body — see `fitnessStandardFor`.
+
+/**
+ * QUARTERS AND RATIONS — the half of military pay this game never modelled.
+ *
+ * THE REPORT (owner, playing): "military pay is absolute shit compared to
+ * pretty much any job." He is right twice over, and only one of the two is
+ * about the pay table.
+ *
+ * MEASURED, first: the tables were priced against the town's old
+ * forty-seven occupations, where only twelve beat a colonel and they were
+ * the genuine summits — chief of medicine, chief executive, doctor. The
+ * jobs revamp then poured in 310 career rungs around them without anybody
+ * re-checking, and now SEVENTY-ONE of the seventy-four ladders top out
+ * above an O-6, 146 rungs pay more than one, and ten ladder ENTRY rungs
+ * beat an E-9 — the top of a twenty-year enlisted career.
+ *
+ * MEASURED, second, and this is the structural half: `finances.ts` has
+ * never once mentioned `isServing`. No quarters, no rations, no allowance.
+ * A soldier paid full market rent and full lifestyle exactly like a
+ * civilian, while in life roughly a third of enlisted compensation is
+ * untaxed housing and subsistence. The cash wage was the WHOLE of what
+ * service paid, which is why it felt so much worse than the table alone
+ * explains.
+ *
+ * SELF-SCALING ON PURPOSE. Quarters are the going rate for a modest place
+ * and rations are half an adult's living costs, both read from the world's
+ * own cost model rather than written as a figure here — so this cannot
+ * drift out of date the way a magic number would when rents are retuned.
+ *
+ * UNTAXED, which is why it goes out through `supportOf` rather than
+ * `servicePayOf`: a housing allowance is not taxable income, and routing it
+ * through the wage would both tax it and inflate the pension it is not part
+ * of.
+ */
+const QUARTERS_DESIRABILITY = 3
+
+export function quartersAndRationsFor(world: World, personId: EntityId): Money {
+  const record = world.service.get(personId)
+  if (record === undefined || record.dischargedAtTick !== null) return 0 as Money
+  const quarters = rentFor(QUARTERS_DESIRABILITY)
+  const rations = Math.floor(LIVING_COST_ADULT / 2)
+  return atTodaysPrices(world, (quarters + rations) as Money) as Money
+}
