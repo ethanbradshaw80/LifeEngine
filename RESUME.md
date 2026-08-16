@@ -1,5 +1,34 @@
 # Resume Here
 
+> **IN PROGRESS — Military Depth, Stage 1: the world outside the town.**
+> `docs/MILITARY_DEPTH_PLAN.md` is the approved contract; §15 has the build
+> order and §17 carries the independent review's findings.
+>
+> **The model, in the owner's words:** Haverlock is home, in a state in
+> America. A posting is somewhere else — get stationed and you are away from
+> it. The people there are real NPCs with their own lives, from wherever they
+> are from. Townspeople NPCs do everything the player can: property, jobs,
+> dating, election.
+>
+> **The rule that came out of it, and it needs no exceptions:** *you meet
+> whoever is where you are.* `localityOf` in `types.ts` answers "the same
+> place" and never "which place", so it is preset-neutral — Classic keeps its
+> fictional stations, Real World Mode can ground it in real geography later.
+> It gates MEETING, not KEEPING: an existing marriage survives a posting.
+>
+> Two earlier attempts failed by arguing about WHO somebody is — first barring
+> soldiers from courtship, then allowing 141 cross-country marriages with
+> nobody moving. Do not reopen that; the answer is WHERE.
+>
+> Bucketing by locality also took the tick from 80.8s back to **52.6s** for 60
+> years at the 400-person town, which is *below* the 53.2s before any of this
+> existed — every extra comparison had been a townsperson weighed against a
+> soldier in another state, work that was wrong before it was slow.
+>
+> **SIMULATION_VERSION is 187 and the three baselines are NOT yet pinned.**
+> Pin only when the suite is green but for them, in the order bump → measure
+> → pin → verify.
+
 > **RELEASED 2026-08-16 — v186, the Work & Money update.** Notes in
 > `RELEASE_NOTES_v186.md`; zip built by `npm run pack:itch` and VERIFIED by
 > unpacking it, serving it as itch would, and playing a life out of it — the
