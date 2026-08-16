@@ -197,6 +197,112 @@ records do not. That gap between the three voices is the entire point.
 **The cost, stated plainly:** this is the largest content job in the update by
 a wide margin, and it is why §16's estimate is shaped the way it is.
 
+### 4.4c Wounds — the model is already there, the writing is not
+
+> Owner: *"we also need to change up the 'you were hit - the shoulder - its
+> bad' writting too this sucks this needs to be way more in detail and
+> descriptive as well."*
+
+**Measured, and this is the encouraging part: the simulation already knows
+everything it needs to.** `casualty.ts` computes, for every wound:
+
+- **six tiers** — near miss, superficial, walking wounded, serious,
+  life-altering, mortal, with the line that matters between 3 and 4
+- **eight body sites**, each with its own severity shift (head 260, chest
+  200, back 150, leg 70, shoulder 60, arm 30, foot 20, hand 10 — and the
+  comment explains why: armour covers the torso, so *what gets through to a
+  chest got through something*)
+- **eighteen mechanisms** — gunshot, shrapnel, blast, burns, crush,
+  amputation, spinal, internal, eye, concussion, hearing, fracture,
+  laceration, smoke, heat, frostbite, electrocution, chemical
+- **minutes to a surgical team**, which pulls the outcome down the tiers
+  under 20 minutes and pushes it up past two hours
+
+Then it renders it through `TIER_WORDS`, **a one-word lookup**: `4: 'serious'`.
+
+So the engine knows *gunshot, shoulder, tier 4, ninety minutes out* and prints
+three words. **No new model is needed. This is a writing job on top of a good
+simulation**, which is why it is cheap relative to §4.4b — and why it should
+land in the same pass.
+
+**The four things the writing must say**, all of which are already computed:
+
+1. **What hit him, and what that does.** A rifle round, a fragment, blast
+   overpressure and burns are four different injuries and read nothing alike.
+2. **Where, specifically** — and what is under that place. A shoulder is a
+   joint, an artery and a nerve bundle; that is why a shoulder wound can end
+   a career that a thigh wound does not.
+3. **What it cost to get him out** — the minutes, the ride, who carried him,
+   whether the bird came. This number is *already in the model* and is
+   currently invisible, and it is the most dramatic thing in the whole
+   casualty system.
+4. **What he is like afterwards.** Tier 5 is called *life-altering* and the
+   game currently says "life-altering". It should say what he cannot do any
+   more.
+
+**Explicitly unflinching** (owner's ruling, 2026-08-16): *"We can ignore
+whatever rules we have for gore and censorship for this depth plan for
+everything."* Wounds are written as they are. No fading out, no tasteful cut,
+no "he was hit and evacuated."
+
+**One craft note, not a restriction.** The foundation's §1 failure mode is
+**spectacle** — and gore written for its own sake reads as spectacle, which
+is the glorification failure wearing a grim mask. The version that actually
+lands is **specific and clinical**: the exact injury, the exact minutes, the
+exact thing he cannot do at 40 because of it. That is more disturbing than
+adjectives, not less, and it is also true. So: unflinching, and *precise* —
+these pull in the same direction, and precision is the harder one to get
+right.
+
+**Worked example — the same wound at four tiers**, gunshot, shoulder, so the
+standard is visible rather than described:
+
+> **Tier 2.** The round goes through the meat above his armour plate and out
+> the back, and he does not know he is hit until Reyes tells him he is
+> bleeding. Two field dressings and he finishes the patrol. It aches in the
+> cold for the rest of his life and he never files anything about it.
+
+> **Tier 3.** Through the deltoid, clean, no bone. He keeps his weapon and
+> walks to the casualty collection point under his own power, swearing
+> steadily, arm strapped across his chest. Eleven days on light duty. He is
+> back with the squad before the month is out and he is not the same about
+> the sound of a helicopter for a while.
+
+> **Tier 4.** It goes in below the collarbone and takes the joint apart on
+> the way through. He is on the ground and not making any noise, which is
+> worse than screaming. Doc gets a pressure dressing on it and cannot find a
+> pulse in that wrist. The bird is ninety minutes out. They carry him nine
+> hundred metres to a landing zone and he is grey by the time it comes. Two
+> surgeries at the field hospital and a third at home. The arm stays on. It
+> never comes back above shoulder height.
+
+> **Tier 5.** The round shatters the head of the humerus and takes the
+> brachial plexus with it. Doc packs it and does what he can and it is not
+> much. He is out in fifty minutes, which is why he lives. He wakes up two
+> days later in a hospital he does not recognise with an arm he cannot feel,
+> and eleven months after that he is medically retired at twenty-four with a
+> hand that will not close. He learns to write left-handed. He is careful,
+> for the rest of his life, about how he sits so that people cannot tell.
+
+Note what varies across those four: the mechanism's actual behaviour, the
+anatomy, **the minutes to surgery** (already in the model, currently unshown),
+and the permanent cost. Note also that the differences that matter most are at
+the end — what the life is like afterwards.
+
+**Coverage plan.** 8 sites × 18 mechanisms × 6 tiers is 864 combinations and
+most are impossible or nonsensical. Write per **mechanism × tier** (~108, of
+which perhaps 70 are real) with the **site as a written slot** carrying its own
+anatomy line. That is tractable in one pass and reads as bespoke.
+
+**Two practical consequences to flag now.**
+
+- **The same treatment is owed to the squad**, not just the player. "Volkov
+  was hit" is the same failure. When somebody else in the roster is wounded,
+  it gets the same detail — that is what makes losing them land.
+- **The itch.io page will need its content flags set honestly** — graphic
+  violence, and a content warning. That is a store-listing job at release,
+  not a design constraint, and it costs about five minutes.
+
 ### 4.5 Non-combat casualties
 
 Foundation §8 calls them "a real and substantial share of military
@@ -777,6 +883,7 @@ and reports.
 |---|---|---|
 | **1 — the roster** | 1–2 | Architecture exists (`spinUpSquad` already registers real people). The work is persistence, unit attachment, the person screen, and the **performance measurement** |
 | **2 — the record** | 2 | Three documents and the disability split. Document-writing is well-trodden here (`contract.ts`, `article15.ts`) |
+| **+ wound writing (§4.4c)** | +0.5 | Rides along with Stage 4's scene pass. The MODEL already exists — this is writing over a good simulation, not new machinery |
 | **3 — peacetime** | 2–3 | Eight features, but most are small once Stage 1 exists. Special duty is the big one |
 | **4 — the war** | **4–6** | **The scene rewrite is the whole risk.** See below |
 | **Release** | 1 | Baselines re-pinned, packaged, played, published |
