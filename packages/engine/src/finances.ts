@@ -2074,25 +2074,69 @@ export function unitShapeFor(
   return { unitCount: units.length, totalIncome, mine: unitIncome(world, unit) }
 }
 
+/**
+ * WHAT ONE UNIT'S COSTS ARE MADE OF (owner, playing at twenty: "Living costs
+ * · 8 grown, 3 children ... we are single with no kids and there no way we
+ * are living with this many people ... I am 20 years old it should just
+ * matter how much money I have").
+ *
+ * He is right, and the money screen was describing THE BUILDING while calling
+ * it his. A twenty-year-old still at his parents' was shown the whole roof's
+ * eleven mouths and the whole roof's bill. (The eleven were real — measured,
+ * zero phantom members, a town of 46 households whose largest genuinely holds
+ * ten — but they are not HIS eleven.)
+ *
+ * `unitCosts` already knew the answer and threw it away by summing. This
+ * returns the parts, so a screen can say "one grown" and mean it, and the
+ * total is still computed in exactly one place.
+ */
+export interface UnitCostParts {
+  /** Food, clothes and tuition for the people in THIS unit. */
+  readonly living: Money
+  /** This unit's share of the roof — the whole rent, or nothing (H0). */
+  readonly rent: Money
+  /** Who is actually being fed, in this unit and nobody else's. */
+  readonly adults: number
+  readonly children: number
+}
+
 export function unitCosts(
   world: World,
   household: Household,
   unit: readonly EntityId[],
   precomputed?: UnitShape,
 ): Money {
+  const parts = unitCostParts(world, household, unit, precomputed)
+  return (parts.living + parts.rent) as Money
+}
+
+export function unitCostParts(
+  world: World,
+  household: Household,
+  unit: readonly EntityId[],
+  precomputed?: UnitShape,
+): UnitCostParts {
+  let adults = 0
+  let children = 0
   if (household.homelessSinceTick !== null) {
     let shelter = 0
     for (const id of unit) {
       const member = world.people.get(id)
-      if (member && member.deathTick === null) shelter += shelterCostFor(world)
+      if (member && member.deathTick === null) {
+        shelter += shelterCostFor(world)
+        if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults += 1
+        else children += 1
+      }
     }
-    return shelter as Money
+    return { living: shelter as Money, rent: 0 as Money, adults, children }
   }
 
   // A HOUSEHOLD OF NOTHING BUT STUDENTS IN HALLS PAYS NOTHING, and
   // `householdCosts` says so with an early return — so this must too, or
   // the head unit would carry a rent the household is not being charged.
-  if (everybodyInHalls(world, household)) return 0 as Money
+  if (everybodyInHalls(world, household)) {
+    return { living: 0 as Money, rent: 0 as Money, adults: 0, children: 0 }
+  }
 
   let mouths = 0
   for (const id of unit) {
@@ -2107,6 +2151,8 @@ export function unitCosts(
     // the third time that trio has had to be kept in step, after the
     // tuition line and the jail exemption before it.
     if (inHalls(world, id)) continue
+    if (ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE) adults += 1
+    else children += 1
     mouths +=
       ageAt(member.birthTick, world.tick) >= ADULT_COST_AGE
         ? livingCostAt(world, LIVING_COST_ADULT)
@@ -2149,7 +2195,9 @@ export function unitCosts(
    * loop only moves `checking`, which none of them read.
    */
   const shape = precomputed ?? unitShapeFor(world, household, unit)
-  if (shape.unitCount === 0) return mouths as Money
+  if (shape.unitCount === 0) {
+    return { living: mouths as Money, rent: 0 as Money, adults, children }
+  }
   /**
    * THE ROOF IS THE HEAD COUPLE'S BILL (H0, owner's rule #3: grown kids
    * keep their own wallets and live free — which is what makes moving out
@@ -2160,7 +2208,7 @@ export function unitCosts(
   const head = eldestMember(world, household)
   const isHeadUnit = head !== undefined && unit.includes(head.id)
   const share = isHeadUnit ? rent : 0
-  return (mouths + share) as Money
+  return { living: mouths as Money, rent: share as Money, adults, children }
 }
 
 /**
@@ -2622,6 +2670,16 @@ export interface MonthAhead {
   readonly interest: Money
   /** Their share of the roof and the living costs under it. */
   readonly costs: Money
+  /** That total, split — their share of the rent, and their own mouths. */
+  readonly rentShare: Money
+  readonly living: Money
+  /**
+   * WHO IS ACTUALLY BEING FED, in this unit and nobody else's (owner, at
+   * twenty: "Living costs · 8 grown, 3 children ... we are single with no
+   * kids"). The screen said the BUILDING's eleven while calling them his.
+   */
+  readonly adults: number
+  readonly children: number
   /** Day-to-day spending, plus the sales tax on it. */
   readonly lifestyle: Money
   /** What the month actually leaves behind. */
@@ -2635,6 +2693,10 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     rent: 0 as Money,
     interest: 0 as Money,
     costs: 0 as Money,
+    rentShare: 0 as Money,
+    living: 0 as Money,
+    adults: 0,
+    children: 0,
     lifestyle: 0 as Money,
     net: 0 as Money,
   }
@@ -2646,7 +2708,8 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
   const unit = financialUnitOf(world, personId)
   const income = unitIncome(world, unit)
   const spending = discretionaryForUnit(world, household, unit)
-  const bills = unitCosts(world, household, unit)
+  const parts = unitCostParts(world, household, unit)
+  const bills = (parts.living + parts.rent) as Money
   const owed = (bills + spending + salesTaxOn(spending)) as Money
   const left = income - owed
 
@@ -2710,12 +2773,30 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
   const fromParts = (mine - mineOfCosts - mineOfLifestyle) as Money
   const bottom = income <= 0 ? share : fromParts
 
+  /**
+   * THE BILL, ITEMISED AT THE SAME SHARE THE TOTAL IS. `mineOfCosts` is this
+   * person's slice of their UNIT's bills; the rent and the mouths are that
+   * same slice, so the two lines always add to the total above them.
+   */
+  /**
+   * ONE IS FLOORED AND THE OTHER TAKES THE REMAINDER, so the two rows on the
+   * screen always add to the total above them. Flooring both independently
+   * lost a penny — caught by a test, and the same penny-drift this card was
+   * already fixed for once.
+   */
+  const rentShare = (bills <= 0 ? 0 : Math.floor((mineOfCosts * parts.rent) / bills)) as Money
+  const living = (mineOfCosts - rentShare) as Money
+
   return {
     earned: mine,
     draw,
     rent,
     interest,
     costs: mineOfCosts as Money,
+    rentShare,
+    living,
+    adults: parts.adults,
+    children: parts.children,
     lifestyle: mineOfLifestyle as Money,
     net: (bottom + draw + rent + interest) as Money,
   }

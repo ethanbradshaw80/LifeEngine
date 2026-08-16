@@ -20,11 +20,17 @@
 
 import { beforeAll, describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
+import type { Money, Tick } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { livingPeople } from '../src/systems.js'
-import { liquidShareOf, monthAheadFor, personalMonthlyNet, walletOf } from '../src/finances.js'
+import {
+  financialUnitOf,
+  liquidShareOf,
+  monthAheadFor,
+  personalMonthlyNet,
+  walletOf,
+} from '../src/finances.js'
 import { setPlayer, startBusiness } from '../src/player.js'
 import type { World } from '../src/types.js'
 
@@ -143,5 +149,82 @@ describe('the forecast and the tick describe the same month', () => {
     expect(ahead.draw).toBe(0)
     expect(ahead.rent).toBe(0)
     expect(ahead.net).toBe(ahead.earned - ahead.costs - ahead.lifestyle + ahead.interest)
+  })
+})
+
+/**
+ * WHOSE MONTH IS IT (owner, playing at twenty: "Living costs · 8 grown, 3
+ * children ... we are single with no kids and there no way we are living with
+ * this many people ... I am 20 years old it should just matter how much money
+ * I have, we talked about this the finances need to be of your own. This is a
+ * LIFE SIM").
+ *
+ * The household counts were NOT wrong — measured, a 46-household town has
+ * zero phantom members and its largest roof genuinely holds ten people. The
+ * money card was simply describing the BUILDING while calling it his.
+ */
+describe('the month belongs to the person, not the building', () => {
+  it('counts only the mouths in their own unit', () => {
+    const world = createWorld(makeSeed(4242), 140)
+    advanceTicks(world, 30 * 12)
+    // Somebody grown, still under a roof with several other adults.
+    const person = [...world.people.values()]
+      .filter((p) => p.deathTick === null && p.householdId !== null)
+      .filter((p) => {
+        const age = ageAt(p.birthTick, world.tick)
+        const roof = world.households.get(p.householdId as never)
+        return age >= 19 && age <= 30 && (roof?.memberIds.length ?? 0) >= 4
+      })
+      .sort((a, b) => a.id - b.id)[0]
+    if (person === undefined) return
+    setPlayer(world, person.id)
+
+    const roof = world.households.get(person.householdId as never)
+    const month = monthAheadFor(world, person.id)
+    const unit = financialUnitOf(world, person.id)
+
+    // The card's "N grown, M children" is the UNIT's, and the unit is
+    // smaller than the roof it stands under.
+    expect(month.adults + month.children).toBeLessThanOrEqual(unit.length)
+    expect(month.adults + month.children).toBeLessThan(roof?.memberIds.length ?? 99)
+  })
+
+  it('never charges a grown child at home for the family’s rent', () => {
+    /**
+     * H0's rule, and the thing that made the old card absurd: the unit
+     * holding the household's eldest carries the whole roof; everybody else
+     * under it carries none. A twenty-year-old at his parents' pays for
+     * himself and not a penny of their rent.
+     */
+    const world = createWorld(makeSeed(4242), 140)
+    advanceTicks(world, 30 * 12)
+    for (const roof of world.households.values()) {
+      if (roof.dissolvedTick === null && roof.memberIds.length >= 4) {
+        const youngest = [...roof.memberIds]
+          .map((id) => world.people.get(id))
+          .filter((p) => p !== undefined && p.deathTick === null)
+          .filter((p) => ageAt((p as { birthTick: Tick }).birthTick, world.tick) >= 18)
+          .sort((a, b) => (b as { birthTick: Tick }).birthTick - (a as { birthTick: Tick }).birthTick)[0]
+        if (youngest === undefined) continue
+        const month = monthAheadFor(world, youngest.id)
+        // The youngest adult is not the eldest member, so no rent.
+        expect(month.rentShare).toBe(0)
+        return
+      }
+    }
+  })
+
+  it('adds its own lines up', () => {
+    // The card prints these rows and a total; they must reconcile, which is
+    // the whole reason the itemisation lives in the engine.
+    const world = createWorld(makeSeed(909), 120)
+    advanceTicks(world, 25 * 12)
+    for (const person of [...world.people.values()].slice(0, 40)) {
+      if (person.deathTick !== null || person.householdId === null) continue
+      const month = monthAheadFor(world, person.id)
+      expect(month.rentShare + month.living, `${String(person.id)}'s bill does not add up`).toBe(
+        month.costs,
+      )
+    }
   })
 })

@@ -65,6 +65,7 @@ import {
   monthlyNetOf,
   businessDrawOf,
   walletAccountsOf,
+  monthAheadFor,
   personalMonthlyNet,
   partnerOf,
   newsSince,
@@ -1579,67 +1580,84 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               // this tab is computed in the UI.
               if (ledger === null) return null
               const spells = arrearsSpells
-              const nameOf = (id: EntityId) => {
-                const member = world.people.get(id)
-                return member ? (id === person.id ? 'you' : member.givenName) : 'someone'
-              }
-              const lines: { key: string; label: string; amount: Money }[] = [
-                ...ledger.wages.map((e) => ({
-                  key: `w${e.personId}`,
-                  label: `Wages — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-                ...ledger.servicePay.map((e) => ({
-                  key: `s${e.personId}`,
-                  label: `Service pay — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-                ...ledger.pensions.map((e) => ({
-                  key: `p${e.personId}`,
-                  label: `Pension — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-                ...ledger.survivorPay.map((e) => ({
-                  key: `v${e.personId}`,
-                  label: `Survivor's share — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-                // M-SAFETY §4. The floors, named. A month carried by the
-                // state should say so — it is the difference between a
-                // quiet month and a month somebody else paid for.
-                ...ledger.statePension.map((e) => ({
-                  key: `sp${e.personId}`,
-                  label: `State pension — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-                ...ledger.support.map((e) => ({
-                  key: `su${e.personId}`,
-                  label: `Assistance — ${nameOf(e.personId)}`,
-                  amount: e.amount,
-                })),
-              ]
               /**
-               * YOUR INCOME, NOT THE ROOF'S (owner, playing, 2026-08-14:
-               * "The money tab should just have my info i hate how we
-               * include other peoples money in our income, I dont care if
-               * were married lets just keep this info as just all the income
-               * you are receiving for that month").
+               * YOUR MONTH, ITEMISED BY THE ENGINE. `monthAheadFor` is the
+               * single answer to "what does this month do to my money" —
+               * the same one the +/- chip reads and the same one a test
+               * holds against the tick itself.
                *
-               * This ledger listed every earner under the roof — a wife's
-               * service pay, a father-in-law's state pension — under a
-               * heading that read as yours. The costs below genuinely are
-               * the building's and stay, named as the household's; what
-               * comes IN is now only ever this person's.
+               * The household ledger that used to feed this card is gone
+               * from it: it described the BUILDING (every earner under the
+               * roof, every mouth under it) while the heading said "you".
                */
-              const mine = lines.filter((line) => line.key.endsWith(String(person.id)))
-              const draw = businessDrawOf(world, person.id)
-              if (draw > 0) {
-                mine.push({ key: `bd${String(person.id)}`, label: 'Drawn from the business', amount: draw })
+              const month = monthAheadFor(world, person.id)
+
+              /**
+               * EVERY WAY MONEY COMES IN, NOT THE THREE THIS CARD KNEW ABOUT
+               * (owner: "I just did 40k in a month and my screen only shows we
+               * had 5.6k left over the money and said I made 7,177 in wages
+               * and nothing else to justify making 50k we need this screen to
+               * be accurate").
+               *
+               * TWO BUGS, and the second is worse than the missing money.
+               *
+               * The card built its lines from the household ledger — wages,
+               * service pay, pensions, survivor's shares, assistance — and
+               * NOTHING else. Interest on savings and rent from tenanted
+               * property were not lines it could draw, so a man whose savings
+               * and deeds earned him thirty thousand saw a wage and a
+               * shortfall he could not explain.
+               *
+               * And it picked out his lines with `key.endsWith(String(id))` —
+               * a STRING SUFFIX MATCH ON A NUMBER. Player 7 matched `w7`, and
+               * also `w17`, `w27` and `w107`; player 17 matched `w117`. Whose
+               * wages showed up on your statement depended on the person ids
+               * the world happened to allocate.
+               *
+               * `monthAheadFor` is the engine's own itemisation and the same
+               * function the +/- chip reads, so the statement, the chip and
+               * the tick cannot tell three different stories.
+               */
+              const mine: { key: string; label: string; amount: Money }[] = []
+              if (month.earned > 0) {
+                mine.push({ key: 'earned', label: 'Wages and pay — after tax', amount: month.earned })
+              }
+              if (month.draw > 0) {
+                mine.push({ key: 'draw', label: 'Drawn from the business', amount: month.draw })
+              }
+              if (month.rent > 0) {
+                mine.push({ key: 'rent', label: 'Rent from your property', amount: month.rent })
+              }
+              if (month.interest > 0) {
+                mine.push({ key: 'interest', label: 'Interest on your savings', amount: month.interest })
               }
               const comingIn = mine.reduce((sum, line) => sum + line.amount, 0) as Money
+              /**
+               * YOUR MONTH, NOT THE BUILDING'S (owner, playing at twenty:
+               * "Living costs · 8 grown, 3 children ... we are single with no
+               * kids and there no way we are living with this many people ...
+               * I am 20 years old it should just matter how much money I
+               * have, we talked about this the finances need to be of your
+               * own. This is a LIFE SIM").
+               *
+               * He is right and the card was incoherent: income was filtered
+               * to HIM while every cost below it was the whole roof's, and
+               * the old comment here admitted the two "were never meant to
+               * subtract to each other". A twenty-year-old at his parents'
+               * saw eleven mouths and a bill for all of them.
+               *
+               * MEASURED, so the counts are not the bug: households are clean
+               * — zero phantom members across a 46-household town, whose
+               * largest genuinely holds ten. Those eleven people are real.
+               * They are just not HIS eleven, and under H0 a grown child at
+               * home pays for himself and carries none of the rent.
+               *
+               * `monthAheadFor` is the same function the +/- chip reads, so
+               * this card and that number cannot disagree.
+               */
               const mouths = [
-                ledger.adults > 0 ? `${ledger.adults} grown` : null,
-                ledger.children > 0 ? `${ledger.children} ${ledger.children === 1 ? 'child' : 'children'}` : null,
+                month.adults > 0 ? `${month.adults} grown` : null,
+                month.children > 0 ? `${month.children} ${month.children === 1 ? 'child' : 'children'}` : null,
               ].filter((part): part is string => part !== null)
 
               return (
@@ -1769,7 +1787,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         <span className="ledger-label">
                           Rent{home && <span className="muted small"> · {home.name}</span>}
                         </span>
-                        <span className="ledger-amount">−{formatMoney(ledger.rent)}</span>
+                        <span className="ledger-amount">−{formatMoney(month.rentShare)}</span>
                       </li>
                     )}
                     <li className={ledger.homeless ? 'ledger-row out hide' : 'ledger-row out'}>
@@ -1780,7 +1798,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <span className="muted small"> · {ledger.jailed} fed by the county</span>
                         )}
                       </span>
-                      <span className="ledger-amount">−{formatMoney(ledger.livingCosts)}</span>
+                      <span className="ledger-amount">−{formatMoney(month.living)}</span>
                     </li>
                     <li className="ledger-row out">
                       <span className="ledger-label">
@@ -1798,41 +1816,38 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             ? 'belt tightened — nothing spare while behind'
                             : `food, clothes, the car, a night out — ${String(
                                 Math.round(
-                                  (ledger.lifestyle * 100) /
-                                    Math.max(1, ledger.income - ledger.costs),
+                                  (month.lifestyle * 100) /
+                                    Math.max(1, month.earned - month.costs),
                                 ),
                               )}% of what's left after the bills`}
                         </span>
                       </span>
                       <span className="ledger-amount">
-                        {ledger.lifestyle > 0 ? `−${formatMoney(ledger.lifestyle)}` : formatMoney(0 as Money)}
+                        {month.lifestyle > 0 ? `−${formatMoney(month.lifestyle)}` : formatMoney(0 as Money)}
                       </span>
                     </li>
-                    {ledger.salesTax > 0 && (
-                      <li className="ledger-row out">
-                        <span className="ledger-label">
-                          Sales tax
-                          <span className="muted small"> · on the day-to-day spending</span>
-                        </span>
-                        <span className="ledger-amount">−{formatMoney(ledger.salesTax)}</span>
-                      </li>
-                    )}
+                    {/* The sales tax rides inside the day-to-day line now —
+                        it is charged ON that spending, and two rows for one
+                        decision made the card longer without making it
+                        clearer. */}
                     <li className="ledger-row subtotal">
-                      <span className="ledger-label">Going out — the household</span>
+                      <span className="ledger-label">Going out — you</span>
                       <span className="ledger-amount">
-                        {formatMoney((ledger.costs + ledger.lifestyle + ledger.salesTax) as Money)}
+                        {formatMoney((month.costs + month.lifestyle) as Money)}
                       </span>
                     </li>
-                    <li className={ledger.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
-                      {/* NAMED, so the arithmetic on this screen is honest:
-                          what comes IN is yours, what goes OUT is the
-                          building's, and these two figures were never meant
-                          to subtract to each other. */}
-                      <span className="ledger-label">Left over — the household</span>
+                    <li className={month.net < 0 ? 'ledger-row total short' : 'ledger-row total'}>
+                      {/* AND NOW IT SUBTRACTS. The old note here admitted the
+                          card's own arithmetic did not work — "what comes IN
+                          is yours, what goes OUT is the building's, and these
+                          two figures were never meant to subtract to each
+                          other". Both sides are this person's now, so the
+                          bottom line is the top line minus the middle. */}
+                      <span className="ledger-label">Left over — you</span>
                       <span className="ledger-amount">
-                        {ledger.net < 0
-                          ? `−${formatMoney(-ledger.net as Money)}`
-                          : formatMoney(ledger.net)}
+                        {month.net < 0
+                          ? `−${formatMoney(-month.net as Money)}`
+                          : formatMoney(month.net)}
                       </span>
                     </li>
                   </ul>
