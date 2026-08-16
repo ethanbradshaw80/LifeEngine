@@ -82,6 +82,61 @@ export interface Person {
   readonly fitness?: number
   /** Empty for the founding generation, whose parents are outside the sim. */
   readonly parentIds: readonly EntityId[]
+  /**
+   * WHERE THEY ARE FROM, when it is somewhere other than this town.
+   *
+   * Undefined for everybody the town produced — which is almost everybody,
+   * and why it is optional rather than a field on every person.
+   *
+   * MILITARY_DEPTH_PLAN §9.0, from the owner playing: "its just all towns
+   * people all over the fort bragg and fort riley its just ashwood people...
+   * theres obviously a world outside of ashwood." A garrison is filled from
+   * the whole country, and this is the name of the piece of it somebody came
+   * from.
+   *
+   * IT IS ALSO THE HONEST DISCRIMINATOR. `householdId: null` and
+   * `parentIds: []` both look like "from away" and neither is: the first is
+   * true of anyone between homes, and the second of the entire founding
+   * generation. A probe using them counted a plumber who was born here,
+   * raised three children here and enlisted at 62 as an outsider. Marking
+   * the fact directly is the only way to measure it.
+   */
+  readonly fromAway?: string
+}
+
+/**
+ * SOMEBODY WHO IS NOT IN THIS TOWN — the guard the garrisons made necessary.
+ *
+ * THE MEASUREMENT THAT FORCED IT (military review, must-fix 3, confirmed by
+ * probe at seed 4242 over 60 years): filling the bases from outside the town
+ * put 507 soldiers in the world, and the town's own passes reached straight
+ * into them — **245 courtships and 78 marriages while the soldier was still
+ * serving**, plus crimes taking one as a victim.
+ *
+ * The reviewer was right and the first probe was wrong. `householdId: null`
+ * was never a containment rule: `couldCourt` gates on sex, age, kin and an
+ * existing partner and asks nothing about place, and `formFriendships` treats
+ * household and neighbourhood as WEIGHTS rather than gates. Five invented
+ * squadmates per tour made that a rounding error. A permanent garrison makes
+ * it structural — a hundred unattached soldiers standing in the town's
+ * marriage market, at a base that may be two thousand miles away.
+ *
+ * It also threatened real money damage. H0 seats a married couple's shared
+ * wallet on the LOWER personId, and a soldier who arrived in 1974 outranks a
+ * townsperson born in 1990 on that test — so the town's wallet could come to
+ * rest on somebody who has no household to spend it from.
+ *
+ * SETTLING HERE IS THE WAY BACK IN, and it is deliberate: somebody who
+ * separates and takes a house in this town is IN this town, and the passes
+ * should have them. What the guard excludes is people who are elsewhere.
+ *
+ * This is a stopgap with a name, not a second person tier. The plan's §10.4
+ * wants a life lived around the post — marrying somebody from outside the
+ * gate — and that is a designed feature for a later stage, built on people
+ * the town can actually see. A leak is not that feature.
+ */
+export function isOffMap(person: Person): boolean {
+  return person.fromAway !== undefined && person.householdId === null
 }
 
 // ---------------------------------------------------------------------------

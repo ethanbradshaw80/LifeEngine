@@ -1550,6 +1550,30 @@ export function schoolById(id: string): ServiceSchool | undefined {
  * asks for the badge its road is paved with, the tier above draws from the
  * unit below, and the one at the top draws from either.
  */
+/**
+ * THE REST OF THE COUNTRY (MILITARY_DEPTH_PLAN §9.0).
+ *
+ * Where the people at a garrison came from, when they did not come from this
+ * town. Fictional in every preset, like every other place name this engine
+ * invents, and deliberately ordinary: the point is that they are somewhere
+ * else, not that they are interesting.
+ *
+ * A NAME IS ALL THAT EXISTS. There is no simulation behind these — no
+ * economy, no families, no streets. They are the honest edge of the map: the
+ * world outside the town is real enough to have come from and not real
+ * enough to visit. Modelling a second town is a different project.
+ */
+export const HOMETOWNS_ELSEWHERE: readonly string[] = [
+  'Cold Spring', 'Marysville', 'Pine Bluff', 'Ridgeway', 'Fair Haven',
+  'Little Creek', 'Danville', 'Sycamore', 'Blackwater', 'Kingsport',
+  'Elk River', 'Tanner', 'Cross Plains', 'Dunmore', 'Silver Lake',
+  'New Athens', 'Harlan', 'Fort Grove', 'Millbrook', 'Cedar Falls',
+  'Beaufort', 'Gallatin', 'Red Oak', 'Hollis', 'Wakefield',
+  'Barrow', 'Saint Cloud', 'Pikeville', 'Lynchburg', 'Corinth',
+  'Ashland Gap', 'Truxton', 'Bellhaven', 'Two Rivers', 'Carthage',
+  'Salt Fork', 'Kearney', 'Vandalia', 'Rockport', 'Merritt',
+]
+
 export const SPECIAL_UNITS: readonly SpecialUnit[] = [
   {
     id: 'pathfinders', name: 'the Pathfinder Battalion', tier: 1,

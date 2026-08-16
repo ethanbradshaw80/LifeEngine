@@ -203,8 +203,44 @@ a wide margin, and it is why §16's estimate is shaped the way it is.
 > bad' writting too this sucks this needs to be way more in detail and
 > descriptive as well."*
 
-**Measured, and this is the encouraging part: the simulation already knows
-everything it needs to.** `casualty.ts` computes, for every wound:
+> **CORRECTION — this section's premise was false. Independent review,
+> 2026-08-16, before any code.**
+>
+> An earlier draft opened *"the simulation already knows everything it needs
+> to… no new model is needed, this is a writing job on top of a good
+> simulation"*, and priced it at half a session.
+>
+> **`casualty.ts` is dead code.** `resolveCasualty` and
+> `permanentDisabilityFrom` have **zero call sites in the engine** — the only
+> references are their own definitions, the `index.ts` re-export and their
+> test file. It is a fully written, fully tested, fully exported module that
+> has never run.
+>
+> The live wound path is `health.ts:526` `inflictWound(world, tick, personId,
+> severity, context, rng)`. It takes a **severity scalar 0–1000** and a
+> context, picks kind and site from `wounds.ts`, caps severity by kind, and
+> stores `ailmentKind` / `ailmentSite` / `severity` / `peakSeverity`. **There
+> is no tier, no armour flag and no `minutesToSurgical` anywhere in the
+> running game.** `careShiftFor` is never called on a real wound.
+>
+> So the single most dramatic number in the section — *"what it cost to get
+> him out… already in the model and currently invisible"* — **does not exist
+> at runtime.** A writer working to the old text would have produced seventy
+> pieces keyed on two values the game cannot supply.
+>
+> **The ruling: wire `casualty.ts` into `inflictWound` FIRST, then write the
+> prose.** That is a simulation change, not a writing job: it moves
+> evacuation (`EVACUATES_AT`), wound recognition, permanent disability
+> accrual and the medical board's input. It needs a `SIMULATION_VERSION`
+> bump, three baselines re-pinned, and a rebalance. It is **not** +0.5
+> sessions riding along with the scene pass — see the revised §16.
+>
+> The alternative — leave `casualty.ts` dead and key the prose on
+> `severity`/`kind`/`site` — is cheaper and legitimate, but it throws away
+> the tier model and the minutes, which are the two things that made the four
+> worked examples below land. **Recommend wiring it.**
+
+What `casualty.ts` computes today, correctly and unused:
 
 - **six tiers** — near miss, superficial, walking wounded, serious,
   life-altering, mortal, with the line that matters between 3 and 4
@@ -398,10 +434,44 @@ Three consequences:
 1. **The medical board stops reading a percentage.** It reads severity and
    whether the person can still serve. Healed-up injuries do not board
    anybody out.
-2. **Ratings must COMBINE across conditions.** "Hurt eight times, got 20%" is
-   the bug in one line — it reads like the highest single injury winning.
-   Real combination is not addition (30% and 20% make 44%, rounded to 40%),
-   but eight rated conditions land far above 20%.
+2. **~~Ratings must COMBINE across conditions.~~ WRONG — corrected by
+   independent review, 2026-08-16, before any code.**
+
+   The earlier text said *"it reads like the highest single injury winning"*
+   and asked for VA-style diminishing combination. **Ratings already combine,
+   and they combine by straight addition** — `health.ts:419-422`:
+   `disability = Math.min(1000, disability + added)`. The only `Math.max` in
+   the whole path is `benefits.ts:98`, and it maxes the carried ledger against
+   the board's granted rating — two views of ONE claim, not two conditions.
+
+   **Building what I wrote would have made his number worse.** Replacing
+   addition with diminishing combination lowers every rating in every existing
+   save, and moves "hurt eight times, got 20%" DOWN.
+
+   **The real cause is three gates upstream of any combining**, at
+   `health.ts:435`:
+
+   - **A floor.** `peakSeverity >= 500` or the wound leaves nothing, ever.
+   - **A roll.** `rng.chance(peakSeverity, 2600)` — a peak-700 wound has a
+     **27% chance** of leaving anything at all. Three in four qualifying
+     wounds vanish without a trace.
+   - **A divisor.** `added = peak / 9`, so a qualifying peak-700 wound that
+     passes the roll is worth **78 points ≈ 7.8%**.
+
+   Eight wounds → about two leave a mark → ~160 points → **16%**, rounded up
+   by the board roll to almost exactly the 20% he reported. **His report
+   reproduces from the code.**
+
+   And the function actually designed to answer "what did this cost for life"
+   — `permanentDisabilityFrom(tier, site)` — is part of the dead
+   `casualty.ts` (§4.4c) and returns **0 for every tier below 5**. A tier-4
+   wound, the one where the bird came and the tour ended, is worth nothing
+   permanently.
+
+   **So the fix is the acquisition gate, not the arithmetic:** the roll, the
+   divisor, the floor, and wiring `permanentDisabilityFrom` in. Note also
+   `PENSION_THRESHOLD = 200` — under 20% pays nothing at all, so the cliff he
+   felt is real.
 3. **You can be rated for things that never boarded you.** You served your
    twenty fine and it caught up afterwards — the normal case, and there is no
    path for it today. The unglamorous conditions belong here: hearing and
@@ -440,6 +510,36 @@ Then:
 **This is the foundation the rest of §9 stands on, and it changes the shape of
 the update.** A base full of the same forty townspeople is the tell that the
 world ends at the town line.
+
+> **CORRECTION, 2026-08-16, before any code was written.** An earlier draft of
+> this section said *"most people are in no unit at all"*, from reading
+> `record.unitId` and finding it null for everyone outside the six special
+> units. **That was wrong, and it mattered.** `service.ts` derives an ordinary
+> unit from **posting + branch** (`subUnitOf` → "1st Squad, A Company") and
+> `rosterFrom` builds a real roster from it — living, serving, sorted by who
+> actually answers for the rest, with squad leader and platoon sergeant roles
+> and a special unit correctly overriding the station. That machinery exists,
+> works, and is already on screen.
+>
+> **So the defect is not missing structure. It is two other things, and both
+> are exactly what he reported.**
+>
+> **One — the population.** `world.service` has exactly ONE source: a
+> townsperson enlisting (`service.ts:1480`). Nobody else ever gets a service
+> record. So every roster at every base is necessarily Ashwood people, because
+> Ashwood people are the only people who exist. *"its just all towns people
+> all over the fort bragg and fort riley."*
+>
+> **Two — two parallel roads.** The home-station roster above is real. The
+> deployment squad is a **completely separate system** — `spinUpSquad` invents
+> five strangers per tour who belong to no unit and vanish when it ends. That
+> is the documented failure shape in `RESUME.md`, and it is precisely *"you
+> never actually deploy with someone from your unit even when it says your
+> unit is taking volunteers."*
+>
+> **This makes Stage 1 cheaper and better aimed than planned.** We are not
+> building a roster system. We are giving the existing one people, and
+> deleting the second road.
 
 **The good news, measured:** the architecture for people-from-elsewhere
 **already exists and already works.** `spinUpSquad` registers real `Person`

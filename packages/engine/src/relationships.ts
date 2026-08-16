@@ -27,6 +27,7 @@ import { looksOf } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
 import { openStream, Stream, type Rng } from './rng.js'
 import type { CausalFactor, Person, Relationship, World } from './types.js'
+import { isOffMap } from './types.js'
 import { relationshipKey } from './types.js'
 
 // --- Tunables ---------------------------------------------------------------
@@ -185,6 +186,12 @@ function couldCourt(
   partners?: ReadonlyMap<EntityId, EntityId>,
 ): boolean {
   if (a.sex === b.sex) return false // simplification — see the note in §Births
+  // NOT SOMEBODY WHO IS NOT HERE. This function gates on sex, age, kin and an
+  // existing partner and has never asked where either person lives, because
+  // until the garrisons were filled from outside the town, everybody was
+  // here. Measured at seed 4242 over 60 years, without this line: 245
+  // courtships and 78 marriages to soldiers stationed elsewhere.
+  if (isOffMap(a) || isOffMap(b)) return false
   const aPartnered = partners !== undefined ? partners.has(a.id) : partnerOf(world, a.id) !== null
   const bPartnered = partners !== undefined ? partners.has(b.id) : partnerOf(world, b.id) !== null
   if (aPartnered || bPartnered) return false
@@ -239,7 +246,21 @@ function livingSorted(world: World): Person[] {
 }
 
 export function runRelationships(world: World, tick: Tick): void {
-  const living = livingSorted(world)
+  /**
+   * THE TOWN'S SOCIAL PASSES SEE THE TOWN, and the filter is here rather
+   * than inside them for a measured reason.
+   *
+   * `formFriendships` is living × living. Filling the garrisons from outside
+   * the town roughly DOUBLED the population, which quadrupled that pass: the
+   * engine suite went from ~450s to 3,424s with two tests timing out at 900s.
+   * Guarding inside the inner loop does not help — the cost is the iteration,
+   * not the work skipped.
+   *
+   * Filtering once, here, takes the soldiers out of the town's quadratic work
+   * entirely. They are not idle: their own systems (service, schools, boards,
+   * deployment) walk `world.service`, which is the right size for them.
+   */
+  const living = livingSorted(world).filter((person) => !isOffMap(person))
   if (living.length < 2) return
 
   decayAndReinforce(world, tick)

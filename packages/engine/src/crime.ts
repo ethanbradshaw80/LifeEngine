@@ -61,6 +61,7 @@ import { discharge as dischargeService, isServing } from './service.js'
 import { fullName } from './story.js'
 import { sentenceInWords } from './text.js'
 import type { CriminalRecord, Person, World, Conviction, GateStrength, Disposition } from './types.js'
+import { isOffMap } from './types.js'
 
 /** Sentences and gates. RECORD_GATE_YEARS lives in content.ts so
  *  service.ts, which cannot import this module, reads the same number. */
@@ -936,6 +937,11 @@ function resolveViolence(
   for (const person of world.people.values()) {
     if (person.id === offender.id || person.deathTick !== null) continue
     if (ageAt(person.birthTick, tick) < 16) continue
+    // "AND IN THE TOWN" — which this loop has always claimed and never
+    // checked. Harmless while the only people elsewhere were five invented
+    // squadmates; a garrison of soldiers at a base two thousand miles away
+    // made it a townsman mugging a sergeant he has never met.
+    if (isOffMap(person)) continue
     candidates.push(person)
   }
   if (candidates.length === 0) return offence

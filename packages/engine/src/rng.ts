@@ -89,6 +89,17 @@ export const Stream = {
    * every promotion review in the county.
    */
   Sports: 17,
+  /**
+   * Appended for the military depth update, by the sanctioned path: the
+   * force that exists OUTSIDE the player's town — who arrives at a station,
+   * at what rank, with how many years already behind them.
+   *
+   * Its own stream because the intake runs per base per month for the whole
+   * length of a save. Sharing `Service` would have meant a soldier posting
+   * into a garrison in 1974 re-rolled every entry test, officer board and
+   * recruiting scene for the next hundred and fifty years.
+   */
+  ServiceIntake: 18,
 } as const
 
 export type StreamId = (typeof Stream)[keyof typeof Stream]

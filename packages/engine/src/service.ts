@@ -65,6 +65,7 @@ import {
   POINTS_PER_VALOR,
   POINTS_PER_WOUND_RECOGNITION,
   SERVICE_TERM_MONTHS,
+  HOMETOWNS_ELSEWHERE,
   specialtyTitleFor,
   servicePayOn,
   officerPayOn,
@@ -78,7 +79,8 @@ import type { NewsItem } from './geopolitics.js'
 import type { ServiceSchool, ServiceSpecialty } from './content.js'
 import { educationRank, meetsRequirement } from './content.js'
 import { isDeployed } from './deployment.js'
-import { inflictWound, isSeverelyAiling } from './health.js'
+import { freshHealth, inflictWound, isSeverelyAiling } from './health.js'
+import { rollTraits } from './worldgen.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
@@ -1574,7 +1576,269 @@ export function recruitingDriveActive(world: World, tick: Tick): boolean {
   return rng.chance(1, 3)
 }
 
+// ---------------------------------------------------------------------------
+// THE FORCE FROM OUTSIDE THE TOWN (MILITARY_DEPTH_PLAN §9.0)
+// ---------------------------------------------------------------------------
+/**
+ * THE BUG, reported by the owner playing: "Right now its just all towns
+ * people all over the fort bragg and fort riley its just ashwood people...
+ * theres obviously a world outside of ashwood."
+ *
+ * He is right, and the cause is one line rather than a missing system.
+ * `world.service` had exactly ONE source — `enlistPerson`, called on a
+ * townsperson. Nobody else in the world could ever hold a service record. So
+ * every garrison at every station was necessarily made of the same forty
+ * neighbours, not because the roster was fake but because they were the only
+ * people who existed.
+ *
+ * THE ROSTER MACHINERY IS ALREADY REAL and is deliberately left alone:
+ * `subUnitOf` derives the sub-unit from the posting, `rosterFrom` builds it
+ * from living undischarged records, sorts by who actually answers for the
+ * rest, and names a squad leader. It has never been short of structure. It
+ * has been short of PEOPLE.
+ *
+ * So this pass adds people, and nothing else. They flow through the promotion
+ * pass, the schoolhouse, the boards, the terms and the deployment system
+ * exactly as a townsperson does, because they hold the same record.
+ *
+ * WHAT KEEPS THEM OUT OF THE TOWN is what already keeps `spinUpSquad`'s
+ * squadmates out of it, and it is not a new concept: `householdId: null`,
+ * no employment record, no education record, `tier: 'deep'`. The employment
+ * pass skips them twice over (serving, and no education row); the household,
+ * housing and inheritance passes have nothing to hold on to.
+ *
+ * THEY ARRIVE AT EVERY RANK, and that is the honest part rather than a
+ * shortcut. A garrison is not a pile of recruits — people transfer in from
+ * other postings with ten years behind them, and that is exactly why a unit
+ * a player joins is already a unit. Nothing is invented backwards: a sergeant
+ * first class who posts in has the years because people who post in have
+ * years, not because the save wrote him a history.
+ */
+
+/** People one station's branch should carry before intake stops. */
+const GARRISON_TARGET = 14
+/** Most arrivals in a month, so a new world fills over years, not decades. */
+const ARRIVALS_PER_MONTH = 2
+
+/**
+ * WHAT A POSTING-IN LOOKS LIKE: rank, and the years that go with it.
+ *
+ * Weighted toward the bottom because armies are, but with enough senior
+ * people that a roster has somebody to answer for it. `years` is time already
+ * served elsewhere, which is what makes the rank honest.
+ */
+const ARRIVAL_GRADES: readonly { rank: number; years: number; weight: number }[] = [
+  { rank: 0, years: 0, weight: 300 },
+  { rank: 1, years: 2, weight: 240 },
+  { rank: 2, years: 4, weight: 190 },
+  { rank: 3, years: 7, weight: 130 },
+  { rank: 4, years: 10, weight: 80 },
+  { rank: 5, years: 14, weight: 40 },
+  { rank: 6, years: 18, weight: 20 },
+]
+
+/**
+ * A SOLDIER WHO SEPARATES AND IS NOT FROM HERE GOES HOME.
+ *
+ * MEASURED, and it is the whole cost of this feature: at seed 4242 over 60
+ * years, 369 people from away were alive against a town of 116 — a garrison
+ * of about 84 and roughly 280 GHOSTS. Discharged, still alive, no household,
+ * no job, no place, doing nothing, iterated by every pass that walks the
+ * living for the rest of the century. The tick cost doubled (4,973 → 9,552 ms
+ * for 60 years) and the whole engine suite went from ~450s to 3,424s.
+ *
+ * They were never meant to stay. The world outside the town is real enough to
+ * have come from and is not simulated — so when service ends, somebody whose
+ * life is elsewhere goes back to it, and this engine stops carrying them.
+ *
+ * WHAT IS KEPT: the ledger. Their events, their service record and anything
+ * they did stay exactly where they are, because Law 6 says history persists
+ * and because a squadmate who died is a fact about the player's life. Only
+ * the LIVING person is released.
+ *
+ * WHO IS NEVER RELEASED, and this is the important half:
+ *   - anybody the town took in (a household means they live here now)
+ *   - anybody with a relationship to anyone — a friend, a spouse, a tie of
+ *     any kind
+ *   - anybody in a deployment squad, the player's or otherwise
+ *   - the player
+ *   - the dead, who are already history
+ */
+function sendThemHome(world: World): void {
+  const spoken = new Set<EntityId>()
+  for (const relationship of world.relationships.values()) {
+    spoken.add(relationship.a)
+    spoken.add(relationship.b)
+  }
+  for (const tours of world.deployments.values()) {
+    for (const deployment of tours) {
+      for (const member of deployment.squad ?? []) spoken.add(member.personId)
+    }
+  }
+
+  for (const person of [...world.people.values()]) {
+    if (person.fromAway === undefined) continue
+    if (person.householdId !== null) continue
+    if (person.deathTick !== null) continue
+    if (person.id === world.player.personId) continue
+    if (spoken.has(person.id)) continue
+    const record = world.service.get(person.id)
+    if (record === undefined || record.dischargedAtTick === null) continue
+
+    world.people.delete(person.id)
+    world.health.delete(person.id)
+    world.service.delete(person.id)
+  }
+}
+
+/** How many living, undischarged people hold this posting in this branch. */
+function garrisonStrength(world: World, baseId: EntityId, branchId: string): number {
+  let held = 0
+  for (const record of world.service.values()) {
+    if (record.dischargedAtTick !== null) continue
+    if (record.baseId !== baseId || record.branch !== branchId) continue
+    const person = world.people.get(record.personId)
+    if (!person || person.deathTick !== null) continue
+    held += 1
+  }
+  return held
+}
+
+/**
+ * Bring the garrisons up to strength with people from outside the town.
+ *
+ * Runs before the month's per-person service pass so somebody who arrives is
+ * on the roster the same month rather than the next one.
+ */
+export function runServiceIntake(world: World, tick: Tick): void {
+  sendThemHome(world)
+  for (const branch of world.spec.branches) {
+    const specialties = world.spec.specialties.filter((s) => s.branch === branch.id)
+    if (specialties.length === 0) continue
+
+    for (const base of basesFor(world, branch.id)) {
+      const short = GARRISON_TARGET - garrisonStrength(world, base.id, branch.id)
+      if (short <= 0) continue
+
+      const rng = openStream(world.seed, Stream.ServiceIntake, base.id, tick)
+      const arriving = Math.min(short, ARRIVALS_PER_MONTH)
+      for (let n = 0; n < arriving; n += 1) {
+        postIn(world, tick, base, branch.id, specialties, rng)
+      }
+    }
+  }
+}
+
+/** One person, posted in from somewhere that is not this town. */
+function postIn(
+  world: World,
+  tick: Tick,
+  base: Place,
+  branchId: string,
+  specialties: readonly ServiceSpecialty[],
+  rng: Rng,
+): void {
+  const grade =
+    rng.pickWeighted(
+      ARRIVAL_GRADES.map((g) => g),
+      ARRIVAL_GRADES.map((g) => g.weight),
+    ) ?? ARRIVAL_GRADES[0]
+  if (grade === undefined) return
+
+  const specialty = specialties[rng.nextInt(0, specialties.length)]
+  if (specialty === undefined) return
+
+  const id = world.nextEntityId as EntityId
+  world.nextEntityId += 1
+
+  /**
+   * ROUGHLY ONE IN SIX IS A WOMAN. A single rate across a hundred and fifty
+   * years is the honest limit of what is modelled today — the real share
+   * climbed steeply over that span and the trades open to it changed with
+   * the law. Flagged rather than faked; it belongs with era modelling, not
+   * here.
+   */
+  const female = rng.chance(1, 6)
+  const given = female
+    ? rng.pickWeighted(world.spec.femaleGiven.names, world.spec.femaleGiven.weights)
+    : rng.pickWeighted(world.spec.maleGiven.names, world.spec.maleGiven.weights)
+
+  // Eighteen at enlistment plus the years already served, so the age and the
+  // rank agree with each other.
+  const age = 18 + grade.years + rng.nextIntInclusive(0, 4)
+  const person: Person = {
+    id,
+    givenName: given,
+    familyName: rng.pickWeighted(world.spec.family.names, world.spec.family.weights),
+    sex: female ? 'female' : 'male',
+    birthTick: (tick - age * 12) as Tick,
+    deathTick: null,
+    causeOfDeath: null,
+    tier: 'deep',
+    traits: rollTraits(openStream(world.seed, Stream.PersonTraits, id, 0)),
+    householdId: null,
+    parentIds: [],
+    spendStance: null,
+    fromAway: rng.pick(HOMETOWNS_ELSEWHERE),
+  }
+  world.people.set(id, person)
+  world.health.set(id, freshHealth(id))
+
+  const branch = branchSpecFor(world, branchId)
+  const enlistedAtTick = (tick - grade.years * 12) as Tick
+  // Somewhere inside the current grade, so a garrison does not promote in
+  // lockstep — and somewhere inside the current term, so it does not all
+  // come up for reenlistment in the same month either.
+  const rankSinceTick = (tick - rng.nextIntInclusive(0, 30)) as Tick
+
+  world.service.set(id, {
+    personId: id,
+    branch: branchId,
+    specialtyId: specialty.id,
+    unitSinceTick: null,
+    commissioned: false,
+    rank: grade.rank,
+    rankSinceTick,
+    qualifications: [],
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
+    enlistedAtTick,
+    baseId: base.id,
+    monthlyPay: servicePayOn(branch, grade.rank),
+    performance: Math.floor((person.traits.diligence + 500) / 2),
+    termMonthsLeft: rng.nextIntInclusive(6, SERVICE_TERM_MONTHS),
+    termMonths: SERVICE_TERM_MONTHS,
+    dischargedAtTick: null,
+    dischargeReason: null,
+    termPerformanceSum: 0,
+    unitId: null,
+    schoolId: null,
+    schoolStartsAtTick: null,
+    fitnessTestedAtTick: null,
+    aptitude: entryTestScore(world, id),
+    track: 'enlisted',
+  })
+
+  /**
+   * NO 'enlisted' EVENT. They did not enlist here and they did not enlist
+   * now — the event would put a stranger's swearing-in on this town's
+   * timeline and date it wrong by up to eighteen years. What the ledger
+   * gets is the thing that actually happened in this town this month: a
+   * soldier reported to the station.
+   */
+  recordEvent(world, tick, {
+    type: 'changed-post',
+    subjectId: id,
+    placeId: base.id,
+    detail: base.name,
+  })
+}
+
 export function runService(world: World, tick: Tick): void {
+  // THE GARRISONS COME UP TO STRENGTH FIRST, so somebody who posts in this
+  // month is on the roster this month.
+  runServiceIntake(world, tick)
+
   // BAND 3 CONVENES BEFORE THE MONTH IS SERVED. The annual boards are a
   // cross-person comparison — a fixed number of seats competed for — so
   // they cannot live inside the per-person pass the way the points path
