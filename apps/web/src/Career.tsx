@@ -36,6 +36,7 @@ import {
 import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
 import { formatMoney } from '@life-engine/shared'
+import { pathsFor } from '@life-engine/engine'
 import type { VerbRequest } from './engine.worker.js'
 
 type CareerTab = 'over' | 'ladder' | 'resume'
@@ -225,6 +226,58 @@ export function Career({
 
         {tab === 'ladder' && (
           <section className="career-card">
+            {/*
+              A JOB ON ONE OF THE NEW LADDERS SHOWS THAT LADDER (owner: "when
+              you go to 'career' and 'ladder' it doesnt show the actual ladder
+              for that job").
+
+              This panel only ever knew about `trackId`, the older nine-track
+              system. A job taken from the Jobs screen carries `pathId`
+              instead and left `trackId` null, so the one screen whose entire
+              job is to draw your ladder told you that you were not on one.
+            */}
+            {(() => {
+              const onPath = pathsFor(world).find((view) => view.current)
+              if (onPath === undefined) return null
+              const here = onPath.rungs.find((rung) => rung.held)
+              return (
+                <>
+                  <h4>{onPath.name}</h4>
+                  <ol className="rungs">
+                    {onPath.rungs.map((rung) => {
+                      const state =
+                        here === undefined
+                          ? 'future'
+                          : rung.level < here.level
+                            ? 'done'
+                            : rung.level === here.level
+                              ? 'here'
+                              : 'future'
+                      return (
+                        <li key={rung.id} className={`rung ${state}`}>
+                          <span className="dot" />
+                          <span className="t">
+                            {rung.title}
+                            {state === 'here' && ' — you'}
+                            <span className="s">
+                              {formatMoney(annualPay(rung.monthlyPay))}
+                              {state === 'future' && rung.asks.length > 0 && (
+                                <> · {rung.asks.join(' · ')}</>
+                              )}
+                            </span>
+                            {state === 'future' && rung.bars.length > 0 && (
+                              <span className="s bad">{rung.bars[0]}</span>
+                            )}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                </>
+              )
+            })()}
+            {pathsFor(world).some((view) => view.current) ? null : (
+              <>
             <h4>{track === undefined ? 'No ladder' : track.title}</h4>
             {track === undefined || place === undefined ? (
               <p className="career-note">
@@ -282,6 +335,8 @@ export function Career({
                 )
               })()}
               </ol>
+            )}
+              </>
             )}
           </section>
         )}

@@ -156,6 +156,19 @@ export const MAJORS: readonly Major[] = [
   { id: 'criminal-justice', title: 'criminal justice', forLevel: 'college', curiosity: 420, diligence: 560 },
   { id: 'liberal-arts', title: 'liberal arts', forLevel: 'college', curiosity: 820, diligence: 380 },
   { id: 'science', title: 'the sciences', forLevel: 'college', curiosity: 880, diligence: 700 },
+  /**
+   * THE DEGREES THE NEW LADDERS ASK FOR (owner: "with new jobs we need to
+   * make sure we are offering the college degree path that are required in
+   * the school degrees").
+   *
+   * The jobs revamp added ladders whose upper rungs want a degree — an
+   * accountant cannot be made without one, and an attorney needs the
+   * postgraduate step — and the schoolhouse had no field that pointed at
+   * either. `accounting` and `law` close that: a player can now read for the
+   * thing the job in front of them actually requires.
+   */
+  { id: 'accounting', title: 'accounting', forLevel: 'college', curiosity: 420, diligence: 780 },
+  { id: 'law', title: 'law', forLevel: 'college', curiosity: 700, diligence: 760 },
   { id: 'construction', title: 'construction', forLevel: 'trade', curiosity: 300, diligence: 620 },
   { id: 'machining', title: 'machining', forLevel: 'trade', curiosity: 480, diligence: 720 },
   { id: 'electrical', title: 'electrical work', forLevel: 'trade', curiosity: 540, diligence: 700 },
@@ -198,7 +211,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'electrician', title: 'electrician', requires: 'trade', minMonthlyPay: dollars(500), maxMonthlyPay: dollars(875), preferredMajors: ['electrical'] },
   { id: 'teacher', title: 'teacher', requires: 'college', minMonthlyPay: dollars(604), maxMonthlyPay: dollars(1_021), preferredMajors: ['education'] },
   // Upper-middle — $100k to $150k.
-  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(646), maxMonthlyPay: dollars(1_104), preferredMajors: ['business'] },
+  { id: 'accountant', title: 'accountant', requires: 'college', minMonthlyPay: dollars(646), maxMonthlyPay: dollars(1_104), preferredMajors: ['accounting', 'business'] },
   { id: 'pharmacist', title: 'pharmacist', requires: 'college', minMonthlyPay: dollars(1_198), maxMonthlyPay: dollars(1_667), preferredMajors: ['health', 'science'] },
   { id: 'engineer', title: 'engineer', requires: 'college', minMonthlyPay: dollars(792), maxMonthlyPay: dollars(1_312), preferredMajors: ['engineering', 'science'] },
   // Professional — $150k and up.
@@ -254,7 +267,7 @@ export const OCCUPATIONS: readonly Occupation[] = [
   { id: 'sergeant', title: 'police sergeant', requires: 'secondary', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_312), preferredMajors: ['criminal-justice'] },
   { id: 'police-chief', title: 'chief of police', requires: 'secondary', minMonthlyPay: dollars(1_042), maxMonthlyPay: dollars(1_583), preferredMajors: ['criminal-justice'] },
 
-  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_271), preferredMajors: ['business'] },
+  { id: 'senior-accountant', title: 'senior accountant', requires: 'college', minMonthlyPay: dollars(812), maxMonthlyPay: dollars(1_271), preferredMajors: ['accounting', 'business'] },
   { id: 'partner', title: 'partner', requires: 'college', minMonthlyPay: dollars(1_458), maxMonthlyPay: dollars(2_396), preferredMajors: ['business'] },
 ]
 

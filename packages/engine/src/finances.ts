@@ -4021,6 +4021,7 @@ export function windDownBusiness(world: World, tick: Tick, businessId: EntityId)
   const shelf = ops === undefined ? 0 : Math.floor((ops.stockCents * 620) / 1000)
   creditPerson(world, business.ownerId, (business.capital + shelf) as Money)
   world.businesses.set(businessId, { ...business, capital: 0 as Money, closedTick: tick })
+  layOffTheStaffOf(world, tick, businessId, business.name)
   world.capTables.delete(businessId)
   world.businessOps.delete(businessId)
   world.expansions.delete(businessId)
@@ -4125,6 +4126,7 @@ export function acquireRival(
     capital: (buyerNow.capital + rival.capital) as Money,
   })
   world.businesses.set(rival.id, { ...rival, capital: 0 as Money, closedTick: tick })
+  layOffTheStaffOf(world, tick, rival.id, rival.name)
   world.capTables.delete(rival.id)
   world.expansions.delete(rival.id)
 
@@ -4204,6 +4206,7 @@ export function passOnBusinesses(world: World, tick: Tick, deceasedId: EntityId)
     if (business.ownerId !== deceasedId || business.closedTick !== null) continue
     if (heirId === null) {
       world.businesses.set(business.id, { ...business, closedTick: tick })
+      layOffTheStaffOf(world, tick, business.id, business.name)
       recordEvent(world, tick, {
         type: 'business-closed',
         subjectId: deceasedId,
@@ -4867,6 +4870,7 @@ function runBusinesses(world: World, tick: Tick): void {
         badMonths,
         closedTick: tick,
       })
+      layOffTheStaffOf(world, tick, business.id, business.name)
       creditPerson(world, business.ownerId, Math.max(0, business.capital - loss) as Money)
       recordEvent(world, tick, {
         type: 'business-closed',
@@ -4899,6 +4903,33 @@ function runBusinesses(world: World, tick: Tick): void {
  * M-SAFETY §4. THE INSURANCE STARTS. Called by the layoff, and only by the
  * layoff — the qualifying condition is the whole point of it.
  */
+/**
+ * THE DOORS SHUT, SO THE STAFF GO HOME — THE SAME MONTH (invariant test).
+ *
+ * `runClosureLayoffs` in `systems.ts` clears these, but employment runs at
+ * tick.ts:133 and finances at :146, so a business that closes here leaves
+ * its people recorded at a shuttered firm until the NEXT month's employment
+ * pass. A one-month window, latent since businesses could close at all, and
+ * invisible until a change elsewhere moved a closure onto the tick the
+ * invariant sweep samples: "364 still works at closed business Smith &
+ * Sons".
+ *
+ * Closing at the chokepoint instead. `runClosureLayoffs` stays as the belt
+ * to this pair of braces — it costs one map walk and catches anything that
+ * closes a business without coming through here.
+ */
+function layOffTheStaffOf(world: World, tick: Tick, businessId: EntityId, name: string): void {
+  for (const [personId, job] of [...world.employment].sort((a, b) => a[0] - b[0])) {
+    if (job.workplaceId !== businessId) continue
+    const person = world.people.get(personId)
+    if (person === undefined || person.deathTick !== null) continue
+    world.employment.delete(personId)
+    startUnemployment(world, personId, tick)
+    recordEvent(world, tick, { type: 'laid-off', subjectId: personId, detail: name })
+    recordEvent(world, tick, { type: 'left-job', subjectId: personId, detail: 'the firm closed' })
+  }
+}
+
 export function startUnemployment(world: World, personId: EntityId, tick: Tick): void {
   const accounts = accountsOf(world, personId)
   if (accounts.lastMonthlyPay <= 0) return

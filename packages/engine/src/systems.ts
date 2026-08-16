@@ -979,7 +979,27 @@ export function enrolmentBar(world: World, person: Person, tick: Tick): string |
       ? null
       : 'Graduate programmes want a stronger record than this one.'
   }
-  if (education.level !== 'secondary') return 'The schooling already stands.'
+  /**
+   * A TRADE IS NOT A LIFE SENTENCE (owner, playing: "once you go to school
+   * that path is now locked and you cant go back to college if you went to
+   * say trade school so if you wanted to move to another industry you
+   * couldnt").
+   *
+   * This read `level !== 'secondary'` and refused everybody else, which
+   * meant finishing trade school at nineteen closed the door to a degree for
+   * ever — and with it every ladder that asks for one. A welder who wanted
+   * to become a nurse simply could not, at any age, for any money.
+   *
+   * The rule it was reaching for is that you cannot re-sit what you already
+   * hold. So: anything BELOW a degree can still go and get one, which lets
+   * trade school be a start rather than a ceiling (Law 7 — failure and
+   * detours both keep a way forward). A degree already held goes to the
+   * graduate branch above; a postgraduate qualification is the end of the
+   * road this system models.
+   */
+  if (educationRank(education.level) >= educationRank('college')) {
+    return 'The schooling already stands.'
+  }
   return null
 }
 

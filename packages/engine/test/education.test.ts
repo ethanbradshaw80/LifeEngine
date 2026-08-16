@@ -812,3 +812,66 @@ describe('living in halls', () => {
     expect(own.education.get(alone.id)?.inHalls).toBe(false)
   })
 })
+
+/**
+ * A TRADE IS A START, NOT A CEILING (owner, playing, 2026-08-15: "once you
+ * go to school that path is now locked and you cant go back to college if
+ * you went to say trade school so if you wanted to move to another industry
+ * you couldnt").
+ *
+ * `enrolmentBar` refused anybody whose level was not exactly 'secondary', so
+ * finishing trade school at nineteen closed the door to a degree for ever —
+ * and with it every career ladder that asks for one. A welder who wanted to
+ * become a nurse could not, at any age, for any money.
+ */
+describe('the schoolhouse takes you back', () => {
+  it('lets a trade-schooled person read for a degree', () => {
+    const own = createWorld(makeSeed(24680), 200)
+    advanceTicks(own, 26 * 12)
+    const person = livingPeople(own).find((candidate) => {
+      const age = ageAt(candidate.birthTick, own.tick)
+      return age >= 19 && age <= 23
+    })
+    expect(person).toBeDefined()
+    if (!person) return
+
+    const record = own.education.get(person.id)
+    expect(record).toBeDefined()
+    if (!record) return
+
+    // Stand them at the end of trade school with nothing enrolled.
+    own.education.set(person.id, { ...record, level: 'trade', enrolledIn: null })
+    expect(
+      enrolmentBar(own, person, own.tick),
+      'trade school closed the door to a degree',
+    ).toBeNull()
+  })
+
+  it('still refuses to re-sit what somebody already holds', () => {
+    // The rule it was reaching for all along. A degree does not go round
+    // again; the step above it has its own bar, on the record rather than
+    // the level.
+    const own = createWorld(makeSeed(24680), 200)
+    advanceTicks(own, 26 * 12)
+    const person = livingPeople(own).find((candidate) => {
+      const age = ageAt(candidate.birthTick, own.tick)
+      return age >= 19 && age <= 23
+    })
+    if (!person) return
+    const record = own.education.get(person.id)
+    if (!record) return
+
+    own.education.set(person.id, { ...record, level: 'graduate', enrolledIn: null })
+    expect(enrolmentBar(own, person, own.tick)).toBe('The schooling already stands.')
+  })
+
+  it('offers the degrees the new ladders actually ask for', () => {
+    // An accountant cannot be made without one and an attorney needs the
+    // step above it; the schoolhouse had no field pointing at either.
+    const fields = majorsFor('college').map((major) => major.id)
+    expect(fields).toContain('accounting')
+    expect(fields).toContain('law')
+    // And the trade fields are untouched.
+    expect(majorsFor('trade').map((major) => major.id)).toContain('electrical')
+  })
+})
