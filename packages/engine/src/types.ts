@@ -102,42 +102,48 @@ export interface Person {
    * the fact directly is the only way to measure it.
    */
   readonly fromAway?: string
+  /**
+   * THE TICK THEY LEFT THE SIMULATED AREA — never set for anybody who lives
+   * here, and never a death.
+   *
+   * OWNER'S RULING, 2026-08-16: *"ashwood is just the town, we are in a world
+   * of other NPC's that we cant control but we can still interact with, get
+   * married with, and all that we can combine the two so that its all
+   * interactive and we dont delete them."*
+   *
+   * So people are NOT deleted — `demographics.ts` states the invariant
+   * outright ("people are never deleted — Law 6") and an earlier draft of the
+   * garrison work broke it. And soldiers posted to a station near this town
+   * are PRESENT: they can be befriended, courted and married, because a
+   * garrison town is exactly where that happens.
+   *
+   * What this marks is the honest remainder. Somebody who finishes their
+   * service, has no household here and no tie to anybody here, goes home —
+   * to a town this engine names but does not simulate. The record stays
+   * forever; the person stops being somewhere the town can reach.
+   */
+  readonly movedAwayTick?: Tick
 }
 
 /**
- * SOMEBODY WHO IS NOT IN THIS TOWN — the guard the garrisons made necessary.
+ * SOMEBODY WHO IS NO LONGER WITHIN REACH OF THIS TOWN.
  *
- * THE MEASUREMENT THAT FORCED IT (military review, must-fix 3, confirmed by
- * probe at seed 4242 over 60 years): filling the bases from outside the town
- * put 507 soldiers in the world, and the town's own passes reached straight
- * into them — **245 courtships and 78 marriages while the soldier was still
- * serving**, plus crimes taking one as a victim.
+ * NOT "from somewhere else" — that was the earlier, wrong rule, and it walled
+ * off the whole garrison. A soldier serving at the station down the road is
+ * here, and the owner's ruling is that he should be as interactive as
+ * anybody: friendship, courtship, marriage, all of it.
  *
- * The reviewer was right and the first probe was wrong. `householdId: null`
- * was never a containment rule: `couldCourt` gates on sex, age, kin and an
- * existing partner and asks nothing about place, and `formFriendships` treats
- * household and neighbourhood as WEIGHTS rather than gates. Five invented
- * squadmates per tour made that a rounding error. A permanent garrison makes
- * it structural — a hundred unattached soldiers standing in the town's
- * marriage market, at a base that may be two thousand miles away.
- *
- * It also threatened real money damage. H0 seats a married couple's shared
- * wallet on the LOWER personId, and a soldier who arrived in 1974 outranks a
- * townsperson born in 1990 on that test — so the town's wallet could come to
- * rest on somebody who has no household to spend it from.
- *
- * SETTLING HERE IS THE WAY BACK IN, and it is deliberate: somebody who
- * separates and takes a house in this town is IN this town, and the passes
- * should have them. What the guard excludes is people who are elsewhere.
- *
- * This is a stopgap with a name, not a second person tier. The plan's §10.4
- * wants a life lived around the post — marrying somebody from outside the
- * gate — and that is a designed feature for a later stage, built on people
- * the town can actually see. A leak is not that feature.
+ * This is the narrow case that remains: service over, no household here, no
+ * tie to anybody here, so they went back to wherever they came from. Their
+ * record is kept in full — Law 6, and because a squadmate is a fact about the
+ * player's life — but the town's passes stop walking them, which is what
+ * keeps a century of arrivals from becoming a century of ghosts.
  */
 export function isOffMap(person: Person): boolean {
-  return person.fromAway !== undefined && person.householdId === null
+  return person.movedAwayTick !== undefined
 }
+
+
 
 // ---------------------------------------------------------------------------
 // The world's preset (W1 — docs/WORLD_MODES_PLAN.md, ADR-0020)

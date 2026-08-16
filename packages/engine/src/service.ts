@@ -1682,15 +1682,23 @@ const ARRIVAL_GRADES: readonly { rank: number; years: number; weight: number }[]
  * and because a squadmate who died is a fact about the player's life. Only
  * the LIVING person is released.
  *
- * WHO IS NEVER RELEASED, and this is the important half:
+ * NOBODY IS DELETED (owner's ruling, 2026-08-16, and `demographics.ts` states
+ * it as an invariant: "people are never deleted — Law 6"). An earlier draft
+ * of this function removed them outright and that was wrong. They are marked
+ * as having gone home, which keeps the record whole and takes them out of the
+ * town's per-tick work.
+ *
+ * WHO NEVER GOES HOME, and this is the important half:
+ *   - anybody still serving — they are AT the station down the road, and the
+ *     owner's ruling is that they are as interactive as anybody here
  *   - anybody the town took in (a household means they live here now)
  *   - anybody with a relationship to anyone — a friend, a spouse, a tie of
- *     any kind
+ *     any kind. Marry a soldier and he does not vanish when he separates
  *   - anybody in a deployment squad, the player's or otherwise
  *   - the player
  *   - the dead, who are already history
  */
-function sendThemHome(world: World): void {
+function sendThemHome(world: World, tick: Tick): void {
   const spoken = new Set<EntityId>()
   for (const relationship of world.relationships.values()) {
     spoken.add(relationship.a)
@@ -1711,9 +1719,7 @@ function sendThemHome(world: World): void {
     const record = world.service.get(person.id)
     if (record === undefined || record.dischargedAtTick === null) continue
 
-    world.people.delete(person.id)
-    world.health.delete(person.id)
-    world.service.delete(person.id)
+    world.people.set(person.id, { ...person, movedAwayTick: tick })
   }
 }
 
@@ -1737,7 +1743,7 @@ function garrisonStrength(world: World, baseId: EntityId, branchId: string): num
  * on the roster the same month rather than the next one.
  */
 export function runServiceIntake(world: World, tick: Tick): void {
-  sendThemHome(world)
+  sendThemHome(world, tick)
   const target = garrisonTargetFor(world)
   for (const branch of world.spec.branches) {
     const specialties = world.spec.specialties.filter((s) => s.branch === branch.id)
