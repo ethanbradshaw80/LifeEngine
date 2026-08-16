@@ -119,6 +119,84 @@ decisive engagement. **If every month is a firefight, no firefight means
 anything.** Heat, waiting, a convoy that arrives without incident, a patrol
 where nothing happens. This is half the repetitiveness fix.
 
+### 4.4b The writing standard — descriptive, everywhere
+
+> Owner: *"make sure we are being descriptive in the combat scenes and our
+> actions are descriptive along with the results and the scenes and
+> everything."*
+
+This is a **hard requirement on all four surfaces**, not a tone note. Today
+the scene is one sentence, the buttons are one word each (`push` / `hold` /
+`cover`), and the result is a status line. All four get rewritten.
+
+**1. The situation is written, not labelled.** Never *"heavy contact."* It
+says who, how many, where, how far, who saw whom, what is within reach, what
+the ground and the light are doing.
+
+**2. The options are written as intentions, not verbs.** Never *"Push."* Each
+option says what you are ordering and what it costs, in the voice of somebody
+who has to decide in four seconds.
+
+**3. The resolution is a narrated sequence**, not an outcome flag. What
+happened, in order, with names. Who moved, who fired, who got hit, how long it
+lasted, how it ended.
+
+**4. The record is a different voice from the moment.** §5.3 — the scene is
+what your character saw; the after-action report is what the institution
+wrote down afterwards, flat and dry.
+
+**Worked example, so we are agreeing on a standard and not a word.**
+
+*The situation:*
+
+> Second squad is strung out along a goat track on the north face when the
+> first burst comes down from the ridge. Volkov is hit before anybody hears
+> the shot. You count muzzle flashes — eight, maybe twelve, dug in above you
+> across a hundred and forty metres of open scree, and they had the whole
+> track sighted before you walked into it. The radio works. Battery is
+> twenty minutes out and the light goes in forty.
+
+*The options:*
+
+> **Get everybody off the track and into the rocks.** Nobody else gets hit
+> in the next thirty seconds. It also puts you pinned on a slope in the dark
+> with a man bleeding.
+>
+> **Put the guns on the ridge and take the squad up the draw.** It is the
+> answer that ends the fight. It is also a hundred and forty metres of open
+> ground with your youngest man on point.
+>
+> **Call for fire and hold what you have.** Twenty minutes is a long time to
+> lie still. It is a short time to be alive if the guns come.
+>
+> **Get Volkov out first.** Everything else waits, and the ridge gets
+> twenty minutes to decide what it wants to do about you.
+
+*The resolution:*
+
+> The guns opened on the ridgeline and you took the squad up the draw with
+> Whitaker on point. It went badly for the first sixty metres and then it
+> went fast. Whitaker was hit in the shoulder halfway up and kept going.
+> You were in the position in under four minutes. Two of them were still
+> there when you came over the lip and neither of them got a shot off.
+>
+> Volkov died on the track while you were on the ridge. Nobody was with him.
+
+*The record, filed eleven days later:*
+
+> 2/B/1-19 IN, engaged from prepared positions vicinity Hill 402 at
+> approximately 1640 hrs. Squad maneuvered under supporting fire and
+> cleared the objective. Enemy strength assessed at 8–10. Enemy losses
+> assessed at 6. Friendly: 1 KIA, 1 WIA (evacuated, returned to duty).
+
+**Note what that last block does.** He counted eight to twelve at the time. The
+record says eight to ten and assesses six dead — a number his character never
+knew and never will. And it does not mention that Volkov died alone, because
+records do not. That gap between the three voices is the entire point.
+
+**The cost, stated plainly:** this is the largest content job in the update by
+a wide margin, and it is why §16's estimate is shaped the way it is.
+
 ### 4.5 Non-combat casualties
 
 Foundation §8 calls them "a real and substantial share of military
@@ -680,3 +758,70 @@ Once people persist, the paperwork means something.
 - **Each stage is a place it is safe to stop.** Stage 1 alone is a better game
   than today; so is Stage 1 + 2. Nothing here is all-or-nothing, and if this
   runs long the release line is between stages.
+
+---
+
+## 16. How long — an honest estimate
+
+**Measured against the two comparable updates we have actually finished**, not
+against a feeling. The careers update (74 ladders, 310 rungs, plus putting the
+town on them) and the economy revamp (18 commits, forecast rebuild, money
+sinks, the housing market) are the right yardsticks — this update is larger
+than either.
+
+The unit here is **a working session of the size we have been running**, not
+calendar time, because calendar time depends entirely on how often he plays
+and reports.
+
+| Stage | Sessions | What drives it |
+|---|---|---|
+| **1 — the roster** | 1–2 | Architecture exists (`spinUpSquad` already registers real people). The work is persistence, unit attachment, the person screen, and the **performance measurement** |
+| **2 — the record** | 2 | Three documents and the disability split. Document-writing is well-trodden here (`contract.ts`, `article15.ts`) |
+| **3 — peacetime** | 2–3 | Eight features, but most are small once Stage 1 exists. Special duty is the big one |
+| **4 — the war** | **4–6** | **The scene rewrite is the whole risk.** See below |
+| **Release** | 1 | Baselines re-pinned, packaged, played, published |
+
+**Total: 10–14 sessions**, and I would not be surprised by 16. Anyone who
+gives a tighter number than that on a job this size is guessing.
+
+### Why Stage 4 is the long pole
+
+**48 specialties across 3 branches**, against **44 scenes today**. If every
+specialty needs its own written encounters — and §4.3 says a medic's contact
+is not a rifleman's — that is not 44 scenes, it is several hundred, each one
+now carrying a written situation, four to six written options, and written
+resolutions per option (§4.4b) instead of one sentence and three words.
+
+**The honest mitigation:** group the 48 specialties into **trade families**
+that genuinely share a kind of day — the ones who close with people, the ones
+who fix things, the ones who fly, the ones who treat casualties, the ones who
+move supplies, the ones on ships. Roughly eight or nine families. Situations
+are then generated per family and coloured by the specific trade, which is
+what makes a hundred and forty written pieces read as thousands rather than
+needing thousands written.
+
+**If that mitigation fails, Stage 4 doubles.** It is the one number in this
+table I hold loosely, and I would rather say so now than discover it in
+week three.
+
+### What would make it longer
+
+- **Performance.** If persistent rosters cost more than the baseline allows,
+  Stage 1 gets a redesign rather than a shrug.
+- **The scene families not holding** (above).
+- **Bugs found in play.** Every update so far has produced them, and they get
+  fixed first — the newborn taking a job at v186.1 is the pattern.
+- **The mandatory review** (`CLAUDE.md` §10) sending work back. That is the
+  process working, but it costs time.
+
+### What is NOT in the estimate
+
+The queued items — the draft, Reserve and Guard, and casualty notification.
+Those are a separate update, later.
+
+### The mitigation that matters most
+
+**Every stage is releasable.** Stage 1 alone puts real, persistent, clickable
+people in the units, which is a better game than today. Stage 1 + 2 gives
+those people paperwork that outlives them. If this runs long — and it may —
+the answer is to ship a stage, not to leave a half-built one in the tree.
