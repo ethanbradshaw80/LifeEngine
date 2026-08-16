@@ -56,6 +56,22 @@ export function yearlyDemographics(world: World): YearDemographics[] {
     return entry
   }
 
+  /**
+   * THIS MODULE MEASURES THE TOWN, and the garrisons made that distinction
+   * load-bearing rather than rhetorical.
+   *
+   * Soldiers posted in from outside (MILITARY_DEPTH_PLAN §9.0) enter this
+   * world already grown and leave it when their service ends. They are never
+   * born here and — unless they die in uniform — never die here either, so
+   * counting them breaks the identity this module exists to guarantee:
+   * growth equals births minus deaths, every year, reconciled to the person.
+   *
+   * They are not this town's demography. They are somebody else's, and that
+   * somewhere is not simulated.
+   */
+  const notOurs = (personId: EntityId): boolean =>
+    world.people.get(personId)?.fromAway !== undefined
+
   for (const event of world.events) {
     const year = toDate(world, event.tick).year
     switch (event.type) {
@@ -63,6 +79,7 @@ export function yearlyDemographics(world: World): YearDemographics[] {
         flowOf(year).births++
         break
       case 'died':
+        if (notOurs(event.subjectId)) break
         flowOf(year).deaths++
         break
       case 'married':
@@ -90,6 +107,9 @@ export function yearlyDemographics(world: World): YearDemographics[] {
   const bornInYear = new Map<number, number>()
   const diedInYear = new Map<number, number>()
   for (const person of world.people.values()) {
+    // The stock has to agree with the flows above, so the same people are
+    // out of both. A soldier posted in has a birth tick in another town.
+    if (person.fromAway !== undefined) continue
     const bornYear = toDate(world, person.birthTick).year
     // Born before the record began — a founder. In ticks that is simply a
     // negative birth tick, which needs no calendar at all (W1).

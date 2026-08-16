@@ -298,9 +298,31 @@ describe('a selected unit is a unit', () => {
     world.service.set(c.personId, { ...c, unitId: 'pathfinders' })
 
     // The new roster is the unit, and ONLY the unit.
+    //
+    // IT USED TO ASSERT `length === 2` — the two people this test put in.
+    // That held only while nobody else in the world could pass selection,
+    // which was true when a station held one or two townspeople and stopped
+    // being true once the garrisons were filled from outside the town
+    // (MILITARY_DEPTH_PLAN §9.0): over forty years, other soldiers now drop
+    // packets and get in, and the roster came back with three.
+    //
+    // So the claim is stated as what it always meant, which is STRONGER than
+    // a count: the roster is exactly the set of living, serving Pathfinders —
+    // no more, and no fewer.
     const after = unitRosterOf(world, a.personId)
     expect(after?.unitName).not.toBe(before?.unitName)
-    expect(after?.members.length).toBe(2)
+
+    const everyPathfinder = [...world.service.values()]
+      .filter((r) => r.unitId === 'pathfinders' && r.dischargedAtTick === null)
+      .filter((r) => world.people.get(r.personId)?.deathTick === null)
+      .map((r) => r.personId)
+      .sort((x, y) => x - y)
+    expect([...(after?.members ?? [])].map((m) => m.personId).sort((x, y) => x - y)).toEqual(
+      everyPathfinder,
+    )
+    expect(after?.members.some((m) => m.personId === a.personId)).toBe(true)
+    expect(after?.members.some((m) => m.personId === c.personId)).toBe(true)
+    expect(after?.members.some((m) => m.personId === b.personId)).toBe(false)
     for (const member of after?.members ?? []) {
       expect(world.service.get(member.personId)?.unitId).toBe('pathfinders')
     }

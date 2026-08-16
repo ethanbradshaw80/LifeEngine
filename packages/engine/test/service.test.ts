@@ -103,7 +103,24 @@ describe('the peacetime career', () => {
         record.commissioned === true
           ? BRANCH_OFFICER_RANKS[record.branch as ServiceBranch]
           : BRANCH_RANKS[record.branch as ServiceBranch]
-      let previous = 0 // everyone starts at the bottom
+      /**
+       * WHERE THEY STARTED — which is the bottom for anybody this town
+       * produced, and is NOT for somebody posted in from another station.
+       *
+       * A soldier who arrives with ten years behind him earned those grades
+       * somewhere this world never simulated (MILITARY_DEPTH_PLAN §9.0), so
+       * his first promotion HERE is legitimately his seventh overall. Holding
+       * him to `previous = 0` reported "A1C → SrA" as a skipped rank.
+       *
+       * The guarantee this test exists for is untouched: consecutive
+       * promotions must still be one step apart, which is what caught the
+       * owner's rifleman "spotted at corporal without ever being PV2". For
+       * townspeople the check still starts at the bottom, so that regression
+       * stays covered exactly as before.
+       */
+      const person = world.people.get(personId as never)
+      const startedElsewhere = person?.fromAway !== undefined
+      let previous = startedElsewhere ? ladder.indexOf(titles[0] ?? '') - 1 : 0
       for (const title of titles) {
         const index = ladder.indexOf(title)
         expect(index, `${title} is not on the ${record.branch} ladder`).toBeGreaterThan(-1)

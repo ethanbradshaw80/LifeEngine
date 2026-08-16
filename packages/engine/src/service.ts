@@ -1615,10 +1615,36 @@ export function recruitingDriveActive(world: World, tick: Tick): boolean {
  * years, not because the save wrote him a history.
  */
 
-/** People one station's branch should carry before intake stops. */
-const GARRISON_TARGET = 14
+/**
+ * HOW BIG A GARRISON IS — a share of the world, not a constant.
+ *
+ * MEASURED: a flat 14 per station per branch put 89 soldiers beside a town of
+ * 100 and tripped the runaway-growth guard (`simulation.test.ts` measured a
+ * 2.04 ratio against a 1.6 ceiling). That guard is right and the constant was
+ * wrong: a preset can ship any town size, and a number that is reasonable at
+ * four hundred people is absurd at a hundred.
+ *
+ * THE FLOOR IS THE POINT OF THE FEATURE. Below about six, a roster stops
+ * reading as a unit and goes back to being a list — which is what this whole
+ * stage exists to fix. So the share is clamped at both ends: never so few that
+ * there is no unit, never so many that the garrison IS the world.
+ */
+const GARRISON_SHARE_PER_MILLE = 60
+const GARRISON_MIN = 5
+const GARRISON_MAX = 14
 /** Most arrivals in a month, so a new world fills over years, not decades. */
 const ARRIVALS_PER_MONTH = 2
+
+function garrisonTargetFor(world: World): number {
+  let townsfolk = 0
+  for (const person of world.people.values()) {
+    if (person.deathTick !== null) continue
+    if (person.fromAway !== undefined) continue
+    townsfolk += 1
+  }
+  const share = Math.floor((townsfolk * GARRISON_SHARE_PER_MILLE) / 1000)
+  return Math.max(GARRISON_MIN, Math.min(GARRISON_MAX, share))
+}
 
 /**
  * WHAT A POSTING-IN LOOKS LIKE: rank, and the years that go with it.
@@ -1712,12 +1738,13 @@ function garrisonStrength(world: World, baseId: EntityId, branchId: string): num
  */
 export function runServiceIntake(world: World, tick: Tick): void {
   sendThemHome(world)
+  const target = garrisonTargetFor(world)
   for (const branch of world.spec.branches) {
     const specialties = world.spec.specialties.filter((s) => s.branch === branch.id)
     if (specialties.length === 0) continue
 
     for (const base of basesFor(world, branch.id)) {
-      const short = GARRISON_TARGET - garrisonStrength(world, base.id, branch.id)
+      const short = target - garrisonStrength(world, base.id, branch.id)
       if (short <= 0) continue
 
       const rng = openStream(world.seed, Stream.ServiceIntake, base.id, tick)

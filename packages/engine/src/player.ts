@@ -6666,8 +6666,14 @@ function resolveFieldAid(
 
 /**
  * §6. The oath's options: the people senior to you in your own squad, or
- * the plain button when there is nobody — which is every first enlistment,
- * because a recruit has no unit yet.
+ * the plain button when there is nobody.
+ *
+ * IT USED TO SAY "which is every first enlistment, because a recruit has no
+ * unit yet", and that was true only because the stations were empty. A
+ * recruit IS posted the day they sign, so once the garrisons were filled from
+ * outside the town (MILITARY_DEPTH_PLAN §9.0) there is almost always somebody
+ * there to swear them in — which is what `oathAdministratorsFor` always
+ * intended and never got to do.
  */
 function oathOptionsFor(world: World, personId: EntityId): readonly string[] {
   const candidates = oathAdministratorsFor(world, personId)

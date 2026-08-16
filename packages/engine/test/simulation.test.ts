@@ -49,10 +49,44 @@ describe('population', () => {
   it('does not collapse or explode', () => {
     // A stability check: emergent systems can run away (R-07). Ten years should
     // not double the town or halve it.
+    //
+    // IT COUNTS THE TOWN, which is what the line above always said and what
+    // `world.people.size` used to mean when the town was the only thing in
+    // the world. Filling the garrisons from outside it
+    // (MILITARY_DEPTH_PLAN §9.0) put soldiers into `world.people` who live at
+    // a station rather than in this town, and counting them here measured the
+    // army's size as though the town had grown.
+    //
+    // The guard is not softened — it is split, and the second half is new
+    // cover for something that had none.
     const fresh = createWorld(makeSeed(SEED), 100)
-    const ratio = world.people.size / fresh.people.size
+    const townsfolk = [...world.people.values()].filter((p) => p.fromAway === undefined)
+    const ratio = townsfolk.length / fresh.people.size
     expect(ratio).toBeGreaterThan(0.9)
     expect(ratio).toBeLessThan(1.6)
+  })
+
+  it('does not let the garrison run away either', () => {
+    /**
+     * THE OTHER HALF OF R-07, and the reason the check above could be split
+     * without losing anything.
+     *
+     * The intake is a per-station top-up in a loop, which is exactly the
+     * shape that runs away if a bound is ever removed. A flat target of 14
+     * per station per branch already did it once: 89 soldiers beside a town
+     * of 100, tripping the old combined ratio at 2.04.
+     *
+     * So the army is held to a share of the town it is raised from. Generous
+     * — a garrison town really is lopsided — but bounded, and it fails loudly
+     * if the intake ever stops respecting `garrisonTargetFor`.
+     */
+    const living = [...world.people.values()].filter((p) => p.deathTick === null)
+    const town = living.filter((p) => p.fromAway === undefined).length
+    const garrison = living.filter((p) => p.fromAway !== undefined).length
+    expect(town).toBeGreaterThan(0)
+    expect(garrison, `garrison ${String(garrison)} against a town of ${String(town)}`).toBeLessThan(
+      town,
+    )
   })
 })
 

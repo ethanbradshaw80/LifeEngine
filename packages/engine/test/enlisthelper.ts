@@ -71,6 +71,25 @@ export function signUp(
   resolvePending(world, answer)
   if (options.stopAtOath === true) return
   if (world.player.pending?.kind === 'service-contract') {
-    resolvePending(world, 'take-the-oath')
+    /**
+     * THE OATH HAS TWO SHAPES and this helper used to know only one.
+     *
+     * `oathOptionsFor` offers 'take-the-oath' when nobody senior is present,
+     * and otherwise offers the people who could administer it, as `by-<id>`.
+     * Before the garrisons were filled from outside the town, a recruit's
+     * station was usually empty, so the second shape almost never appeared —
+     * this line passing 'take-the-oath' worked by luck rather than by rule.
+     *
+     * Now a posting has people in it, so the game asks WHO, which is the
+     * behaviour `service.ts` always intended: "you are sworn in by whoever is
+     * there, and the first name on your record is a person rather than a
+     * form." Which person is immaterial to the tests that call this — they
+     * want a serving character.
+     */
+    const options_ = world.player.pending.options
+    resolvePending(
+      world,
+      options_.includes('take-the-oath') ? 'take-the-oath' : (options_[0] ?? 'take-the-oath'),
+    )
   }
 }
