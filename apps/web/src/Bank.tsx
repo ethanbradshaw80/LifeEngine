@@ -26,12 +26,9 @@ import {
   chapterTitle,
   creditWords,
   filingsOf,
-  discretionaryFor,
   economyPhaseWords,
   homeEquityOf,
   homeValueOf,
-  householdCosts,
-  businessDrawOf,
   incomeTaxFor,
   openFilingOf,
   planMonthsLeft,
@@ -39,7 +36,7 @@ import {
   planPayoffFor,
   marginalRatePerMille,
   marketLevel,
-  personalMonthlyNet,
+  monthAheadFor,
   netWorthOf,
   liquidShareOf,
   businessWorthOf,
@@ -253,25 +250,28 @@ export function Bank({
             <section className="bank-card">
               <h4>This month</h4>
               {(() => {
-                // EVERY LINE IS THE ENGINE'S OWN, and deliberately the same
-                // functions the household ledger on the other view reads —
-                // two screens showing the same month must not be able to
-                // disagree about it. The gross is personal; the outgoings
-                // are the roof's, because rent genuinely is.
-                const gross = personalIncome(world, person.id)
-                const draw = businessDrawOf(world, person.id)
-                const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
-                const costs = household ? householdCosts(world, household) : (0 as Money)
-                const lifestyle = household ? discretionaryFor(world, household) : (0 as Money)
                 /**
-                 * WHAT IS LEFT FOR THIS PERSON, not for the roof.
-                 * `monthlyNetOf` answers for the whole household, which is
-                 * exactly the mixing he objected to. `personalMonthlyNet`
-                 * answers for them, and the draw is added the same way the
-                 * town view already does it.
+                 * ONE FUNCTION, EVERY LINE (owner: "the month stats dont even
+                 * really add up").
+                 *
+                 * They did not, and this card was why. It hand-assembled six
+                 * numbers from five different functions: the "your share"
+                 * lines were actually reading `householdCosts` and
+                 * `discretionaryFor`, which answer for the WHOLE ROOF, and
+                 * the total added the business draw to `personalMonthlyNet` —
+                 * which now already contains it, so the fix to the chip would
+                 * have made this card double-count.
+                 *
+                 * `monthAheadFor` is the single answer, itemised, and its
+                 * parts are guaranteed to sum to its own total. Nothing on
+                 * this screen does arithmetic any more.
                  */
-                const comingIn = (gross + draw) as Money
-                const left = (personalMonthlyNet(world, person.id) + draw) as Money
+                const ahead = monthAheadFor(world, person.id)
+                const gross = personalIncome(world, person.id)
+                const withheld = withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille)
+                const comingIn = (ahead.earned + ahead.draw + ahead.rent + ahead.interest) as Money
+                const left = ahead.net
+                const draw = ahead.draw
                 return (
                   <>
                     {/*
@@ -297,14 +297,14 @@ export function Bank({
                       value={comingIn > 0 ? formatMoney(comingIn) : 'nothing'}
                       tone={comingIn > 0 ? 'good' : undefined}
                     />
-                    {gross > 0 && (
+                    {ahead.earned > 0 && (
                       <Row
                         label={
                           (world.employment.get(person.id)?.monthlyPay ?? 0) > 0
-                            ? '— your pay'
+                            ? '— your pay, after tax'
                             : '— pensions & benefits'
                         }
-                        value={formatMoney(gross)}
+                        value={formatMoney(ahead.earned)}
                         tone="muted"
                       />
                     )}
@@ -315,13 +315,31 @@ export function Bank({
                         tone="muted"
                       />
                     )}
+                    {/* THE TWO THAT WERE NEVER SHOWN ANYWHERE. On a wealthy
+                        character the interest is the biggest line on the
+                        card — measured at $4,800 a month against a $500
+                        wage — and no screen in the game had ever named it. */}
+                    {ahead.rent > 0 && (
+                      <Row label="— rent from your tenants" value={formatMoney(ahead.rent)} tone="muted" />
+                    )}
+                    {ahead.interest > 0 && (
+                      <Row label="— interest on your savings" value={formatMoney(ahead.interest)} tone="muted" />
+                    )}
                     <Row
                       label="Tax withheld"
                       value={gross > 0 ? `−${formatMoney(withheld)}` : '—'}
                       tone="muted"
                     />
-                    <Row label="Your share of rent + living" value={`−${formatMoney(costs)}`} />
-                    <Row label="Lifestyle + sales tax" value={`−${formatMoney(lifestyle)}`} />
+                    <Row label="Your share of rent + living" value={`−${formatMoney(ahead.costs)}`} />
+                    {/* SAY WHAT THE CHARGE IS (owner: "a random Lifestyle ·
+                        the life between rent and the bank which doesnt even
+                        say what the charge really is but its always super
+                        high"). It is a SHARE OF WHAT IS LEFT, which is why it
+                        rises with income, and the line now says so. */}
+                    <Row
+                      label="Day-to-day living"
+                      value={`−${formatMoney(ahead.lifestyle)}`}
+                    />
                     <Row
                       label="Left over"
                       value={formatMoney(left)}

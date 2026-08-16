@@ -144,7 +144,46 @@ Two live hypotheses, both cheap to check against a real save:
 
 Ordered by *damage to the player's trust*, not by difficulty.
 
-### Phase 1 — make the numbers honest (no balance changes)
+### Phase 1 — make the numbers honest — **DONE 2026-08-16, v182**
+
+Steps 1–3 landed. What changed, and the one thing that turned out not to be a
+display-only change after all:
+
+- **`monthAheadFor` is the single answer**, itemised — earned, draw, rent,
+  interest, costs, day-to-day living, net — and its parts are guaranteed to
+  sum to its own total. `personalMonthlyNet` is now `monthAheadFor(...).net`,
+  so there is one computation rather than two that can drift.
+- **It was not display-only.** `personalMonthlyNet` sizes chapter-13
+  repayment plans, so a business owner's plan was being computed from a
+  fraction of their real disposable income. That is now fixed as a
+  side-effect, and it is why this moved the goldens and needed v182.
+- **The married-wallet share was the missing piece.** The first attempt
+  over-promised by $5,868 a month because it credited the WHOLE draw and the
+  WHOLE interest to a person whose wallet is shared under H0. Draw, rent and
+  interest are now halved exactly as `liquidShareOf` halves the cash. **This
+  is very likely the answer to his net-worth complaint too** — worth checking
+  against his save before building anything for it.
+- **`monthahead.test.ts` holds it against the tick itself**: project a month,
+  advance one, subtract. Within a third per month and a tenth across six.
+  It cannot be tighter and stay honest — the draw is the largest line and a
+  shop's trading genuinely swings ($1,810, $4,382, $1,618 in consecutive
+  months). The bug it was written for was out by 1,269 per cent and leaned
+  the same way every month, so the aggregate half catches that class outright.
+- **The Bank's "This month" card stopped doing arithmetic.** It had been
+  assembling six numbers from five functions, and two of its "your share"
+  lines were reading `householdCosts` and `discretionaryFor` — the WHOLE
+  roof's figures under a personal label. It also added the draw to
+  `personalMonthlyNet`, which would have double-counted the moment the chip
+  was fixed.
+- **Wording**: "Lifestyle · the life between rent and the bank" is now
+  "Day-to-day living · food, clothes, the car, a night out — N% of what's
+  left after the bills", so the charge says what it is and why it scales.
+  "the roof" is "the household" everywhere it was a label.
+
+Still open from Phase 1: **step 4**, the net-worth itemisation, which is
+waiting on his answers rather than on work.
+
+### Phase 1 as originally written
 
 Nothing here changes how much money exists. It changes what the game *says*,
 which is the part he cannot currently trust.

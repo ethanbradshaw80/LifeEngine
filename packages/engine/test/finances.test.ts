@@ -46,6 +46,7 @@ import {
   passOnHomes,
   personalIncome,
   personalMonthlyNet,
+  monthAheadFor,
 } from '../src/finances.js'
 import { atTodaysPrices } from '../src/economy.js'
 import { salesTaxOn } from '../src/tax.js'
@@ -633,7 +634,22 @@ describe("one person's own month", () => {
           (id) => world.people.get(id)?.deathTick === null && personalIncome(world, id) > 0,
         )
         if (earners.length < 2) continue
-        const shares = earners.map((id) => personalMonthlyNet(world, id))
+        /**
+         * THE WAGE POOL IS WHAT RECONCILES, and that distinction is new.
+         *
+         * `personalMonthlyNet` now also carries the things that are one
+         * person's alone — the business draw, rent from their tenants, the
+         * interest on their savings — because the chip was understating a
+         * shopkeeper's month by thirteen times without them. None of those
+         * pass through the unit's shared surplus, so summing the whole net
+         * and comparing it to a wage-based figure would be comparing two
+         * different quantities.
+         *
+         * The claim being held is unchanged: the SHARED money divides, and
+         * two earners are not each told they clear all of it.
+         */
+        const ahead = earners.map((id) => monthAheadFor(world, id))
+        const shares = ahead.map((a) => a.earned - a.costs - a.lifestyle)
         const total = shares.reduce((sum, share) => sum + share, 0)
         const spending = discretionaryForUnit(world, household, unit)
         const unitNet =

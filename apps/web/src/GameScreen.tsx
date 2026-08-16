@@ -1782,9 +1782,24 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </li>
                     <li className="ledger-row out">
                       <span className="ledger-label">
-                        Lifestyle
+                        {/* SAY WHAT THE CHARGE IS (owner: "a random Lifestyle
+                            · the life between rent and the bank which doesnt
+                            even say what the charge really is but its always
+                            super high"). It is a SHARE of whatever is left
+                            after the bills — which is exactly why it rises
+                            with income and looked arbitrary. The line says so
+                            now, and shows the share it actually took. */}
+                        Day-to-day living
                         <span className="muted small">
-                          {' '}· {ledger.inArrears ? 'belt tightened' : 'the life between rent and the bank'}
+                          {' '}·{' '}
+                          {ledger.inArrears
+                            ? 'belt tightened — nothing spare while behind'
+                            : `food, clothes, the car, a night out — ${String(
+                                Math.round(
+                                  (ledger.lifestyle * 100) /
+                                    Math.max(1, ledger.income - ledger.costs),
+                                ),
+                              )}% of what's left after the bills`}
                         </span>
                       </span>
                       <span className="ledger-amount">
@@ -1795,13 +1810,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <li className="ledger-row out">
                         <span className="ledger-label">
                           Sales tax
-                          <span className="muted small"> · on the lifestyle line</span>
+                          <span className="muted small"> · on the day-to-day spending</span>
                         </span>
                         <span className="ledger-amount">−{formatMoney(ledger.salesTax)}</span>
                       </li>
                     )}
                     <li className="ledger-row subtotal">
-                      <span className="ledger-label">Going out — the roof</span>
+                      <span className="ledger-label">Going out — the household</span>
                       <span className="ledger-amount">
                         {formatMoney((ledger.costs + ledger.lifestyle + ledger.salesTax) as Money)}
                       </span>
@@ -1811,7 +1826,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           what comes IN is yours, what goes OUT is the
                           building's, and these two figures were never meant
                           to subtract to each other. */}
-                      <span className="ledger-label">Left over — the roof</span>
+                      <span className="ledger-label">Left over — the household</span>
                       <span className="ledger-amount">
                         {ledger.net < 0
                           ? `−${formatMoney(-ledger.net as Money)}`

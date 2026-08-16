@@ -2561,15 +2561,80 @@ export function unitMonthlyNet(world: World, household: Household, unit: readonl
  * inside the unit by who earned it.
  */
 export function personalMonthlyNet(world: World, personId: EntityId): Money {
+  return monthAheadFor(world, personId).net
+}
+
+/**
+ * THE MONTH AHEAD, ITEMISED — every recurring thing that moves this person's
+ * money, in one place, so no screen has to assemble it and get it wrong.
+ *
+ * THE BUG THIS EXISTS TO END (owner, playing: "the +money amount per month
+ * isnt even accurate either because ill click advance one month and make way
+ * more than it says"). MEASURED on a shopkeeper two years in:
+ *
+ *     the chip promised          $522.55
+ *     the wallet actually moved  $7,152.87
+ *
+ * Thirteen times out, every month, for ever. Two things were missing and
+ * neither was an oversight in the arithmetic:
+ *
+ *   THE BUSINESS DRAW. `personalIncome` deliberately excludes it, and that
+ *   exclusion is CORRECT — `runBusinesses` has already put the draw in the
+ *   wallet, so counting it as income again would pay it twice, which is the
+ *   shadow-ledger bug this codebase has had seven times. The reasoning was
+ *   right and only half-applied: it belongs out of the CREDITING path and
+ *   into the FORECAST, and nobody put it back.
+ *
+ *   THE INTEREST. `payInterest` runs at the top of every month over savings
+ *   that no projection has ever looked at. On a wealthy character it dwarfs
+ *   the wage — $4,800 a month against a $500 one, in the measurement above.
+ *
+ * DRAW, RENT AND INTEREST SIT OUTSIDE THE LIFESTYLE SUM ON PURPOSE, because
+ * that is what the simulation does: `discretionaryForUnit` spends a share of
+ * the surplus over `unitIncome`, and `unitIncome` is wages. Modelling them as
+ * lifestyle-bearing here would make the forecast disagree with the tick again
+ * in the other direction.
+ *
+ * `paydriftests.test.ts` holds this against the tick itself: project a month,
+ * advance one, and compare. That test is the whole point of the exercise.
+ */
+export interface MonthAhead {
+  /** Wages, pensions and support, after withholding — this person's share. */
+  readonly earned: Money
+  /** What their businesses paid them last month. */
+  readonly draw: Money
+  /** What their tenanted property brings in. */
+  readonly rent: Money
+  /** What the bank pays on their savings. */
+  readonly interest: Money
+  /** Their share of the roof and the living costs under it. */
+  readonly costs: Money
+  /** Day-to-day spending, plus the sales tax on it. */
+  readonly lifestyle: Money
+  /** What the month actually leaves behind. */
+  readonly net: Money
+}
+
+export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
+  const nothing: MonthAhead = {
+    earned: 0 as Money,
+    draw: 0 as Money,
+    rent: 0 as Money,
+    interest: 0 as Money,
+    costs: 0 as Money,
+    lifestyle: 0 as Money,
+    net: 0 as Money,
+  }
   const person = world.people.get(personId)
-  if (!person || person.householdId === null) return 0 as Money
+  if (!person || person.householdId === null) return nothing
   const household = world.households.get(person.householdId)
-  if (!household) return 0 as Money
+  if (!household) return nothing
 
   const unit = financialUnitOf(world, personId)
   const income = unitIncome(world, unit)
   const spending = discretionaryForUnit(world, household, unit)
-  const owed = (unitCosts(world, household, unit) + spending + salesTaxOn(spending)) as Money
+  const bills = unitCosts(world, household, unit)
+  const owed = (bills + spending + salesTaxOn(spending)) as Money
   const left = income - owed
 
   // Inside the unit, split by who brought it in — a couple where one earns
@@ -2578,8 +2643,69 @@ export function personalMonthlyNet(world: World, personId: EntityId): Money {
   const gross = personalIncome(world, personId)
   const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) +
     supportOf(world, personId, world.tick)) as Money
-  if (income <= 0) return (left > 0 ? left : Math.floor(left / Math.max(1, unit.length))) as Money
-  return Math.floor((left * mine) / income) as Money
+  const share =
+    income <= 0
+      ? ((left > 0 ? left : Math.floor(left / Math.max(1, unit.length))) as Money)
+      : (Math.floor((left * mine) / income) as Money)
+
+  /**
+   * THE THREE THAT WERE MISSING — each halved where the wallet is shared.
+   *
+   * MEASURED, and it swung the forecast the other way before it was caught:
+   * promising the whole draw and the whole interest to a MARRIED shopkeeper
+   * over-stated his month by $5,868, because all three land in the couple's
+   * single pot (H0) and `liquidShareOf` — which is what "their money" means
+   * everywhere else in this game — gives him half of it.
+   *
+   * A screen that says "your money" and a screen that says "what your money
+   * will do" have to mean the same person's money. This is very likely the
+   * same thing behind the owner's net-worth complaint.
+   */
+  const halved = (whole: Money): Money => {
+    const spouse = spouseOf(world, personId)
+    const wallet = walletOf(world, personId)
+    const shared = spouse !== null && walletHolderOf(world, spouse) === wallet.personId
+    if (!shared) return whole
+    const half = Math.floor(whole / 2)
+    return (personId === wallet.personId ? whole - half : half) as Money
+  }
+  const draw = halved(businessDrawOf(world, personId))
+  const rent = halved(rentalIncomeOf(world, personId))
+  const interest = halved(
+    monthlyInterestOn(walletOf(world, personId).savings, savingsRateOf(world)),
+  )
+
+  // The itemised costs are this person's share of them, for the same reason
+  // the net is: a screen showing one of them beside the other must not be
+  // able to describe two different people's months.
+  const mineOfCosts = income <= 0 || bills <= 0 ? bills : Math.floor((bills * mine) / income)
+  const mineOfLifestyle =
+    income <= 0 || spending <= 0
+      ? spending
+      : Math.floor(((spending + salesTaxOn(spending)) * mine) / income)
+
+  /**
+   * THE PARTS ARE THE TOTAL, not an approximation of it.
+   *
+   * `share` and the itemised lines are the same arithmetic with the floors
+   * in different places, so they disagreed by a couple of cents — enough
+   * for a screen to print lines that visibly do not add up, which is one of
+   * the things he complained about. The lines win; the net is their sum.
+   * Where the unit earns nothing there is no share to split and `share`
+   * carries the answer instead.
+   */
+  const fromParts = (mine - mineOfCosts - mineOfLifestyle) as Money
+  const bottom = income <= 0 ? share : fromParts
+
+  return {
+    earned: mine,
+    draw,
+    rent,
+    interest,
+    costs: mineOfCosts as Money,
+    lifestyle: mineOfLifestyle as Money,
+    net: (bottom + draw + rent + interest) as Money,
+  }
 }
 
 /**
