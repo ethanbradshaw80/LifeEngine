@@ -593,7 +593,11 @@ describe('the itemized ledger (P3)', () => {
       before.livingCosts -
         atTodaysPrices(world, grown ? LIVING_COST_ADULT : LIVING_COST_CHILD),
     )
-    expect(after.rent + after.livingCosts).toBe(householdCosts(world, household))
+    // RENT + FOOD + FEES. `householdCosts` is all three, and this line
+    // summed only the first two — balancing only while the sampled
+    // household happened to have nobody at school. Shifted ids landed it on
+    // one that did, and the missing £30,420 was tuition.
+    expect(after.rent + after.livingCosts + after.tuition).toBe(householdCosts(world, household))
     expect(after.costs).toBe(householdCosts(world, household))
   })
 
@@ -682,14 +686,42 @@ describe("one person's own month", () => {
          * The claim being held is unchanged: the SHARED money divides, and
          * two earners are not each told they clear all of it.
          */
+        /**
+         * TUITION IS A COST TOO, and leaving it out is why this reconciled
+         * by luck.
+         *
+         * `unitCosts` is living + rent + TUITION. `monthAheadFor` puts
+         * tuition on its own row — the owner asked for every charge named
+         * separately — so its `costs` is living + rent alone. Summing
+         * `costs` against a total that includes tuition compares two
+         * different quantities, and only balanced while the sampled unit
+         * happened to have nobody at school.
+         *
+         * It sampled the first unit with two earners and returned. When the
+         * garrison work shifted the ids it landed on the Rices, whose
+         * fourteen-year-old is in school: costs summed to 91,870 against a
+         * unit total of 122,291, the missing 30,421 being her fees.
+         */
         const ahead = earners.map((id) => monthAheadFor(world, id))
-        const shares = ahead.map((a) => a.earned - a.costs - a.lifestyle)
+        const shares = ahead.map((a) => a.earned - a.costs - a.tuition - a.lifestyle)
         const total = shares.reduce((sum, share) => sum + share, 0)
         const spending = discretionaryForUnit(world, household, unit)
         const unitNet =
           unitIncome(world, unit) - unitCosts(world, household, unit) - spending - salesTaxOn(spending)
-        for (const share of shares) expect(share).toBeLessThanOrEqual(unitNet + earners.length)
-        expect(Math.abs(total - unitNet)).toBeLessThanOrEqual(earners.length)
+        /**
+         * A PENNY PER ROUNDED PART PER EARNER. The tolerance was one penny
+         * each, from when a share was split out of two parts (living and
+         * rent). Tuition is a third, and each is floored separately, so the
+         * drift is up to three pennies a head rather than one — measured at
+         * 4 against a tolerance of 2 the first time a unit with a child at
+         * school was sampled.
+         *
+         * Still pennies. The claim is unchanged: shared money divides, and
+         * two earners are not each told they clear all of it.
+         */
+        const drift = earners.length * 3
+        for (const share of shares) expect(share).toBeLessThanOrEqual(unitNet + drift)
+        expect(Math.abs(total - unitNet)).toBeLessThanOrEqual(drift)
         return
       }
       continue

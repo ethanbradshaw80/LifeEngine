@@ -280,8 +280,20 @@ describe('a selected unit is a unit', () => {
     // the twelve-year wall changed who is still serving, so the first three
     // stopped being posted together. The test is about what selection does
     // to a roster, so it has to start with people who are on one.
+    /**
+     * SOMEBODY NOT ALREADY IN A SELECTED UNIT.
+     *
+     * This asserts that passing selection CHANGES your roster, so it has to
+     * start with somebody whose roster is still their station. Once the
+     * garrisons were filled from outside the town there were enough soldiers
+     * for the special units to actually recruit, and the first person with a
+     * roster of three turned out to be a Pathfinder already — so the test
+     * compared the Pathfinder Battalion against itself and reported
+     * "expected 'the Pathfinder Battalion' not to be 'the Pathfinder
+     * Battalion'".
+     */
     const a = serving.find(
-      (r) => (unitRosterOf(world, r.personId)?.members.length ?? 0) >= 3,
+      (r) => r.unitId === null && (unitRosterOf(world, r.personId)?.members.length ?? 0) >= 3,
     )
     if (!a) throw new Error('no posting in this world holds three people')
     const roster = unitRosterOf(world, a.personId)

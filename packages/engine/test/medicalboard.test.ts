@@ -84,26 +84,39 @@ describe('the medical board', () => {
     for (let i = 0; i < 7; i += 1) {
       const world = createWorld(makeSeed(100 + i))
       advanceTicks(world, 12 * 25)
-      const soldier = [...world.people.values()].find(
-        (p) => p.deathTick === null && isServing(world, p.id),
-      )
-      if (!soldier) continue
-      setDisability(world, soldier.id, 415)
+      /**
+       * SEVERAL SOLDIERS A SEED, NOT ONE.
+       *
+       * This took the FIRST serving person in map order and rested the whole
+       * "both outcomes are reachable" claim on seven people. The board is
+       * keyed to the person, so seven draws is a thin sample — and once the
+       * garrisons were filled from outside the town it was a different seven,
+       * all of whom happened to fall the same way. Nothing about the board
+       * changed; the sample did.
+       *
+       * Taking a handful per seed is what the claim actually needs. The
+       * verdict-stability check below is unchanged and now runs on more
+       * people rather than fewer.
+       */
+      const soldiers = [...world.people.values()]
+        .filter((p) => p.deathTick === null && isServing(world, p.id))
+        .sort((a, b) => a.id - b.id)
+        .slice(0, 6)
+      if (soldiers.length === 0) continue
+      for (const soldier of soldiers) setDisability(world, soldier.id, 415)
       advanceTicks(world, 3)
-      const stillIn = isServing(world, soldier.id)
-      if (stillIn) {
-        retained += 1
-        // The board that kept you in March has not changed its mind. A
-        // career can still END in these months — a term expires, an age
-        // arrives — so the claim is precise: whatever happens, it is not
-        // the medical trapdoor reopening on a verdict already given.
-        advanceTicks(world, 3)
-        const record = world.service.get(soldier.id)
+      const stillIn = soldiers.filter((s) => isServing(world, s.id))
+      retained += stillIn.length
+      discharged += soldiers.length - stillIn.length
+      // The board that kept you in March has not changed its mind. A career
+      // can still END in these months — a term expires, an age arrives — so
+      // the claim is precise: whatever happens, it is not the medical
+      // trapdoor reopening on a verdict already given.
+      advanceTicks(world, 3)
+      for (const soldier of stillIn) {
         if (!isServing(world, soldier.id)) {
-          expect(record?.dischargeReason).not.toBe('medical')
+          expect(world.service.get(soldier.id)?.dischargeReason).not.toBe('medical')
         }
-      } else {
-        discharged += 1
       }
     }
     // Both outcomes must be REACHABLE, or the board is a rubber stamp.
