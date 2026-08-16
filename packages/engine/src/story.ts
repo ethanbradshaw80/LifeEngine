@@ -973,6 +973,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'no-local-vacancy': 'there was nothing else going in town',
   'reached-adulthood': '{they} was old enough',
   'has-income': '{they} had steady wages',
+  'came-from-away': 'they had no home in this town until this one',
   'close-friendship': '{they} was close to someone',
   'household-crowded': 'the house was crowded',
   'better-neighbourhood': 'it was a better part of town',

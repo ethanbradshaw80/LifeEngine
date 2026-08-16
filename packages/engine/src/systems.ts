@@ -2867,9 +2867,63 @@ function moveInWithPartner(world: World, tick: Tick, person: Person, rng: Rng): 
 
   const partner = world.people.get(partnerId)
   if (!partner || partner.deathTick !== null) return false
-  if (person.householdId === null || partner.householdId === null) return false
   if (person.householdId === partner.householdId) return false
   if (ageAt(partner.birthTick, tick) < LEAVE_HOME_AGE) return false
+
+  /**
+   * SETTLING DOWN HERE — the owner's model, and the half that was missing.
+   *
+   * A player posted to a station meets people there and can marry one of
+   * them. When the service ends they come home to this town, and the person
+   * they married comes with them: *"we are in a world of other NPCs that we
+   * cant control but we can still interact with, get married with."*
+   *
+   * This function used to refuse the moment either side had no household,
+   * which meant exactly that couple could never live together. The spouse
+   * stayed in the odd half-real state the last pass measured — tied to
+   * somebody here, living nowhere.
+   *
+   * TWO CONDITIONS, both honest:
+   *   - the uniform has to be OFF. Somebody still serving is at their
+   *     station, not in this town, and a marriage does not move a posting.
+   *   - somebody in the pair needs a roof. Two people with no address have
+   *     nowhere to move into.
+   */
+  const homeless = person.householdId === null || partner.householdId === null
+  if (homeless) {
+    if (person.householdId === null && partner.householdId === null) return false
+    const settler = person.householdId === null ? person : partner
+    const host = person.householdId === null ? partner : person
+    const serving = world.service.get(settler.id)
+    if (serving !== undefined && serving.dischargedAtTick === null) return false
+    const destination = host.householdId === null ? undefined : world.households.get(host.householdId)
+    if (destination === undefined) return false
+
+    const tie = relationshipBetween(world, person.id, partnerId)
+    if (tie === undefined) return false
+
+    addToHousehold(world, destination.id, settler.id)
+    setPerson(world, { ...settler, householdId: destination.id })
+    recordEvent(world, tick, {
+      type: 'moved-in-together',
+      subjectId: settler.id,
+      otherId: host.id,
+      placeId: destination.placeId,
+    })
+    recordDecision(world, tick, {
+      subjectId: settler.id,
+      decision: 'household-formation',
+      significance: 'defining',
+      inputs: [
+        factor('close-friendship', tie.strength, host.id),
+        ...(settler.fromAway !== undefined ? [factor('came-from-away', 1000)] : []),
+      ],
+      chosen: `settled here with ${host.givenName}`,
+      rejected: [],
+      streamId: Stream.LifeEventTiming,
+    })
+    return true
+  }
 
   const tie = relationshipBetween(world, person.id, partnerId)
   if (!tie) return false

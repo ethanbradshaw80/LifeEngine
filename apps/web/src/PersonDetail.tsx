@@ -14,6 +14,7 @@ import {
   fullName,
   householdCosts,
   isServing,
+  unitRosterOf,
   rankTitle,
   specialtyFor,
   specialtyTitleFor,
@@ -158,6 +159,48 @@ export function PersonDetail({ world, personId, onSelect }: Props) {
             })()}
           </>
         )}
+        {/**
+          * WHERE THEY ARE FROM, and where they are now.
+          *
+          * OWNER'S MODEL: "we go out and get stationed with NPC's that still
+          * have their own lives and everything but just whever they are from
+          * in the world. We dont need to see their entire feed like our
+          * townspeople but just descriptions and stuff and if they were in
+          * the military seeing their service record."
+          *
+          * So this is deliberately NOT a town feed. Somebody met at a station
+          * gets the two things that make them a person rather than a name on
+          * a roster: the place they came from, and the record they are still
+          * serving under.
+          */}
+        {person.fromAway !== undefined && (
+          <>
+            <dt>From</dt>
+            <dd>{person.fromAway}</dd>
+          </>
+        )}
+        {alive && (() => {
+          const record = world.service.get(person.id)
+          if (record === undefined) return null
+          const serving = record.dischargedAtTick === null
+          const station = world.places.get(record.baseId)?.name
+          const roster = unitRosterOf(world, person.id)
+          // A finished career counts to the day it finished, not to today.
+          const until = record.dischargedAtTick ?? world.tick
+          const years = Math.floor((until - record.enlistedAtTick) / 12)
+          return (
+            <>
+              <dt>{serving ? 'Posted' : 'Served'}</dt>
+              <dd>
+                {serving && roster !== null
+                  ? `${roster.unitName}, ${roster.baseName}`
+                  : (station ?? 'a home station')}
+                {years > 0 && ` · ${String(years)} year${years === 1 ? '' : 's'} in`}
+                {!serving && record.dischargeReason !== null && ` · ${record.dischargeReason}`}
+              </dd>
+            </>
+          )
+        })()}
         {education && education.level !== 'none' && (
           <>
             <dt>Schooling</dt>

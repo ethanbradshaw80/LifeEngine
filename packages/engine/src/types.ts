@@ -3176,6 +3176,9 @@ export type FactorId =
   | 'reached-adulthood'
   | 'has-income'
   | 'close-friendship'
+  /** They married somebody stationed here and came home with them
+   *  (MILITARY_DEPTH_PLAN §9.0 — settling in the town from away). */
+  | 'came-from-away'
   | 'household-crowded'
   | 'better-neighbourhood'
   | 'can-afford-move'
