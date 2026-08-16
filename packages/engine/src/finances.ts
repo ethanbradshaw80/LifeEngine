@@ -2209,8 +2209,20 @@ export function unitShapeFor(
  * total is still computed in exactly one place.
  */
 export interface UnitCostParts {
-  /** Food, clothes and tuition for the people in THIS unit. */
+  /** Food, clothes and the bills for the people in THIS unit. */
   readonly living: Money
+  /**
+   * SCHOOL FEES, ON THEIR OWN (owner, reading his card: "Living costs · 1
+   * grown, 2 children · −$10,852.77 against rent of $1,252. Eight times the
+   * rent for one adult and two kids looks high").
+   *
+   * MEASURED, and the number was right — $119 an adult and $65 a child in
+   * base-year money is about $5,400 by 2056, and the OTHER $5,400 was two
+   * children in private school at $150 each. Correct, and unexplainable from
+   * a line that only said "living costs". Split out so the card can name the
+   * biggest thing in it.
+   */
+  readonly tuition: Money
   /** This unit's share of the roof — the whole rent, or nothing (H0). */
   readonly rent: Money
   /** Who is actually being fed, in this unit and nobody else's. */
@@ -2225,7 +2237,7 @@ export function unitCosts(
   precomputed?: UnitShape,
 ): Money {
   const parts = unitCostParts(world, household, unit, precomputed)
-  return (parts.living + parts.rent) as Money
+  return (parts.living + parts.tuition + parts.rent) as Money
 }
 
 export function unitCostParts(
@@ -2236,6 +2248,7 @@ export function unitCostParts(
 ): UnitCostParts {
   let adults = 0
   let children = 0
+  let tuition = 0
   if (household.homelessSinceTick !== null) {
     let shelter = 0
     for (const id of unit) {
@@ -2246,14 +2259,14 @@ export function unitCostParts(
         else children += 1
       }
     }
-    return { living: shelter as Money, rent: 0 as Money, adults, children }
+    return { living: shelter as Money, tuition: 0 as Money, rent: 0 as Money, adults, children }
   }
 
   // A HOUSEHOLD OF NOTHING BUT STUDENTS IN HALLS PAYS NOTHING, and
   // `householdCosts` says so with an early return — so this must too, or
   // the head unit would carry a rent the household is not being charged.
   if (everybodyInHalls(world, household)) {
-    return { living: 0 as Money, rent: 0 as Money, adults: 0, children: 0 }
+    return { living: 0 as Money, tuition: 0 as Money, rent: 0 as Money, adults: 0, children: 0 }
   }
 
   let mouths = 0
@@ -2276,8 +2289,11 @@ export function unitCostParts(
         ? livingCostAt(world, LIVING_COST_ADULT)
         : livingCostAt(world, LIVING_COST_CHILD)
     // The tuition follows the CHILD into whichever unit they are counted
-    // in, so the parts still sum to the whole.
-    mouths += tuitionFor(world, id)
+    // in, so the parts still sum to the whole. Counted separately as well,
+    // so the screen can say what it was.
+    const fees = tuitionFor(world, id)
+    tuition += fees
+    mouths += fees
   }
 
   // THE SAME ROOF NUMBER `householdCosts` CHARGES — lease rent for a
@@ -2314,7 +2330,13 @@ export function unitCostParts(
    */
   const shape = precomputed ?? unitShapeFor(world, household, unit)
   if (shape.unitCount === 0) {
-    return { living: mouths as Money, rent: 0 as Money, adults, children }
+    return {
+      living: (mouths - tuition) as Money,
+      tuition: tuition as Money,
+      rent: 0 as Money,
+      adults,
+      children,
+    }
   }
   /**
    * THE ROOF IS THE HEAD COUPLE'S BILL (H0, owner's rule #3: grown kids
@@ -2326,7 +2348,14 @@ export function unitCostParts(
   const head = eldestMember(world, household)
   const isHeadUnit = head !== undefined && unit.includes(head.id)
   const share = isHeadUnit ? rent : 0
-  return { living: mouths as Money, rent: share as Money, adults, children }
+  return {
+    // `living` is now food and bills alone; the fees have their own line.
+    living: (mouths - tuition) as Money,
+    tuition: tuition as Money,
+    rent: share as Money,
+    adults,
+    children,
+  }
 }
 
 /**
@@ -2795,9 +2824,11 @@ export interface MonthAhead {
   readonly interest: Money
   /** Their share of the roof and the living costs under it. */
   readonly costs: Money
-  /** That total, split — their share of the rent, and their own mouths. */
+  /** That total, split — their share of the rent, mouths, and school fees. */
   readonly rentShare: Money
   readonly living: Money
+  /** School fees, named separately because they can dwarf the food bill. */
+  readonly tuition: Money
   /**
    * WHO IS ACTUALLY BEING FED, in this unit and nobody else's (owner, at
    * twenty: "Living costs · 8 grown, 3 children ... we are single with no
@@ -2821,6 +2852,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     costs: 0 as Money,
     rentShare: 0 as Money,
     living: 0 as Money,
+    tuition: 0 as Money,
     adults: 0,
     children: 0,
     lifestyle: 0 as Money,
@@ -2911,7 +2943,10 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
    * already fixed for once.
    */
   const rentShare = (bills <= 0 ? 0 : Math.floor((mineOfCosts * parts.rent) / bills)) as Money
-  const living = (mineOfCosts - rentShare) as Money
+  const tuition = (bills <= 0 ? 0 : Math.floor((mineOfCosts * parts.tuition) / bills)) as Money
+  // The last one takes the remainder, so the three rows always add to the
+  // total above them. Flooring all three lost pennies, which a test caught.
+  const living = (mineOfCosts - rentShare - tuition) as Money
 
   return {
     earned: mine,
@@ -2926,6 +2961,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     costs: mineOfCosts as Money,
     rentShare,
     living,
+    tuition,
     adults: parts.adults,
     children: parts.children,
     lifestyle: mineOfLifestyle as Money,

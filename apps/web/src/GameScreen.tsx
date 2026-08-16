@@ -40,6 +40,7 @@ import { BusinessTab } from './BusinessTab.js'
 import { JobsTab } from './JobsTab.js'
 import { heldSkills, standingOf } from '@life-engine/engine'
 import { CityHall } from './CityHall.js'
+import { Legacy } from './Legacy.js'
 import { BadgeMark } from './BadgeMark.js'
 import {
   activeWars,
@@ -645,7 +646,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     const group = GROUPS.find((g) => g.tabs.includes(tab))
     if (group) lastInGroup.current[group.id] = tab
   }, [tab])
-  const [moneyView, setMoneyView] = useState<'month' | 'bank'>('month')
+  const [moneyView, setMoneyView] = useState<'month' | 'bank' | 'legacy'>('month')
   /**
    * AND THE SERVICE TAB OPENS ON THE TOUR WHEN THERE IS ONE.
    *
@@ -1556,10 +1557,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               (where it went, household-level) and the BANK (what is held,
               personal). They are different questions, so they are different
               screens rather than one long scroll. */}
+          {/*
+            LEGACY IS ITS OWN DESTINATION (owner: "Both the trust and giving
+            cards live behind Money → 'The bank', which is a genuinely easy
+            thing to miss").
+
+            He is right, and burying them was the wrong call: they were below
+            the accounts, the itemised worth and the debts on a scrolling
+            card, so the two things a wealthy player most wants to DO with
+            money were the last things on the screen. They are a third view
+            now, named for what they are.
+          */}
           <div className="money-switch">
             {([
               ['month', 'The month'],
               ['bank', 'The bank'],
+              ['legacy', 'Legacy'],
             ] as const).map(([view, label]) => (
               <button
                 key={view}
@@ -1571,7 +1584,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               </button>
             ))}
           </div>
-          {moneyView === 'bank' ? (
+          {moneyView === 'legacy' ? (
+            <Legacy world={world} person={person} onAct={onAct} />
+          ) : moneyView === 'bank' ? (
             <Bank world={world} person={person} onAct={onAct} />
           ) : !household ? (
             <p className="feed-empty">No household yet.</p>
@@ -1594,6 +1609,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                * roof, every mouth under it) while the heading said "you".
                */
               const month = monthAheadFor(world, person.id)
+              /**
+               * WHO IS UNDER THIS ROOF BUT NOT ON THIS BILL. A jailed member
+               * eats at the county's expense, so they drop out of the mouths
+               * — which is right, and reads as an error unless the card says
+               * whose absence it is.
+               */
+              const awayInJail = (household?.memberIds ?? [])
+                .filter((id) => {
+                  const record = world.criminal.get(id)
+                  return (
+                    record !== undefined &&
+                    record.jailedUntilTick !== null &&
+                    world.tick < record.jailedUntilTick
+                  )
+                })
+                .map((id) => (id === person.id ? 'you' : (world.people.get(id)?.givenName ?? 'someone')))
               /**
                * LAST MONTH'S ACTUAL MOVEMENTS. The tick has already advanced
                * past the month being reported, so this reads the one before —
@@ -1862,12 +1893,37 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       <span className="ledger-label">
                         Living costs
                         {mouths.length > 0 && <span className="muted small"> · {mouths.join(', ')}</span>}
+                        {/* NAME WHO IS MISSING, AND WHY (owner: "'1 grown'
+                            because Bill is 'fed by the county' — he's in
+                            jail. Coherent, but the card doesn't say that's
+                            why the household shrank"). A married player
+                            reading "1 grown" needs to know their spouse is
+                            not absent from the maths by accident. */}
                         {ledger.jailed > 0 && (
-                          <span className="muted small"> · {ledger.jailed} fed by the county</span>
+                          <span className="muted small">
+                            {' '}·{' '}
+                            {awayInJail.length > 0
+                              ? `${awayInJail.join(' and ')} ${awayInJail.length === 1 ? 'is' : 'are'} in the county jail, and fed there`
+                              : `${ledger.jailed} fed by the county`}
+                          </span>
                         )}
                       </span>
                       <span className="ledger-amount">−{formatMoney(month.living)}</span>
                     </li>
+                    {/* SCHOOL FEES ARE NOT "LIVING COSTS" (owner: eight times
+                        the rent for one adult and two kids). The number was
+                        right and half of it was private school — a line that
+                        does not say so cannot be checked by the person
+                        paying it. */}
+                    {month.tuition > 0 && (
+                      <li className="ledger-row out">
+                        <span className="ledger-label">
+                          School fees
+                          <span className="muted small"> · private schooling</span>
+                        </span>
+                        <span className="ledger-amount">−{formatMoney(month.tuition)}</span>
+                      </li>
+                    )}
                     <li className="ledger-row out">
                       <span className="ledger-label">
                         {/* SAY WHAT THE CHARGE IS (owner: "a random Lifestyle

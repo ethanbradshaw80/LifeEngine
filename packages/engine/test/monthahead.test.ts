@@ -222,9 +222,13 @@ describe('the month belongs to the person, not the building', () => {
     for (const person of [...world.people.values()].slice(0, 40)) {
       if (person.deathTick !== null || person.householdId === null) continue
       const month = monthAheadFor(world, person.id)
-      expect(month.rentShare + month.living, `${String(person.id)}'s bill does not add up`).toBe(
-        month.costs,
-      )
+      // THREE ROWS NOW: the roof, the mouths, and the school fees — which
+      // were split out because half of one player's "living costs" turned
+      // out to be private schooling and the line never said so.
+      expect(
+        month.rentShare + month.living + month.tuition,
+        `${String(person.id)}'s bill does not add up`,
+      ).toBe(month.costs)
     }
   })
 })
