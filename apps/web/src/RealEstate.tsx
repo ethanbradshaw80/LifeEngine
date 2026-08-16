@@ -31,6 +31,7 @@ import {
   ownershipCostOf,
   propertiesOwnedBy,
   refinanceBar,
+  buildOffersFor,
   rentalIncomeOf,
   rentOf,
   saleProceedsOf,
@@ -462,6 +463,17 @@ export function RealEstate({
     return total + equityOf(world, property.id, owing as never)
   }, 0)
   const rental = rentalIncomeOf(world, personId as never)
+  /**
+   * ONLY WHAT THEY COULD ACTUALLY RAISE. Every street crossed with every
+   * tier is a long list, and most of it is out of reach for most of a life —
+   * showing forty greyed-out cards would bury the two that matter. The
+   * dearest first, because the point of this section is the top of the
+   * market.
+   */
+  const affordable = buildOffersFor(world)
+    .filter((offer) => offer.bar === null)
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 6)
   const forSale = all.filter((l) => l.forSale).slice(0, 9)
   const forRent = all.filter((l) => l.forRent && !l.forSale).slice(0, 6)
   const hoods = [...world.places.values()]
@@ -506,6 +518,67 @@ export function RealEstate({
           <b>{formatMoney(cash as never)}</b>
         </div>
       </div>
+
+      {/*
+        BUILD RATHER THAN BUY (owner: "houses run out, you dont even get like
+        more expensive houses options to you once you make stupid money").
+
+        MEASURED: a forty-year town holds 112 properties of which TWO are
+        estates, the dearest building in the county is worth $615,191, and the
+        stock is laid out once at worldgen and never added to. Past a certain
+        fortune there is nothing left to want, so the answer is not a longer
+        list — it is that money stops being a thing you shop with and becomes a
+        thing you build with. Only the tiers a player can afford are shown, so
+        this section is invisible until it is relevant.
+      */}
+      {affordable.length > 0 && (
+        <>
+          <div className="re2-title">Build your own</div>
+          <p className="re2-cdesc">
+            Nothing on the market is what you want. Choose a street and have it raised —
+            new, empty, and exactly as grand as you care to pay for. Building costs more
+            than buying; that difference is what bespoke means.
+          </p>
+          <div className="re2-grid">
+            {affordable.map((offer) => (
+              <article className="re2-card" key={`${String(offer.placeId)}-${offer.type}`}>
+                <div className="re2-chead">
+                  <div>
+                    <div className="re2-ctitle">{offer.title}</div>
+                    <div className="re2-cmeta">
+                      {offer.street.toUpperCase()} · {offer.beds} BED · {offer.sqft} SQFT
+                    </div>
+                  </div>
+                  <div className="re2-cprice">{formatMoney(offer.cost)}</div>
+                </div>
+                <p className="re2-cdesc">{offer.blurb}</p>
+                <div className="re2-stats">
+                  <div><span>Worth once built</span><b>{formatMoney(offer.worth)}</b></div>
+                  <div>
+                    <span>The builder's premium</span>
+                    <b className="bad">{formatMoney((offer.cost - offer.worth) as never)}</b>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="apply"
+                  disabled={offer.bar !== null}
+                  title={offer.bar ?? offer.blurb}
+                  onClick={() =>
+                    onAct({
+                      verb: 'commission-build',
+                      placeId: offer.placeId as number,
+                      propertyType: offer.type,
+                    })
+                  }
+                >
+                  Break ground
+                </button>
+              </article>
+            ))}
+          </div>
+        </>
+      )}
 
       <div className="re2-title">Your properties</div>
       {mine.length === 0 ? (

@@ -753,6 +753,8 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     // hundred years later.
     case 'endowed':
       return `${year} — Gave to ${event.detail ?? 'the town'}.`
+    case 'built-home':
+      return `${year} — Built ${(event.detail ?? '').split(':')[1] ?? 'a house'}.`
     // ---- THE COURT, WHICH USED TO HAPPEN OFFSTAGE -------------------
     //
     // Twenty-eight person-level events were recorded and rendered nowhere:
@@ -1180,6 +1182,11 @@ export function describeOutcome(world: World, event: WorldEvent): string | null 
 
     case 'was-acquitted':
       return 'The charge did not stick. Nothing goes on the record — the arrest happened, and that was all it was.'
+
+    case 'built-home': {
+      const [kind, where] = (event.detail ?? '').split(':')
+      return `Raised where nothing stood — ${kind ?? 'a house'} at ${where ?? 'a new address'}. Building costs more than buying, which is the price of having it exactly as you wanted it.`
+    }
 
     case 'endowed':
       return `Money given to one of the town's own institutions — ${event.detail ?? 'the town'}. It does not come back, which is the point of it.`

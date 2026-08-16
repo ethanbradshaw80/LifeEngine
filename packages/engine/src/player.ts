@@ -27,7 +27,6 @@ import { isHigherEducation, OCCUPATIONS, occupationById, typicalPay } from './co
 import { CAPITAL_CEILING_MULTIPLE } from './business.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
 import {
-  liquidShareOf,
   earnLicence,
   canAfford,
   creditPerson,
@@ -245,6 +244,16 @@ import {
 import type { InterviewApproach } from './interview.js'
 import { placeOf } from './careers.js'
 import { article15For } from './article15.js'
+import {
+  BUILD_TIERS,
+  buildCostFor,
+  buildTierFor,
+  plannedBuild,
+  setOwner,
+  valueOf,
+} from './realestate.js'
+import type { BuildOffer } from './realestate.js'
+import type { PropertyType } from './types.js'
 import {
   GIFTS,
   causeBlurb,
@@ -5487,6 +5496,7 @@ export function resolvePending(world: World, choice: string): void {
     case 'take-job':
     case 'earn-licence':
     case 'endow':
+    case 'commission-build':
     case 'hire-staff':
     case 'let-go':
     case 'convalesce-stance': {
@@ -7365,6 +7375,8 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Earned a qualification.' // log-only
     case 'endow':
       return 'Gave to the town.' // log-only
+    case 'commission-build':
+      return 'Had a house built.' // log-only
     case 'hire-staff':
       return 'Took somebody on.' // log-only
     case 'let-go':
@@ -9505,9 +9517,18 @@ export function giveBar(
     return `${place.endowedBy ?? ''} endowed it. A name over a door goes on once.`
   }
 
+  /**
+   * THE WALLET, NOT THE HALF-SHARE. `debitPerson` spends the couple's shared
+   * pot under H0, so gating on one spouse's share would refuse a gift the
+   * money plainly covers — and `moneyOnHand` is what every other purchase in
+   * this game asks. A bar that reads a different balance from the one the
+   * verb spends is the "you have zero / my money is 1.9 million" bug wearing
+   * a new hat.
+   */
   const cost = atTodaysPrices(world, terms.cost) as Money
-  if (liquidShareOf(world, personId) < cost) {
-    return `It takes ${formatMoney(cost)} and you have ${formatMoney(liquidShareOf(world, personId) as Money)}.`
+  const have = moneyOnHand(world, personId)
+  if (have < cost) {
+    return `It takes ${formatMoney(cost)} and you have ${formatMoney(have)}.`
   }
   return null
 }
@@ -9580,5 +9601,119 @@ export function endowPlayer(
       named === null
         ? `${formatMoney(cost)} to ${place.name}. They will remember it.`
         : `${formatMoney(cost)}. It is ${named} now, and will be long after you.`,
+  }
+}
+
+/**
+ * WHERE A PLAYER COULD BUILD, and what each would cost.
+ *
+ * One row per street per tier, priced at today's money, each carrying the
+ * engine's own refusal. `commissionBar` is the function the verb enforces,
+ * so a greyed button and its reason cannot come apart.
+ */
+export function buildOffersFor(world: World): readonly BuildOffer[] {
+  const person = playerPerson(world)
+  const year = toDate(world, world.tick).year
+  const offers: BuildOffer[] = []
+  for (const placeId of world.town.placeIds) {
+    const place = world.places.get(placeId)
+    if (place === undefined || place.kind !== 'neighbourhood') continue
+    for (const tier of BUILD_TIERS) {
+      const planned = plannedBuild(world, placeId, tier.type, year)
+      if (planned === undefined) continue
+      offers.push({
+        placeId,
+        street: place.name,
+        type: tier.type,
+        title: tier.title,
+        blurb: tier.blurb,
+        beds: planned.beds,
+        sqft: planned.sqft,
+        cost: buildCostFor(world, planned),
+        worth: valueOf(world, planned),
+        bar: person === undefined ? 'Nobody to build it.' : commissionBar(world, person.id, placeId, tier.type),
+      })
+    }
+  }
+  return offers
+}
+
+/** Why they cannot raise this, in words, or null when they can. */
+export function commissionBar(
+  world: World,
+  personId: EntityId,
+  neighbourhoodPlaceId: EntityId,
+  type: PropertyType,
+): string | null {
+  const place = world.places.get(neighbourhoodPlaceId)
+  if (place === undefined || place.kind !== 'neighbourhood') return 'You cannot build there.'
+  if (buildTierFor(type) === undefined) return 'Nobody builds those.'
+  const year = toDate(world, world.tick).year
+  const planned = plannedBuild(world, neighbourhoodPlaceId, type, year)
+  if (planned === undefined) return 'You cannot build there.'
+  if (world.properties.has(planned.id)) return 'There is already something on that plot.'
+  // The wallet, not the half-share — see the note in `giveBar`.
+  const cost = buildCostFor(world, planned)
+  const have = moneyOnHand(world, personId)
+  if (have < cost) {
+    return `The build comes to ${formatMoney(cost)} and you have ${formatMoney(have)}.`
+  }
+  return null
+}
+
+/**
+ * RAISE IT. Money becomes a building that was not there before.
+ *
+ * The premium is the point: you pay 145 for every 100 of house you end up
+ * holding, so this is a way to SPEND a fortune rather than a way to grow one.
+ * What you get for the difference is the thing the market cannot sell you —
+ * a house nobody has lived in, on a street you chose, at a size the town has
+ * never seen.
+ */
+export function commissionBuildPlayer(
+  world: World,
+  neighbourhoodPlaceId: EntityId,
+  type: PropertyType,
+): { done: boolean; reason: string } {
+  const guard = verbPerson(world)
+  if ('reason' in guard) return { done: false, reason: guard.reason }
+  const { person } = guard
+  const bar = commissionBar(world, person.id, neighbourhoodPlaceId, type)
+  if (bar !== null) return { done: false, reason: bar }
+
+  const year = toDate(world, world.tick).year
+  const planned = plannedBuild(world, neighbourhoodPlaceId, type, year)
+  if (planned === undefined) return { done: false, reason: 'You cannot build there.' }
+  const cost = buildCostFor(world, planned)
+  const paid = debitPerson(world, person.id, cost)
+  if (paid < cost) {
+    if (paid > 0) creditPerson(world, person.id, paid)
+    return { done: false, reason: `The build comes to ${formatMoney(cost)} and you cannot cover it.` }
+  }
+
+  // The deed is written through `setOwner`, the single writer for who owns
+  // what, so the purchase record reads exactly like any other transaction.
+  world.properties.set(planned.id, planned)
+  setOwner(world, planned.id, person.id, { price: cost, tick: world.tick })
+
+  logVerb(world, 'commission-build', planned.id)
+  recordEvent(world, world.tick, {
+    type: 'built-home',
+    subjectId: person.id,
+    placeId: neighbourhoodPlaceId,
+    detail: `${type}:${planned.address}`,
+  })
+  recordDecision(world, world.tick, {
+    subjectId: person.id,
+    decision: 'move',
+    significance: 'major',
+    inputs: [factor('own-means', Math.min(1000, Math.floor(cost / 100_000)))],
+    chosen: `built ${withArticle(type)} at ${planned.address}`,
+    rejected: ['buying something already standing'],
+    streamId: Stream.Economy,
+  })
+  return {
+    done: true,
+    reason: `${formatMoney(cost)}. ${planned.address} is yours, and nobody has ever lived in it.`,
   }
 }

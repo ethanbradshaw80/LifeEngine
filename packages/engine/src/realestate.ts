@@ -50,6 +50,9 @@ const TYPE_SHAPE: Readonly<
   townhouse: { beds: [2, 3, 3], sqft: 1_350, factor: 96 },
   house: { beds: [3, 3, 4], sqft: 1_700, factor: 118 },
   estate: { beds: [4, 5, 6], sqft: 3_200, factor: 205 },
+  // BUILT, NEVER FOUND. Nothing in `typesFor` returns a manor, so one only
+  // stands where a player paid to raise it. See `BUILD_TIERS`.
+  manor: { beds: [6, 7, 8], sqft: 6_500, factor: 430 },
 }
 
 /** Street names, so an address reads like an address. */
@@ -648,4 +651,134 @@ export function runNeighbourhoodDrift(world: World, tick: Tick): void {
       world.places.set(place.id, { ...place, desirability: next })
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// COMMISSIONING A BUILD (the money sinks, second of them)
+// ---------------------------------------------------------------------------
+
+/**
+ * AT THE TOP OF THIS MARKET YOU DO NOT SHOP, YOU BUILD.
+ *
+ * THE REPORT (owner): "houses run out, you dont even get like more expensive
+ * houses options to you once you make stupid money like that."
+ *
+ * MEASURED, and he is understating it. A forty-year town holds 112
+ * properties: thirty-seven townhouses, thirty-two houses, thirty-one condos,
+ * ten flats and exactly TWO estates. The dearest building in the county is
+ * worth $615,191 and the next one down is $272,187. Worse, the stock is laid
+ * out ONCE by `generateProperties` at worldgen and never added to — the town
+ * grows for eighty years and not one new house is ever raised. A player with
+ * six million buys both estates in his first year and there is genuinely
+ * nothing left to want.
+ *
+ * So the answer is not a longer list of houses. It is that money past a
+ * certain point stops being a thing you shop with and becomes a thing you
+ * build with, which is both what actually happens and the more interesting
+ * verb. You choose a street, you choose how grand, and a year's wages later
+ * there is a building there that was not there before.
+ *
+ * THE PREMIUM IS THE SINK. Building bespoke costs more than buying built —
+ * it does in life, and here it is what stops commissioning from being a way
+ * to MAKE money by turning cash into a more valuable asset. You pay 145 for
+ * every 100 of house you end up owning. The rest of the sink is the upkeep,
+ * which every owned property already charges every month whether anybody
+ * lives in it or not.
+ */
+export const BUILD_PREMIUM_PER_MILLE = 1_450
+
+export interface BuildTier {
+  readonly type: PropertyType
+  readonly title: string
+  readonly blurb: string
+}
+
+/**
+ * WHAT CAN BE RAISED. Ordered as the ladder a fortune climbs.
+ *
+ * A house is here so that commissioning is not purely a rich person's verb —
+ * somebody comfortable can build modestly on a good street. The manor is the
+ * one that exists nowhere else in the world.
+ */
+export const BUILD_TIERS: readonly BuildTier[] = [
+  {
+    type: 'house',
+    title: 'Build a house',
+    blurb: 'Four walls of your own choosing, raised new on a street you picked.',
+  },
+  {
+    type: 'estate',
+    title: 'Build an estate',
+    blurb: 'Land, and a house that sits in the middle of it rather than on a street.',
+  },
+  {
+    type: 'manor',
+    title: 'Build a manor',
+    blurb: 'The kind of house a county remembers the name of. Nothing like it stands here.',
+  },
+]
+
+export function buildTierFor(type: PropertyType): BuildTier | undefined {
+  return BUILD_TIERS.find((entry) => entry.type === type)
+}
+
+/**
+ * THE BUILDING THAT WOULD RESULT, before anybody pays for it.
+ *
+ * Pure: it computes a property without writing one, so the screen can price
+ * the thing and describe it in the same breath the player decides. `id` is
+ * derived from the place and the count already standing there, so the same
+ * decision in the same world always raises the same house — no RNG is
+ * consumed, exactly as `generateProperties` consumes none.
+ */
+export function plannedBuild(
+  world: World,
+  neighbourhoodPlaceId: EntityId,
+  type: PropertyType,
+  year: number,
+): Property | undefined {
+  const place = world.places.get(neighbourhoodPlaceId)
+  if (place === undefined || place.kind !== 'neighbourhood') return undefined
+  const shape = TYPE_SHAPE[type]
+  let standing = 0
+  for (const property of world.properties.values()) {
+    if (property.neighbourhoodPlaceId === neighbourhoodPlaceId) standing += 1
+  }
+  const salt = hash32(neighbourhoodPlaceId * 1_000 + standing) >>> 0
+  const beds = shape.beds[shape.beds.length - 1] ?? 4
+  return {
+    id: `${String(neighbourhoodPlaceId)}-b${String(standing)}`,
+    neighbourhoodPlaceId,
+    address: `${String((salt % 180) + 1)} ${STREETS[(salt >>> 8) % STREETS.length] ?? 'Maple Court'}`,
+    type,
+    beds,
+    baths: Math.max(2, Math.floor(beds / 2) + 1),
+    sqft: shape.sqft + beds * 110,
+    lotSqft: type === 'apartment' || type === 'condo' ? 0 : shape.sqft * 3,
+    yearBuilt: year,
+    // NEW. The one thing money can buy that the market cannot offer: a
+    // building with nothing yet wrong with it.
+    condition: 1_000,
+  }
+}
+
+/** What it costs to raise it — the finished value plus the builder's premium. */
+export function buildCostFor(world: World, planned: Property): Money {
+  return Math.floor((valueOf(world, planned) * BUILD_PREMIUM_PER_MILLE) / 1_000) as Money
+}
+
+/** One buildable option on one street, priced and refused in one place. */
+export interface BuildOffer {
+  readonly placeId: EntityId
+  readonly street: string
+  readonly type: PropertyType
+  readonly title: string
+  readonly blurb: string
+  readonly beds: number
+  readonly sqft: number
+  /** What the build costs — value plus the builder's premium. */
+  readonly cost: Money
+  /** What it will be worth once it stands. Always less than the cost. */
+  readonly worth: Money
+  readonly bar: string | null
 }

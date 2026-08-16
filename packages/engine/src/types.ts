@@ -1162,7 +1162,22 @@ export interface HabitRecord {
  * desirability model keeps working underneath and nothing about the old
  * economy is thrown away.
  */
-export type PropertyType = 'house' | 'condo' | 'townhouse' | 'apartment' | 'estate'
+/**
+ * THE TOP OF THIS MARKET IS BUILT, NOT BOUGHT (owner: "houses run out, you
+ * dont even get like more expensive houses options to you once you make
+ * stupid money").
+ *
+ * MEASURED and he is exactly right: a mature town holds 112 properties of
+ * which TWO are estates, the dearest thing standing is worth $615,191, and
+ * the stock is generated once at worldgen and never added to. A man with six
+ * million buys both estates in his first year and the market is finished.
+ *
+ * `manor` is the tier above, and it is deliberately NOT in `typesFor` — no
+ * town of this size has ever had one standing. It exists only where somebody
+ * commissioned it, which is also why adding it moved no golden: worldgen
+ * lays out exactly the streets it always did.
+ */
+export type PropertyType = 'house' | 'condo' | 'townhouse' | 'apartment' | 'estate' | 'manor'
 
 export interface Property {
   readonly id: string
@@ -2340,6 +2355,8 @@ export interface CapTable {
 export type PendingKind =
   /** Money given to one of the town's institutions. */
   | 'endow'
+  /** A home commissioned rather than bought. */
+  | 'commission-build'
   /** Running your own business, month to month. */
   | 'order-stock'
   | 'clear-stock'
@@ -2876,6 +2893,8 @@ export type EventType =
   | 'was-acquitted'
   /** Money given to one of the town's institutions. */
   | 'endowed'
+  /** A home raised where nothing stood. */
+  | 'built-home'
   | 'released-from-jail'
   /** Wounded by enemy action on deployment — distinct from civilian injury,
    *  because award eligibility will read the difference (L4-M5). */

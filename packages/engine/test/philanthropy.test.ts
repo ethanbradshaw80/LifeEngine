@@ -13,7 +13,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import type { Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
-import { liquidShareOf, walletOf } from '../src/finances.js'
+import { walletOf } from '../src/finances.js'
 import { causesFor, endowPlayer, giveBar, setPlayer } from '../src/player.js'
 import { causePlaces, giftTermsFor } from '../src/philanthropy.js'
 import { livingPeople } from '../src/systems.js'
@@ -71,11 +71,15 @@ describe('the money is actually gone', () => {
     const place = causePlaces(world)[0]
     expect(place).toBeDefined()
     if (!place) return
-    const before = liquidShareOf(world, personId as never)
+    // The couple's pot, which is what `debitPerson` actually spends under H0.
+    const purse = () => {
+      const w = walletOf(world, personId as never)
+      return w.checking + w.savings
+    }
+    const before = purse()
     const done = endowPlayer(world, place.id, 'wing')
     expect(done.done, done.reason).toBe(true)
-    const after = liquidShareOf(world, personId as never)
-    expect(after).toBeLessThan(before)
+    expect(purse()).toBeLessThan(before)
   })
 
   it('refuses when it cannot be covered, and says the price', () => {

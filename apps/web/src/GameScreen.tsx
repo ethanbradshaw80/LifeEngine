@@ -211,6 +211,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
   'was-convicted': '⚖️',
   'was-acquitted': '⚖️',
   endowed: '🏛️',
+  'built-home': '🏗️',
   'released-from-jail': '🔓',
   'fell-behind': '📉',
   'back-in-the-black': '📈',
