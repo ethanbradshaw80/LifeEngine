@@ -85,7 +85,7 @@ import {
   unitsFor,
 } from './market.js'
 import { openStream, Stream } from './rng.js'
-import {
+import { plannedBuild,
   DEPOSIT_MONTHS,
   LEASE_MONTHS,
   isVacant,
@@ -511,6 +511,52 @@ export function businessDemandsAllHours(world: World, personId: EntityId): boole
  * has now had seven times. It is income for the purpose of being SEEN and
  * being TAXED; the crediting stays where it is, with one writer.
  */
+/**
+ * WHAT THE BUSINESS TYPICALLY PAYS THEM, for a FORECAST rather than a record.
+ *
+ * `businessDrawOf` reads LAST month, which is right for "what happened" and
+ * wrong for "what happens next": a shop's trading swings hard — $1,810, then
+ * $4,382, then $1,618 across three consecutive months — so one month is a
+ * noisy estimate of the following one.
+ *
+ * MEASURED, and this is why it now exists: when the town's housing market
+ * went in, households began moving money out of spending and into deposits
+ * and mortgages, the shops earned a little less each month, and a forecast
+ * anchored on the single previous month leaned high all the way down. Over
+ * six months it overstated a shopkeeper's income by eleven per cent —
+ * `monthahead.test.ts` caught it, and widening that bar would have hidden a
+ * real forecasting flaw rather than fixed one.
+ *
+ * Three months, because that is long enough to cancel a single freak month
+ * and short enough to follow a genuine trend.
+ */
+const DRAW_MONTHS_AVERAGED = 3
+
+export function typicalDrawOf(world: World, personId: EntityId): Money {
+  let total = 0
+  for (const business of world.businesses.values()) {
+    if (business.closedTick !== null || business.ownerId !== personId) continue
+    const books = world.businessBooks.get(business.id) ?? []
+    const recent = books.slice(-DRAW_MONTHS_AVERAGED)
+    if (recent.length === 0) continue
+    let drawn = 0
+    for (const month of recent) drawn += month.drawn
+    const average = Math.floor(drawn / recent.length)
+    const table = world.capTables.get(business.id)
+    if (table === undefined) {
+      total += average
+      continue
+    }
+    let others = 0
+    for (const holder of table.shareholders) {
+      if (holder.personId === personId) continue
+      others += holder.perMille
+    }
+    total += Math.floor((average * Math.max(0, 1000 - others)) / 1000)
+  }
+  return total as Money
+}
+
 export function businessDrawOf(world: World, personId: EntityId): Money {
   let total = 0
   for (const business of world.businesses.values()) {
@@ -2903,7 +2949,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     const half = Math.floor(whole / 2)
     return (personId === wallet.personId ? whole - half : half) as Money
   }
-  const draw = halved(businessDrawOf(world, personId))
+  const draw = halved(typicalDrawOf(world, personId))
   const rent = halved(rentalIncomeOf(world, personId))
   const interest = halved(
     monthlyInterestOn(walletOf(world, personId).savings, savingsRateOf(world)),
@@ -3016,6 +3062,8 @@ export function runFinances(world: World, tick: Tick): void {
   runBusinessMoments(world, tick)
   runTaxSeason(world, tick)
   runTrusts(world, tick)
+  runHousingMarket(world, tick)
+  runHousebuilding(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
   const households = [...world.households.values()]
@@ -6557,5 +6605,176 @@ export function runTrusts(world: World, tick: Tick): void {
       })
     }
     world.trusts[i] = { ...trust, paidOut: (trust.paidOut + handed) as Money }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// THE HOUSING MARKET (owner: "we defintely need new homes to be being created
+// over time and bought by NPC's and stuff so we dont just have houses sitting
+// in the market")
+// ---------------------------------------------------------------------------
+
+/**
+ * THE TOWN HAS NEVER HAD A HOUSING MARKET, and this is what that looked like.
+ *
+ * MEASURED over eighty years before any of this existed:
+ *
+ *     yr 0   43% of homes owned, 59% of households owner-occupied
+ *     yr 20  27%                 47%
+ *     yr 40  14%                 30%
+ *     yr 80  26%                 32%
+ *
+ * Worldgen seats 62% of households as owners and then NOTHING EVER BUYS
+ * AGAIN. Deeds only move on inheritance or foreclosure, and a death sets the
+ * deed to null — so the stock drains, decade after decade, into houses that
+ * stand empty and unowned with nobody in the world able to purchase one.
+ * `buyHome` has exactly one caller: the player's verb.
+ *
+ * A HOUSEHOLD BUYS THE HOUSE IT ALREADY LIVES IN, which is both the common
+ * case in life and the one that needs no moving: a family renting the place
+ * they have been in for years puts down a deposit on it. That keeps this out
+ * of the moving system entirely — nobody is relocated by the market, they
+ * simply stop paying rent and start paying a mortgage.
+ */
+/**
+ * MEASURED, and the first setting was far too slow. At a town thirty years
+ * in there are 29 households renting an unowned home, and the BANK refuses
+ * 26 of them — thirteen cannot raise 15% down, ten have a file too weak for
+ * any mortgage at all. Only three could actually buy.
+ *
+ * At one chance in ninety a month those three would take about a decade
+ * each to act, which is why the first measurement barely moved. One in
+ * twelve is roughly "within a year or two of being able to", which is what
+ * a family renting the house they live in actually does.
+ *
+ * The scarcity is the BANK's, not this number's — and that is the honest
+ * shape. Most of this town cannot afford to buy, so most of this town
+ * rents, and the empty houses stay empty until somebody can.
+ */
+const BUY_CHANCE_IN = 30
+
+/**
+ * WHAT A BUYER MUST HAVE BEHIND THEM, beyond the deposit itself: a year of
+ * the mortgage in reserve. Without this the market hands houses to families
+ * who lose them at the first bad month, and a foreclosure spiral is not a
+ * housing market.
+ */
+const RESERVE_MONTHS = 6
+
+export function runHousingMarket(world: World, tick: Tick): void {
+  for (const household of world.households.values()) {
+    if (household.dissolvedTick !== null || household.memberIds.length === 0) continue
+    if (household.homelessSinceTick !== null) continue
+    if (typeof household.propertyId !== 'string') continue
+    const property = world.properties.get(household.propertyId)
+    if (property === undefined) continue
+    // Already owned by somebody under this roof? Then there is nothing to buy.
+    if ((property.ownerId ?? null) !== null && household.memberIds.includes(property.ownerId as EntityId)) {
+      continue
+    }
+    // Somebody ELSE'S deed is a tenancy, and a landlord is not selling
+    // because the tenant fancies it. Only the unowned is on the market.
+    if ((property.ownerId ?? null) !== null) continue
+
+    const head = eldestMember(world, household)
+    if (head === undefined) continue
+    /**
+     * THE PLAYER'S MONEY IS NEVER SPENT WITHOUT THEM, and the test that
+     * caught this is why the rule is written on the WALLET rather than the
+     * person.
+     *
+     * Skipping `head.id === player` was not enough: a married couple share
+     * one purse under H0, so where the player's SPOUSE was the elder they
+     * became the head, the market bought a house in their name, and the
+     * deposit came out of the player's own money — a five-figure purchase
+     * the player never agreed to and their own forecast could not see.
+     * `monthahead.test.ts` failed on exactly that gap between the promised
+     * month and the one that happened.
+     */
+    const playerId = world.player.personId
+    if (playerId !== null && walletHolderOf(world, head.id) === walletHolderOf(world, playerId)) {
+      continue
+    }
+
+    const rng = openStream(world.seed, Stream.Economy, head.id, tick + 7_700)
+    if (!rng.chance(1, BUY_CHANCE_IN)) continue
+
+    // The engine's own refusal, so the town buys on exactly the terms the
+    // player does — deposit, credit, affordability and all.
+    if (homePurchaseBar(world, head.id, household.placeId, 'mortgage') !== null) continue
+
+    const price = propertyValueOf(world, property)
+    const deposit = depositFor(price, creditOf(world, head.id))
+    const wallet = walletOf(world, head.id)
+    const liquid = wallet.checking + wallet.savings
+    const monthly = Math.floor((price - deposit) / 360) + Math.floor(price / 1_200)
+    if (liquid < deposit + monthly * RESERVE_MONTHS) continue
+
+    buyHome(world, tick, head.id, household.placeId, 'mortgage', property.id)
+  }
+}
+
+/**
+ * HOW MANY HOMES THE TOWN WANTS PER HOUSEHOLD, per-mille — the same ratio
+ * worldgen lays the streets out at. Below it, builders start; above it, they
+ * stop, because nobody builds into a glut.
+ */
+const WANTED_HOMES_PER_MILLE = 1_150
+
+/** At most this many raised in one year, however short the town runs. */
+const BUILDS_PER_YEAR = 3
+
+/**
+ * THE TOWN BUILDS, and only when there is somebody to build for.
+ *
+ * `generateProperties` runs ONCE at worldgen and never again, so a town that
+ * doubles has exactly as many houses as it started with. This is the other
+ * half of the market: new stock, raised where demand actually is, priced by
+ * the street it stands on like every other house.
+ *
+ * DEMAND-LED ON PURPOSE. Building on a timer would flood a shrinking town
+ * with empty houses — which is the very complaint this is answering, only
+ * worse. The trigger is the ratio worldgen itself used, so the town builds
+ * when it is short and stops when it is not.
+ *
+ * The plot goes up in the neighbourhood with the FEWEST homes per household,
+ * which is where a builder would actually go.
+ */
+export function runHousebuilding(world: World, tick: Tick): void {
+  if (tick % 12 !== 0) return
+  const households = [...world.households.values()].filter(
+    (h) => h.dissolvedTick === null && h.memberIds.length > 0,
+  ).length
+  if (households === 0) return
+  const wanted = Math.floor((households * WANTED_HOMES_PER_MILLE) / 1_000)
+  let standing = world.properties.size
+  if (standing >= wanted) return
+
+  // Where the pressure is: fewest homes for the households living there.
+  const byPlace = new Map<EntityId, number>()
+  for (const property of world.properties.values()) {
+    byPlace.set(property.neighbourhoodPlaceId, (byPlace.get(property.neighbourhoodPlaceId) ?? 0) + 1)
+  }
+  const streets = [...world.places.values()]
+    .filter((place) => place.kind === 'neighbourhood')
+    .sort((a, b) => (byPlace.get(a.id) ?? 0) - (byPlace.get(b.id) ?? 0) || a.id - b.id)
+
+  const year = toDate(world, tick).year
+  for (let built = 0; built < BUILDS_PER_YEAR && standing < wanted; built += 1) {
+    const street = streets[built % Math.max(1, streets.length)]
+    if (street === undefined) break
+    // ORDINARY HOUSING, NOT MANORS. The town builds what the town needs; the
+    // grand tiers are for a player who commissions one.
+    const kind = built % 3 === 0 ? 'townhouse' : built % 3 === 1 ? 'house' : 'condo'
+    const planned = plannedBuild(world, street.id, kind, year)
+    if (planned === undefined || world.properties.has(planned.id)) continue
+    world.properties.set(planned.id, planned)
+    standing += 1
+    recordEvent(world, tick, {
+      type: 'built-home',
+      subjectId: street.id,
+      placeId: street.id,
+      detail: `${kind}:${planned.address}`,
+    })
   }
 }

@@ -243,12 +243,28 @@ describe('in a running world', () => {
      * every-moment-fires claim runs against a full-size town, where every
      * rung has somebody on it.
      */
-    const fullTown = createWorld(makeSeed(4242))
-    advanceTicks(fullTown, 1500)
-    for (const event of fullTown.events) {
-      if (event.type !== 'work-moment') continue
-      const id = (event.detail ?? '').split(':')[0] ?? ''
-      seen.set(id, (seen.get(id) ?? 0) + 1)
+    /**
+     * TWO FULL TOWNS, NOT ONE — and the window grew rather than the bar
+     * dropping, which is how this same test was repaired the last time.
+     *
+     * MEASURED across three full-size towns of 125 years: `the-succession`
+     * fired FOUR times in total and `the-board` six. They are the top-rung
+     * moments, they need somebody standing at the very top of a ladder when
+     * the roll comes up, and at that rarity a single town is simply not a
+     * big enough sample to prove reachability — seed 4242 misses the
+     * succession while 909 and 12345 both catch it.
+     *
+     * The claim has not moved: every moment must be REACHABLE. What changed
+     * is that it is now asked of a sample large enough to answer it.
+     */
+    for (const townSeed of [4242, 909]) {
+      const fullTown = createWorld(makeSeed(townSeed))
+      advanceTicks(fullTown, 1500)
+      for (const event of fullTown.events) {
+        if (event.type !== 'work-moment') continue
+        const id = (event.detail ?? '').split(':')[0] ?? ''
+        seen.set(id, (seen.get(id) ?? 0) + 1)
+      }
     }
     expect(seen.size, 'some moments never fire').toBe(WORK_MOMENTS.length)
   })
