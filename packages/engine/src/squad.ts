@@ -29,6 +29,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Person, SquadMember, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
+import { unitRosterOf } from './service.js'
 
 /** How many people stand next to you. A fireteam, not a company. */
 export const SQUAD_SIZE = 5
@@ -203,12 +204,26 @@ export function ownSquadRowFor(
 
   const record = world.service.get(personId)
   const trade = record === undefined ? '' : specialtyFor(world, record.specialtyId).title
-  let topRank = 0
-  for (const member of squad) {
-    topRank = Math.max(topRank, world.service.get(member.personId)?.rank ?? 0)
+  /**
+   * DO HE OUTRANK THEM? ASK THE ROSTER, NOT `record.rank`.
+   *
+   * Seen in the browser: a 1LT deployed with four PFCs was labelled
+   * "rifleman", because rank is an INDEX INTO WHICHEVER LADDER somebody is
+   * on — a lieutenant sits at 1 on the officer ladder and a specialist at 3
+   * on the enlisted one, so the arithmetic said the specialist was senior.
+   * `unitRosterOf` already sorts by real authority; position in it is the
+   * honest comparison, and it is the same rule `squadFromUnit` uses to pick
+   * who leads.
+   */
+  const order = (unitRosterOf(world, personId)?.members ?? []).map((m) => m.personId)
+  const placeOf = (id: EntityId): number => {
+    const at = order.indexOf(id)
+    return at === -1 ? Number.MAX_SAFE_INTEGER : at
   }
+  const mine = placeOf(personId)
+  const leads = squad.every((m) => placeOf(m.personId) > mine)
   const role: SquadRole =
-    record !== undefined && record.rank > topRank
+    record !== undefined && leads
       ? 'leader'
       : /medic|corpsman|surgeon/i.test(trade)
         ? 'medic'

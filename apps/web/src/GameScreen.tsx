@@ -3254,12 +3254,41 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                             : '🪖'}
                                     </span>
                                     <div>
-                                      <div className="nm">
+                                      {/**
+                                        * CLICKABLE HERE TOO (owner: "not
+                                        * clickable in the history of the
+                                        * deployment").
+                                        *
+                                        * The live tour panel opens these men
+                                        * and this list did not, which is the
+                                        * worse of the two places to lose it:
+                                        * the history is where you go to
+                                        * remember somebody, and the ones who
+                                        * were killed are ONLY here.
+                                        */}
+                                      <button
+                                        type="button"
+                                        className="link nm"
+                                        onClick={() => { onInspect(member.personId) }}
+                                      >
                                         {member.nickname.length > 0
                                           ? `${them.givenName} "${member.nickname}" ${them.familyName}`
                                           : `${them.givenName} ${them.familyName}`}
+                                      </button>
+                                      <div className="sub">
+                                        {member.role.replace(/-/g, ' ')}
+                                        {(() => {
+                                          // Rank, trade and where he was from
+                                          // — the same line the live panel
+                                          // gives, so a man you lost reads as
+                                          // a person rather than a callsign.
+                                          const rec = world.service.get(member.personId)
+                                          if (rec === undefined) return null
+                                          return ` · ${rankTitle(world, rec.branch, rec.rank, rec.commissioned === true)}${
+                                            them.fromAway === undefined ? '' : ` · from ${them.fromAway}`
+                                          }`
+                                        })()}
                                       </div>
-                                      <div className="sub">{member.role.replace(/-/g, ' ')}</div>
                                     </div>
                                     <span className={`sq-state s-${state}`}>
                                       <i className={`sq-dot d-${state}`} aria-hidden="true" />

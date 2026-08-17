@@ -143,7 +143,9 @@ export function TourPanel({
       {squad.length > 0 && (
         <div className="tour-squad">
           <h4>
-            The team · {living.length} of {squad.length}
+            {/* THE PLAYER IS ON THIS LIST NOW, so he is in the count. It
+                read "5 of 5" above six rows. */}
+            The team · {living.length + 1} of {squad.length + 1}
           </h4>
           {rows.map(({ member, isYou }) => {
             const person = world.people.get(member.personId)
@@ -187,20 +189,60 @@ export function TourPanel({
                     * A squad of names you cannot open was the last place the
                     * old invented squadmates still showed through.
                     */}
-                  {onInspect === undefined ? (
-                    <div className="nm">{squadLineFor(member, person, world.tick)}</div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="link nm"
-                      onClick={() => { onInspect(member.personId) }}
-                    >
-                      {squadLineFor(member, person, world.tick)}
-                    </button>
-                  )}
+                  {(() => {
+                    /**
+                     * A BOND WITH YOURSELF IS NOT A THING, and `squadLineFor`
+                     * ends every line with one. Seen in the browser: the
+                     * player's own row read `Gomez "Pockets" · rifleman ·
+                     * you have been together a long time`, which is Harry
+                     * Gomez being told how well he knows Harry Gomez.
+                     *
+                     * His row is his name and the name they call him. The
+                     * sub-line below already says it is him.
+                     */
+                    /**
+                     * THE NAME LINE IS THE NAME. Seen in the browser: every
+                     * row printed its role and bond TWICE — `squadLineFor`
+                     * ends with "· automatic rifleman · he is new" and the
+                     * sub-line underneath said "automatic rifleman · he is
+                     * new" again. Harmless before, when the sub-line was the
+                     * only other thing on the row; plainly wrong now that
+                     * each man carries three lines.
+                     *
+                     * So the heading is who he is, and the two lines under it
+                     * are what he does and who he is in the service.
+                     * `squadLineFor` is still the authority for the dead,
+                     * because "killed" belongs in the name.
+                     */
+                    const label = dead
+                      ? squadLineFor(member, person, world.tick)
+                      : `${person?.familyName ?? 'You'} "${member.nickname}"`
+                    return onInspect === undefined ? (
+                      <div className="nm">{label}</div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="link nm"
+                        onClick={() => { onInspect(member.personId) }}
+                      >
+                        {label}
+                      </button>
+                    )
+                  })()}
                   {!dead && (
                     <div className="sub">
-                      {ROLE_TITLES[member.role as SquadRole] ?? member.role}
+                      {/**
+                        * TWO MEN CALLED "TEAM LEADER" IS NOT A TEAM.
+                        *
+                        * Seen in the browser: a 1LT and a PV2 both labelled
+                        * team leader. Both being there is CORRECT — an
+                        * officer commands and an NCO runs the fireteam — but
+                        * they are not the same job and must not read as the
+                        * same word.
+                        */}
+                      {isYou && member.role === 'leader'
+                        ? 'in command'
+                        : (ROLE_TITLES[member.role as SquadRole] ?? member.role)}
                       {/* A bond with yourself is not a thing. */}
                       {isYou ? ' · this is you' : ` · ${bondWords(bondWith(member, world.tick))}`}
                     </div>

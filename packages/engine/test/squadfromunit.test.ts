@@ -22,6 +22,7 @@ import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { unitRosterOf } from '../src/service.js'
 import { squadFromUnit } from '../src/deployment.js'
+import { BRANCH_GRADES } from '../src/content.js'
 import type { World } from '../src/types.js'
 
 /** Somebody serving in a unit with people in it. */
@@ -78,14 +79,62 @@ describe('the squad is your unit', () => {
     expect(leader, 'nobody is leading it').toBeDefined()
     if (leader === undefined || others.length === 0) return
 
-    const rankOf = (id: number): number => world.service.get(id as never)?.rank ?? 0
-    const leaderRank = rankOf(leader.personId)
-    const averageOther =
-      others.reduce((sum, m) => sum + rankOf(m.personId), 0) / others.length
+    /**
+     * SENIORITY IS THE ROSTER'S ORDER, NOT `record.rank`.
+     *
+     * A first version of this check compared ranks directly and reported "the
+     * leader is rank 1 and the team averages 2.3" as a failure when nothing
+     * was wrong: rank is an INDEX INTO WHICHEVER LADDER somebody is on, so a
+     * second lieutenant at rank 0 outranks a sergeant first class at rank 6.
+     * `rosterFrom` sorts by real authority, so position in it is the honest
+     * comparison.
+     */
+    const order = (unitRosterOf(world, record.personId)?.members ?? []).map((m) => m.personId)
+    const placeOf = (id: number): number => {
+      const at = order.indexOf(id as never)
+      return at === -1 ? order.length : at
+    }
+    const leaderPlace = placeOf(leader.personId)
+    const averageOther = others.reduce((sum, m) => sum + placeOf(m.personId), 0) / others.length
     expect(
-      leaderRank,
-      `the leader is rank ${String(leaderRank)} and the team averages ${averageOther.toFixed(1)}`,
-    ).toBeGreaterThan(averageOther)
+      leaderPlace,
+      `the leader sits at ${String(leaderPlace)} in the roster and the team averages ${averageOther.toFixed(1)}`,
+    ).toBeLessThan(averageOther)
+  })
+
+  it('is led by an NCO, never by a private', () => {
+    /**
+     * OWNER, LOOKING AT THE SCREEN: "Pittman is a PV2 why would be be squad
+     * leader". He was right, and no test caught it because the earlier ones
+     * only asked whether the leader was SENIOR TO THE OTHERS — which a
+     * private is, when the other four are also privates.
+     *
+     * A fireteam leader starts at E-4. The grade is the test, not the ladder
+     * index: SPC and CPL are both E-4, which is the whole reason
+     * BRANCH_GRADES exists.
+     */
+    const world = createWorld(makeSeed(4242), 300)
+    advanceTicks(world, 12 * 12)
+    const record = aSoldierWithAUnit(world)
+    if (record === undefined) return
+
+    const squad = squadFromUnit(world, world.tick, record.personId, 1)
+    const leader = squad.find((m) => m.role === 'leader')
+    if (leader === undefined) return
+    const theirs = world.service.get(leader.personId)
+    if (theirs === undefined || theirs.commissioned === true) return
+
+    const grades = BRANCH_GRADES[theirs.branch as 'land-forces'] ?? []
+    const grade = grades[theirs.rank] ?? 0
+    // Unless the whole station is junior — in which case somebody still has
+    // to lead, and the senior man of the team takes it.
+    const anyNco = [...world.service.values()].some((r) => {
+      if (r.dischargedAtTick !== null || r.baseId !== theirs.baseId) return false
+      const g = (BRANCH_GRADES[r.branch as 'land-forces'] ?? [])[r.rank] ?? 0
+      return g >= 4 || r.commissioned === true
+    })
+    if (!anyNco) return
+    expect(grade, `a fireteam led by an E-${String(grade)}`).toBeGreaterThanOrEqual(4)
   })
 
   it('stands you next to the same people on a later tour', () => {

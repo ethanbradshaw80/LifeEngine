@@ -88,6 +88,7 @@ import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
+import { BRANCH_GRADES } from './content.js'
 import { bareName } from './text.js'
 import { eventsFor } from './eventindex.js'
 
@@ -897,34 +898,90 @@ export function squadFromUnit(
   if (roster === null) return spinUpSquad(world, tick, ownerId, tourNumber, specs)
 
   /**
-   * A FIRETEAM IS NOT THE UNIT'S FIVE MOST SENIOR PEOPLE.
+   * PICK THE PEOPLE, THEN HAND OUT THE JOBS. The order matters and two
+   * earlier attempts got it wrong the other way round.
    *
-   * `rosterFrom` sorts by who answers for the rest, so taking the first five
-   * handed the player a team of ranks 7, 7, 7, 3 and 6 — every senior NCO in
-   * the company out on one patrol, which is both unbelievable and the
-   * opposite of how a fireteam is built.
+   * Taking the roster's first five gave the player ranks 7, 7, 7, 3 and 6 —
+   * every senior NCO in the company out on one patrol. Filling the leader
+   * billet separately from "whoever is just above you" then produced, in the
+   * browser, a second lieutenant led by a LIEUTENANT COLONEL, and later a
+   * leader more junior than the men he was leading.
    *
-   * One person leads it and the rest are junior. So the leader billet is
-   * filled from the senior end and everything else from the junior end,
-   * which also gives the squad the shape the spec cares about: "the
-   * difference between the man who is good at this and the one who is
-   * nineteen and frightened is most of what a squad IS."
+   * A fireteam is drawn from the bottom of a company, and the senior man in
+   * THAT GROUP leads it. So the five are taken from the junior end, and the
+   * job of leader goes to whichever of them the roster already ranks
+   * highest. `rosterFrom` sorts by real authority, so its ordering is the
+   * answer — never `record.rank`, which is an index into whichever ladder
+   * somebody is on and makes a second lieutenant look junior to a sergeant.
    */
-  const mates = roster.members.filter((m) => m.personId !== ownerId)
+  const order = roster.members
+  const mates = order.filter((m) => m.personId !== ownerId)
   const juniorFirst = [...mates].reverse()
+
+  const chosen: typeof mates = []
+  // A medic billet wants a medic, so claim one before the rest fill up.
+  const medic = juniorFirst.find((m) => /medic|corpsman|surgeon/i.test(m.specialtyTitle))
+  if (medic !== undefined && specs.some((s) => s.role === 'medic')) chosen.push(medic)
+  for (const mate of juniorFirst) {
+    if (chosen.length >= specs.length) break
+    if (chosen.some((c) => c.personId === mate.personId)) continue
+    chosen.push(mate)
+  }
+  if (chosen.length === 0) return spinUpSquad(world, tick, ownerId, tourNumber, specs)
+
+  /**
+   * A FIRETEAM IS LED BY A JUNIOR NCO, not by whoever the bottom of the
+   * roster happens to rank highest.
+   *
+   * OWNER, LOOKING AT THE SCREEN: "Pittman is a PV2 why would be be squad
+   * leader". He is right. Taking the five most junior and promoting the
+   * senior of THOSE five works only if the bottom of the roster contains an
+   * NCO — and on a young station it does not, so a private second class was
+   * running the team.
+   *
+   * The grade is the honest test, not the ladder index: SPC and CPL are both
+   * E-4 and `BRANCH_GRADES` exists precisely because pay and seniority read
+   * the grade. E-4 is where a team leader starts, so the leader is the most
+   * JUNIOR person at or above it — the corporal who would actually be given
+   * a fireteam, rather than the company's senior sergeant.
+   *
+   * Officers are senior to every enlisted grade, so an officer present leads
+   * regardless. Where the station has nobody at E-4 at all, the senior man of
+   * the five takes it, which is what a unit does when there is nobody else.
+   */
+  const gradeOf = (id: EntityId): number => {
+    const record = world.service.get(id)
+    if (record === undefined) return 0
+    if (record.commissioned === true) return 100 + record.rank
+    return (BRANCH_GRADES as Record<string, readonly number[] | undefined>)[record.branch]?.[record.rank] ?? record.rank + 1
+  }
+  const TEAM_LEADER_GRADE = 4
+  const anNco = mates
+    .filter((m) => gradeOf(m.personId) >= TEAM_LEADER_GRADE)
+    .sort((a, b) => gradeOf(a.personId) - gradeOf(b.personId))[0]
+  const seniorOfTheTeam =
+    anNco ??
+    chosen.slice().sort((a, b) => order.indexOf(a) - order.indexOf(b))[0]
+  // The NCO joins the team he is leading.
+  if (anNco !== undefined && !chosen.some((c) => c.personId === anNco.personId)) {
+    chosen.pop()
+    chosen.unshift(anNco)
+  }
+
   const taken: SquadMember[] = []
   const used = new Set<EntityId>()
-
   for (const spec of specs) {
-    // A medic billet wants a medic. Fall through to whoever is left when the
-    // unit has none — a rifle squad without one is a real situation.
     const wanted =
-      spec.role === 'medic'
-        ? juniorFirst.find((m) => !used.has(m.personId) && /medic|corpsman/i.test(m.specialtyTitle))
-        : spec.role === 'leader'
-          ? mates.find((m) => !used.has(m.personId))
+      spec.role === 'leader'
+        ? (seniorOfTheTeam !== undefined && !used.has(seniorOfTheTeam.personId)
+            ? seniorOfTheTeam
+            : undefined)
+        : spec.role === 'medic'
+          ? chosen.find(
+              (m) => !used.has(m.personId) && /medic|corpsman|surgeon/i.test(m.specialtyTitle),
+            )
           : undefined
-    const pick = wanted ?? juniorFirst.find((m) => !used.has(m.personId))
+    const pick = wanted ?? chosen.find((m) => !used.has(m.personId))
     if (pick === undefined) break
     used.add(pick.personId)
     const record = world.service.get(pick.personId)
