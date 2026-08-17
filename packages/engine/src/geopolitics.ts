@@ -22,6 +22,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
+import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
 import type { Rng } from './rng.js'
@@ -38,7 +39,14 @@ import type { Alignment } from './realnations.js'
  * cap keeps a careless preset from making the tick loop quadratic in
  * something nobody measured.
  */
-const MAX_FOREIGN_NATIONS = 32
+/**
+ * UP TO FORTY, FROM TWENTY-ONE (plan §11). The homeland plus thirty-nine.
+ *
+ * Raised with the lists rather than ahead of them: the cap was never the
+ * binding constraint, the number of NAMES was, and a cap above the list is a
+ * promise the content cannot keep.
+ */
+const MAX_FOREIGN_NATIONS = 39
 /** Alliance blocs. Membership dampens war within a bloc, feeds rivalry across. */
 const BLOC_COUNT = 3
 
@@ -316,8 +324,71 @@ function recoverStrength(world: World, tick: Tick): void {
   }
 }
 
+/**
+ * ALIGNMENTS DRIFT (plan §11, and it is named as "the root fix for 'the same
+ * 7 or 8 countries'").
+ *
+ * A nation's bloc was decided at world generation and never moved again, so
+ * the same handful of countries were the homeland's rivals for a century and
+ * the same handful were never anybody's problem. That is not how a century
+ * reads. A bloc is a STATE that changes over decades.
+ *
+ * Deliberately slow: checked once a year, and a move is rare even then, so a
+ * realignment is a generational event a player might see two or three of in a
+ * long game. Fast drift would be worse than none — it would read as noise.
+ *
+ * The homeland never drifts. It is the fixed point everything else is
+ * measured against, and a homeland that changed blocs would silently rewrite
+ * every posting, every rivalry and every war in flight.
+ */
+function driftAlignments(world: World, tick: Tick): void {
+  if (tick <= 0 || tick % TICKS_PER_YEAR !== 0) return
+  const fighting = new Set<EntityId>()
+  for (const relation of world.geoRelations.values()) {
+    if (relation.state === 'war') {
+      fighting.add(relation.a)
+      fighting.add(relation.b)
+    }
+  }
+
+  for (const id of [...world.nations.keys()].sort((x, y) => x - y)) {
+    const nation = world.nations.get(id)
+    if (!nation || nation.isHomeland) continue
+    // NOBODY SWITCHES SIDES MID-WAR. A country at war has made its choice and
+    // is living with it; realignment is what happens in the peace afterwards.
+    if (fighting.has(id)) continue
+
+    const rng = openStream(world.seed, Stream.Geopolitics, id, tick + 64_000)
+    if (!rng.chance(28, 1_000)) continue
+
+    const from = nation.bloc
+    // Somewhere else, and "unaligned" is a real destination — a country that
+    // walks out of a bloc without joining another is most of what actually
+    // happens in a century.
+    const to = rng.chance(1, 3) ? null : rng.nextInt(0, BLOC_COUNT)
+    if (to === from) continue
+
+    world.nations.set(id, { ...nation, bloc: to })
+    /**
+     * IT IS NEWS. A realignment nobody hears about is a number changing in a
+     * table, and §11 wants a century that reads as history.
+     */
+    recordEvent(world, tick, {
+      type: 'realigned',
+      subjectId: id,
+      detail:
+        to === null
+          ? `${nation.name} stood down from its alliances`
+          : from === null
+            ? `${nation.name} joined a bloc it had stayed out of`
+            : `${nation.name} changed the company it keeps`,
+    })
+  }
+}
+
 export function runGeopolitics(world: World, tick: Tick): void {
   recoverStrength(world, tick)
+  driftAlignments(world, tick)
   const relations = [...world.geoRelations.values()].sort((x, y) => x.a - y.a || x.b - y.b)
 
   for (const relation of relations) {

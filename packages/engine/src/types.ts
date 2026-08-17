@@ -3008,6 +3008,10 @@ export type EventType =
   /** Taken out of the unit for a tour of special duty (plan §10.1). */
   | 'took-special-duty'
   | 'left-special-duty'
+  /** Orders that arrived at 0300 rather than in a menu (plan §10.8). */
+  | 'recalled-on-alert'
+  /** A nation changed the company it keeps (plan §11). */
+  | 'realigned'
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'

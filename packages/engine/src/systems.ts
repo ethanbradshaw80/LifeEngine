@@ -3516,7 +3516,22 @@ export function deliverChild(
   world.health.set(childId, freshHealth(childId))
 
   addToHousehold(world, household.id, childId)
-  recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: household.placeId })
+  /**
+   * §10.4 BORN WHERE THE FAMILY ACTUALLY WAS.
+   *
+   * "Children born at the post hospital, in a place that is not your
+   * hometown, who grow up moving." A serving parent's child was recorded as
+   * born in the household's neighbourhood in Haverlock even when the parent
+   * had been stationed four states away for six years — the same fault as
+   * §9.0, wearing different clothes. The place of birth is the place the
+   * family was, and for a serving family that is the post.
+   */
+  const postedParent = [...household.memberIds]
+    .sort((a, b) => a - b)
+    .map((id) => world.service.get(id))
+    .find((record) => record !== undefined && record.dischargedAtTick === null)
+  const bornAt = postedParent === undefined ? household.placeId : postedParent.baseId
+  recordEvent(world, tick, { type: 'born', subjectId: childId, placeId: bornAt })
   recordEvent(world, tick, { type: 'had-child', subjectId: motherId, otherId: childId })
   // P1: the father was invisible at his own child's birth — eventsFor
   // matches subject/other only, and he was neither. Both parents carry it.

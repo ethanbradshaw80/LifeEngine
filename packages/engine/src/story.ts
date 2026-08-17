@@ -403,6 +403,13 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'realigned':
+      // §11. A world-level event: the subject is a NATION, not a person, and
+      // the feed carries it the way it carries a ceasefire.
+      return `${year} — ${event.detail ?? 'A country changed the company it keeps'}.`
+    case 'recalled-on-alert':
+      // §10.8. The same war, remembered by the night it started.
+      return `${year} — Recalled at three in the morning. Wheels up in eighteen hours, to ${event.detail ?? 'the front'}.`
     case 'took-special-duty':
       // §10.1. Out of the unit and out of the trade for two or three years.
       return `${year} — Taken out of the unit for ${event.detail ?? 'special duty'}.`

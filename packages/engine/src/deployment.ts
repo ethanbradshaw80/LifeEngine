@@ -790,8 +790,22 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
       // The moment goes on the record WITH the sheet — a set of orders is a
       // thing that happened to somebody even if they refuse it, and
       // especially if they do.
+      /**
+       * §10.8 THE ALERT. "Deployment currently just happens. It should
+       * sometimes INTERRUPT: recall at 0300, everybody in, wheels up in
+       * eighteen hours. A war that starts during your daughter's birthday is a
+       * different memory from a war you were notified about in a menu."
+       *
+       * Same orders, same choices, same consequences — a recall is not a
+       * different mechanic, it is a different night. Which is the point: the
+       * memory is the whole difference and it costs one seeded draw.
+       */
+      const wokeUp = openStream(world.seed, Stream.CombatResolution, person.id, tick + 97_000).chance(
+        3,
+        10,
+      )
       recordEvent(world, tick, {
-        type: 'received-orders',
+        type: wokeUp ? 'recalled-on-alert' : 'received-orders',
         subjectId: person.id,
         otherId: enemyId,
         detail: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
@@ -801,7 +815,7 @@ function issueOrders(world: World, tick: Tick, home: Nation, wars: GeoRelation[]
         kind: 'deployment-order',
         personId: person.id,
         otherId: enemyId,
-        occupationId: 'involuntary',
+        occupationId: wokeUp ? 'alert' : 'involuntary',
         workplaceId: null,
         monthlyPay: null,
         placeId: null,

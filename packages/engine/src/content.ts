@@ -118,6 +118,42 @@ export const NATION_NAMES: readonly NationSpec[] = [
   { name: 'Nortavia', alignment: null, combatRating: null },
   { name: 'Sundermark', alignment: null, combatRating: null },
   { name: 'Veskarn', alignment: null, combatRating: null },
+  /**
+   * UP TO FORTY, FROM TWENTY-ONE (plan §11). The root fix for "the same 7 or
+   * 8 countries" is more of them AND alignments that drift — a bigger board
+   * with fixed pieces is still the same game.
+   *
+   * APPEND ONLY, NEVER REORDER (DETERMINISM §8): allocation order is id
+   * order and ids seed draws, so inserting one of these in the middle would
+   * silently rewrite every world ever generated.
+   */
+  { name: 'Aldreth', alignment: null, combatRating: null },
+  { name: 'Marovia', alignment: null, combatRating: null },
+  { name: 'Kesserand', alignment: null, combatRating: null },
+  { name: 'Dunmoor', alignment: null, combatRating: null },
+  { name: 'Ashkalon', alignment: null, combatRating: null },
+  { name: 'Ferrenze', alignment: null, combatRating: null },
+  { name: 'Loruvia', alignment: null, combatRating: null },
+  { name: 'Thessaly Bay', alignment: null, combatRating: null },
+  { name: 'Pravenska', alignment: null, combatRating: null },
+  { name: 'Corandal', alignment: null, combatRating: null },
+  { name: 'Ystrad', alignment: null, combatRating: null },
+  { name: 'Kolmarn', alignment: null, combatRating: null },
+  { name: 'Serevane', alignment: null, combatRating: null },
+  { name: 'Bhanupur', alignment: null, combatRating: null },
+  { name: 'Tessaria', alignment: null, combatRating: null },
+  { name: 'Norvenge', alignment: null, combatRating: null },
+  { name: 'Ilmarand', alignment: null, combatRating: null },
+  { name: 'Zaltavia', alignment: null, combatRating: null },
+  { name: 'Cordessa', alignment: null, combatRating: null },
+  { name: 'Vantropol', alignment: null, combatRating: null },
+  { name: 'Ekhandra', alignment: null, combatRating: null },
+  { name: 'Solvenmark', alignment: null, combatRating: null },
+  { name: 'Rhoswyn', alignment: null, combatRating: null },
+  { name: 'Amarath', alignment: null, combatRating: null },
+  { name: 'Petrovka', alignment: null, combatRating: null },
+  { name: 'Talvenne', alignment: null, combatRating: null },
+  { name: 'Ondaray', alignment: null, combatRating: null },
 ]
 
 export const SCHOOL_NAME = 'Fairview Consolidated School'

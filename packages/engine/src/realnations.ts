@@ -80,6 +80,35 @@ export const REAL_NATIONS: readonly RealNation[] = [
   { name: 'Nicaragua', alignment: 'rival', combatRating: 2 },
   { name: 'Myanmar', alignment: 'rival', combatRating: 3 },
   { name: 'Eritrea', alignment: 'rival', combatRating: 3 },
+  /**
+   * UP TO FORTY, FROM TWENTY-ONE (plan §11). APPEND ONLY — the comment above
+   * this list says so and it is load-bearing: ids follow allocation order and
+   * ids seed draws.
+   *
+   * The alignments are the same "which way does this country lean towards the
+   * homeland" judgement the list already makes, and they are a STARTING state
+   * rather than a fixed one now, because §11's root fix is that alignments
+   * drift over decades.
+   */
+  { name: 'Italy', alignment: 'ally', combatRating: 6 },
+  { name: 'Spain', alignment: 'ally', combatRating: 6 },
+  { name: 'Poland', alignment: 'ally', combatRating: 6 },
+  { name: 'the Netherlands', alignment: 'ally', combatRating: 5 },
+  { name: 'Norway', alignment: 'ally', combatRating: 5 },
+  { name: 'Turkey', alignment: 'ally', combatRating: 7 },
+  { name: 'Israel', alignment: 'ally', combatRating: 8 },
+  { name: 'Brazil', alignment: 'neutral', combatRating: 6 },
+  { name: 'Indonesia', alignment: 'neutral', combatRating: 5 },
+  { name: 'Egypt', alignment: 'neutral', combatRating: 5 },
+  { name: 'Nigeria', alignment: 'neutral', combatRating: 4 },
+  { name: 'South Africa', alignment: 'neutral', combatRating: 4 },
+  { name: 'Vietnam', alignment: 'neutral', combatRating: 6 },
+  { name: 'Thailand', alignment: 'neutral', combatRating: 5 },
+  { name: 'Pakistan', alignment: 'neutral', combatRating: 6 },
+  { name: 'Saudi Arabia', alignment: 'neutral', combatRating: 5 },
+  { name: 'Argentina', alignment: 'neutral', combatRating: 4 },
+  { name: 'Ethiopia', alignment: 'neutral', combatRating: 3 },
+  { name: 'Serbia', alignment: 'rival', combatRating: 4 },
 ]
 
 export const REAL_NATION_NAMES: readonly string[] = REAL_NATIONS.map((n) => n.name)

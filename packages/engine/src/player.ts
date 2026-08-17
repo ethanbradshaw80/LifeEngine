@@ -7574,6 +7574,14 @@ export function describePending(world: World, pending: PendingDecision): string 
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
       const record = world.service.get(pending.personId)
       const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
+      /**
+       * §10.8 THE ALERT. Same orders, same choices, same consequences — a
+       * different night. "A war that starts during your daughter's birthday is
+       * a different memory from a war you were notified about in a menu."
+       */
+      if (pending.occupationId === 'alert') {
+        return `The phone goes at ten past three in the morning and it is the staff duty NCO. Recall. Everybody in, full kit, nobody goes home again. By the time it is light the hangar is full of people saying goodbye on their phones and somebody is reading names off a clipboard. You are going to ${enemy?.name ?? 'the front'}, ${title}, and wheels are up in eighteen hours. What do you do?`
+      }
       return `Orders, ${title}: you are going to ${enemy?.name ?? 'the front'}. What do you do?`
     }
     case 'graduate': {
