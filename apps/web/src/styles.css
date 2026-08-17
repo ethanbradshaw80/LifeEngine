@@ -5215,6 +5215,63 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
   padding: 0.2rem 0.55rem;
 }
 
+/*
+ * THE FILED AFTER-ACTION REVIEW (MILITARY_DEPTH_PLAN §5.3).
+ *
+ * It is a DOCUMENT, so it is set like one: a boxed form with a ruled head, a
+ * label/value block, and a signature at the foot. Deliberately colder than the
+ * story feed around it — the feed is what your character lived, and this is
+ * what the institution wrote down about it eleven days later.
+ */
+.aar-row { align-items: start; }
+.aar-body { min-width: 0; }
+
+.aar-doc {
+  margin: 0.5rem 0 0.2rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--tint, rgba(127, 127, 127, 0.05));
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.aar-head {
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  font-size: 0.7rem;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.45rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.aar-doc dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 0.6rem;
+  margin: 0 0 0.5rem;
+}
+
+.aar-doc dt {
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.aar-doc dd { margin: 0; }
+
+.aar-narrative { margin: 0 0 0.45rem; }
+.aar-line { margin: 0.1rem 0; }
+
+.aar-sign {
+  margin: 0.6rem 0 0;
+  padding-top: 0.4rem;
+  border-top: 1px dashed var(--line);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+}
+
 /* WHAT THE LAST HAND DID (owner: "it doesn't tell you if you win or lose
    after you do the decision"). Read from the settled event, shown where the
    player's eyes already are when the overlay closes. */

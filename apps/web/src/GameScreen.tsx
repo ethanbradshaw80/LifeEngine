@@ -52,6 +52,8 @@ import {
   proposalBar,
   decorationsOf,
   evaluationsOf,
+  afterActionFor,
+  afterActionsFor,
   unitAwardsFor,
   markWords,
   badgesOf,
@@ -670,6 +672,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // Which past tour's roster is open on the Deployments list. Interface
   // state only — the rosters themselves live on the deployment records.
   const [openTourHistory, setOpenTourHistory] = useState<number | null>(null)
+  // Which filed after-action review is open, by the tick of the contact it
+  // reports on. Interface state only — the report is derived from the event.
+  const [openReport, setOpenReport] = useState<number | null>(null)
   // Two-step confirmation for the irreversible verbs (walk-out, quit): the
   // first click arms, the second sends. Any tab change disarms.
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -3170,19 +3175,33 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                    * drifting.
                    */
                   const reports = [...evaluationsOf(world, person.id)].reverse()
-                  if (reports.length === 0) {
+                  /**
+                   * AND THE AFTER-ACTION REVIEWS (owner, playing: "I just got
+                   * into combat and got no after action report UI").
+                   *
+                   * The report was built and filed and nothing ever read it
+                   * back — the documented failure shape where code exists but
+                   * never runs. Worse, this tab returned EARLY when there were
+                   * no annual reports, and annual reports begin at sergeant:
+                   * a private who had just been shot at was told "no annual
+                   * reports yet" on the one screen his contact was filed to.
+                   * Both halves are read here now, and the tab is only empty
+                   * when both are.
+                   */
+                  const contacts = afterActionsFor(world, person.id)
+                  if (reports.length === 0 && contacts.length === 0) {
                     const record = world.service.get(person.id)
                     return (
                       <p className="feed-empty">
                         {record === undefined
                           ? 'No service record.'
-                          : 'No annual reports yet. They begin at sergeant.'}
+                          : 'Nothing on file yet. Annual reports begin at sergeant; an after-action review is filed after every contact.'}
                       </p>
                     )
                   }
                   return (
                     <div className="tour-squad">
-                      <h4>Annual reports · {reports.length}</h4>
+                      {reports.length > 0 && <h4>Annual reports · {reports.length}</h4>}
                       {reports.map((report) => {
                         const rater = report.raterId === null
                           ? undefined
@@ -3221,11 +3240,89 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </div>
                         )
                       })}
-                      <p className="muted small">
-                        Reports begin at sergeant and are written by whoever
-                        outranks you in your unit. The man who writes them
-                        changes when you move.
-                      </p>
+                      {reports.length > 0 && (
+                        <p className="muted small">
+                          Reports begin at sergeant and are written by whoever
+                          outranks you in your unit. The man who writes them
+                          changes when you move.
+                        </p>
+                      )}
+                      {contacts.length > 0 && (
+                        <>
+                          <h4>After-action reviews · {contacts.length}</h4>
+                          {contacts.map((contact, at) => {
+                            const filed = afterActionFor(world, person.id, contact)
+                            if (filed === null) return null
+                            const open = openReport === contact.tick
+                            return (
+                              <div key={`${String(contact.tick)}-${String(at)}`} className="sq-row aar-row">
+                                <span className="sq-ic" aria-hidden="true">🗒️</span>
+                                <div className="aar-body">
+                                  <div className="nm">
+                                    {formatYear(world, contact.tick)} · {filed.place}
+                                  </div>
+                                  <div className="sub">
+                                    {filed.unit} · filed {filed.filed}
+                                  </div>
+                                  {/**
+                                    * THE DOCUMENT ITSELF, opened rather than
+                                    * summarized. The asymmetry is the whole
+                                    * point (§5.3): at the time your character
+                                    * saw muzzle flashes on a ridge, and the
+                                    * record — written eleven days later, by
+                                    * somebody else, from what was known then —
+                                    * says how many men were up there. He never
+                                    * knew. You do. So the enemy assessment is
+                                    * shown HERE and nowhere else, in the dry
+                                    * institutional voice a real one is written
+                                    * in, hedged, and never corrected later.
+                                    */}
+                                  {open && (
+                                    <div className="aar-doc">
+                                      <div className="aar-head">{filed.title}</div>
+                                      <dl>
+                                        <dt>Unit</dt>
+                                        <dd>{filed.unit}</dd>
+                                        <dt>Command</dt>
+                                        <dd>{filed.command}</dd>
+                                        <dt>Occurred</dt>
+                                        <dd>{filed.occurred}</dd>
+                                        <dt>Filed</dt>
+                                        <dd>{filed.filed}</dd>
+                                        <dt>Location</dt>
+                                        <dd>{filed.place}</dd>
+                                      </dl>
+                                      <p className="aar-narrative">{filed.narrative}</p>
+                                      <p className="aar-line">{filed.enemyStrength}</p>
+                                      <p className="aar-line">{filed.enemyLosses}</p>
+                                      <p className="aar-line">{filed.friendly}</p>
+                                      <p className="aar-sign">
+                                        {filed.signedBy}
+                                        <span className="sub"> · {filed.signedRole}</span>
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="apply tour-history-btn"
+                                  onClick={() => {
+                                    setOpenReport(open ? null : contact.tick)
+                                  }}
+                                >
+                                  {open ? 'Close' : 'Read'}
+                                </button>
+                              </div>
+                            )
+                          })}
+                          <p className="muted small">
+                            An after-action review is written for the record, not
+                            for you. What it says about the enemy is an
+                            assessment made at the time — it can be wrong, and it
+                            is never corrected.
+                          </p>
+                        </>
+                      )}
                       {(() => {
                         /**
                           * THE UNIT'S OWN HONOURS, and how you come to wear

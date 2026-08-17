@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { afterActionFor, afterActionsFor } from '../src/afteraction.js'
+import { unitRosterOf } from '../src/service.js'
 
 function aVeteranOfContact(world: ReturnType<typeof createWorld>) {
   for (const record of world.service.values()) {
@@ -79,6 +80,40 @@ describe('the after-action report', () => {
     const later = afterActionFor(world, personId, contact)
     expect(later?.enemyLosses).toBe(first?.enemyLosses)
     expect(later?.enemyStrength).toBe(first?.enemyStrength)
+  })
+
+  it('is signed by a real man from the unit, at the rank he really holds', () => {
+    /**
+     * OWNER, PLAYING: the document came up signed "COL WILLIAMS · Adjutant"
+     * at the foot of a squad's report. Two faults in one line. The rank was
+     * built as the subject's own PLUS TWO, read off the officer ladder — the
+     * rank-ladder trap, where a rank is an index into whichever ladder
+     * somebody is on and adding to it means nothing. And the man was invented:
+     * a surname borrowed from the roster, welded to a rank nobody held.
+     *
+     * A report is signed by whoever answers for the unit. So the signature has
+     * to be somebody ON the roster, at their OWN rank, in the job they do.
+     */
+    const world = createWorld(makeSeed(4242), 300)
+    advanceTicks(world, 50 * 12)
+    const personId = aVeteranOfContact(world)
+    if (personId === undefined) return
+    const contact = afterActionsFor(world, personId)[0]
+    if (contact === undefined) return
+    const report = afterActionFor(world, personId, contact)
+    if (report === null) return
+
+    const roster = unitRosterOf(world, personId)
+    if (roster === null || roster.members.length === 0) return
+    const senior = roster.members[0]
+    if (senior === undefined) return
+
+    // The name on the signature belongs to a person who is really there.
+    const surname = senior.name.split(' ').slice(-1)[0] ?? ''
+    expect(report.signedBy).toBe(`${senior.rankTitle} ${surname}`.toUpperCase())
+    // And the rank is his own, not one manufactured from the subject's.
+    expect(report.signedBy.startsWith(senior.rankTitle.toUpperCase())).toBe(true)
+    expect(report.signedRole).toBe(senior.role)
   })
 
   it('refuses to invent one for something that was not a contact', () => {

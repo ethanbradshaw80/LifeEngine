@@ -3000,6 +3000,10 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     )
     const keepAlone = livingCostAt(world, LIVING_COST_ADULT)
     const takeAlone = grossAlone - withheldAlone + supportAlone
+    // AND WHAT THEY SPEND ON THEMSELVES — the same function the ledger
+    // charges them with, so the forecast and the month cannot disagree.
+    const lifestyleAlone = loneDiscretionary(world, personId, takeAlone - keepAlone)
+    const spentAlone = (lifestyleAlone + salesTaxOn(lifestyleAlone)) as Money
     return {
       ...nothing,
       // The allowance is part of what arrives, the same way the household
@@ -3008,9 +3012,10 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
       withheld: withheldAlone as Money,
       living: keepAlone as Money,
       costs: keepAlone as Money,
+      lifestyle: spentAlone,
       adults: 1,
       children: 0,
-      net: (takeAlone - keepAlone) as Money,
+      net: (takeAlone - keepAlone - spentAlone) as Money,
     }
   }
   const household = world.households.get(person.householdId)
@@ -3213,7 +3218,50 @@ function settleTheUnhoused(world: World, tick: Tick): void {
     // at today's prices like every other charge.
     const keep = livingCostAt(world, LIVING_COST_ADULT) as Money
     if (keep > 0) debitPerson(world, person.id, keep, 'Living costs')
+
+    /**
+     * AND THEY SPEND, which the first pass forgot — and it showed.
+     *
+     * MEASURED at seed 12345 over sixty years: the six richest people in the
+     * town all had `householdId === null`, the richest holding $3,806,344 in
+     * checking, and the ceiling this test defends went from $6.69m to
+     * $13.42m. Paying them was right — 71 serving people were earning
+     * nothing at all — but a man who is paid and charged one mouth and
+     * NOTHING ELSE banks every remaining cent for fifty years. He pays no
+     * rent because he has no roof, and he bought nothing because only
+     * households bought things.
+     *
+     * A soldier in barracks genuinely pays no rent. He still spends his pay.
+     */
+    const surplus = take - keep
+    const lifestyle = loneDiscretionary(world, person.id, surplus)
+    if (lifestyle > 0) {
+      const spent = (lifestyle + salesTaxOn(lifestyle)) as Money
+      debitPerson(world, person.id, spent, 'Spending')
+    }
   }
+}
+
+/**
+ * WHAT SOMEBODY WITH NO HOUSEHOLD SPENDS ON THEMSELVES.
+ *
+ * The same shape as `discretionaryForUnit` — the rate falls with diligence
+ * and a chosen posture leans it — but read off the one person, because there
+ * is no roof to read it off. Kept as its own function rather than folded into
+ * the unit version so that a household's arithmetic is untouched by this.
+ */
+function loneDiscretionary(world: World, personId: EntityId, surplus: number): Money {
+  if (surplus <= 0) return 0 as Money
+  // A person under a court-supervised budget does not spend a surplus; the
+  // plan does. Same rule the unit version applies, and for the same reason.
+  if (underStay(world, personId, world.tick)) return 0 as Money
+  const person = world.people.get(personId)
+  if (person === undefined) return 0 as Money
+  let spendPerMille = 920 - Math.floor(person.traits.diligence / 12)
+  const stance = person.spendStance ?? null
+  if (stance === 'thrifty') spendPerMille = Math.max(690, spendPerMille - 150)
+  else if (stance === 'loose') spendPerMille = Math.min(975, spendPerMille + 55)
+  return Math.floor((surplus * spendPerMille) / 1000) as Money
 }
 
 export function runFinances(world: World, tick: Tick): void {

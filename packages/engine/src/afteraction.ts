@@ -113,6 +113,23 @@ export function afterActionFor(
   const filedTick = (event.tick + 1) as Tick
   const filedOn = toDate(world, filedTick)
 
+  /**
+   * WHO SIGNED IT.
+   *
+   * The first version built a rank out of the subject's own — rank + 2, read
+   * off the OFFICER ladder — and produced "COL WILLIAMS · Adjutant" at the
+   * foot of a squad's report. That is the rank-ladder trap again: a rank is
+   * an index into whichever ladder somebody is on, and adding two to it means
+   * nothing. It is also the wrong man. A report is signed by whoever answers
+   * for the unit, and the roster is ALREADY sorted with that person first —
+   * so the signature is a real person, at the rank he really holds, in the
+   * job he really does. Usually the squad leader; sometimes, when you are the
+   * senior man, you.
+   */
+  const signer = roster?.members[0]
+  const surname = signer?.name.split(' ').slice(-1)[0] ?? ''
+  const narrative = event.detail ?? 'engaged from prepared positions'
+
   return {
     title: 'AFTER-ACTION REVIEW',
     unit: roster?.unitName ?? 'the unit',
@@ -120,16 +137,19 @@ export function afterActionFor(
     occurred: `${String(when.month)}/${String(when.year)}`,
     filed: `${String(filedOn.month)}/${String(filedOn.year)} (${String(FILED_AFTER_DAYS)} days)`,
     place: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
-    narrative: event.detail ?? 'engaged from prepared positions',
+    narrative: narrative.endsWith('.') ? narrative : `${narrative}.`,
     enemyStrength: `Enemy strength assessed at ${String(low)}-${String(high)}.`,
     enemyLosses: `Enemy losses assessed at ${String(losses)}.`,
     friendly:
       killed === 0 && hurt === 0
         ? 'Friendly: no casualties.'
         : `Friendly: ${String(killed)} KIA, ${String(hurt)} WIA.`,
-    signedBy: `${rankTitle(world, record.branch, Math.min(record.rank + 2, 8), true)} ${
-      roster?.members[0]?.name.split(' ').slice(-1)[0] ?? 'ADJUTANT'
-    }`.toUpperCase(),
-    signedRole: 'Adjutant',
+    signedBy:
+      signer === undefined
+        ? `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} ${
+            world.people.get(personId)?.familyName ?? ''
+          }`.trim().toUpperCase()
+        : `${signer.rankTitle} ${surname}`.trim().toUpperCase(),
+    signedRole: signer?.role ?? 'Reporting',
   }
 }

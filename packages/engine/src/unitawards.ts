@@ -191,12 +191,27 @@ export function runUnitAwards(world: World, tick: Tick): void {
     // ALREADY HELD FOR THIS YEAR? A unit is decorated once for a period.
     if (unitHonoursOf(world, key).some((h) => h.title === title && h.year === year)) continue
 
-    const cited = recordEvent(world, tick, {
-      type: 'unit-awarded',
-      subjectId: members[0] ?? (0 as EntityId),
-      detail: `${title}|${String(year)}`,
-    })
+    /**
+     * ONE EVENT EACH, not one event for the unit.
+     *
+     * The first pass filed a single `unit-awarded` event against the senior
+     * man and cited it on everybody's record — and awards.test.ts caught it
+     * at once: "expected 37 to be 222". The invariant it defends is a good
+     * one and it is Law 3's, not a formality — an award on YOUR record has to
+     * cite an event about YOU, or the game cannot explain why you hold it
+     * without pointing at somebody else's life. It is also how every personal
+     * decoration in the game already works.
+     *
+     * The event still says the same thing in every feed, because the thing
+     * that happened is the same thing: the unit was decorated, and you were
+     * in it.
+     */
     for (const id of members) {
+      const cited = recordEvent(world, tick, {
+        type: 'unit-awarded',
+        subjectId: id,
+        detail: `${title}|${String(year)}`,
+      })
       grantUnitAward(world, tick, id, title, `${key}|${title}|${String(year)}`, cited)
     }
   }

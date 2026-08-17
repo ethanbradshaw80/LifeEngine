@@ -406,8 +406,15 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'unit-awarded': {
       // THE UNIT'S DECORATION, said in the unit's name rather than the
       // person's — that is the whole difference between the two kinds.
-      const [title, year] = (event.detail ?? '|').split('|')
-      return `${year ?? String(new Date(0).getFullYear())} — Their unit was awarded ${title ?? 'a commendation'}.`
+      // The detail carries `title|year`, but the YEAR here is the simulation
+      // clock's, already computed above — the first pass destructured a second
+      // `year` out of the detail, shadowed it, and reached for `new Date(0)`
+      // as a fallback. That is a wall clock inside the engine (ADR-0003), and
+      // purity.test.ts was right to refuse it.
+      const [title] = (event.detail ?? '').split('|')
+      return `${year} — Their unit was awarded ${
+        title !== undefined && title.length > 0 ? title : 'a commendation'
+      }.`
     }
     case 'evaluated': {
       /**
