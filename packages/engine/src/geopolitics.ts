@@ -365,7 +365,17 @@ function driftAlignments(world: World, tick: Tick): void {
     // Somewhere else, and "unaligned" is a real destination — a country that
     // walks out of a bloc without joining another is most of what actually
     // happens in a century.
-    const to = rng.chance(1, 3) ? null : rng.nextInt(0, BLOC_COUNT)
+    /**
+     * MEASURED AND TIGHTENED: one in three was too many.
+     *
+     * "Unaligned" has to be a real destination or a bloc is just a team
+     * colour — but at one in three, a century thinned the blocs until war.ts's
+     * coalition test could not find A SINGLE distressed war with allies across
+     * ten worlds. §11 wants "alliances that drag third parties in", and an
+     * alliance nobody is in drags nobody anywhere. One in six keeps the blocs
+     * populated and still lets a country walk out of one.
+     */
+    const to = rng.chance(1, 6) ? null : rng.nextInt(0, BLOC_COUNT)
     if (to === from) continue
 
     world.nations.set(id, { ...nation, bloc: to })

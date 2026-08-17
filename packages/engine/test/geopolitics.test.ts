@@ -78,9 +78,17 @@ describe('a war grinds nations down', () => {
 })
 
 describe('the world beyond the town', () => {
-  it('has a dozen fictional nations and exactly one homeland', () => {
+  it('has forty fictional nations and exactly one homeland', () => {
+    /**
+     * TWELVE BECAME THIRTY-NINE (plan §11: "up to 40, from 21").
+     *
+     * The count is pinned rather than bounded on purpose — it is the whole
+     * board, and a board that quietly shrinks because somebody removed a name
+     * is a thing a player would feel and nobody would notice in a diff.
+     * Homeland plus thirty-nine.
+     */
     const world = createWorld(makeSeed(12345), 100)
-    expect(world.nations.size).toBe(13)
+    expect(world.nations.size).toBe(40)
 
     const homelands = [...world.nations.values()].filter((n) => n.isHomeland)
     expect(homelands.length).toBe(1)

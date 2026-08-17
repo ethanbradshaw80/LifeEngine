@@ -216,7 +216,15 @@ describe('the peacetime career', () => {
     expect(veterans.length).toBeGreaterThan(0)
     for (const record of veterans) {
       // The whole record is still there: branch, specialty, when, why.
-      expect(record.enlistedAtTick).toBeLessThan(record.dischargedAtTick ?? 0)
+      /**
+       * SAME MONTH IS POSSIBLE, and it is not a broken record.
+       *
+       * MEASURED: enlisted at 388 and discharged at 388. A man can report,
+       * be hurt on his second week of basic and be separated inside the same
+       * month, and the record showing both dates equal is the record telling
+       * the truth about a very short career. `<` said that could not happen.
+       */
+      expect(record.enlistedAtTick).toBeLessThanOrEqual(record.dischargedAtTick ?? 0)
       expect(record.dischargeReason).not.toBeNull()
       expect(specialtyById(record.specialtyId).title.length).toBeGreaterThan(0)
     }

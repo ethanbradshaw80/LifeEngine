@@ -349,8 +349,22 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'had-child':
       return `${year} — ${nameOf(world, event.otherId)} was born.`
     case 'was-injured': {
+      /**
+       * THERE ARE THREE GRADES, NOT TWO, and the third read as the first.
+       *
+       * `deployment.ts` writes `fatal:` for an accident that killed somebody —
+       * it was added so the record could say WHAT the injury was rather than
+       * "wounds taken in action" — and this branch tested only for 'serious',
+       * so every fatal accident in the game rendered as "Hurt — a crush injury
+       * to the chest — THOUGH NOT BADLY."
+       *
+       * Found by a wounds test that accepted only two grades and started
+       * failing when a fatal accident landed inside its window. The test was
+       * incomplete and so was this.
+       */
       const [grade, what] = (event.detail ?? '').split(':')
       const description = what && what.length > 0 ? what : 'an injury'
+      if (grade === 'fatal') return `${year} — Killed outright: ${description}.`
       return grade === 'serious'
         ? `${year} — Badly hurt: ${description}.`
         : `${year} — Hurt — ${description} — though not badly.`

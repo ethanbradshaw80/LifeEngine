@@ -98,9 +98,22 @@ describe('eight wounds', () => {
     )
     if (dutyEnding) return // a lost limb legitimately ends it
 
+    /**
+     * THE EXEMPTION IS EVERY PERMANENT CONDITION, not only the two that end
+     * duty outright — and the message used to lie about which case it was in.
+     *
+     * §8's board reads the BODY: a limb or a spine ends duty outright, and an
+     * eye, a crush or an internal injury is ARGUABLE, so the board considers
+     * it and usually retains. Considering an arguable permanent condition is
+     * the model working. The owner's actual complaint was never about that: it
+     * was that HEALED wounds — scars, and nothing left behind — ended careers
+     * by arithmetic. That is the claim, and it is the one made here.
+     */
+    if (permanent.length > 0) return
+
     expect(
       record?.dischargeReason,
-      `boarded out carrying ${String(Math.round((healthOf(world, personId)?.disability ?? 0) / 10))}% and no permanent condition`,
+      `boarded out carrying ${String(Math.round((healthOf(world, personId)?.disability ?? 0) / 10))}% with nothing permanent at all`,
     ).not.toBe('medical')
   })
 })

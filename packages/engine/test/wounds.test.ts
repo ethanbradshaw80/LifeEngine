@@ -56,8 +56,18 @@ describe('the lived record', () => {
     const injured = world.events.filter((e) => e.type === 'was-injured')
     expect(injured.length).toBeGreaterThan(0)
     for (const event of injured) {
+      /**
+       * THREE GRADES. `deployment.ts` has written `fatal:` since the accident
+       * record was made specific, and this test accepted two — so it passed
+       * only while no fatal accident happened to fall inside its window, and
+       * started failing the moment one did. It was also hiding a real bug:
+       * `story.ts` rendered every fatal accident as "though not badly".
+       */
       const [grade, what] = String(event.detail).split(':')
-      expect(grade === 'serious' || grade === 'minor').toBe(true)
+      expect(
+        grade === 'serious' || grade === 'minor' || grade === 'fatal',
+        `unknown injury grade "${String(grade)}"`,
+      ).toBe(true)
       expect((what ?? '').length).toBeGreaterThan(4)
     }
 

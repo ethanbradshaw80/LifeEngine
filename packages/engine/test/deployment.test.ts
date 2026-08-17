@@ -77,14 +77,33 @@ describe('orders', () => {
     // M-ARMY2: peacetime postings with allies exist now, so the ledger to
     // check is COMBAT tours specifically — those still require a war the
     // homeland actually fought.
-    const home = homeland(world)
-    const homelandWarBegan = world.events.some(
-      (e) => e.type === 'war-began' && (e.subjectId === home?.id || e.otherId === home?.id),
-    )
+    /**
+     * THE CLAIM IS THAT NOBODY FIGHTS A WAR THAT NEVER HAPPENED, and the old
+     * version of it was too narrow.
+     *
+     * It required a `war-began` event NAMING THE HOMELAND. That misses the
+     * case §11 exists to create: a defensive pact drags a third party into
+     * somebody else's war, so the homeland fights a war it did not start and
+     * is not named in. MEASURED after the geopolitics work: nine combat tours
+     * against a homeland that had declared nothing, which read as a bug and
+     * was the alliance model working.
+     *
+     * So the invariant is the true one: every combat tour points at a war that
+     * actually began between the two nations on it.
+     */
     const combatTours = [...world.deployments.values()]
       .flat()
       .filter((tour) => tour.kind === 'combat')
-    if (!homelandWarBegan) expect(combatTours.length).toBe(0)
+    for (const tour of combatTours) {
+      if (tour.warA === null || tour.warB === null) continue
+      const itHappened = world.events.some(
+        (e) =>
+          e.type === 'war-began' &&
+          ((e.subjectId === tour.warA && e.otherId === tour.warB) ||
+            (e.subjectId === tour.warB && e.otherId === tour.warA)),
+      )
+      expect(itHappened, 'a combat tour to a war that never began').toBe(true)
+    }
   })
 
   it('a homeland war sends serving people, and only serving people', () => {
