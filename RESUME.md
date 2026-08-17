@@ -25,9 +25,24 @@
 > existed — every extra comparison had been a townsperson weighed against a
 > soldier in another state, work that was wrong before it was slow.
 >
-> **SIMULATION_VERSION is 187 and the three baselines are NOT yet pinned.**
-> Pin only when the suite is green but for them, in the order bump → measure
-> → pin → verify.
+> **STAGE 2 IS COMPLETE.** §8 (fit-for-duty vs disability), §10.2 (the annual
+> evaluation), §9.1 (unit awards) and §5.3 (the after-action report) are all
+> built, tested and on screen.
+>
+> **SIMULATION_VERSION 187, and the three baselines ARE pinned** —
+> GOLDEN_HASH_HEX `e17aa745` (determinism.test.ts and the copy in App.tsx),
+> HEARTLAND_GOLDEN `4b64157e` (w2.test.ts), header string 187.
+>
+> **The two mechanics worth knowing before touching any of it:**
+>
+> - A unit's honours ARE the awards its people were given, so there is no new
+>   world state. Permanent wear is the award on your own record; temporary
+>   wear is a READ — your current unit's honours that you do not hold.
+> - Enemy losses exist ONLY in the filed after-action report, hedged, and
+>   never in the narration of the moment. That asymmetry is deliberate
+>   (foundation §8): the character never knew, and the player does.
+>
+> **Stage 3 is next** — peacetime, per plan §15.
 
 > **RELEASED 2026-08-16 — v186, the Work & Money update.** Notes in
 > `RELEASE_NOTES_v186.md`; zip built by `npm run pack:itch` and VERIFIED by
