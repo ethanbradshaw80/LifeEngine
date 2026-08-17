@@ -109,9 +109,12 @@ describe('the squad is your unit', () => {
      * only asked whether the leader was SENIOR TO THE OTHERS — which a
      * private is, when the other four are also privates.
      *
-     * A fireteam leader starts at E-4. The grade is the test, not the ladder
-     * index: SPC and CPL are both E-4, which is the whole reason
-     * BRANCH_GRADES exists.
+     * A fireteam leader is a SERGEANT. E-4 is not enough and the first
+     * version of this test said it was: BRANCH_GRADES notes that "SPC and CPL
+     * share E-4 — the corporal is the same grade wearing the stripes of an
+     * NCO", so a grade-4 line still handed teams to specialists. Measured
+     * before raising it: 70 of 88 squads were led by an E-4. E-5 can only be
+     * a sergeant, so it is the only honest line the grades can express.
      */
     const world = createWorld(makeSeed(4242), 300)
     advanceTicks(world, 12 * 12)
@@ -131,10 +134,10 @@ describe('the squad is your unit', () => {
     const anyNco = [...world.service.values()].some((r) => {
       if (r.dischargedAtTick !== null || r.baseId !== theirs.baseId) return false
       const g = (BRANCH_GRADES[r.branch as 'land-forces'] ?? [])[r.rank] ?? 0
-      return g >= 4 || r.commissioned === true
+      return g >= 5 || r.commissioned === true
     })
     if (!anyNco) return
-    expect(grade, `a fireteam led by an E-${String(grade)}`).toBeGreaterThanOrEqual(4)
+    expect(grade, `a fireteam led by an E-${String(grade)}`).toBeGreaterThanOrEqual(5)
   })
 
   it('stands you next to the same people on a later tour', () => {

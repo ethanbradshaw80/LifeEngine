@@ -955,7 +955,22 @@ export function squadFromUnit(
     if (record.commissioned === true) return 100 + record.rank
     return (BRANCH_GRADES as Record<string, readonly number[] | undefined>)[record.branch]?.[record.rank] ?? record.rank + 1
   }
-  const TEAM_LEADER_GRADE = 4
+  /**
+   * E-5, NOT E-4 — and the difference is the whole complaint.
+   *
+   * OWNER, twice: "Pittman is a PV2 why would be be squad leader", and then
+   * "the team leader bug is still happening too". The first pass fixed the
+   * private and left the second half standing, because `BRANCH_GRADES` says
+   * it plainly: "SPC and CPL share E-4 — the corporal is the same grade
+   * wearing the stripes of an NCO." A specialist is E-4 and is NOT an NCO,
+   * so a grade-4 test still handed fireteams to specialists — MEASURED, 70
+   * of 88 squads.
+   *
+   * Sergeant is where a team leader starts, which is also the line he drew
+   * for who gets rated. Grades cannot separate SPC from CPL; E-5 can only be
+   * a sergeant, so the test is honest at 5 in a way it cannot be at 4.
+   */
+  const TEAM_LEADER_GRADE = 5
   const anNco = mates
     .filter((m) => gradeOf(m.personId) >= TEAM_LEADER_GRADE)
     .sort((a, b) => gradeOf(a.personId) - gradeOf(b.personId))[0]
