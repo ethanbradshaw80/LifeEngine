@@ -46,6 +46,16 @@ const RISKY_OCCUPATIONS = new Set(['labourer', 'millhand', 'carpenter', 'machini
 /** An ailment at or above this severity blocks new hiring and drags work. */
 export const SEVERE_AILMENT = 600
 
+/**
+ * WHERE A WOUND STARTS BEING WORTH SOMETHING FOR LIFE.
+ *
+ * Well below `SEVERE_AILMENT`, and deliberately: the department rates what a
+ * body carries afterwards, not what nearly killed it. Hearing, a back, a
+ * knee, a shoulder that aches in the cold — none of those are severe, and all
+ * of them are rated in life.
+ */
+const RATEABLE_SEVERITY = 250
+
 /** The severity at which the player is asked how to carry it. */
 const CONVALESCE_ASK_SEVERITY = 500
 
@@ -420,20 +430,73 @@ function recoverOrWorsen(
     if (record.ailmentServiceConnected) {
       serviceDisability = Math.min(1000, serviceDisability + added)
     }
+    /**
+     * YOU DO NOT LOSE THE SAME EYE TWICE.
+     *
+     * Seen in a probe of eight wounds: one man finished with THREE permanent
+     * eye injuries, each adding its own 250 to the rating. The body does not
+     * work that way — a second wound to a part already ruined is a wound to a
+     * part already ruined, and the department does not rate it twice.
+     *
+     * So an identical permanent condition at the same site is not stacked.
+     * The wound still happened, still hurt, and still shows in the record;
+     * what it does not do is bill for a loss already counted.
+     */
+    const already = permanent.some(
+      (c) => c.kind === (record.ailmentKind ?? 'injury') && c.site === record.ailmentSite,
+    )
+    if (already) {
+      disability = Math.min(1000, disability - added)
+      if (record.ailmentServiceConnected) {
+        serviceDisability = Math.min(1000, serviceDisability - added)
+      }
+    }
     const permanentMark = markFor(record.ailment ?? 'injury', record.ailmentKind, record.ailmentSite)
     if (!marks.includes(permanentMark)) marks = [...marks, permanentMark]
     // AND THE SAME FACT IN A SHAPE THE ENGINE CAN READ. The mark above is
     // prose for the narrator; this is what `conditions.ts` derives mobility,
     // fitness ceiling, pain and job restrictions from. Without it a lost leg
     // is a sentence in an obituary and nothing else.
-    permanent = [
-      ...permanent,
-      { kind: record.ailmentKind ?? 'injury', site: record.ailmentSite, sinceTick: world.tick },
-    ]
+    if (!already) {
+      permanent = [
+        ...permanent,
+        { kind: record.ailmentKind ?? 'injury', site: record.ailmentSite, sinceTick: world.tick },
+      ]
+    }
   }
 
-  if (!irreversible && record.peakSeverity >= SEVERE_AILMENT - 100 && rng.chance(record.peakSeverity, 2600)) {
-    const added = Math.floor(record.peakSeverity / 9)
+  /**
+   * WHAT A HEALED WOUND LEAVES BEHIND (MILITARY_DEPTH_PLAN §8).
+   *
+   * OWNER: "I had playthroughs where I got hurt like 8 times and only got
+   * 20%." MEASURED before touching it, across two seeds and 55 years: 645
+   * veterans, and a man wounded ONCE had a median rating of 0%. Wounded
+   * twice, 0%. Three times, 0%. Thirty men in the whole population carried
+   * any rating at all.
+   *
+   * THE ARITHMETIC WAS NOT THE PROBLEM — ratings already add. Three gates
+   * upstream of the adding were:
+   *
+   *   - a FLOOR at peak 500, so anything short of a severe wound left
+   *     nothing, ever. The unglamorous conditions that make up most of a
+   *     real rating — hearing, backs, knees, sleep — never qualified.
+   *   - a ROLL of `chance(peak, 2600)`, so a peak-700 wound had a 27% chance
+   *     of leaving anything. Three in four qualifying wounds vanished.
+   *   - a DIVISOR of `peak / 9`, worth about 7.8% when it did land.
+   *
+   * Eight wounds ran through that to roughly two marks and 16%, which the
+   * board's own rounding lifted to almost exactly the 20% he reported. His
+   * account reproduces from the code.
+   *
+   * So the floor drops to where a wound is real rather than severe, the roll
+   * becomes the common case rather than the exception, and a rated wound is
+   * worth at least ten points — the smallest step the department actually
+   * awards. A career of wounds now adds up to something a man would
+   * recognise, and NONE of it boards him out: the board reads the body now,
+   * not this ledger.
+   */
+  if (!irreversible && record.peakSeverity >= RATEABLE_SEVERITY && rng.chance(record.peakSeverity + 250, 1_150)) {
+    const added = Math.max(100, Math.floor(record.peakSeverity / 6))
     disability = Math.min(1000, disability + added)
     // Provenance was stamped at onset; the pension's ledger accrues here,
     // whenever the wound finally shows what it kept — including years after

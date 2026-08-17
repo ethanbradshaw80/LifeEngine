@@ -23,6 +23,7 @@ import {
   phaseFor,
   squadLineFor,
   ownSquadRowFor,
+  unitRosterOf,
   rankTitle,
   specialtyFor,
   specialtyTitleFor,
@@ -73,7 +74,12 @@ export function TourPanel({
    * for the screen instead, so the team reads as five men and him rather than
    * as five men and a gap.
    */
-  const you = ownSquadRowFor(world, tour.personId, squad)
+  const you = ownSquadRowFor(
+    world,
+    tour.personId,
+    squad,
+    (unitRosterOf(world, tour.personId)?.members ?? []).map((m) => m.personId),
+  )
   const rows: readonly { member: typeof you; isYou: boolean }[] = [
     { member: you, isYou: true },
     ...squad.map((member) => ({ member, isYou: false })),

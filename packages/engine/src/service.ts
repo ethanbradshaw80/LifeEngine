@@ -110,6 +110,13 @@ const ENLIST_MAX_AGE = 38
 const MEDICAL_LIMIT = 400
 
 /**
+ * How often a board that is NOT looking at a lost limb keeps somebody in.
+ * Most of the time: the found-fit retention is half the reason a board
+ * convenes, and medical separations are meant to be rare.
+ */
+const RETAINED_BY_THE_BOARD = 800
+
+/**
  * What carried extra duty is worth at full maturity, on the drift target.
  * Sized so a median soldier who keeps it up clears the 600-620 schoolhouse
  * bars with seasoning's help, and a low-diligence one clears the 400-560
@@ -2193,7 +2200,36 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
   // hands and was repatriated into a record saying he had been a civilian
   // for a year. The same reasoning the career discharges below already use
   // for a theatre: the boat home first.
-  if (disability >= MEDICAL_LIMIT && !isCaptive(world, person.id)) {
+  /**
+   * FITNESS FOR DUTY IS NOT DISABILITY (MILITARY_DEPTH_PLAN §8, owner: "You
+   * should only be med boarded in the military if have serious injuries like
+   * limbs blown off and stuff like that not based off the percentage but yeah
+   * I had playthroughs where I got hurt like 8 times and only got 20%").
+   *
+   * THE GAME ASKED ONE QUESTION WHERE REALITY ASKS TWO. The board convened on
+   * `disability` — a LIFETIME CUMULATIVE counter that only ever rises — so a
+   * man who was wounded, healed, and went back to work eight times was
+   * eventually separated by the arithmetic of his own history. Nothing was
+   * wrong with him. The number had simply added up.
+   *
+   * The two questions, kept apart from here on:
+   *   - the service asks CAN YOU STILL DO YOUR JOB. Fit or unfit, and only a
+   *     permanent condition answers it: a limb gone, a back broken, an eye
+   *     lost. Healed wounds do not board anybody out.
+   *   - the department asks WHAT HAS THIS COST YOU FOR LIFE. That is the
+   *     rating, it accumulates, and a man can carry a great deal of it and
+   *     still be fit — which is the ordinary case and was impossible before.
+   */
+  const permanentNow = world.health.get(person.id)?.permanent ?? []
+  /** A body that cannot be assigned duty again. */
+  const dutyEnding = permanentNow.some(
+    (c) => c.kind === 'amputation' || c.kind === 'spinal-injury',
+  )
+  /** Serious, permanent, and genuinely arguable — this is the board's band. */
+  const arguable = permanentNow.some(
+    (c) => c.kind === 'eye-injury' || c.kind === 'crush' || c.kind === 'internal-injury',
+  )
+  if ((dutyEnding || arguable) && !isCaptive(world, person.id)) {
     /**
      * THE BOARD CONVENES INSTEAD OF THE TRAPDOOR OPENING (live player, on
      * itch: "I heal up and then get medically discharged, there is no
@@ -2223,14 +2259,38 @@ function serveMonth(world: World, tick: Tick, person: Person, record: NonNullabl
      * story, and a discharge arrives as a decision moment rather than a
      * fait accompli — the warning the player asked for IS the moment.
      */
-    // 450 is where the blinding and paralyzing floors land, and where an
-    // amputation starts; the board's discretionary band is 400–449.
-    const catastrophic =
-      disability >= 450 ||
-      (world.health.get(person.id)?.permanent ?? []).some((c) => c.kind === 'amputation')
+    /**
+     * THE VERDICT READS THE BODY TOO, for the same reason the summons does.
+     *
+     * It used to be `disability >= 450`, which is the ledger again — so the
+     * finding was decided by how much a life had cost rather than by what
+     * this man can still do. A lost limb or a broken back ends it, because
+     * there is no duty left to assign. Everything else is the board's to
+     * argue, and it retains people every day: the found-fit desk-side
+     * retention is half the reason it exists.
+     *
+     * The rating still weights the odds — a heavier one is a worse case, and
+     * the board is not blind to it — but it cannot decide the finding on its
+     * own any more.
+     */
+    const catastrophic = dutyEnding
     const boardRoom = openStream(world.seed, Stream.Health, person.id, 424_242)
-    const retained =
-      !catastrophic && boardRoom.chance(Math.max(100, 700 - (disability - MEDICAL_LIMIT) * 6), 1_000)
+    /**
+     * AND THE ODDS DO NOT READ THE RATING EITHER.
+     *
+     * The retention chance used to slide down as `disability` climbed, which
+     * is the ledger deciding the finding by the back door — the exact thing
+     * the owner objected to, wearing a probability instead of a threshold.
+     * Measured with it still in: two of three probe careers were boarded out
+     * for accumulating a rating while nothing duty-ending had happened.
+     *
+     * A board that is not looking at a lost limb retains most of the people
+     * in front of it, which is what a real one does and what he asked for:
+     * "Medical discharges are rare and are usually just for the worst of the
+     * worst injuries." So it is a flat, seeded, per-person verdict — stable
+     * across months, blind to the percentage.
+     */
+    const retained = !catastrophic && boardRoom.chance(RETAINED_BY_THE_BOARD, 1_000)
 
     if (retained) {
       const alreadyFound = eventsFor(world, person.id).some(

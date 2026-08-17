@@ -33,6 +33,27 @@ function setDisability(world: ReturnType<typeof createWorld>, personId: number, 
   world.health.set(personId as EntityId, { ...health, disability: value, serviceDisability: value })
 }
 
+/**
+ * A BODY THAT CANNOT BE ASSIGNED DUTY AGAIN.
+ *
+ * A rating on its own no longer summons a board, and that is the whole point
+ * of the fit-for-duty split (MILITARY_DEPTH_PLAN §8, owner: "You should only
+ * be med boarded in the military if have serious injuries like limbs blown
+ * off... not based off the percentage"). These tests need a board to convene,
+ * so they have to give the man a reason a board would recognise rather than a
+ * number.
+ */
+function loseALimb(world: ReturnType<typeof createWorld>, personId: number, tick = 0) {
+  const health = world.health.get(personId as EntityId)!
+  world.health.set(personId as EntityId, {
+    ...health,
+    permanent: [
+      ...health.permanent,
+      { kind: 'amputation', site: 'leg', sinceTick: tick as never },
+    ],
+  })
+}
+
 describe('the wound floors', () => {
   it('a partial eye injury no longer ends a career', () => {
     // The player's exact case: heal up from an eye wound, career survives.
@@ -126,7 +147,8 @@ describe('the medical board', () => {
 
   it('the player is told before the trapdoor opens', () => {
     const { world, personId } = servingPlayer(4242)
-    setDisability(world, personId, 470) // catastrophic band — no retention
+    setDisability(world, personId, 470)
+    loseALimb(world, personId) // duty-ending: the board has no discretion
     advanceTicks(world, 2)
 
     // NOT discharged silently: the finding is a pending decision.
@@ -143,6 +165,7 @@ describe('the rating letter', () => {
   it('filing a claim raises the letter with the true rating', () => {
     const { world, personId } = servingPlayer(777)
     setDisability(world, personId, 470)
+    loseALimb(world, personId)
     advanceTicks(world, 2)
     resolvePending(world, 'accept-findings') // discharged veteran now
     // The discharge hands over the DD-214 as its own moment — answer it
@@ -167,6 +190,7 @@ describe('the rating letter', () => {
   it('a below-threshold claim gets a denial letter, not silence', () => {
     const { world, personId } = servingPlayer(555)
     setDisability(world, personId, 470)
+    loseALimb(world, personId)
     advanceTicks(world, 2)
     resolvePending(world, 'accept-findings')
     for (let guard = 0; guard < 4 && world.player.pending !== null; guard += 1) {

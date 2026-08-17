@@ -29,7 +29,6 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Person, SquadMember, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
-import { unitRosterOf } from './service.js'
 
 /** How many people stand next to you. A fireteam, not a company. */
 export const SQUAD_SIZE = 5
@@ -194,6 +193,14 @@ export function ownSquadRowFor(
   world: World,
   personId: EntityId,
   squad: readonly SquadMember[],
+  /**
+   * The unit roster in authority order, ids only — HANDED IN rather than
+   * looked up, and that is an architecture constraint rather than taste.
+   * `unitRosterOf` lives in service.ts, service.ts imports deployment.ts, and
+   * deployment.ts imports this file: reaching for it here closed the loop and
+   * two cycle tests said so immediately. The caller already has the roster.
+   */
+  rosterOrder: readonly EntityId[] = [],
 ): SquadMember {
   const rng = openStream(world.seed, Stream.CombatResolution, personId, 91_000)
   const taken = new Set(squad.map((m) => m.nickname))
@@ -215,9 +222,8 @@ export function ownSquadRowFor(
    * honest comparison, and it is the same rule `squadFromUnit` uses to pick
    * who leads.
    */
-  const order = (unitRosterOf(world, personId)?.members ?? []).map((m) => m.personId)
   const placeOf = (id: EntityId): number => {
-    const at = order.indexOf(id)
+    const at = rosterOrder.indexOf(id)
     return at === -1 ? Number.MAX_SAFE_INTEGER : at
   }
   const mine = placeOf(personId)
