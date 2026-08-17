@@ -1591,7 +1591,60 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           ) : moneyView === 'bank' ? (
             <Bank world={world} person={person} onAct={onAct} />
           ) : !household ? (
-            <p className="feed-empty">No household yet.</p>
+            /**
+             * A MONTH WITHOUT A HOUSEHOLD IS STILL A MONTH.
+             *
+             * OWNER: "money is still not working on my window" — and this was
+             * the other half of it. The engine was fixed to pay people who
+             * have no household (`settleTheUnhoused`) and to report their
+             * month (`monthAheadFor`), and then this screen refused to ask,
+             * printing "No household yet." over a sergeant first class on
+             * $738 a month.
+             *
+             * A man in barracks has no lease and no household ledger, so the
+             * full statement below genuinely does not apply. What he does
+             * have is pay in, keep out, and a wallet — and every line of it
+             * named, which is what he asked for in the first place.
+             */
+            (() => {
+              const mine = monthAheadFor(world, person.id)
+              // Already the player's own: `recordMoney` only logs movements
+              // that land in the player's wallet.
+              const lines = moneyMonthFor(world, world.tick)
+              return (
+                <>
+                  <dl className="facts">
+                    <dt>Pay</dt>
+                    <dd>{formatMoney(mine.earned)}</dd>
+                    <dt>Tax withheld</dt>
+                    <dd>{formatMoney(mine.withheld)}</dd>
+                    <dt>Living costs</dt>
+                    <dd>{formatMoney(mine.costs)}</dd>
+                    <dt>Left over</dt>
+                    <dd>{formatMoney(mine.net)}</dd>
+                    <dt>In hand</dt>
+                    <dd>{formatMoney(moneyOnHand(world, person.id))}</dd>
+                  </dl>
+                  <p className="muted small">
+                    You are in quarters — no rent, no household books. The
+                    service provides the roof.
+                  </p>
+                  {lines.length > 0 && (
+                    <>
+                      <h4>This month, line by line</h4>
+                      <dl className="facts">
+                        {lines.map((entry, i) => (
+                          <Fragment key={`${entry.label}-${String(i)}`}>
+                            <dt>{entry.label}</dt>
+                            <dd>{formatMoney(entry.amount)}</dd>
+                          </Fragment>
+                        ))}
+                      </dl>
+                    </>
+                  )}
+                </>
+              )
+            })()
           ) : (
             (() => {
               // Every number here is the engine's own: householdLedger is a
