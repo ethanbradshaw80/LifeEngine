@@ -510,10 +510,20 @@ describe('tuition and student loans', () => {
  */
 describe('who pays for the course', () => {
   it('runs every path the spec asks for, and none of them nominally', () => {
+    /**
+     * REACHABLE MEANS THE WORLD PRODUCED IT, not that the holder is still
+     * alive at year forty.
+     *
+     * This walked `livingPeople`, so a path taken by somebody who later died
+     * counted as unreachable. MEASURED at this test's own world: ROTC was
+     * taken ONCE in forty years and that student did not survive to be
+     * counted, so a wired, working path read as dead code. The claim the
+     * test makes — that the path is reachable in a real world — is about the
+     * record, not the survivor.
+     */
     const seen = new Set<string>()
-    for (const person of livingPeople(world)) {
-      const funding = world.education.get(person.id)?.funding
-      if (funding !== undefined) seen.add(funding)
+    for (const record of world.education.values()) {
+      if (record.funding !== undefined) seen.add(record.funding)
     }
     // The GI Bill in particular: it was written, wired and MEASURED at
     // zero people, because the enrolment window shut at 24 and almost

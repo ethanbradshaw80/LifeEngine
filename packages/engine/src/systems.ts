@@ -551,7 +551,9 @@ function fundingFor(
   // THE BARGAIN. Only at university, only where a commission is the thing
   // being bought, and only for somebody the service would actually take.
   // Offered rather than assumed: most students do not sign this.
-  if (level === 'college' && enlistmentBar(world, person, world.tick) === null) {
+  // FOR LATER: an ROTC contract is signed by somebody who is in school, for
+  // service after it, so the in-school refusal does not apply to it.
+  if (level === 'college' && enlistmentBar(world, person, world.tick, { forLater: true }) === null) {
     const willing = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
     if (rng.chance(Math.min(260, Math.floor(willing / 5)), 1000)) return 'rotc'
   }

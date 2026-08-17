@@ -1380,9 +1380,38 @@ export function eligibleSpecialties(world: World, person: Person): ServiceSpecia
  * is open. The Service tab shows the reason instead of a dead button
  * (M-SERVICE-PLAY): the recruiter's "no" is information, not a mystery.
  */
-export function enlistmentBar(world: World, person: Person, tick: Tick): string | null {
+export function enlistmentBar(
+  world: World,
+  person: Person,
+  tick: Tick,
+  /**
+   * SIGNING FOR LATER, not reporting today (M-ENLIST, and the reason the
+   * ROTC path was all but dead).
+   *
+   * An ROTC contract is signed BY somebody in school, for service after it —
+   * so asking the ordinary bar whether they can enlist right now refuses
+   * every single candidate on "Still in school." MEASURED at the education
+   * test's own world, seed 4141 over forty years: 62 college starts and ONE
+   * ROTC contract, where the model intends roughly one in ten. A benefit
+   * that exists in the code and is unreachable in the world is the most
+   * expensive kind of feature there is, which is exactly what that test says.
+   *
+   * Every other bar still applies — age, a prior RE code, the medical. This
+   * waives only the one condition the commitment is made in spite of.
+   */
+  options?: { readonly forLater?: boolean },
+): string | null {
   const age = ageAt(person.birthTick, tick)
-  if (age < ENLIST_MIN_AGE) return 'Not yet eighteen.'
+  /**
+   * A COMMITMENT MADE A YEAR EARLY IS STILL A COMMITMENT. An ROTC contract
+   * is signed at seventeen or eighteen for service four years later, and
+   * college enrolment lands right on that edge — so the ordinary
+   * eighteen-today refusal was turning candidates away for a birthday they
+   * would have long before they served.
+   */
+  if (age < (options?.forLater === true ? ENLIST_MIN_AGE - 1 : ENLIST_MIN_AGE)) {
+    return 'Not yet eighteen.'
+  }
   if (age > ENLIST_MAX_AGE) return 'Past enlistment age — the office takes volunteers at eighteen to thirty-eight.'
   // COMING BACK (owner's RE-code ruling). The blanket refusal that used
   // to sit here — "one service career per life" — meant somebody who got
@@ -1406,7 +1435,9 @@ export function enlistmentBar(world: World, person: Person, tick: Tick): string 
     return 'The medical exam reads the record of old harm, and refuses.'
   }
   const education = world.education.get(person.id)
-  if (education?.enrolledIn !== null && education !== undefined) return 'Still in school.'
+  if (options?.forLater !== true && education?.enrolledIn !== null && education !== undefined) {
+    return 'Still in school.'
+  }
   // C1: the record at the courthouse answers first. Ten clean years and
   // the door opens again (waivers are a later milestone's nuance). Read
   // inline — crime.ts imports this module for discharge, so importing its
