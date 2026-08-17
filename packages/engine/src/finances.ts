@@ -1039,9 +1039,21 @@ export function moveIntoOwnHome(
   if (!property) return { done: false, reason: 'No such address.' }
   if (property.ownerId !== personId) return { done: false, reason: 'Not your deed.' }
   const person = world.people.get(personId)
-  if (!person || person.householdId === null) return { done: false, reason: 'There is no household to move.' }
-  const household = world.households.get(person.householdId)
-  if (!household) return { done: false, reason: 'There is no household to move.' }
+  if (!person) return { done: false, reason: 'There is nobody to move.' }
+  /**
+   * MOVING INTO YOUR OWN DEED OPENS A HOUSEHOLD when there was none — the
+   * same door `signLease` and `moveHouse` now open.
+   *
+   * OWNER, after the first fix: "'there is no household to move' still
+   * showing". He was right: this is a THIRD refusal on the same theme, on
+   * the path a player takes when they already own the place. A man who buys
+   * a house plainly has somewhere to live.
+   */
+  const householdId =
+    person.householdId ?? openAHouseholdFor(world, tick, personId, property.neighbourhoodPlaceId)
+  if (householdId === null) return { done: false, reason: 'There is nobody to move.' }
+  const household = world.households.get(householdId)
+  if (!household) return { done: false, reason: 'There is nobody to move.' }
   if (household.propertyId === propertyId) return { done: false, reason: 'You already live there.' }
   if (!isVacant(world, propertyId)) return { done: false, reason: 'Your tenant lives there — end the tenancy first.' }
   // Leaving a rental ends the lease properly, deposit and all.
@@ -1275,6 +1287,18 @@ export function buyHome(
     homePlaceId: placeId,
     homePurchasePrice: price,
   })
+  /**
+   * BUYING A HOUSE GIVES YOU A HOUSEHOLD, if you had none. The same door
+   * `signLease`, `moveHouse` and `moveHouseholdTo` open — a man who has just
+   * bought a home plainly has somewhere to live, and without this the deed
+   * was recorded against nobody and the screen still said "Home —".
+   */
+  {
+    const buyer = world.people.get(personId)
+    if (buyer !== undefined && buyer.householdId === null) {
+      openAHouseholdFor(world, tick, personId, placeId)
+    }
+  }
   // THE DOOR, NOT JUST THE STREET. Recorded on the household because a home
   // is where a FAMILY lives, not where one earner's bank account points.
   if (property !== undefined) {

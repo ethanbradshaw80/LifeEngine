@@ -22,6 +22,7 @@ import type { EntityId } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { lookForPlace, moveBar, setPlayer } from '../src/player.js'
 import { placesOfKind } from '../src/worldgen.js'
+import { buyHome, walletOf } from '../src/finances.js'
 import { livingPeople } from '../src/systems.js'
 
 /** Somebody grown, alive, and with no household at all. */
@@ -74,6 +75,32 @@ describe('a household of one', () => {
     expect(home?.memberIds, 'the household does not contain them').toContain(personId)
     expect(home?.placeId, 'the household is not on the street they moved to').toBe(street.id)
     expect(home?.dissolvedTick).toBeNull()
+  })
+
+  it('opens one on every door into housing, not just the first I fixed', () => {
+    /**
+     * OWNER, AFTER THE FIRST FIX: "'there is no household to move' still
+     * showing". There were FOUR doors into housing and I had opened three —
+     * signing a lease, moving to a street, and the move bar — while
+     * `moveHouseholdTo` (moving into a deed you already own) and `buyHome`
+     * still refused. This asserts the shape rather than the three I happened
+     * to remember: buying a home gives a homeless man a household.
+     */
+    const world = createWorld(makeSeed(4242), 300)
+    advanceTicks(world, 25 * 12)
+    const personId = anAdultWithNoHome(world)
+    if (personId === undefined) return
+    const street = placesOfKind(world, 'neighbourhood').sort((a, b) => a.id - b.id)[0]
+    if (street === undefined) return
+
+    // Enough money that the purchase is not refused for want of it.
+    const wallet = walletOf(world, personId)
+    world.accounts.set(wallet.personId, { ...wallet, savings: 900_000_000 as never })
+
+    const bought = buyHome(world, world.tick, personId, street.id, 'cash')
+    if (!bought) return // the street may hold nothing for sale this month
+    const after = world.people.get(personId)
+    expect(after?.householdId, 'bought a house and still had no household').not.toBeNull()
   })
 
   it('leaves everybody else exactly where they were', () => {

@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { atTodaysPrices } from '../src/economy.js'
 import { CLASSIC_SPEC } from '../src/worldspec.js'
 import { unitRosterOf } from '../src/service.js'
 import { fitnessOf, setFitness } from '../src/stats.js'
@@ -18,7 +19,7 @@ import { advanceTick, advanceTicks, createWorld } from '../src/index.js'
 import { awaitingPlayer, requestSchool, resolvePending, setPlayer, tryOutForUnit } from '../src/player.js'
 import { competitiveGates, promotionPointsFor } from '../src/service.js'
 import { specialtyById } from '../src/content.js'
-import { badgesOf, schoolOptionsFor, servicePayOf, unitOptionsFor } from '../src/service.js'
+import { allowanceShareOf, badgesOf, schoolOptionsFor, servicePayOf, unitOptionsFor } from '../src/service.js'
 import { livingPeople } from '../src/systems.js'
 import type { Person, World } from '../src/types.js'
 
@@ -169,7 +170,20 @@ describe('special units', () => {
       const record = world.service.get(person.id)
       const duty = CLASSIC_SPEC.units.find((u) => u.id === 'pathfinders')?.dutyPay ?? 0
       expect(duty).toBeGreaterThan(0)
-      expect(servicePayOf(world, person.id)).toBe((record?.monthlyPay ?? 0) + duty)
+      /**
+       * BOTH HALVES, because pay is now split rather than whole.
+       *
+       * `servicePayOf` returns the TAXED share and `allowanceShareOf` the
+       * untaxed housing and subsistence carved out beside it — the pay table
+       * has always been regular military compensation, and the economy work
+       * had been adding an allowance on top of one that already contained it.
+       * The claim here is unchanged and is now stated more precisely: duty
+       * pay is added to grade pay, and the two halves add back to the whole.
+       */
+      const whole = atTodaysPrices(world, ((record?.monthlyPay ?? 0) + duty) as never)
+      const paid = servicePayOf(world, person.id) + allowanceShareOf(world, person.id)
+      // A penny either way: the split floors each half separately.
+      expect(Math.abs(paid - whole)).toBeLessThanOrEqual(1)
     } else {
       // Two drops on the record; the third asking is refused by the file.
       expect(world.events.filter((e) => e.type === 'dropped-selection').length).toBe(2)
