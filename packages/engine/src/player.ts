@@ -4094,9 +4094,18 @@ export function moveBar(
   const person = world.people.get(personId)
   if (!person || person.deathTick !== null) return 'There is nobody to move.'
   if (ageAt(person.birthTick, tick) < 18) return 'Not yet eighteen.'
-  if (person.householdId === null) return 'There is no household to move.'
+  /**
+   * HAVING NO HOUSEHOLD IS A REASON TO MOVE, NOT A REASON YOU CANNOT.
+   *
+   * OWNER: "It doesnt count a single person with no kids as a household so I
+   * cant move in or rent anywhere it just says home -". This line refused
+   * exactly the person who most needed to move — a soldier in barracks, a
+   * separated veteran, anybody whose family died out. Taking a place is what
+   * opens a household; the move itself creates one.
+   */
+  if (person.householdId === null) return null
   const household = world.households.get(person.householdId)
-  if (!household) return 'There is no household to move.'
+  if (!household) return null
   // Living with the parents means it is THEIR house to move (review S4);
   // the way out of it is the move-out moment, not this verb.
   if (person.parentIds.some((id) => household.memberIds.includes(id))) {

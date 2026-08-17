@@ -2995,9 +2995,36 @@ export function moveHouse(
   placeId: EntityId,
   extraInputs: readonly CausalFactor[],
 ): void {
-  const household = householdOf(world, person)
   const target = world.places.get(placeId)
-  if (!household || !target) return
+  if (!target) return
+  /**
+   * MOVING WITH NO HOUSEHOLD OPENS ONE (owner: "It doesnt count a single
+   * person with no kids as a household so I cant move in or rent anywhere").
+   *
+   * Households are otherwise only ever formed by splitting OFF an existing
+   * one, so anybody standing outside the system — a soldier in barracks, a
+   * separated veteran, the last of a family — could never get back in.
+   * Taking an address is what makes a household; one adult on their own is
+   * a household of one.
+   */
+  let household = householdOf(world, person)
+  if (household === undefined) {
+    const id = allocateId(world)
+    world.households.set(id, {
+      id,
+      placeId,
+      memberIds: [person.id],
+      formedTick: tick,
+      dissolvedTick: null,
+      savings: 0 as Money,
+      spendStance: null,
+      homelessSinceTick: null,
+    })
+    setPerson(world, { ...person, householdId: id })
+    recordEvent(world, tick, { type: 'left-home', subjectId: person.id, placeId })
+    household = world.households.get(id)
+    if (household === undefined) return
+  }
   const current = world.places.get(household.placeId)
 
   world.households.set(household.id, { ...household, placeId })

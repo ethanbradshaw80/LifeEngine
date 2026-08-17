@@ -776,6 +776,50 @@ export function homePurchaseBar(
  * ordinary expense would have been quietly taking a month's rent from every
  * tenant in the game.
  */
+/**
+ * ONE ADULT ON THEIR OWN IS A HOUSEHOLD.
+ *
+ * OWNER, PLAYING: "It doesnt count a single person with no kids as a
+ * household so I cant move in or rent anywhere it just says home -".
+ *
+ * He is right, and it is a trap rather than a rule. `runHouseholds` forms
+ * households by MOVING somebody out of one — `leaveHome` reads the parental
+ * roof and splits off from it — so a person who has no household has no way
+ * to acquire one. Every door out of that state was locked from the inside:
+ * renting asked for a household, moving asked for a household, and the only
+ * thing that makes households skipped him for not having one.
+ *
+ * A soldier in barracks, a man who separated and settled here, anybody whose
+ * family died out — all of them stood outside the housing system for ever
+ * with the screen saying "Home —".
+ *
+ * So signing for a place OPENS one. That is what taking a lease is: a
+ * household of one, formed the day the keys change hands. It carries no
+ * savings of its own (H0 — the money lives in the person's wallet) and is
+ * seated at the place they are moving into.
+ */
+function openAHouseholdFor(world: World, tick: Tick, personId: EntityId, placeId: EntityId): EntityId | null {
+  const person = world.people.get(personId)
+  if (person === undefined || person.deathTick !== null) return null
+  if (person.householdId !== null) return person.householdId
+
+  const id = world.nextEntityId as EntityId
+  world.nextEntityId += 1
+  world.households.set(id, {
+    id,
+    placeId,
+    memberIds: [personId],
+    formedTick: tick,
+    dissolvedTick: null,
+    savings: 0 as Money,
+    spendStance: null,
+    homelessSinceTick: null,
+  })
+  world.people.set(personId, { ...person, householdId: id })
+  recordEvent(world, tick, { type: 'left-home', subjectId: personId, placeId })
+  return id
+}
+
 export function signLease(
   world: World,
   tick: Tick,
@@ -783,8 +827,15 @@ export function signLease(
   propertyId: string,
 ): boolean {
   const person = world.people.get(personId)
-  if (!person || person.householdId === null) return false
-  const household = world.households.get(person.householdId)
+  if (!person) return false
+  // SIGNING FOR A PLACE OPENS A HOUSEHOLD when there was none. See above:
+  // without this, somebody with no household could never get one.
+  const property0 = world.properties.get(propertyId)
+  if (property0 === undefined) return false
+  const householdId =
+    person.householdId ?? openAHouseholdFor(world, tick, personId, property0.neighbourhoodPlaceId)
+  if (householdId === null) return false
+  const household = world.households.get(householdId)
   if (!household) return false
   const property = world.properties.get(propertyId)
   if (!property) return false
