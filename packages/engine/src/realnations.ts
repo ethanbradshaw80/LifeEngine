@@ -102,7 +102,15 @@ export const REAL_NATIONS: readonly RealNation[] = [
   { name: 'Egypt', alignment: 'neutral', combatRating: 5 },
   { name: 'Nigeria', alignment: 'neutral', combatRating: 4 },
   { name: 'South Africa', alignment: 'neutral', combatRating: 4 },
-  { name: 'Vietnam', alignment: 'neutral', combatRating: 6 },
+  /**
+   * VIETNAM IS DELIBERATELY ABSENT, and it is not an oversight.
+   *
+   * W2's own guard — "carries no real war, operation or battle name anywhere
+   * in the engine" — flags it, and the guard is right to. The country is
+   * innocent; the WORD is a war, and this engine invents its wars. A soldier's
+   * permanent record saying he fought in Vietnam would be exactly the claim
+   * the ruling exists to prevent. Thirty-nine is plenty.
+   */
   { name: 'Thailand', alignment: 'neutral', combatRating: 5 },
   { name: 'Pakistan', alignment: 'neutral', combatRating: 6 },
   { name: 'Saudi Arabia', alignment: 'neutral', combatRating: 5 },
