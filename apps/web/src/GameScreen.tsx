@@ -51,6 +51,8 @@ import {
   courtshipBar,
   proposalBar,
   decorationsOf,
+  evaluationsOf,
+  markWords,
   badgesOf,
   deploymentsOf,
   describeAilment,
@@ -229,7 +231,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
  * scrolled forever became five that do not — and on a phone that is the
  * difference between a screen you use and one you give up on.
  */
-type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'record'
+type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'reports' | 'record'
 
 /**
  * C3 §18. The Crime section: the acts, and the county's own record of them.
@@ -258,6 +260,7 @@ const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
   { id: 'schools', label: 'School Houses' },
   { id: 'packet', label: 'Drop a Packet' },
   { id: 'deployments', label: 'Deployments' },
+  { id: 'reports', label: 'Reports' },
   { id: 'record', label: 'Record' },
 ]
 
@@ -3117,6 +3120,80 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </ul>
                   </>
                 )}
+                {serviceTab === 'reports' && (() => {
+                  /**
+                   * THE ANNUAL EVALUATION, READ BACK (owner: "we also need the
+                   * UI for the evaluation").
+                   *
+                   * A stack of reports somebody senior wrote about you is the
+                   * thing that actually decides a career, and until this
+                   * screen existed the player could feel it moving without
+                   * ever seeing it. Newest first, because the last report is
+                   * the one that matters to the next board — and every one of
+                   * them names the man who signed it, since the whole point
+                   * is that a person had an opinion rather than a stat
+                   * drifting.
+                   */
+                  const reports = [...evaluationsOf(world, person.id)].reverse()
+                  if (reports.length === 0) {
+                    const record = world.service.get(person.id)
+                    return (
+                      <p className="feed-empty">
+                        {record === undefined
+                          ? 'No service record.'
+                          : 'No annual reports yet. They begin at sergeant.'}
+                      </p>
+                    )
+                  }
+                  return (
+                    <div className="tour-squad">
+                      <h4>Annual reports · {reports.length}</h4>
+                      {reports.map((report) => {
+                        const rater = report.raterId === null
+                          ? undefined
+                          : world.people.get(report.raterId)
+                        const theirs = report.raterId === null
+                          ? undefined
+                          : world.service.get(report.raterId)
+                        return (
+                          <div key={String(report.tick)} className="sq-row">
+                            <span className="sq-ic" aria-hidden="true">📋</span>
+                            <div>
+                              <div className="nm">
+                                {formatYear(world, report.tick)} · {markWords(report.mark)}
+                              </div>
+                              <div className="sub">
+                                {rater === undefined ? (
+                                  'unsigned'
+                                ) : (
+                                  <>
+                                    signed by{' '}
+                                    <button
+                                      type="button"
+                                      className="link"
+                                      onClick={() => { onInspect(rater.id) }}
+                                    >
+                                      {theirs === undefined
+                                        ? ''
+                                        : `${rankTitle(world, theirs.branch, theirs.rank, theirs.commissioned === true)} `}
+                                      {rater.givenName} {rater.familyName}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <span className="sq-state s-ok">{Math.round(report.mark / 10)}</span>
+                          </div>
+                        )
+                      })}
+                      <p className="muted small">
+                        Reports begin at sergeant and are written by whoever
+                        outranks you in your unit. The man who writes them
+                        changes when you move.
+                      </p>
+                    </div>
+                  )
+                })()}
                 {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
                   // Combat badges are badges, wherever their kind sits.

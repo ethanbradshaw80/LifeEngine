@@ -638,6 +638,9 @@ export {
 export type { AnalystView, Stock } from './types.js'
 export type { CompanyNews } from './market.js'
 export { dropOut, dropOutBar, hiringBar, serviceEdgeFor } from './systems.js'
+export { evaluationsOf, raterFor, regardBetween } from './evaluations.js'
+export type { Evaluation } from './evaluations.js'
+export { markWords } from './text.js'
 export { isEntryWork, meritedRung } from './careers.js'
 export {
   CAMPAIGN_MONTHS,
