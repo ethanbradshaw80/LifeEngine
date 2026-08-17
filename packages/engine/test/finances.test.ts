@@ -702,12 +702,36 @@ describe("one person's own month", () => {
          * fourteen-year-old is in school: costs summed to 91,870 against a
          * unit total of 122,291, the missing 30,421 being her fees.
          */
-        const ahead = earners.map((id) => monthAheadFor(world, id))
-        const shares = ahead.map((a) => a.earned - a.costs - a.tuition - a.lifestyle)
+        /**
+         * RECONCILED AT THE ROOF NOW, AND FOR THE SAME REASON IT USED TO BE
+         * RECONCILED AT THE UNIT (owner's ruling, 2026-08-17: "tick wins").
+         *
+         * The month takes the WHOLE roof's obligations from every earner
+         * under it, pro rata, and `monthAheadFor` now says the same thing —
+         * so a unit's earners no longer sum to their own unit's net, and
+         * they should not. They sum to their share of the house.
+         *
+         * AND `costs` NOW INCLUDES TUITION, because it is `unitCosts` — the
+         * tick's own figure — rather than living-plus-rent. Subtracting
+         * `tuition` again here would take it off twice; it is a ROW INSIDE
+         * `costs`, not a fourth charge beside it.
+         *
+         * The claim is exactly the one it always was: the shared money
+         * divides, and no two earners are each told they clear all of it.
+         */
+        const living = household.memberIds.filter(
+          (id) => world.people.get(id)?.deathTick === null,
+        )
+        const roofEarners = living.filter((id) => personalIncome(world, id) > 0)
+        const ahead = roofEarners.map((id) => monthAheadFor(world, id))
+        const shares = ahead.map((a) => a.earned - a.costs - a.lifestyle)
         const total = shares.reduce((sum, share) => sum + share, 0)
-        const spending = discretionaryForUnit(world, household, unit)
-        const unitNet =
-          unitIncome(world, unit) - unitCosts(world, household, unit) - spending - salesTaxOn(spending)
+        let owedAll = 0
+        for (const one of unitsUnder(world, household)) {
+          const theirs = discretionaryForUnit(world, household, one)
+          owedAll += unitCosts(world, household, one) + theirs + salesTaxOn(theirs)
+        }
+        const unitNet = unitIncome(world, living) - owedAll
         /**
          * A PENNY PER ROUNDED PART PER EARNER. The tolerance was one penny
          * each, from when a share was split out of two parts (living and
@@ -719,7 +743,7 @@ describe("one person's own month", () => {
          * Still pennies. The claim is unchanged: shared money divides, and
          * two earners are not each told they clear all of it.
          */
-        const drift = earners.length * 3
+        const drift = Math.max(earners.length, roofEarners.length) * 3
         for (const share of shares) expect(share).toBeLessThanOrEqual(unitNet + drift)
         expect(Math.abs(total - unitNet)).toBeLessThanOrEqual(drift)
         return

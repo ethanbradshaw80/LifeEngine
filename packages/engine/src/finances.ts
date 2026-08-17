@@ -3022,23 +3022,83 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
   if (!household) return nothing
 
   const unit = financialUnitOf(world, personId)
-  const income = unitIncome(world, unit)
-  const spending = discretionaryForUnit(world, household, unit)
   const parts = unitCostParts(world, household, unit)
-  const bills = (parts.living + parts.rent) as Money
-  const owed = (bills + spending + salesTaxOn(spending)) as Money
-  const left = income - owed
-
-  // Inside the unit, split by who brought it in — a couple where one earns
-  // everything is one purse, and the number shown to either of them is the
-  // purse's. A unit of one is the whole of it.
   const gross = personalIncome(world, personId)
-  const mine = (gross - withholdingFor(gross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) +
-    supportOf(world, personId, world.tick)) as Money
-  const share =
-    income <= 0
-      ? ((left > 0 ? left : Math.floor(left / Math.max(1, unit.length))) as Money)
-      : (Math.floor((left * mine) / income) as Money)
+
+  /**
+   * THE FORECAST DIVIDES THE MONTH THE WAY THE TICK DIVIDES IT.
+   *
+   * OWNER'S RULING, 2026-08-17: "tick wins."
+   *
+   * MEASURED first, on a shopkeeper at seed 4242: over six months the
+   * forecast promised $44,534 and the wallet delivered $28,665 — 55% out,
+   * leaning the same way every month. Six months is where this test's own
+   * comment says trading noise cancels and a MISSING SOURCE shows, and it
+   * was right.
+   *
+   * Two rules were both written down and they contradicted each other.
+   *
+   *   THE TICK sums what EVERY unit under the roof owes — its mouths, its
+   *   rent, its own day-to-day — into one household bill and takes it from
+   *   the earners PRO RATA ACROSS THE WHOLE HOUSEHOLD. The big earner
+   *   carries the other units' dependants.
+   *
+   *   THE FORECAST charged this person their OWN unit's costs and nothing
+   *   else, on H0's rule that a grown child at home pays none of the
+   *   family's rent.
+   *
+   * In the median household — measured at 1 to 2 people, mean 2.1 — the two
+   * give the same number, which is why this went years without showing. The
+   * shopkeeper lived in the one seventeen-person household in his town.
+   *
+   * The tick is now the single definition, here and in `runFinances`. A
+   * grown adult under his parents' roof contributes to it in proportion to
+   * what he brings in, which is also the more believable of the two (Law
+   * 10): a working son eating at his mother's table is not a lodger who pays
+   * nothing.
+   */
+  const units = unitsUnder(world, household)
+  const incomes = units.map((one) => unitIncome(world, one))
+  let totalIncome = 0
+  for (const each of incomes) totalIncome += each
+
+  let owedAll = 0
+  let billsAll = 0
+  let dayAll = 0
+  let rentAll = 0
+  let tuitionAll = 0
+  for (let i = 0; i < units.length; i += 1) {
+    const one = units[i]
+    if (one === undefined) continue
+    const shape = { unitCount: units.length, totalIncome, mine: incomes[i] ?? 0 }
+    const theirs = discretionaryForUnit(world, household, one, shape)
+    const cost = unitCosts(world, household, one, shape)
+    const theirParts = unitCostParts(world, household, one, shape)
+    const day = theirs + salesTaxOn(theirs as Money)
+    billsAll += cost
+    dayAll += day
+    rentAll += theirParts.rent
+    tuitionAll += theirParts.tuition
+    owedAll += cost + day
+  }
+
+  /** What one person takes home, exactly as the month credits it. */
+  const takeOf = (id: EntityId): number => {
+    const theirGross = personalIncome(world, id)
+    const theirSupport = supportOf(world, id, world.tick)
+    if (theirGross <= 0 && theirSupport <= 0) return 0
+    return (
+      theirGross -
+      withholdingFor(theirGross, world.economy.priceLevelPerMille, world.policy.incomeTaxPerMille) +
+      theirSupport
+    )
+  }
+
+  let income = 0
+  for (const memberId of household.memberIds) {
+    if (world.people.get(memberId)?.deathTick !== null) continue
+    income += takeOf(memberId)
+  }
 
   /**
    * THE THREE THAT WERE MISSING — each halved where the wallet is shared.
@@ -3067,41 +3127,63 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     monthlyInterestOn(walletOf(world, personId).savings, savingsRateOf(world)),
   )
 
-  // The itemised costs are this person's share of them, for the same reason
-  // the net is: a screen showing one of them beside the other must not be
-  // able to describe two different people's months.
-  const mineOfCosts = income <= 0 || bills <= 0 ? bills : Math.floor((bills * mine) / income)
-  const mineOfLifestyle =
-    income <= 0 || spending <= 0
-      ? spending
-      : Math.floor(((spending + salesTaxOn(spending)) * mine) / income)
+  /**
+   * WHOSE MONTH THIS IS, AND IT IS THE WALLET THAT DECIDES.
+   *
+   * A married couple keep ONE wallet (H0), and `liquidShareOf` — which is
+   * what "their money" means on every other screen in this game — gives each
+   * of them half of it. The draw, the rental income and the interest were
+   * already halved for exactly that reason, just above. The wage was not, so
+   * a high-earning spouse was quoted a month that belonged to two people.
+   * Both halves of the purse are summed and then split the way the wallet
+   * splits: whole for somebody who holds their own, halved where it is
+   * shared.
+   */
+  const spouse = spouseOf(world, personId)
+  const purseHolder = walletOf(world, personId)
+  const purse =
+    spouse !== null && walletHolderOf(world, spouse) === purseHolder.personId
+      ? [personId, spouse]
+      : [personId]
+
+  let purseTake = 0
+  let purseCharge = 0
+  for (const memberId of purse) {
+    const theirTake = takeOf(memberId)
+    purseTake += theirTake
+    purseCharge += income <= 0 ? 0 : Math.floor((owedAll * theirTake) / income)
+  }
+  const mine = halved(purseTake as Money)
+  const charged = halved(purseCharge as Money)
+
+  // The two rows a statement shows, split in the same proportion the tick
+  // splits them, with the remainder on the second so they always add up.
+  const mineOfCosts = (
+    billsAll + dayAll <= 0 ? 0 : Math.floor((charged * billsAll) / (billsAll + dayAll))
+  ) as Money
+  const mineOfLifestyle = (charged - mineOfCosts) as Money
 
   /**
-   * THE PARTS ARE THE TOTAL, not an approximation of it.
-   *
-   * `share` and the itemised lines are the same arithmetic with the floors
-   * in different places, so they disagreed by a couple of cents — enough
-   * for a screen to print lines that visibly do not add up, which is one of
-   * the things he complained about. The lines win; the net is their sum.
-   * Where the unit earns nothing there is no share to split and `share`
-   * carries the answer instead.
+   * THE PARTS ARE THE TOTAL, not an approximation of it. The itemised lines
+   * and the net are the same arithmetic with the floors in different places,
+   * so they used to disagree by a couple of cents — enough for a screen to
+   * print rows that visibly do not add up, which is one of the things he
+   * complained about. The lines win; the net is their sum.
    */
-  const fromParts = (mine - mineOfCosts - mineOfLifestyle) as Money
-  const bottom = income <= 0 ? share : fromParts
+  const bottom = (mine - mineOfCosts - mineOfLifestyle) as Money
 
   /**
    * THE BILL, ITEMISED AT THE SAME SHARE THE TOTAL IS. `mineOfCosts` is this
-   * person's slice of their UNIT's bills; the rent and the mouths are that
-   * same slice, so the two lines always add to the total above them.
+   * person's slice of the WHOLE ROOF's bills now, so the rent and the mouths
+   * are read off the roof's totals too — mixing the roof's total with one
+   * unit's parts would print rows that do not add to the line above them.
+   *
+   * ONE IS FLOORED AND THE OTHER TAKES THE REMAINDER, so the rows on the
+   * screen always add up. Flooring both independently lost a penny — caught
+   * by a test, and the same penny-drift this card was already fixed for once.
    */
-  /**
-   * ONE IS FLOORED AND THE OTHER TAKES THE REMAINDER, so the two rows on the
-   * screen always add to the total above them. Flooring both independently
-   * lost a penny — caught by a test, and the same penny-drift this card was
-   * already fixed for once.
-   */
-  const rentShare = (bills <= 0 ? 0 : Math.floor((mineOfCosts * parts.rent) / bills)) as Money
-  const tuition = (bills <= 0 ? 0 : Math.floor((mineOfCosts * parts.tuition) / bills)) as Money
+  const rentShare = (billsAll <= 0 ? 0 : Math.floor((mineOfCosts * rentAll) / billsAll)) as Money
+  const tuition = (billsAll <= 0 ? 0 : Math.floor((mineOfCosts * tuitionAll) / billsAll)) as Money
   // The last one takes the remainder, so the three rows always add to the
   // total above them. Flooring all three lost pennies, which a test caught.
   const living = (mineOfCosts - rentShare - tuition) as Money

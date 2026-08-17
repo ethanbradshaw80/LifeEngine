@@ -210,12 +210,26 @@ describe('the month belongs to the person, not the building', () => {
     expect(month.adults + month.children).toBeLessThan(roof?.memberIds.length ?? 99)
   })
 
-  it('never charges a grown child at home for the family’s rent', () => {
+  it('charges a grown child at home a share of the roof, never the whole of it', () => {
     /**
-     * H0's rule, and the thing that made the old card absurd: the unit
-     * holding the household's eldest carries the whole roof; everybody else
-     * under it carries none. A twenty-year-old at his parents' pays for
-     * himself and not a penny of their rent.
+     * OWNER'S RULING, 2026-08-17: "tick wins."
+     *
+     * THE RULE THIS REPLACES, and why it had to go. H0 said the unit holding
+     * the household's eldest carries the whole roof and everybody else under
+     * it carries none — a twenty-year-old at his parents' paid for himself
+     * and not a penny of their rent. But `runFinances` has never done that:
+     * it sums what every unit owes and takes it from the earners pro rata
+     * across the whole household. Two rules, both written down, and the
+     * forecast followed one while the month followed the other. MEASURED, it
+     * put the shopkeeper's forecast 55% out, every month, the same way.
+     *
+     * The tick is the single definition now, and it is the more believable
+     * of the two anyway (Law 10): a working son eating at his mother's table
+     * is not a lodger who pays nothing.
+     *
+     * THE CLAIM THAT REPLACES IT is still a real claim, and still the one
+     * that made the old card absurd: he pays a SHARE, in proportion to what
+     * he brings in, and never the whole roof.
      */
     const world = createWorld(makeSeed(4242), 140)
     advanceTicks(world, 30 * 12)
@@ -228,8 +242,18 @@ describe('the month belongs to the person, not the building', () => {
           .sort((a, b) => (b as { birthTick: Tick }).birthTick - (a as { birthTick: Tick }).birthTick)[0]
         if (youngest === undefined) continue
         const month = monthAheadFor(world, youngest.id)
-        // The youngest adult is not the eldest member, so no rent.
-        expect(month.rentShare).toBe(0)
+        // A SHARE, never the whole of it. Summed across everybody under the
+        // roof, the rent lines are the roof's rent — so his own being
+        // strictly smaller than that sum is exactly the claim, and it needs
+        // no second definition of what the rent is.
+        let roofRent = 0
+        for (const memberId of roof.memberIds) {
+          const them = world.people.get(memberId)
+          if (them === undefined || them.deathTick !== null) continue
+          roofRent += monthAheadFor(world, memberId).rentShare
+        }
+        expect(month.rentShare).toBeGreaterThanOrEqual(0)
+        if (roofRent > 0) expect(month.rentShare).toBeLessThan(roofRent)
         return
       }
     }

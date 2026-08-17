@@ -29,9 +29,9 @@
 > evaluation), §9.1 (unit awards) and §5.3 (the after-action report) are all
 > built, tested and on screen.
 >
-> **SIMULATION_VERSION 187, and the three baselines ARE pinned** —
-> GOLDEN_HASH_HEX `e17aa745` (determinism.test.ts and the copy in App.tsx),
-> HEARTLAND_GOLDEN `4b64157e` (w2.test.ts), header string 187.
+> **SIMULATION_VERSION 189, and the three baselines ARE pinned** —
+> GOLDEN_HASH_HEX `8fa0c307` (determinism.test.ts and the copy in App.tsx),
+> HEARTLAND_GOLDEN `469013bb` (w2.test.ts), header string 189.
 >
 > **The two mechanics worth knowing before touching any of it:**
 >
@@ -43,6 +43,51 @@
 >   (foundation §8): the character never knew, and the player does.
 >
 > **Stage 3 is next** — peacetime, per plan §15.
+>
+> **THE DESCRIPTIVE REWRITE IS STAGE 4, and he has asked about it twice.**
+> §4.4b (scenes) and §4.4c (wounds) are Stage 4 item 12, "the largest content
+> job in the update", because they depend on §4.1 situational encounters and
+> branch per MOS. The after-action report is Stage 2's own item and IS now a
+> full document — mission, timed sequence, enemy, friendly with the casualties
+> BY NAME, recommendations. If he asks for the writing before peacetime, the
+> dependency is on §4.1, not on Stage 3: the order can be swapped.
+>
+> **A UNIT AWARD IS NOT A PERSONAL DECORATION, and three screens had to learn
+> it.** It is given to a UNIT for a PERIOD OF DATES. `decorationsOf` filters
+> `kind === 'unit-award'` — that one door is what keeps it off every personal
+> rack — and `allAwardsOf` is the raw store for anything that needs it. It
+> shows on the Career tab beside the unit and nowhere else. Its `citation` is
+> a MACHINE KEY (`unit|title|year`); never print it. `GrantSpec.wording`
+> carries the human words.
+>
+> **THE TICK IS THE SINGLE DEFINITION OF A MONTH — owner's ruling,
+> 2026-08-17: "tick wins."** `monthAheadFor` no longer charges a person their
+> own unit's costs; it charges their pro-rata share of what the WHOLE ROOF
+> owes, which is what `runFinances` has always actually done. A grown adult
+> under his parents' roof therefore contributes in proportion to what he
+> brings in. The old H0 rule (the eldest's unit carries the whole roof, and
+> everybody else none) is GONE — `monthahead.test.ts` and `finances.test.ts`
+> both state the new rule now, and `costs` includes tuition because it is
+> `unitCosts`, the tick's own figure. Two consequences worth knowing: a unit's
+> earners no longer reconcile to their unit's net (they reconcile at the roof),
+> and `costs` must not have `tuition` subtracted from it again — tuition is a
+> row inside it.
+>
+> Measured across six months on the shopkeeper: the gap closed from $15,869 to
+> $13,559.
+>
+> **STILL RED, NAMED, AND NOT WIDENED — monthahead's wealthy shopkeeper.** One
+> test of 1671. The residual is characterised: for that couple the roof's whole
+> bill is $23,758 and their pro-rata share of it is $7,381, but $12,104 leaves
+> their wallet in the month. The extra **$4,722 a month is not household bills**
+> and it is not the business draw (which is credited, never debited — checked).
+> It is unidentified, it is pre-existing, and it only shows in the ONE
+> seventeen-person household in the town — the median roof is 1–2 people, mean
+> 2.1, where every version of this arithmetic agrees. Next step if it matters:
+> instrument `runFinances`'s collection loop for that household and compare
+> `taken` per earner against `owed`; suspect `accountsOf` versus `walletOf` in
+> the clamp, since a spouse's share is clamped to THEIR record's checking while
+> the money lives on the wallet holder's.
 
 > **RELEASED 2026-08-16 — v186, the Work & Money update.** Notes in
 > `RELEASE_NOTES_v186.md`; zip built by `npm run pack:itch` and VERIFIED by
@@ -543,6 +588,12 @@ Assessed 2026-08-04, in rough order of value:
    reconstructed afterward.
 
 ## Open items for Ethan
+
+- ~~Does a grown child at home pay towards the family's rent?~~ **ANSWERED
+  2026-08-17: "tick wins."** He does, pro rata. Built.
+- **Stage 4's descriptive rewrite, or Stage 3's peacetime first?** He has
+  asked twice about the writing. It depends on §4.1, not on Stage 3, so the
+  order can be swapped if he would rather have the prose sooner.
 
 - **Git identity is repo-local only.** Global is still unset, so other repos
   on this machine cannot commit until he runs:
