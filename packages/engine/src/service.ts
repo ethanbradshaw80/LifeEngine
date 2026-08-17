@@ -71,8 +71,6 @@ import {
   officerPayOn,
   offenceById,
   isFelony,
-  rentFor,
-  LIVING_COST_ADULT,
 } from './content.js'
 import { activeWars, homeland } from './geopolitics.js'
 import type { NewsItem } from './geopolitics.js'
@@ -286,10 +284,55 @@ export function servicePayOf(world: World, personId: EntityId): number {
    * everything else reads; nothing stored, nothing to drift.
    */
   const retained = (world.health.get(personId)?.disability ?? 0) >= 400
-  if (retained) {
-    return atTodaysPrices(world, Math.floor((record.monthlyPay * 850) / 1000) as Money)
-  }
-  return atTodaysPrices(world, (record.monthlyPay + (unit?.dutyPay ?? 0)) as Money)
+  const whole = retained
+    ? Math.floor((record.monthlyPay * 850) / 1000)
+    : record.monthlyPay + (unit?.dutyPay ?? 0)
+  /**
+   * THE TAXED HALF ONLY — the allowance is carved OUT of this, never added
+   * on top of it (owner: "check the pay double counting").
+   *
+   * He was right to ask. `PAY_BY_GRADE` says in its own comment that the
+   * figures are "BASIC PAY PLUS ALLOWANCES... regular military compensation
+   * rather than the basic-pay column", and then `quartersAndRationsFor` —
+   * added later, during the economy work — computed a housing and
+   * subsistence allowance from the world's rents and handed it over as
+   * EXTRA. Two comments in this repository flatly contradicted each other,
+   * and MEASURED at seed 4242 the second was paying an E-8 a further 21% on
+   * top of a wage that already contained it.
+   *
+   * The fix is a split, not a cut: the table stays regular military
+   * compensation, and the untaxed share is taken out of it rather than
+   * invented beside it. Total compensation is what the table always said it
+   * was. What changes is that a third of it stops being taxed as a wage,
+   * which is the thing the economy work was actually right about.
+   */
+  return atTodaysPrices(world, Math.floor((whole * (1000 - ALLOWANCE_PER_MILLE)) / 1000) as Money)
+}
+
+/**
+ * HOW MUCH OF MILITARY PAY IS UNTAXED HOUSING AND SUBSISTENCE.
+ *
+ * Roughly a third of real enlisted compensation, which is the same figure
+ * `PAY_BY_GRADE`'s own comment uses when it says the basic-pay column alone
+ * "would understate a serving life by about a third".
+ */
+export const ALLOWANCE_PER_MILLE = 300
+
+/**
+ * THE UNTAXED PART OF THIS PERSON'S OWN PAY.
+ *
+ * Read off the same figure the wage is read from, so the two halves always
+ * add back to the whole and neither can drift.
+ */
+export function allowanceShareOf(world: World, personId: EntityId): Money {
+  const record = world.service.get(personId)
+  if (record === undefined || record.dischargedAtTick !== null) return 0 as Money
+  const unit = record.unitId === null ? undefined : unitFor(world, record.unitId)
+  const retained = (world.health.get(personId)?.disability ?? 0) >= 400
+  const whole = retained
+    ? Math.floor((record.monthlyPay * 850) / 1000)
+    : record.monthlyPay + (unit?.dutyPay ?? 0)
+  return atTodaysPrices(world, Math.floor((whole * ALLOWANCE_PER_MILLE) / 1000) as Money) as Money
 }
 
 
@@ -4629,12 +4672,19 @@ export function runSchools(world: World, tick: Tick): void {
  * through the wage would both tax it and inflate the pension it is not part
  * of.
  */
-const QUARTERS_DESIRABILITY = 3
 
 export function quartersAndRationsFor(world: World, personId: EntityId): Money {
-  const record = world.service.get(personId)
-  if (record === undefined || record.dischargedAtTick !== null) return 0 as Money
-  const quarters = rentFor(QUARTERS_DESIRABILITY)
-  const rations = Math.floor(LIVING_COST_ADULT / 2)
-  return atTodaysPrices(world, (quarters + rations) as Money) as Money
+  /**
+   * NOW A SHARE OF THE PAY, NOT A SUM BESIDE IT.
+   *
+   * This used to price quarters and rations off the world's own rents and
+   * living costs and hand the result over as additional money. Self-scaling,
+   * which was the right instinct, and DOUBLE COUNTED, because the grade
+   * tables are already regular military compensation — allowances included.
+   * Measured before the change: an extra 21% on an E-8.
+   *
+   * The allowance is real and untaxed; it is simply part of what the table
+   * already pays, so it is taken out of the wage rather than added to it.
+   */
+  return allowanceShareOf(world, personId)
 }
