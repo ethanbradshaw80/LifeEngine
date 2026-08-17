@@ -1,6 +1,7 @@
 # Resume Here
 
-> **IN PROGRESS — Military Depth, Stage 1: the world outside the town.**
+> **MILITARY DEPTH: STAGES 1–4 BUILT.** Stage 1 (the world outside the town)
+> is below and is still the model everything else rests on.
 > `docs/MILITARY_DEPTH_PLAN.md` is the approved contract; §15 has the build
 > order and §17 carries the independent review's findings.
 >
@@ -25,13 +26,29 @@
 > existed — every extra comparison had been a townsperson weighed against a
 > soldier in another state, work that was wrong before it was slow.
 >
-> **STAGE 2 IS COMPLETE.** §8 (fit-for-duty vs disability), §10.2 (the annual
-> evaluation), §9.1 (unit awards) and §5.3 (the after-action report) are all
-> built, tested and on screen.
+> **STAGES 2, 3 AND 4 ARE BUILT** (2026-08-17). Stage 2: §8 fit-for-duty,
+> §10.2 the annual evaluation, §9.1 unit awards, §5.3 the after-action report.
+> Stage 3: §10.7 boards and the unit's grade, §10.3 command, §10.5 garrison
+> risk, §10.6 off-duty trouble, §10.1 special duty, §10.8 the alert. Stage 4:
+> §4.1/§4.2/§4.4b the situation model, §4.4c the wound writing, §5.2
+> attribution, §6 bonds, §7 lasting injury, §11 forty drifting nations.
 >
-> **SIMULATION_VERSION 189, and the three baselines ARE pinned** —
-> GOLDEN_HASH_HEX `8fa0c307` (determinism.test.ts and the copy in App.tsx),
-> HEARTLAND_GOLDEN `469013bb` (w2.test.ts), header string 189.
+> **SIMULATION_VERSION 191, and the three baselines ARE pinned** —
+> GOLDEN_HASH_HEX `7a054f73` (determinism.test.ts and the copy in App.tsx),
+> HEARTLAND_GOLDEN `40d2d709` (w2.test.ts), header string 191.
+>
+> **WHAT IS NOT BUILT, and it is deliberate rather than forgotten:**
+>
+> - **§10.4's "meet a spouse outside the gate."** It needs civilian households
+>   seated at base places so `localityOf` can put them in reach — a worldgen
+>   change, and worldgen changes every baseline. Births at the post ARE done.
+> - **§12 the war seen from home.** Prices, shortages, opinion and protest.
+>   Nothing of it is started.
+> - **§11's defensive pacts** as an explicit model. Blocs drift and coalitions
+>   form off them, but a pact that names two countries does not exist.
+> - **Campaign streamers** (§9.1), still waiting on his ruling about naming
+>   invented wars, and branch-parity unit award names for the naval and air
+>   services.
 >
 > **The two mechanics worth knowing before touching any of it:**
 >
@@ -42,15 +59,33 @@
 >   never in the narration of the moment. That asymmetry is deliberate
 >   (foundation §8): the character never knew, and the player does.
 >
-> **Stage 3 is next** — peacetime, per plan §15.
+> **THE NEW MODULES, and what each one is the single writer of:**
 >
-> **THE DESCRIPTIVE REWRITE IS STAGE 4, and he has asked about it twice.**
-> §4.4b (scenes) and §4.4c (wounds) are Stage 4 item 12, "the largest content
-> job in the update", because they depend on §4.1 situational encounters and
-> branch per MOS. The after-action report is Stage 2's own item and IS now a
-> full document — mission, timed sequence, enemy, friendly with the casualties
-> BY NAME, recommendations. If he asks for the writing before peacetime, the
-> dependency is on §4.1, not on Stage 3: the order can be swapped.
+> - `situation.ts` — a contact's SITUATION, derived from (seed, person, tick).
+>   Options are `spectrum:variant` ids; `spectrumOf` reads the head, so a bare
+>   `push` from an old save still resolves. Prose is derived on every read and
+>   never stored, so it can be rewritten without a migration.
+> - `woundwords.ts` — the wound in detail. The tier is READ off severity, not
+>   redrawn: wiring `casualty.ts` in as the decider would re-roll every wound
+>   through a second distribution, and its own comments record that going
+>   wrong once at "57 per cent of all wounds ended the tour".
+> - `boards.ts` / `unitawards.ts` — the unit's grade, which the MUC reads.
+> - `garrison.ts` — training accidents, the drive home, boredom, and who
+>   answers for whom. `tediumOf` reads the record rather than asserting.
+> - `specialduty.ts` — recruiter/drill/honour guard/staff. **The tick ordering
+>   IS the feature**: `runSpecialDuty` runs immediately before `runService` so
+>   the month's recruiter is whose name goes on the month's enlistments.
+> - `aftermath.ts` — bonds, attribution, lasting injury. All derived.
+>
+> **THE DESCRIPTIVE REWRITE IS DONE (§4.4b, §4.4c), and he asked twice.**
+> The fault was never the prose: 24 scenes read as one because the STRUCTURE
+> was identical — one line, three one-word buttons, one status line. A contact
+> now generates a SITUATION and the options are drawn from it, written as
+> intentions with their price, each gated on something real. MEASURED: 24
+> consecutive months of the same scene at the same threat now give 24
+> different problems. The after-action report is a full document, and the
+> wound says what hit him, where and what is under it, what the evacuation
+> cost, and what he is like afterwards.
 >
 > **A UNIT AWARD IS NOT A PERSONAL DECORATION, and three screens had to learn
 > it.** It is given to a UNIT for a PERIOD OF DATES. `decorationsOf` filters
@@ -74,7 +109,8 @@
 > row inside it.
 >
 > Measured across six months on the shopkeeper: the gap closed from $15,869 to
-> $13,559.
+> $13,559, and after the Stage 3/4 work it stands at 10.9% out against a
+> tolerance of a tenth — from 47% before the ruling.
 >
 > **STILL RED, NAMED, AND NOT WIDENED — monthahead's wealthy shopkeeper.** One
 > test of 1671. The residual is characterised: for that couple the roof's whole
