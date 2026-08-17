@@ -267,7 +267,25 @@ describe('in a running world', () => {
       }
     }
     expect(seen.size, 'some moments never fire').toBe(WORK_MOMENTS.length)
-  })
+  },
+  /**
+   * THIRTY MINUTES, AND THE CLAIM IS UNCHANGED — only the patience is.
+   *
+   * This test runs FIVE worlds, two of them full-size towns at 125 years,
+   * because the rarest moments need somebody standing at the top of a ladder
+   * when the roll comes up and a single small town cannot answer that. It is
+   * expensive BY DESIGN and the comments above record why the window grew
+   * rather than the bar dropping.
+   *
+   * MEASURED after the event-index fix: 494s running alone, against a default
+   * bound of 900s. It still exceeded that under full-suite parallelism, where
+   * a dozen worlds are being simulated in other workers at the same time — so
+   * the default was the wrong bound for this one test, not evidence of a
+   * problem. Raised rather than the test being cheapened, because cheapening
+   * it means dropping a town and the last time somebody did that the
+   * top-rung moments went untested.
+   */
+  1_800_000)
 
   it('records a cause for every one of them', () => {
     const world = createWorld(makeSeed(12345), 100)
