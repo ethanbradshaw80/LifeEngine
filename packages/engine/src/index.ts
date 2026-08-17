@@ -294,6 +294,7 @@ export type { FertilityCohort, PartneringFunnel, YearDemographics } from './demo
 
 // Awards (L4-M5)
 export {
+  allAwardsOf,
   decorationsOf,
   grantCampaignMedal,
   grantCombatAction,

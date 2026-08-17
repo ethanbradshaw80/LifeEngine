@@ -3285,6 +3285,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                         <dd>{filed.unit}</dd>
                                         <dt>Command</dt>
                                         <dd>{filed.command}</dd>
+                                        {filed.operation !== null && (
+                                          <>
+                                            <dt>Operation</dt>
+                                            <dd>{filed.operation}</dd>
+                                          </>
+                                        )}
                                         <dt>Occurred</dt>
                                         <dd>{filed.occurred}</dd>
                                         <dt>Filed</dt>
@@ -3292,10 +3298,26 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                         <dt>Location</dt>
                                         <dd>{filed.place}</dd>
                                       </dl>
-                                      <p className="aar-narrative">{filed.narrative}</p>
+                                      <div className="aar-sec">1. Mission</div>
+                                      <p className="aar-line">{filed.mission}</p>
+                                      <div className="aar-sec">2. Sequence of events</div>
+                                      {filed.sequence.map((line) => (
+                                        <p key={line} className="aar-line aar-seq">
+                                          {line}
+                                        </p>
+                                      ))}
+                                      <div className="aar-sec">3. Enemy</div>
                                       <p className="aar-line">{filed.enemyStrength}</p>
                                       <p className="aar-line">{filed.enemyLosses}</p>
+                                      <div className="aar-sec">4. Friendly</div>
                                       <p className="aar-line">{filed.friendly}</p>
+                                      {filed.casualties.map((line) => (
+                                        <p key={line} className="aar-line aar-seq">
+                                          {line}
+                                        </p>
+                                      ))}
+                                      <div className="aar-sec">5. Recommendations</div>
+                                      <p className="aar-line">{filed.recommendations}</p>
                                       <p className="aar-sign">
                                         {filed.signedBy}
                                         <span className="sub"> · {filed.signedRole}</span>
@@ -3323,41 +3345,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </p>
                         </>
                       )}
-                      {(() => {
-                        /**
-                          * THE UNIT'S OWN HONOURS, and how you come to wear
-                          * them (MILITARY_DEPTH_PLAN §9.1).
-                          *
-                          * The whole mechanic is the distinction: present
-                          * during the cited period and it is yours for life;
-                          * arrive afterwards and you wear it only while you
-                          * are in that unit. Two men in the same ribbon, one
-                          * who earned it and one who inherited it — the
-                          * screen has to say which, or it is just a ribbon.
-                          */
-                        const worn = unitAwardsFor(world, person.id)
-                        if (worn.length === 0) return null
-                        return (
-                          <>
-                            <h4>Unit awards · {worn.length}</h4>
-                            {worn.map((award) => (
-                              <div key={`${award.title}-${String(award.year)}`} className="sq-row">
-                                <span className="sq-ic" aria-hidden="true">🎗️</span>
-                                <div>
-                                  <div className="nm">
-                                    {award.title} ({award.year})
-                                  </div>
-                                  <div className="sub">
-                                    {award.permanent
-                                      ? 'You were there — worn for life.'
-                                      : 'Your unit’s, from before your time — worn while you serve in it.'}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </>
-                        )
-                      })()}
+                      {/* THE UNIT'S HONOURS LIVE ON THE CAREER TAB, beside the
+                          unit that earned them, and nowhere else — owner: "we
+                          have this is three different spots". They were here
+                          too, and on the personal rack, which is the one place
+                          a unit award must never be. */}
                     </div>
                   )
                 })()}

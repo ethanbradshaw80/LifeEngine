@@ -112,6 +112,25 @@ const HONOURABLE_TERM_ENDINGS: ReadonlySet<string> = new Set([
 ])
 
 export function decorationsOf(world: World, personId: EntityId): readonly AwardRecord[] {
+  /**
+   * THE PERSONAL RACK, AND ONLY THE PERSONAL RACK.
+   *
+   * OWNER: "unit commendations shouldnt show up on our ribbon rack just the
+   * units ribbon rack we have this is three different spots."
+   *
+   * He is right, and it is the distinction the whole feature is built on: a
+   * unit award is given to a UNIT for a period of dates, not to a person for
+   * an act. It lives on the person's record because that is where "you were
+   * there" is stored — which is how permanent wear is told from inherited —
+   * but it is not something they earned, so it does not stand beside the
+   * things they did. `unitAwardsFor` reads the same store for the unit's own
+   * rack; filtering at this one door fixes every screen that shows a rack.
+   */
+  return (world.awards.get(personId) ?? []).filter((award) => award.kind !== 'unit-award')
+}
+
+/** Every award on the record, unit awards included. The store, not a rack. */
+export function allAwardsOf(world: World, personId: EntityId): readonly AwardRecord[] {
   return world.awards.get(personId) ?? []
 }
 
@@ -438,6 +457,20 @@ interface GrantSpec {
   readonly qualifying: WorldEvent
   readonly citation: string
   readonly inputs: readonly CausalFactor[]
+  /**
+   * HOW IT IS SAID OUT LOUD, where the citation is not fit to be read.
+   *
+   * Every citation in this game is prose EXCEPT the unit award's, which
+   * carries the unit key so that permanent and temporary wear can be told
+   * apart without new world state. The owner read the consequence straight
+   * off his own screen: "Awarded the Meritorious Unit Commendation —
+   * post:641:land-forces|the Meritorious Unit Commendation|2038."
+   *
+   * A field that is machine-readable in one case and human-readable in every
+   * other will leak, so the human words are carried separately rather than
+   * guessed at by each reader.
+   */
+  readonly wording?: string
 }
 
 function grant(world: World, tick: Tick, personId: EntityId, spec: GrantSpec): AwardRecord | null {
@@ -494,13 +527,23 @@ function grant(world: World, tick: Tick, personId: EntityId, spec: GrantSpec): A
     world.awards.set(personId, [...existing, result])
   }
 
-  recordEvent(world, tick, { type: 'awarded', subjectId: personId, detail: spec.title })
+  /**
+   * A UNIT AWARD IS NOT AWARDED TO YOU, and it does not get your line.
+   *
+   * `runUnitAwards` already files a `unit-awarded` event on every member —
+   * "Their unit was awarded the Meritorious Unit Commendation" — which is the
+   * truthful sentence. Firing the personal one as well said the same thing
+   * twice in one feed, in the wrong voice, with the machine key trailing it.
+   */
+  if (spec.kind !== 'unit-award') {
+    recordEvent(world, tick, { type: 'awarded', subjectId: personId, detail: spec.title })
+  }
   recordDecision(world, tick, {
     subjectId: personId,
     decision: 'award',
     significance: 'notable',
     inputs: [...spec.inputs],
-    chosen: `awarded ${spec.title} — ${spec.citation}`,
+    chosen: `awarded ${spec.title} — ${spec.wording ?? spec.citation}`,
     rejected: [],
     streamId: Stream.Employment,
   })
@@ -592,6 +635,8 @@ export function grantUnitAward(
     title,
     qualifying,
     citation,
+    // THE CITATION IS THE MACHINE KEY (`unit|title|year`); these are the words.
+    wording: `cited for the period ${citation.split('|')[2] ?? 'of the award'}`,
     // Law 3: the unit's year is what earned it, and the citation names the
     // unit and the period it was earned over.
     inputs: [factor('honorable-term', 800)],

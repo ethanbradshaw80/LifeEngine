@@ -5264,6 +5264,19 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
 .aar-narrative { margin: 0 0 0.45rem; }
 .aar-line { margin: 0.1rem 0; }
 
+/* The numbered sections a real form is built from. Small, uppercase, and
+   spaced away from what came before — a heading in a document, not a title. */
+.aar-sec {
+  margin: 0.6rem 0 0.2rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Timed lines and casualty lines hang under their section. */
+.aar-seq { padding-left: 0.7rem; text-indent: -0.7rem; }
+
 .aar-sign {
   margin: 0.6rem 0 0;
   padding-top: 0.4rem;

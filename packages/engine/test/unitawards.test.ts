@@ -14,6 +14,7 @@ import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { unitAwardsFor, unitHonoursOf, unitKeyOf } from '../src/unitawards.js'
+import { allAwardsOf, decorationsOf } from '../src/awards.js'
 
 describe('unit awards', () => {
   it('are earned, and the town earns some', () => {
@@ -91,6 +92,65 @@ describe('unit awards', () => {
       }
     }
     expect(sawPermanent, 'nobody was present for their own unit’s award').toBe(true)
+  })
+
+  it('never stands on the personal rack, and never prints its own key', () => {
+    /**
+     * OWNER, READING HIS OWN SCREEN: "Awarded the Meritorious Unit
+     * Commendation — post:641:land-forces|the Meritorious Unit
+     * Commendation|2038." And: "unit commendations shouldnt show up on our
+     * ribbon rack just the units ribbon rack we have this is three different
+     * spots."
+     *
+     * Two faults with one root. The citation field is prose in every other
+     * award and a MACHINE KEY in this one — it is what tells permanent wear
+     * from inherited without new world state — and a field that is
+     * human-readable in nineteen cases out of twenty will be printed raw in
+     * the twentieth. And the grant fired the personal "Awarded X" line as
+     * well as the unit's own, so the feed said it twice, in the wrong voice.
+     *
+     * A unit award is given to a UNIT, for a period of dates. It is not
+     * something this person did, so it does not stand beside the things they
+     * did.
+     */
+    const world = createWorld(makeSeed(4242), 300)
+    advanceTicks(world, 40 * 12)
+
+    const holder = [...world.service.values()].find((r) =>
+      (world.awards.get(r.personId) ?? []).some((a) => a.kind === 'unit-award'),
+    )
+    expect(holder, 'nobody holds a unit award').toBeDefined()
+    if (holder === undefined) return
+
+    // The rack the screens read has none of them.
+    expect(
+      decorationsOf(world, holder.personId).some((a) => a.kind === 'unit-award'),
+      'a unit award was standing on the personal ribbon rack',
+    ).toBe(false)
+    // The store still holds it — that IS how "you were there" is recorded.
+    expect(allAwardsOf(world, holder.personId).some((a) => a.kind === 'unit-award')).toBe(true)
+
+    // And no personal "Awarded X" line was filed for it. The unit's own
+    // event is the truthful one, and it is filed on every member.
+    const unitTitles = new Set(
+      allAwardsOf(world, holder.personId)
+        .filter((a) => a.kind === 'unit-award')
+        .map((a) => a.title),
+    )
+    for (const event of world.events) {
+      if (event.type !== 'awarded' || event.subjectId !== holder.personId) continue
+      expect(
+        unitTitles.has(event.detail ?? ''),
+        `a unit award filed a personal award line: ${event.detail ?? ''}`,
+      ).toBe(false)
+    }
+
+    // Nothing a player can read carries the key.
+    for (const event of world.events) {
+      expect(event.detail ?? '', 'a machine key reached an event a player reads').not.toContain(
+        'post:',
+      )
+    }
   })
 
   it('keeps a permanent award after leaving the unit, and drops a borrowed one', () => {

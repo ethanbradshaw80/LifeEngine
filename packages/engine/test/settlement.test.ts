@@ -96,8 +96,21 @@ describe('settling down here', () => {
     // Law 3: settling here is a defining decision and has to explain itself.
     const world = createWorld(makeSeed(4242), 200)
     advanceTicks(world, 60 * 12)
+    /**
+     * THE LIVING, and the death filter is not a convenience.
+     *
+     * MEASURED at seed 4242 over sixty years: 179 people point at a
+     * household whose roll does not list them, and every single one of them
+     * is DEAD. That is the model working. A death takes you off the roll —
+     * the household is who lives there — while your own record keeps the
+     * last address you had, because Law 6 says history is persistent and an
+     * obituary that cannot say where somebody lived is a worse bug than this
+     * one. Zero living people dangle, which is the claim worth making.
+     *
+     * The test read the whole population and called that a broken record.
+     */
     const settlers = [...world.people.values()].filter(
-      (p) => p.fromAway !== undefined && p.householdId !== null,
+      (p) => p.fromAway !== undefined && p.householdId !== null && p.deathTick === null,
     )
     // Not every world produces one in sixty years, and a test that demands
     // it would be asserting the dice. When there is one, it is a real
@@ -106,6 +119,17 @@ describe('settling down here', () => {
       const roof = settler.householdId === null ? undefined : world.households.get(settler.householdId)
       expect(roof, `${settler.givenName} points at a household that is not there`).toBeDefined()
       expect(roof?.memberIds.includes(settler.id)).toBe(true)
+    }
+
+    // AND THE CLAIM UNDERNEATH IT, for everybody rather than for settlers:
+    // nobody who is alive is missing from the roll they point at.
+    for (const person of world.people.values()) {
+      if (person.deathTick !== null || person.householdId === null) continue
+      const roof = world.households.get(person.householdId)
+      expect(
+        roof?.memberIds.includes(person.id),
+        `${person.givenName} ${person.familyName} is alive and not on their own household roll`,
+      ).toBe(true)
     }
   })
 })
