@@ -114,6 +114,7 @@ import {
   requestDischarge,
   requestEnlistment,
   requestEnrolment,
+  joinRotc,
   requestSchool,
   resolvePending,
   setConvalescenceStance,
@@ -160,6 +161,9 @@ export type VerbRequest =
   | { readonly verb: 'quit-job' }
   | { readonly verb: 'ask-raise' }
   | { readonly verb: 're-enrol'; readonly level: 'college' | 'trade' }
+  /** Sign the ROTC bargain at university (owner: a button that says what it
+   *  entails, rather than a roll that signs you up without asking). */
+  | { readonly verb: 'join-rotc' }
   | { readonly verb: 'spend-stance'; readonly stance: 'thrifty' | 'loose' | null }
   | { readonly verb: 'look-for-place'; readonly placeId: number }
   | { readonly verb: 'move-in-parents' }
@@ -545,6 +549,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           case 're-enrol': {
             const r = requestEnrolment(world, a.level)
             outcome = { ok: r.enrolled, reason: r.reason }
+            break
+          }
+          case 'join-rotc': {
+            const r = joinRotc(world)
+            outcome = { ok: r.signed, reason: r.reason }
             break
           }
           case 'spend-stance': {

@@ -31,6 +31,7 @@ import {
 } from '@life-engine/engine'
 import type { Person, World } from '@life-engine/engine'
 import type { Money } from '@life-engine/shared'
+import { ROTC_TERMS, rotcBar } from '@life-engine/engine'
 import { formatMoney } from '@life-engine/shared'
 import type { VerbRequest } from './engine.worker.js'
 
@@ -485,6 +486,45 @@ export function School({
               </>
             )}
           </dl>
+          {/**
+            * THE ROTC BARGAIN, OFFERED RATHER THAN IMPOSED.
+            *
+            * OWNER: "when I joined college it automatically made me do rotc no
+            * option this shouldnt be the way there should be a little button
+            * that says join ROTC in the education tab to where you click it
+            * and it tells you what that entails."
+            *
+            * He was right on both counts. A die roll was committing his
+            * character to four years in uniform without a word — `fundingFor`
+            * no longer rolls for the player at all — and the answer is an
+            * offer with the terms stated BEFORE the pen, not silence.
+            *
+            * The bar pattern: this button appears only when `rotcBar` says the
+            * door is open, so a button that is offered always works. When it
+            * is shut, the reason is shown instead of a dead control.
+            */}
+          {(() => {
+            const bar = rotcBar(world, person.id)
+            const offered = record.enrolledIn === 'college'
+            if (!offered) return null
+            return (
+              <div className="rotc-offer">
+                <h4>The service will pay for this</h4>
+                <p className="muted small">{ROTC_TERMS}</p>
+                {bar === null ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onAct({ verb: 'join-rotc' } as never)}
+                  >
+                    Sign for ROTC
+                  </button>
+                ) : (
+                  <p className="muted small">{bar}</p>
+                )}
+              </div>
+            )
+          })()}
           <p className="muted small">
             {record.enrolledIn === null
               ? 'Repaying. This one is not cleared by bankruptcy.'

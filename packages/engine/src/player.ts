@@ -3114,6 +3114,72 @@ export function requestEnlistment(world: World): { asked: boolean; reason: strin
  * from schoolOptionsFor; a slot still has to exist this cycle. One request
  * per half-year — the schoolhouse is not a vending machine.
  */
+/**
+ * WHY THE ROTC BARGAIN IS NOT ON THE TABLE, or null when it is.
+ *
+ * OWNER: "when I joined college it automatically made me do rotc no option
+ * this shouldnt be the way there should be a little button that says join
+ * ROTC in the education tab to where you click it and it tells you what that
+ * entails."
+ *
+ * He is right twice. Signing him up by a die roll was the defect —
+ * `fundingFor` no longer rolls for the player at all — and the answer to it
+ * is not silence but an OFFER, with the terms stated before the pen.
+ */
+export function rotcBar(world: World, personId: EntityId): string | null {
+  const person = world.people.get(personId)
+  if (person === undefined || person.deathTick !== null) return 'There is nobody to sign.'
+  const education = world.education.get(personId)
+  if (education === undefined || education.enrolledIn !== 'college') {
+    return 'The bargain is offered at university, and only there.'
+  }
+  if (education.funding === 'rotc') return 'You have already signed.'
+  // Somebody else is already paying for this degree.
+  if (education.funding !== undefined && education.funding !== 'self') {
+    return 'Your fees are already covered — there is nothing for the service to buy.'
+  }
+  // The recruiter has to be willing to take you AFTER the degree, which is
+  // the whole shape of the deal.
+  return enlistmentBar(world, person, world.tick, { forLater: true })
+}
+
+/** What signing actually costs and buys, in the words the card shows. */
+export const ROTC_TERMS =
+  'The service pays your remaining fees. In exchange you are commissioned on ' +
+  'the day you graduate and owe a full term as an officer. Refuse it then and ' +
+  'the fees become a debt you carry.'
+
+/**
+ * SIGN THE ROTC CONTRACT. The bar pattern: the screen and the verb read the
+ * same refusal, so a button that is offered always works.
+ */
+export function joinRotc(world: World): { signed: boolean; reason: string } {
+  const personId = world.player.personId
+  if (personId === null) return { signed: false, reason: 'Nobody is being played.' }
+  const bar = rotcBar(world, personId)
+  if (bar !== null) return { signed: false, reason: bar }
+  const education = world.education.get(personId)
+  if (education === undefined) return { signed: false, reason: 'No schooling on record.' }
+
+  logVerb(world, 'attend-school', 'rotc')
+  world.education.set(personId, { ...education, funding: 'rotc' })
+  recordEvent(world, world.tick, {
+    type: 'won-funding',
+    subjectId: personId,
+    detail: 'rotc',
+  })
+  recordDecision(world, world.tick, {
+    subjectId: personId,
+    decision: 'training',
+    significance: 'defining',
+    inputs: [factor('own-choice', 1000), factor('way-out-of-town', 400)],
+    chosen: 'signed for a commission to pay for the degree',
+    rejected: ['paid their own way'],
+    streamId: Stream.Education,
+  })
+  return { signed: true, reason: '' }
+}
+
 export function requestSchool(world: World, schoolId: string): { attended: boolean; reason: string } {
   const person = playerPerson(world)
   if (!person || person.deathTick !== null) return { attended: false, reason: 'Nobody is being played.' }

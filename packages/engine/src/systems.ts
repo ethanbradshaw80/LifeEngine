@@ -553,9 +553,38 @@ function fundingFor(
   // Offered rather than assumed: most students do not sign this.
   // FOR LATER: an ROTC contract is signed by somebody who is in school, for
   // service after it, so the in-school refusal does not apply to it.
-  if (level === 'college' && enlistmentBar(world, person, world.tick, { forLater: true }) === null) {
+  /**
+   * NEVER SIGNED FOR THE PLAYER (owner: "when I joined college it
+   * automatically made me do rotc no option this shouldnt be the way").
+   *
+   * He is right, and this is the worst thing in the funding model: a roll
+   * was committing his character to FOUR YEARS IN UNIFORM without asking.
+   * The major sitting a few lines below already refuses to do that on
+   * exactly this reasoning — "what you read at university is not a thing
+   * that should happen to somebody off-screen" — and an ROTC contract is a
+   * great deal more binding than a subject.
+   *
+   * So the town rolls for itself and the player is offered it instead, by
+   * `rotcBar`/`joinRotc`, from the education tab.
+   */
+  const rolled = person.id !== world.player.personId
+  if (rolled && level === 'college' && enlistmentBar(world, person, world.tick, { forLater: true }) === null) {
     const willing = Math.floor((person.traits.ambition + person.traits.diligence) / 2)
-    if (rng.chance(Math.min(260, Math.floor(willing / 5)), 1000)) return 'rotc'
+    /**
+     * OFTEN ENOUGH TO BE A ROAD (owner: "there is no ROTC UI option I think
+     * that is why", chasing why the path was all but invisible).
+     *
+     * MEASURED at seed 4141 over forty years: FORTY-NINE college students and
+     * ONE ROTC contract. Across three worlds the count ran 1, 6, 7 — so the
+     * path was not broken, it was rare AND wildly variable, which is worse
+     * for a player than either. Two tests that need an ROTC debt to exist
+     * found nothing to collect.
+     *
+     * A fifth of service-minded students rather than a tenth. It is still a
+     * minority — most students do not sign this — but it is now a road a
+     * player will actually see somebody walk.
+     */
+    if (rng.chance(Math.min(400, Math.floor(willing / 3)), 1000)) return 'rotc'
   }
 
   if (record.attainment >= MERIT_ATTAINMENT) return 'merit'
