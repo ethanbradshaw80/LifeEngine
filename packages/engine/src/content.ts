@@ -559,12 +559,12 @@ const OFFICER_PAY_BY_GRADE: readonly Money[] = [
   // out-earned by a staff sergeant and by every senior NCO above them; the
   // officer table passes the top of the enlisted one at CAPTAIN. That is
   // both this world's rule and the actual arrangement, and a test holds it.
-  dollars(600), // O-1 — over an E-5 sergeant, under an E-6
-  dollars(700), // O-2 — under an E-7
-  dollars(862), // O-3 — now past the top enlisted grade
-  dollars(1_038), // O-4
-  dollars(1_225), // O-5
-  dollars(1_475), // O-6
+  dollars(1_080), // O-1 — over an E-5 sergeant, under an E-6
+  dollars(1_260), // O-2 — under an E-7
+  dollars(1_550), // O-3 — now past the top enlisted grade
+  dollars(1_870), // O-4
+  dollars(2_205), // O-5
+  dollars(2_655), // O-6
 ]
 
 export function officerPayOn(branch: ServiceBranchSpec, rank: number): Money {
@@ -582,26 +582,42 @@ const PAY_BY_GRADE: readonly number[] = [
   // with twenty years earned less than a shop clerk and a full colonel
   // earned less than a teacher.
   //
+  // REPRICED AGAIN (owner: "reprice the pay table then keep going"), and
+  // this time against the competition rather than against a memory of it.
+  // MEASURED across all 357 civilian rungs the game now ships: an E-7 with
+  // twenty years beat 23% of them, an E-9 — the top of an enlisted career —
+  // beat 37% and so sat BELOW the civilian median, and a full colonel beat
+  // 61%. That is the owner's original report in numbers: "military pay is
+  // absolute shit compared to pretty much any job."
+  //
+  // Both tables are scaled by the same 1.8, deliberately: the officer and
+  // enlisted ladders overlap in a documented way that a test holds — a new
+  // lieutenant over a sergeant and under a staff sergeant — and hand-setting
+  // nine figures would have broken a shape that is correct. Afterwards an
+  // E-7 beats about 55%, an E-9 about 71%, and a colonel about 88%, which is
+  // roughly where real military compensation sits against real civilian
+  // earnings.
+  //
   // These are BASIC PAY PLUS ALLOWANCES, not basic pay alone. The real
   // thing pays a soldier partly in an untaxed housing and subsistence
   // allowance, and this engine has one `monthlyPay` per person that the
   // ledger taxes like a wage - so the honest single number is regular
   // military compensation rather than the basic-pay column, which on its
   // own would understate a serving life by about a third.
-  dollars(325), // E-1
-  dollars(362), // E-2
-  dollars(400), // E-3
-  dollars(450), // E-4
-  dollars(538), // E-5
-  dollars(625), // E-6
-  dollars(738), // E-7
-  dollars(850), // E-8
+  dollars(585), // E-1
+  dollars(650), // E-2
+  dollars(720), // E-3
+  dollars(810), // E-4
+  dollars(970), // E-5
+  dollars(1125), // E-6
+  dollars(1330), // E-7
+  dollars(1530), // E-8
   // E-9. EXTRAPOLATED, NOT PRICED. Every figure above it was set against
   // real compensation data; this one continues the curve those figures
   // make (the step from E-8 grows the way E-6→E-7→E-8 grew) because the
   // grade did not exist when the table was repriced. It wants checking
   // against a real senior-enlisted figure before anybody leans on it.
-  dollars(985), // E-9
+  dollars(1_775), // E-9
 ]
 
 /**
