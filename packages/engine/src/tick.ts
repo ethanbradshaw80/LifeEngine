@@ -47,6 +47,7 @@ import { runCallsToArms } from './coalition.js'
 import { runHealth } from './health.js'
 import { runService } from './service.js'
 import { runEvaluations } from './evaluations.js'
+import { runUnitAwards } from './unitawards.js'
 import { runDeployments } from './deployment.js'
 import { runRelationships } from './relationships.js'
 import {
@@ -140,6 +141,8 @@ export function advanceTick(world: World): World {
   // The reports are written after the month is served, so a promotion this
   // month is already on the record the rater is describing.
   runEvaluations(world, next)
+  // The unit's own year is judged after its people's.
+  runUnitAwards(world, next)
   runSchools(world, next)
   runWartimeService(world, next)
   // The war reaches for the serving after the service system has kept its

@@ -403,6 +403,12 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'unit-awarded': {
+      // THE UNIT'S DECORATION, said in the unit's name rather than the
+      // person's — that is the whole difference between the two kinds.
+      const [title, year] = (event.detail ?? '|').split('|')
+      return `${year ?? String(new Date(0).getFullYear())} — Their unit was awarded ${title ?? 'a commendation'}.`
+    }
     case 'evaluated': {
       /**
        * THE REPORT, NAMED. A mark on its own is a number; the point of the

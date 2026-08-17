@@ -2123,6 +2123,10 @@ export type AwardKind =
   | 'valor'
   /** A term served at a distinguished average — the evaluation's decoration. */
   | 'meritorious-service'
+  /** THE UNIT's, not the person's (MILITARY_DEPTH_PLAN §9.1). Held for
+   *  life by anybody present during the cited period; inherited, and worn
+   *  only while posted there, by anybody who arrived after. */
+  | 'unit-award'
   /** Twenty years in uniform; a device at thirty. */
   | 'long-service'
   /** Qualifying service in a war's theatre: three months, or a casualty. */
@@ -2977,6 +2981,8 @@ export type EventType =
   /** The annual report somebody senior wrote on you (MILITARY_DEPTH_PLAN
    *  §10.2). `otherId` is the rater; the detail is the mark. */
   | 'evaluated'
+  /** A unit decorated for a period of service (MILITARY_DEPTH_PLAN §9.1). */
+  | 'unit-awarded'
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'

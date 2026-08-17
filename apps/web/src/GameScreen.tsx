@@ -52,6 +52,7 @@ import {
   proposalBar,
   decorationsOf,
   evaluationsOf,
+  unitAwardsFor,
   markWords,
   badgesOf,
   deploymentsOf,
@@ -3191,6 +3192,41 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         outranks you in your unit. The man who writes them
                         changes when you move.
                       </p>
+                      {(() => {
+                        /**
+                          * THE UNIT'S OWN HONOURS, and how you come to wear
+                          * them (MILITARY_DEPTH_PLAN §9.1).
+                          *
+                          * The whole mechanic is the distinction: present
+                          * during the cited period and it is yours for life;
+                          * arrive afterwards and you wear it only while you
+                          * are in that unit. Two men in the same ribbon, one
+                          * who earned it and one who inherited it — the
+                          * screen has to say which, or it is just a ribbon.
+                          */
+                        const worn = unitAwardsFor(world, person.id)
+                        if (worn.length === 0) return null
+                        return (
+                          <>
+                            <h4>Unit awards · {worn.length}</h4>
+                            {worn.map((award) => (
+                              <div key={`${award.title}-${String(award.year)}`} className="sq-row">
+                                <span className="sq-ic" aria-hidden="true">🎗️</span>
+                                <div>
+                                  <div className="nm">
+                                    {award.title} ({award.year})
+                                  </div>
+                                  <div className="sub">
+                                    {award.permanent
+                                      ? 'You were there — worn for life.'
+                                      : 'Your unit’s, from before your time — worn while you serve in it.'}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )
+                      })()}
                     </div>
                   )
                 })()}

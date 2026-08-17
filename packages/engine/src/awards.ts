@@ -570,6 +570,34 @@ export function grantAchievement(
 }
 
 /** Finished initial training. The first ribbon anybody gets. */
+/**
+ * THE UNIT'S DECORATION, pinned on everybody who was there
+ * (MILITARY_DEPTH_PLAN §9.1).
+ *
+ * The citation is machine-readable on purpose — `unitKey|title|year` — because
+ * it is the only thing that says WHICH unit and WHICH period, and those two
+ * facts are the whole mechanic: present during the cited period is permanent
+ * wear, arriving afterwards is temporary. `unitawards.ts` reads it back.
+ */
+export function grantUnitAward(
+  world: World,
+  tick: Tick,
+  personId: EntityId,
+  title: string,
+  citation: string,
+  qualifying: WorldEvent,
+): AwardRecord | null {
+  return grant(world, tick, personId, {
+    kind: 'unit-award',
+    title,
+    qualifying,
+    citation,
+    // Law 3: the unit's year is what earned it, and the citation names the
+    // unit and the period it was earned over.
+    inputs: [factor('honorable-term', 800)],
+  })
+}
+
 export function grantServiceRibbon(
   world: World,
   tick: Tick,
