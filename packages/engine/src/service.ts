@@ -82,6 +82,7 @@ import { rollTraits } from './worldgen.js'
 import { hasAnswered, raisePending } from './player.js'
 import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
+import { recruiterNow } from './specialduty.js'
 import { withArticle } from './text.js'
 import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
 import { disciplineOf, fitnessOf, fitnessStandardFor, habitMaturity, habitMonths, keepsHabit } from './stats.js'
@@ -1607,9 +1608,23 @@ export function enlistPerson(
     ...(priorTerms.length > 0 ? { priorTerms } : {}),
   })
 
+  /**
+   * WHOSE NAME IS ON IT (plan §10.1, and it is the reason the recruiter was
+   * built first).
+   *
+   * "A townsperson's enlistment event now has your character's name on it,
+   * twenty years later, in their record. That is Law 4 paying out, and nothing
+   * in the game does it today." It does now: if somebody in this world is on
+   * recruiting duty when this person signs, they are the one who signed them,
+   * and both records say so for the rest of both lives.
+   */
+  const recruiter = recruiterNow(world)
   recordEvent(world, tick, {
     type: 'enlisted',
     subjectId: person.id,
+    // Never yourself: a recruiter does not enlist himself, and the one month
+    // that could happen is the month he signs his own extension.
+    ...(recruiter !== null && recruiter !== person.id ? { otherId: recruiter } : {}),
     placeId: base.id,
     detail: specialtyTitleFor(specialty, commissioned),
   })

@@ -49,6 +49,10 @@ import { runService } from './service.js'
 import { runEvaluations } from './evaluations.js'
 import { runUnitAwards } from './unitawards.js'
 import { runBoards, runInspections } from './boards.js'
+import { runGarrison } from './garrison.js'
+import { runSpecialDuty } from './specialduty.js'
+import { inflictWound } from './health.js'
+import { openStream, Stream } from './rng.js'
 import { runDeployments } from './deployment.js'
 import { runRelationships } from './relationships.js'
 import {
@@ -136,6 +140,10 @@ export function advanceTick(world: World): World {
   runEmployment(world, next)
   // Service after employment: a person who failed to find civilian work this
   // month hears the recruiter with this month's ears.
+  // SPECIAL DUTY BEFORE THE MONTH'S ENLISTMENTS (plan §10.1), because whoever
+  // is on recruiting duty this month is whose name goes on the enlistments
+  // `runService` writes a few lines below. Ordering IS the feature here.
+  runSpecialDuty(world, next)
   runService(world, next)
   // The schoolhouse keeps its own calendar: classes start and finish on
   // the grid, whoever is in them.
@@ -147,6 +155,25 @@ export function advanceTick(world: World): World {
   // and boards sit at mid-year, so the standard in the room is this year's.
   runInspections(world, next)
   runBoards(world, next)
+  /**
+   * PEACETIME THAT CAN HURT YOU (plan §10.5, §10.6, §10.3).
+   *
+   * Home station had nothing that could go wrong; deployment had everything.
+   * The wound goes through the SAME `inflictWound` the war uses — a rollover
+   * on an exercise is a real injury with a real recovery and a real medical
+   * board behind it, not a special case — and the context says it was a field
+   * accident rather than a firefight, so nobody is decorated for a truck.
+   */
+  runGarrison(world, next, (personId, severity, context) => {
+    inflictWound(
+      world,
+      next,
+      personId,
+      severity,
+      context === 'training' ? 'field-accident' : 'mishap',
+      openStream(world.seed, Stream.Health, personId, next + 92_000),
+    )
+  })
   // The unit's own year is judged after its people's.
   runUnitAwards(world, next)
   runSchools(world, next)

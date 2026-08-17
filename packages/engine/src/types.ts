@@ -1857,6 +1857,16 @@ export interface ServiceRecord {
   readonly personId: EntityId
   readonly branch: string
   readonly specialtyId: string
+  /**
+   * SPECIAL DUTY — the tour that takes you out of your unit (plan §10.1).
+   *
+   * Recruiter, drill sergeant, honour guard, staff. Two or three years away
+   * from your unit and your trade. Optional and nullable, so a save written
+   * before this loads with nobody on special duty and picks it up from the
+   * next posting cycle.
+   */
+  readonly specialDuty?: string | null
+  readonly specialDutyUntilTick?: Tick | null
   /** Index into the BRANCH's own ladder (BRANCH_RANKS). Never skips. */
   readonly rank: number
   /** When the current rank was pinned on — time in grade drives junior
@@ -2987,6 +2997,17 @@ export type EventType =
   | 'unit-inspected'
   /** A panel of named seniors, and it can be failed (plan §10.7). */
   | 'faced-a-board'
+  /** Something went wrong on an exercise (plan §10.5). */
+  | 'training-accident'
+  /** Off duty, on a road, and peacetime's quietest killer (plan §10.5). */
+  | 'off-duty-accident'
+  /** Drink, debt, a fight by the gate — what ends peacetime careers (§10.6). */
+  | 'off-duty-trouble'
+  /** One of yours was in trouble and it landed on you (plan §10.3). */
+  | 'answered-for-one-of-yours'
+  /** Taken out of the unit for a tour of special duty (plan §10.1). */
+  | 'took-special-duty'
+  | 'left-special-duty'
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'
@@ -3150,6 +3171,10 @@ export type DecisionType =
   | 'evaluation'
   /** Appearing before a board — the outcome is on the record either way. */
   | 'board'
+  /** Off-duty trouble, and what led to it. */
+  | 'discipline'
+  /** Where the service is sending you, and why (plan §10.1). */
+  | 'posting'
   /** The pension board's finding — explained by the recorded disability. */
   | 'pension'
   /** A school attended (M-SPECOPS) — its own kind, so a same-month
@@ -3197,6 +3222,10 @@ export type FactorId =
   | 'rater-regard'
   /** How the unit itself is graded, which sets the standard in the room. */
   | 'unit-standing'
+  /** Nothing has happened here for a long time, and that is a cause (§10.6). */
+  | 'idle-posting'
+  /** The service needed somebody, which is how most postings happen. */
+  | 'needs-of-the-service'
   /** They married somebody stationed here and came home with them
    *  (MILITARY_DEPTH_PLAN §9.0 — settling in the town from away). */
   | 'came-from-away'

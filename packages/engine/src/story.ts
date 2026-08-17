@@ -28,7 +28,7 @@ import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { eventById } from './eventindex.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
-import { markWords, withArticle } from './text.js'
+import { markWords, sentenceCase, withArticle } from './text.js'
 import { schoolMomentById } from './schoolmoments.js'
 import { majorById } from './content.js'
 import { graftById, officeById } from './government.js'
@@ -403,6 +403,25 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'took-special-duty':
+      // §10.1. Out of the unit and out of the trade for two or three years.
+      return `${year} — Taken out of the unit for ${event.detail ?? 'special duty'}.`
+    case 'left-special-duty':
+      return `${year} — Finished ${event.detail ?? 'special duty'} and went back to a unit.`
+    case 'training-accident':
+      // §10.5. Peacetime could not hurt anybody before this. It can now, and
+      // it says what happened rather than "an accident".
+      return `${year} — ${sentenceCase(event.detail ?? 'an accident on an exercise')}.`
+    case 'off-duty-accident':
+      return `${year} — Hurt off duty: ${event.detail ?? 'a car, late at night'}.`
+    case 'off-duty-trouble':
+      return `${year} — Trouble off duty — ${event.detail ?? 'a bad weekend'}.`
+    case 'answered-for-one-of-yours': {
+      // §10.3. Somebody else's bad weekend, on YOUR record, because they were
+      // yours. This is the line that makes rank mean people.
+      const them = nameOf(world, event.otherId)
+      return `${year} — Answered for ${them}: ${event.detail ?? 'trouble off duty'}.`
+    }
     case 'unit-inspected': {
       // THE UNIT'S OWN YEAR, said in the unit's name (plan §10.7). A failed
       // inspection is something that happened to everybody who was there,
@@ -1022,6 +1041,8 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'has-income': '{they} had steady wages',
   'rater-regard': 'what the man writing the report thought of them',
   'unit-standing': 'the standard of the unit they were being judged in',
+  'idle-posting': 'how long it had been since anything happened where they were posted',
+  'needs-of-the-service': 'what the service needed somebody to go and do',
   'came-from-away': 'they had no home in this town until this one',
   'close-friendship': '{they} was close to someone',
   'household-crowded': 'the house was crowded',
