@@ -542,7 +542,26 @@ describe('who pays for the course', () => {
     for (const person of livingPeople(world)) {
       const funding = world.education.get(person.id)?.funding
       if (funding !== 'rotc' && funding !== 'gi-bill') continue
-      const owes = accountsOf(world, person.id).loans.some((l) => l.kind === 'student')
+      /**
+       * BORROWED *AFTER* THE AID WAS WON, which is what §4 actually claims:
+       * "aid comes off the year's BILL, not off the loan afterwards".
+       *
+       * MEASURED, seed 4141: #829 borrowed at t294 for a college degree, went
+       * and served, and came back at t401 to read for a MASTER'S on the GI
+       * Bill. The old check saw any student debt at all and called it a
+       * breach — so an ordinary life, paid for one course and funded for the
+       * next, read as the discount being applied too late. Raising ROTC
+       * uptake simply surfaced more of them.
+       *
+       * The funding event dates the aid. `enrolledAtTick` cannot: it is null
+       * the moment the course finishes.
+       */
+      const wonAt = world.events
+        .filter((e) => e.type === 'won-funding' && e.subjectId === person.id)
+        .reduce((latest, e) => Math.max(latest, e.tick), 0)
+      const owes = accountsOf(world, person.id).loans.some(
+        (l) => l.kind === 'student' && l.takenAtTick >= wonAt,
+      )
       // ...unless ROTC fell through and the fees became a debt, which is
       // the spec's own alternative and a different thing entirely.
       const repaid = world.events.some(
