@@ -3650,7 +3650,11 @@ export function boostServicePerformance(world: World, personId: EntityId, amount
   if (!record) return
   world.service.set(personId, {
     ...record,
-    performance: Math.min(1000, record.performance + amount),
+    // FLOORED AS WELL AS CAPPED. It only ever took positive amounts until
+    // the annual evaluation started handing it negative ones, and an
+    // unfloored subtraction would eventually run a bad-rated career below
+    // zero, where every gate reads it as worse than a raw recruit.
+    performance: Math.max(0, Math.min(1000, record.performance + amount)),
   })
 }
 

@@ -123,3 +123,20 @@ export function sentenceInWords(months: number): string {
   if (monthPart === '') return yearPart
   return `${yearPart}, ${monthPart}`
 }
+
+/**
+ * WHAT AN ANNUAL EVALUATION MARK IS CALLED (MILITARY_DEPTH_PLAN §10.2).
+ *
+ * IT LIVES HERE, in the phrasing module that imports nothing but types,
+ * because both the domain that writes reports and the narrator that reads
+ * them back need it — and putting it in either one closed a cycle spanning
+ * eleven modules the moment `story.ts` reached for it.
+ */
+export function markWords(mark: number): string {
+  if (mark >= 850) return 'the best of his grade'
+  if (mark >= 700) return 'among the best'
+  if (mark >= 550) return 'fully capable'
+  if (mark >= 400) return 'satisfactory'
+  if (mark >= 250) return 'progressing'
+  return 'needs improvement'
+}

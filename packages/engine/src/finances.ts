@@ -2905,7 +2905,39 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     net: 0 as Money,
   }
   const person = world.people.get(personId)
-  if (!person || person.householdId === null) return nothing
+  if (!person) return nothing
+  /**
+   * NO HOUSEHOLD IS NOT NO MONTH (owner: "we have zero money... and have zero
+   * dollars coming in even tho we are SFC").
+   *
+   * This returned a page of zeroes for anybody without a household, which is
+   * how a sergeant first class on 73,800 a month came to be shown nothing at
+   * all. `settleTheUnhoused` pays them; this is the same arithmetic, so the
+   * screen and the ledger say the same thing.
+   */
+  if (person.householdId === null) {
+    const grossAlone = personalIncome(world, personId)
+    const supportAlone = supportOf(world, personId, world.tick)
+    const withheldAlone = withholdingFor(
+      grossAlone,
+      world.economy.priceLevelPerMille,
+      world.policy.incomeTaxPerMille,
+    )
+    const keepAlone = livingCostAt(world, LIVING_COST_ADULT)
+    const takeAlone = grossAlone - withheldAlone + supportAlone
+    return {
+      ...nothing,
+      // The allowance is part of what arrives, the same way the household
+      // branch counts it — `MonthAhead` has no separate line for it.
+      earned: (grossAlone + supportAlone) as Money,
+      withheld: withheldAlone as Money,
+      living: keepAlone as Money,
+      costs: keepAlone as Money,
+      adults: 1,
+      children: 0,
+      net: (takeAlone - keepAlone) as Money,
+    }
+  }
   const household = world.households.get(person.householdId)
   if (!household) return nothing
 
@@ -3051,6 +3083,64 @@ export function canAfford(income: Money, desirability: number): boolean {
 // The monthly tick
 // ---------------------------------------------------------------------------
 
+/**
+ * PAY THE PEOPLE THE HOUSEHOLD LOOP NEVER REACHES.
+ *
+ * OWNER, PLAYING: "something is wrong with the money also look at the window
+ * we have zero money and no household or anything and have zero dollars
+ * coming in even tho we are SFC and for some reason the tab says 738 a month
+ * under work and we know thats not true."
+ *
+ * He was exactly right, and the cause is one line above this function: the
+ * monthly settle iterates HOUSEHOLDS. A person without one is never visited,
+ * so their pay is never credited to anything — the Work tab reads
+ * `record.monthlyPay` and honestly reports $738 a month, while the wallet it
+ * should be landing in is never touched. Two screens, both truthful, and no
+ * money.
+ *
+ * MEASURED at seed 4242 over thirty years: SEVENTY-ONE serving people had no
+ * household, every one of them earning nothing. Lonnie Roberts, a sergeant
+ * first class on 73,800 a month, held a wallet of zero.
+ *
+ * The hole is older than the garrisons — a soldier who moved out of home has
+ * always fallen down it — but until stations were filled from outside the
+ * town it was rare enough never to be seen. It is not rare now, and it was
+ * always wrong: a man in barracks is still paid.
+ *
+ * WHAT THIS DOES, deliberately narrow: their own pay in, their own keep out.
+ * No rent, because somebody with no household has no lease — a soldier is in
+ * quarters, and `supportOf` already carries what the service provides in kind.
+ * No discretionary spending, because that is a household's decision and this
+ * person is not in one.
+ */
+function settleTheUnhoused(world: World, tick: Tick): void {
+  // Ascending id order, as everywhere in this pass: the processing order has
+  // to be reproducible. Iterated locally rather than through `systems.ts`,
+  // which finances must not import.
+  const alone = [...world.people.values()]
+    .filter((p) => p.deathTick === null && p.householdId === null)
+    .sort((a, b) => a.id - b.id)
+  for (const person of alone) {
+
+    const gross = personalIncome(world, person.id)
+    const support = supportOf(world, person.id, tick)
+    if (gross <= 0 && support <= 0) continue
+
+    const withheld = withholdingFor(
+      gross,
+      world.economy.priceLevelPerMille,
+      world.policy.incomeTaxPerMille,
+    )
+    const take = (gross - withheld + support) as Money
+    if (take > 0) creditPerson(world, person.id, take, 'Pay')
+
+    // ONE MOUTH, THEIR OWN. The same figure a household is charged per adult,
+    // at today's prices like every other charge.
+    const keep = livingCostAt(world, LIVING_COST_ADULT) as Money
+    if (keep > 0) debitPerson(world, person.id, keep, 'Living costs')
+  }
+}
+
 export function runFinances(world: World, tick: Tick): void {
   payInterest(world)
   runMoneyShocks(world, tick)
@@ -3064,6 +3154,8 @@ export function runFinances(world: World, tick: Tick): void {
   runTrusts(world, tick)
   runHousingMarket(world, tick)
   runHousebuilding(world, tick)
+
+  settleTheUnhoused(world, tick)
 
   // Ascending id order, as everywhere: processing order must be reproducible.
   const households = [...world.households.values()]

@@ -28,7 +28,7 @@ import { decisionForEvent, decisionsFor, eventsFor } from './records.js'
 import { eventById } from './eventindex.js'
 import { spouseOf } from './relationships.js'
 import { legacySummaryOf } from './legacy.js'
-import { withArticle } from './text.js'
+import { markWords, withArticle } from './text.js'
 import { schoolMomentById } from './schoolmoments.js'
 import { majorById } from './content.js'
 import { graftById, officeById } from './government.js'
@@ -403,6 +403,21 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'evaluated': {
+      /**
+       * THE REPORT, NAMED. A mark on its own is a number; the point of the
+       * annual evaluation is that a PERSON wrote it, and the feed has to say
+       * who — that is the difference between a stat drifting and somebody
+       * having an opinion of you.
+       */
+      const rater = event.otherId === undefined || event.otherId === null
+        ? undefined
+        : world.people.get(event.otherId)
+      const words = markWords(Number(event.detail ?? '0'))
+      return rater === undefined
+        ? `${year} — Rated ${words} for the year.`
+        : `${year} — ${rater.givenName} ${rater.familyName} rated them ${words} for the year.`
+    }
     case 'money-shock': {
       const [what, amount] = (event.detail ?? ':').split(':')
       const sum = formatMoney(Number(amount ?? 0) as never)
@@ -973,6 +988,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'no-local-vacancy': 'there was nothing else going in town',
   'reached-adulthood': '{they} was old enough',
   'has-income': '{they} had steady wages',
+  'rater-regard': 'what the man writing the report thought of them',
   'came-from-away': 'they had no home in this town until this one',
   'close-friendship': '{they} was close to someone',
   'household-crowded': 'the house was crowded',

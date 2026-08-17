@@ -2974,6 +2974,9 @@ export type EventType =
    *  silence until the reenlistment question. */
   | 'began-training'
   | 'completed-training'
+  /** The annual report somebody senior wrote on you (MILITARY_DEPTH_PLAN
+   *  §10.2). `otherId` is the rater; the detail is the mark. */
+  | 'evaluated'
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'
@@ -3133,6 +3136,8 @@ export type DecisionType =
   | 'promotion'
   /** A decoration granted — explained by its qualifying service. */
   | 'award'
+  /** The annual report: the work done, and what the man writing it thought. */
+  | 'evaluation'
   /** The pension board's finding — explained by the recorded disability. */
   | 'pension'
   /** A school attended (M-SPECOPS) — its own kind, so a same-month
@@ -3176,6 +3181,8 @@ export type FactorId =
   | 'reached-adulthood'
   | 'has-income'
   | 'close-friendship'
+  /** What the man writing your annual report thinks of you (§10.2). */
+  | 'rater-regard'
   /** They married somebody stationed here and came home with them
    *  (MILITARY_DEPTH_PLAN §9.0 — settling in the town from away). */
   | 'came-from-away'
