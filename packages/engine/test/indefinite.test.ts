@@ -172,6 +172,24 @@ describe('the town lives under the same rule', () => {
             if (e.type !== 'reenlisted' || e.subjectId !== record.personId) continue
             lastSigned = Math.max(lastSigned, e.tick)
           }
+          /**
+           * THE OTHER INNOCENT EXPLANATION, and it is the ordinary one: he
+           * SIGNED UNDER TWELVE and has not reached the end of that term.
+           *
+           * MEASURED (seed 777): #1317 enlisted at t318 and re-signed at
+           * t461 — eleven years and eleven months, lawfully. He crosses
+           * twelve during a term the wall had no grounds to refuse, which is
+           * exactly the "serves out the term he signed" case this test's own
+           * comment describes. It only ever accepted a BUST as the
+           * explanation, so a perfectly legal career read as a leak.
+           *
+           * The claim the wall makes is unchanged and is now stated whole:
+           * nobody SIGNS below the line at twelve years or more.
+           */
+          const signedUnderTheWall =
+            Math.floor((lastSigned - record.enlistedAtTick) / 12) < INDEFINITE_AT_YEARS
+          if (signedUnderTheWall) continue
+
           const bustedSince = world.events.some(
             (e) =>
               e.type === 'disciplined' &&

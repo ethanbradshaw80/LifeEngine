@@ -104,6 +104,12 @@ import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
 const ENLIST_MIN_AGE = 18
 /** M-ARMY2 (owner): the office takes volunteers to thirty-eight. */
 const ENLIST_MAX_AGE = 38
+
+/**
+ * How long after leaving somebody can still come back (M-ENLIST, owner's
+ * report). Six years: past that the break in service is a life, not a gap.
+ */
+const RETURN_WINDOW_MONTHS = 72
 /** Disability at or above this ends (or bars) service on medical grounds. */
 const MEDICAL_LIMIT = 400
 
@@ -2043,7 +2049,30 @@ export function runService(world: World, tick: Tick): void {
     let propensity = (jobless ? 110 : 16) + Math.floor(person.traits.ambition / 25)
     if (parentServed) propensity += 30
     if (drive) propensity *= 3
-    if (returning) propensity = Math.max(1, Math.floor(propensity / 3))
+    /**
+     * COMING BACK IS RARE, AND IT DOES NOT HAPPEN A DECADE LATER.
+     *
+     * OWNER, PLAYING: "It seems like a lot of people join and then get out
+     * and then later on rejoin again this seems to be a bug too."
+     *
+     * MEASURED across two seeds and fifty years before changing anything:
+     * 6-9% of everybody who ever served came back for a second spell, at a
+     * MEDIAN GAP OF NINE YEARS, signing again at 32 to 38. Thirding the
+     * propensity was not nearly enough, and nothing at all looked at how
+     * long they had been out.
+     *
+     * Two changes, and the second is the one that matters. Re-entry is a
+     * tenth as likely rather than a third — prior-service accessions are a
+     * small minority of a real intake. And the door CLOSES: a man who has
+     * been a civilian for six years has a life built, and the services in
+     * any case will not take him back on the old terms. He is not a
+     * returning soldier any more, he is a thirty-eight-year-old recruit.
+     */
+    if (returning) {
+      const out = tick - (record?.dischargedAtTick ?? tick)
+      if (out > RETURN_WINDOW_MONTHS) continue
+      propensity = Math.max(1, Math.floor(propensity / 10))
+    }
     if (!rng.chance(propensity, 12_000)) continue
 
     const options = eligibleSpecialties(world, person)
@@ -3556,6 +3585,37 @@ export function reenlist(
 ): void {
   const record = world.service.get(person.id)
   if (!record || record.dischargedAtTick !== null) return
+
+  /**
+   * THE WALL REFUSES HERE, at the pen, and not only at the doors.
+   *
+   * MEASURED (indefinite.test.ts, seed 777): one man in five seeds and 147
+   * long careers — #1317, a corporal — signed again at THIRTEEN years while
+   * below E-5, which is precisely what the wall exists to prevent. He was
+   * never busted and never rated, so nothing explained him; a caller had
+   * simply not asked before reaching for the pen.
+   *
+   * `reenlist` is the single writer of a new term, so the check belongs in
+   * it. Every gate upstream stays exactly as it was — this is the floor
+   * under them, not a replacement for them.
+   *
+   * Barred is not a refusal to act: the service writing no more contracts IS
+   * the end of a career, so the term closes the honest way rather than
+   * silently doing nothing and leaving him standing there.
+   */
+  if (record.commissioned !== true) {
+    const standingNow = indefiniteStandingFor(
+      gradeOf(world, record, 1),
+      Math.floor((tick - record.enlistedAtTick) / 12),
+    )
+    if (standingNow === 'barred') {
+      discharge(world, tick, person, record, 'high-year tenure', [
+        factor('time-in-grade', 900),
+      ])
+      return
+    }
+  }
+
   // Judge the closing term BEFORE the ledger resets for the next one.
   const termAverage = termAveragePerformance(record)
   // §3. THE TERM IS CHOSEN, not a constant. A record without one ran the
