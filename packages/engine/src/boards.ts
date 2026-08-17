@@ -25,6 +25,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { toDate } from './clock.js'
+import { eventsFor } from './eventindex.js'
 import { recordDecision, recordEvent } from './records.js'
 import { factor } from './records.js'
 import { hash32, openStream, Stream } from './rng.js'
@@ -107,9 +108,11 @@ export function lastInspectionOf(
   world: World,
   personId: EntityId,
 ): { readonly verdict: string; readonly grade: number; readonly year: number } | null {
+  // A READ, not a tick cost — but it is one person's history, so it goes
+  // through the index like every other one-person history in the engine.
   let found: { verdict: string; grade: number; year: number; tick: Tick } | null = null
-  for (const event of world.events) {
-    if (event.type !== 'unit-inspected' || event.subjectId !== personId) continue
+  for (const event of eventsFor(world, personId)) {
+    if (event.type !== 'unit-inspected') continue
     const parts = (event.detail ?? '').split('|')
     const entry = {
       verdict: parts[0] ?? 'satisfactory',

@@ -37,6 +37,7 @@
  */
 
 import type { EntityId, Tick } from '@life-engine/shared'
+import { eventsFor } from './eventindex.js'
 import { openStream, Stream } from './rng.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { rankTitle } from './service.js'
@@ -89,9 +90,17 @@ export function holdsCommand(world: World, personId: EntityId): boolean {
  * nothing is, and that is when people get into trouble.
  */
 export function tediumOf(world: World, personId: EntityId, tick: Tick): number {
+  /**
+   * THROUGH THE INDEX, and the first version was a genuine performance bug.
+   *
+   * It walked `world.events` — every event in the world — once per serving
+   * person per month. In a full-size town a century in that is hundreds of
+   * thousands of events times a hundred people times twelve months a year,
+   * and it took `workmoments.test.ts` past a fifteen-minute timeout on an
+   * idle machine. `eventsFor` is the index that exists for exactly this.
+   */
   let last = 0
-  for (const event of world.events) {
-    if (event.subjectId !== personId) continue
+  for (const event of eventsFor(world, personId)) {
     if (event.tick > tick) continue
     if (event.tick > last) last = event.tick
   }

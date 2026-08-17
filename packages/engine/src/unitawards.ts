@@ -34,6 +34,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { grantUnitAward } from './awards.js'
 import { toDate } from './clock.js'
+import { eventsFor } from './eventindex.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { recordEvent } from './records.js'
 import { hash32, Stream } from './rng.js'
@@ -109,12 +110,19 @@ export function unitGradeOf(world: World, key: string, tick: Tick): number {
   }
   if (people === 0) return 0
 
-  for (const event of world.events) {
-    if (event.tick < tick - INSPECTED_EVERY) continue
-    if (!members.includes(event.subjectId)) continue
-    // Discipline inside the unit is the unit's problem, which is exactly what
-    // §10.3 means by "their problems become yours".
-    if (event.type === 'disciplined' || event.type === 'was-convicted') punished += 1
+  /**
+   * THROUGH THE INDEX, per member, rather than over every event in the world.
+   * `members.includes` inside a full-world scan is a second linear factor on
+   * top of a linear scan — the same shape that took `tediumOf` past a
+   * fifteen-minute timeout.
+   */
+  for (const id of members) {
+    for (const event of eventsFor(world, id)) {
+      if (event.tick < tick - INSPECTED_EVERY || event.tick > tick) continue
+      // Discipline inside the unit is the unit's problem, which is exactly
+      // what §10.3 means by "their problems become yours".
+      if (event.type === 'disciplined' || event.type === 'was-convicted') punished += 1
+    }
   }
 
   const average = Math.floor(performance / people)
@@ -203,11 +211,14 @@ export function runUnitAwards(world: World, tick: Tick): void {
     for (const id of members) {
       performance += world.service.get(id)?.performance ?? 0
     }
-    for (const event of world.events) {
-      if (event.tick < tick - CONSIDERED_EVERY) continue
-      if (!members.includes(event.subjectId)) continue
-      if (event.type === 'wounded-in-action') wounded += 1
-      if (event.type === 'died') killed += 1
+    // Through the index, per member — same reason as the grade above: a
+    // `members.includes` inside a full-world scan is two linear factors.
+    for (const id of members) {
+      for (const event of eventsFor(world, id)) {
+        if (event.tick < tick - CONSIDERED_EVERY || event.tick > tick) continue
+        if (event.type === 'wounded-in-action') wounded += 1
+        if (event.type === 'died') killed += 1
+      }
     }
     /**
      * THE PEACETIME ROAD IS THE UNIT'S GRADE (plan §10.7, and the MUC has
