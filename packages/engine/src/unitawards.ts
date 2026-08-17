@@ -87,6 +87,41 @@ export function unitHonoursOf(
   return [...seen.values()].sort((a, b) => a.year - b.year || a.title.localeCompare(b.title))
 }
 
+/**
+ * WHAT A UNIT IS WORTH THIS YEAR, 0–1000.
+ *
+ * Read from its people: how they are rated, what it cost them, and whether
+ * anybody has been in trouble. A unit is not a stat — it is the people in it,
+ * which is the whole premise of §9.0.
+ */
+export function unitGradeOf(world: World, key: string, tick: Tick): number {
+  let performance = 0
+  let people = 0
+  let punished = 0
+  const members: EntityId[] = []
+  for (const record of world.service.values()) {
+    if (record.dischargedAtTick !== null) continue
+    if (unitKeyOf(world, record.personId) !== key) continue
+    if (world.people.get(record.personId)?.deathTick !== null) continue
+    performance += record.performance
+    people += 1
+    members.push(record.personId)
+  }
+  if (people === 0) return 0
+
+  for (const event of world.events) {
+    if (event.tick < tick - INSPECTED_EVERY) continue
+    if (!members.includes(event.subjectId)) continue
+    // Discipline inside the unit is the unit's problem, which is exactly what
+    // §10.3 means by "their problems become yours".
+    if (event.type === 'disciplined' || event.type === 'was-convicted') punished += 1
+  }
+
+  const average = Math.floor(performance / people)
+  const discipline = Math.min(300, punished * 60)
+  return Math.max(0, Math.min(1000, average - discipline))
+}
+
 export interface UnitAwardStanding {
   readonly title: string
   readonly year: number
@@ -132,6 +167,9 @@ const MERITORIOUS = 'the Meritorious Unit Commendation'
 /** A unit is considered once a year, on a fixed grid. */
 const CONSIDERED_EVERY = TICKS_PER_YEAR
 
+/** One year of events is the window a grade is read over. */
+const INSPECTED_EVERY = TICKS_PER_YEAR
+
 /**
  * Decorate the units that earned it this year.
  *
@@ -171,7 +209,14 @@ export function runUnitAwards(world: World, tick: Tick): void {
       if (event.type === 'wounded-in-action') wounded += 1
       if (event.type === 'died') killed += 1
     }
-    const average = Math.floor(performance / members.length)
+    /**
+     * THE PEACETIME ROAD IS THE UNIT'S GRADE (plan §10.7, and the MUC has
+     * always been meant to hang off it). It used to be the raw average of
+     * what everybody was rated, which cannot be failed and cannot be earned;
+     * the grade subtracts the unit's discipline, so a company that spent the
+     * year in trouble does not get decorated for it.
+     */
+    const average = unitGradeOf(world, key, tick)
 
     /**
      * SEEDED ON THE UNIT AND THE YEAR, so a decoration is a fact about that

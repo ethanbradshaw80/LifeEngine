@@ -144,6 +144,7 @@ import type {
 } from './casino.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
 import { optionIdsFor, spectrumOf } from './situation.js'
+import { evacMinutes, woundStory } from './woundwords.js'
 import type { SceneChoice } from './scenes.js'
 import {
   answerDesperation,
@@ -7232,18 +7233,56 @@ export function describePending(world: World, pending: PendingDecision): string 
       const offence = pending.occupationId === null ? undefined : offenceById(pending.occupationId)
       return `You are charged with ${offence?.title ?? 'theft'}. How do you plead?`
     }
+    /**
+     * THE WOUND, WRITTEN (plan §4.4c — owner: "we also need to change up the
+     * 'you were hit - the shoulder - its bad' writting too this sucks this
+     * needs to be way more in detail and descriptive as well").
+     *
+     * That exact sentence was here. The engine knew the mechanism, the site
+     * and the severity, and printed the site. §4.4c asks for four things and
+     * all four were already computable: what hit him and what that does,
+     * where and what is under that place, what it cost to get him out, and
+     * what he is like afterwards.
+     */
     case 'first-aid': {
       const record = world.health.get(pending.personId)
       const where = record?.ailmentSite ?? null
-      return where === null
-        ? 'You are hit, and still awake. What do you do?'
-        : `You are hit — the ${where} — and still awake. What do you do?`
+      const kind = record?.ailmentKind ?? null
+      if (where === null || kind === null) return 'You are hit, and still awake. What do you do?'
+      const story = woundStory(
+        kind as import('./types.js').InjuryKind,
+        where,
+        record?.severity ?? 500,
+        evacMinutes(
+          world,
+          pending.personId,
+          pending.tick,
+          // A medic on the ground halves the first hour, so whether one was
+          // there is the single biggest fact about the evacuation.
+          (
+            (world.deployments.get(pending.personId) ?? []).find((t) => t.returnedAtTick === null)
+              ?.squad ?? []
+          ).some((mate) => mate.role === 'medic'),
+        ),
+      )
+      return `${story.headline} ${story.lines.slice(0, 3).join(' ')} You are still awake. What do you do?`
     }
     case 'treat-casualty': {
       const casualty = pending.otherId === null ? undefined : world.people.get(pending.otherId)
       const record = pending.otherId === null ? undefined : world.health.get(pending.otherId)
       const where = record?.ailmentSite ?? null
-      return `${casualty?.givenName ?? 'One of yours'} is down${where === null ? '' : ` — the ${where}`}, and you are the medic. What do you do?`
+      const kind = record?.ailmentKind ?? null
+      const who = casualty?.givenName ?? 'One of yours'
+      if (where === null || kind === null || pending.otherId === null) {
+        return `${who} is down, and you are the medic. What do you do?`
+      }
+      const story = woundStory(
+        kind as import('./types.js').InjuryKind,
+        where,
+        record?.severity ?? 500,
+        evacMinutes(world, pending.otherId, pending.tick, true),
+      )
+      return `${who} is down. ${story.headline} ${story.lines.slice(0, 3).join(' ')} You are the medic. What do you do?`
     }
     case 'unit-moment':
       return unitMomentById(momentIdOf(pending.occupationId))?.tell ?? 'The unit has something to say to you.'

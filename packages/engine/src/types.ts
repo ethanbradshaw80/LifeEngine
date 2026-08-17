@@ -2983,6 +2983,10 @@ export type EventType =
   | 'evaluated'
   /** A unit decorated for a period of service (MILITARY_DEPTH_PLAN §9.1). */
   | 'unit-awarded'
+  /** The unit's annual inspection, graded (plan §10.7). */
+  | 'unit-inspected'
+  /** A panel of named seniors, and it can be failed (plan §10.7). */
+  | 'faced-a-board'
   | 'field-exercise'
   | 'earned-qualification'
   | 'changed-post'
@@ -3144,6 +3148,8 @@ export type DecisionType =
   | 'award'
   /** The annual report: the work done, and what the man writing it thought. */
   | 'evaluation'
+  /** Appearing before a board — the outcome is on the record either way. */
+  | 'board'
   /** The pension board's finding — explained by the recorded disability. */
   | 'pension'
   /** A school attended (M-SPECOPS) — its own kind, so a same-month
@@ -3189,6 +3195,8 @@ export type FactorId =
   | 'close-friendship'
   /** What the man writing your annual report thinks of you (§10.2). */
   | 'rater-regard'
+  /** How the unit itself is graded, which sets the standard in the room. */
+  | 'unit-standing'
   /** They married somebody stationed here and came home with them
    *  (MILITARY_DEPTH_PLAN §9.0 — settling in the town from away). */
   | 'came-from-away'

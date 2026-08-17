@@ -48,6 +48,7 @@ import { runHealth } from './health.js'
 import { runService } from './service.js'
 import { runEvaluations } from './evaluations.js'
 import { runUnitAwards } from './unitawards.js'
+import { runBoards, runInspections } from './boards.js'
 import { runDeployments } from './deployment.js'
 import { runRelationships } from './relationships.js'
 import {
@@ -141,6 +142,11 @@ export function advanceTick(world: World): World {
   // The reports are written after the month is served, so a promotion this
   // month is already on the record the rater is describing.
   runEvaluations(world, next)
+  // THE UNIT IS INSPECTED BEFORE IT IS DECORATED (plan §10.7), because the
+  // grade is what the Meritorious Unit Commendation is earned on in peace —
+  // and boards sit at mid-year, so the standard in the room is this year's.
+  runInspections(world, next)
+  runBoards(world, next)
   // The unit's own year is judged after its people's.
   runUnitAwards(world, next)
   runSchools(world, next)

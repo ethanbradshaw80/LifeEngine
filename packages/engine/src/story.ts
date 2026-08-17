@@ -403,6 +403,25 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
       return `${year} — Qualified: ${event.detail ?? 'a certificate'}.`
     case 'promoted':
       return `${year} — Promoted to ${event.detail ?? 'a new rank'}.`
+    case 'unit-inspected': {
+      // THE UNIT'S OWN YEAR, said in the unit's name (plan §10.7). A failed
+      // inspection is something that happened to everybody who was there,
+      // which is why it is on every member's record and not on a stat.
+      const [verdict] = (event.detail ?? '').split('|')
+      return verdict === 'outstanding'
+        ? `${year} — The unit was inspected and came out of it outstanding.`
+        : verdict === 'failed'
+          ? `${year} — The unit failed its inspection, and everybody heard about it.`
+          : verdict === 'marginal'
+            ? `${year} — The unit scraped through its inspection.`
+            : `${year} — The unit passed its inspection.`
+    }
+    case 'faced-a-board': {
+      const [outcome] = (event.detail ?? '').split('|')
+      return outcome === 'passed'
+        ? `${year} — Went before the board, in a pressed uniform, and was recommended.`
+        : `${year} — Went before the board and was turned down.`
+    }
     case 'unit-awarded': {
       // THE UNIT'S DECORATION, said in the unit's name rather than the
       // person's — that is the whole difference between the two kinds.
@@ -1002,6 +1021,7 @@ const FACTOR_PHRASES: Readonly<Record<FactorId, string>> = {
   'reached-adulthood': '{they} was old enough',
   'has-income': '{they} had steady wages',
   'rater-regard': 'what the man writing the report thought of them',
+  'unit-standing': 'the standard of the unit they were being judged in',
   'came-from-away': 'they had no home in this town until this one',
   'close-friendship': '{they} was close to someone',
   'household-crowded': 'the house was crowded',

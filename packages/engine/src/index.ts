@@ -242,6 +242,8 @@ export type { NewsArticle, NewsQuote } from './newsroom.js'
 // Health (L4-M2)
 export { healthOf, isSeverelyAiling, SEVERE_AILMENT } from './health.js'
 export { describeAilment, markFor } from './wounds.js'
+export { evacMinutes, tierOfSeverity, woundStory } from './woundwords.js'
+export type { WoundStory } from './woundwords.js'
 export type { InjuryContext } from './wounds.js'
 
 // Service (L4-M3)
@@ -653,6 +655,9 @@ export { evaluationsOf, raterFor, regardBetween } from './evaluations.js'
 export { rotcBar, joinRotc, ROTC_TERMS } from './player.js'
 export { unitAwardsFor, unitHonoursOf, unitKeyOf } from './unitawards.js'
 export { afterActionFor, afterActionsFor } from './afteraction.js'
+export { GRADE_EXCELLENT, GRADE_FAILING, lastInspectionOf, panelFor } from './boards.js'
+export type { BoardPanel } from './boards.js'
+export { unitGradeOf } from './unitawards.js'
 export type { AfterActionReport } from './afteraction.js'
 export type { UnitAwardStanding } from './unitawards.js'
 export type { Evaluation } from './evaluations.js'
