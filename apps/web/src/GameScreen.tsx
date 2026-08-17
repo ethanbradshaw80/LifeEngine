@@ -2767,6 +2767,40 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         {formatMoney(annualPay(servicePayOf(world, person.id) as never))} a year
                         {record.unitId !== null && <span className="muted small"> incl. special-duty pay</span>}
                       </dd>
+                      {/**
+                        * THE UNIT'S HONOURS, BESIDE THE UNIT (owner: "I dont
+                        * see any unit awards on the career tab with the
+                        * unit").
+                        *
+                        * They were on the Reports tab, which is where the
+                        * annual evaluation lives — but a unit award belongs
+                        * next to the unit that earned it, which is here. Each
+                        * says by which right it is worn, because that
+                        * distinction is the entire mechanic: present during
+                        * the cited period and it is yours for life; arrive
+                        * after and it comes off when you post out.
+                        */}
+                      {(() => {
+                        const worn = unitAwardsFor(world, person.id)
+                        if (worn.length === 0) return null
+                        return (
+                          <>
+                            <dt>Unit awards</dt>
+                            <dd>
+                              {worn.map((award) => (
+                                <div key={`${award.title}-${String(award.year)}`}>
+                                  {award.title} ({award.year})
+                                  <span className="muted small">
+                                    {award.permanent
+                                      ? ' · you were there'
+                                      : ' · your unit’s, worn while you serve in it'}
+                                  </span>
+                                </div>
+                              ))}
+                            </dd>
+                          </>
+                        )
+                      })()}
                     </>
                   )}
                   {unlocks.length > 0 && (
