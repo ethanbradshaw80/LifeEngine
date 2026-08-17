@@ -28,6 +28,7 @@
 import type { EntityId, Tick } from '@life-engine/shared'
 import { openStream, Stream } from './rng.js'
 import type { Person, SquadMember, World } from './types.js'
+import { specialtyFor } from './worldspec.js'
 
 /** How many people stand next to you. A fireteam, not a company. */
 export const SQUAD_SIZE = 5
@@ -164,6 +165,66 @@ export function pickCasualty(
  * have been with for two tours is not, and the model should not pretend
  * those are the same event.
  */
+/**
+ * THE PLAYER'S OWN PLACE IN THE TEAM.
+ *
+ * OWNER: "I also feeel like the character you are playing should show up in
+ * the squad as well with a nickname and stuff."
+ *
+ * He is right, and the omission was an artefact rather than a decision.
+ * `deployment.squad` is the list the casualty picker draws from, so the
+ * player is deliberately NOT in it — being shot as your own squadmate is not
+ * a thing that should be possible. But a fireteam that renders four other
+ * men and a hole where you are standing is not the team, it is the rest of
+ * the team.
+ *
+ * So this is a READ-SIDE row, computed for the screen and never stored. It
+ * cannot reach the casualty list, because it is not on it.
+ *
+ * THE NICKNAME IS EARNED THE SAME WAY THEIRS ARE — drawn from the same pool,
+ * seeded on the person so it is the same every month of every tour, and
+ * never one already taken by somebody standing next to him.
+ *
+ * THE ROLE IS WHAT HE ACTUALLY DOES: his trade if it has a billet, and the
+ * team's leader if he outranks everybody in it — which is the honest answer
+ * for a sergeant deployed with four juniors.
+ */
+export function ownSquadRowFor(
+  world: World,
+  personId: EntityId,
+  squad: readonly SquadMember[],
+): SquadMember {
+  const rng = openStream(world.seed, Stream.CombatResolution, personId, 91_000)
+  const taken = new Set(squad.map((m) => m.nickname))
+  let nickname = NICKNAMES[rng.nextIntInclusive(0, NICKNAMES.length - 1)] ?? 'Smitty'
+  for (let guard = 0; taken.has(nickname) && guard < 20; guard += 1) {
+    nickname = NICKNAMES[rng.nextIntInclusive(0, NICKNAMES.length - 1)] ?? 'Smitty'
+  }
+
+  const record = world.service.get(personId)
+  const trade = record === undefined ? '' : specialtyFor(world, record.specialtyId).title
+  let topRank = 0
+  for (const member of squad) {
+    topRank = Math.max(topRank, world.service.get(member.personId)?.rank ?? 0)
+  }
+  const role: SquadRole =
+    record !== undefined && record.rank > topRank
+      ? 'leader'
+      : /medic|corpsman|surgeon/i.test(trade)
+        ? 'medic'
+        : /signal|radio|comm/i.test(trade)
+          ? 'radio'
+          : 'rifleman'
+
+  return {
+    personId,
+    role,
+    nickname,
+    competence: Math.max(120, Math.min(1000, (record?.performance ?? 500) + (record?.rank ?? 0) * 25)),
+    sinceTick: record?.enlistedAtTick ?? (0 as Tick),
+  }
+}
+
 export function bondWith(member: SquadMember, tick: Tick): number {
   const months = Math.max(0, tick - member.sinceTick)
   return Math.min(1_000, months * 28)

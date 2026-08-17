@@ -970,6 +970,7 @@ export {
   livingSquad,
   pickCasualty,
   squadLineFor,
+  ownSquadRowFor,
   squadMemberOf,
 } from './squad.js'
 export type { SquadRole } from './squad.js'

@@ -1165,7 +1165,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
           {(() => {
             if (person === undefined) return null
             const running = deploymentsOf(world, person.id).find((t) => t.returnedAtTick === null)
-            return running === undefined ? null : <TourPanel world={world} tour={running} />
+            return running === undefined ? null : (
+              <TourPanel world={world} tour={running} onInspect={onInspect} />
+            )
           })()}
           {/* THE STATS PANEL (owner's player_stats_spec.md §5). At the top
               of Home rather than in a twelfth tab, because it is the
@@ -3165,7 +3167,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     happening now is a different thing from a list of
                     deployments that happened. */}
                 {serviceTab === 'deployments' && currentTour !== undefined && (
-                  <TourPanel world={world} tour={currentTour} />
+                  <TourPanel world={world} tour={currentTour} onInspect={onInspect} />
                 )}
                 {serviceTab === 'deployments' && <h3>Deployments</h3>}
                 {serviceTab === 'deployments' && (tours.length === 0 ? (

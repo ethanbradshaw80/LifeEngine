@@ -22,12 +22,14 @@ import {
   bondWith,
   phaseFor,
   squadLineFor,
+  ownSquadRowFor,
   rankTitle,
   specialtyFor,
   specialtyTitleFor,
   tempoWords,
 } from '@life-engine/engine'
 import type { Deployment, World } from '@life-engine/engine'
+import type { EntityId } from '@life-engine/shared'
 import type { SquadRole } from '@life-engine/engine'
 
 /**
@@ -47,9 +49,12 @@ const ROLE_ICONS: Readonly<Record<SquadRole, string>> = {
 export function TourPanel({
   world,
   tour,
+  onInspect,
 }: {
   readonly world: World
   readonly tour: Deployment
+  /** Open somebody's own screen. Absent where the panel is read-only. */
+  readonly onInspect?: (id: EntityId) => void
 }): ReactElement {
   const months = tour.endsAtTick - tour.startedAtTick
   const monthsIn = Math.max(0, world.tick - tour.startedAtTick)
@@ -58,6 +63,21 @@ export function TourPanel({
   const phase = phaseFor(beat)
   const squad = tour.squad ?? []
   const living = squad.filter((m) => world.people.get(m.personId)?.deathTick === null)
+  /**
+   * YOU ARE IN YOUR OWN TEAM (owner: "the character you are playing should
+   * show up in the squad as well with a nickname and stuff").
+   *
+   * The engine's `squad` is the list the casualty picker draws from, so the
+   * player is deliberately absent from it — being shot as your own squadmate
+   * is not a thing that should be possible. `ownSquadRowFor` computes his row
+   * for the screen instead, so the team reads as five men and him rather than
+   * as five men and a gap.
+   */
+  const you = ownSquadRowFor(world, tour.personId, squad)
+  const rows: readonly { member: typeof you; isYou: boolean }[] = [
+    { member: you, isYou: true },
+    ...squad.map((member) => ({ member, isYou: false })),
+  ]
 
   return (
     <section className="tour">
@@ -125,7 +145,7 @@ export function TourPanel({
           <h4>
             The team · {living.length} of {squad.length}
           </h4>
-          {squad.map((member) => {
+          {rows.map(({ member, isYou }) => {
             const person = world.people.get(member.personId)
             const dead = person === undefined || person.deathTick !== null
             /**
@@ -149,16 +169,40 @@ export function TourPanel({
                   : 'WIA · still on the line'
                 : 'in the fight'
             return (
-              <div key={member.personId} className={`sq-row${dead ? ' gone' : ''}`}>
+              <div
+                key={member.personId}
+                className={`sq-row${dead ? ' gone' : ''}${isYou ? ' you' : ''}`}
+              >
                 <span className="sq-ic" aria-hidden="true">
                   {ROLE_ICONS[member.role as SquadRole] ?? '🪖'}
                 </span>
                 <div>
-                  <div className="nm">{squadLineFor(member, person, world.tick)}</div>
+                  {/**
+                    * CLICK HIM AND SEE WHO HE IS (owner: "We should be able
+                    * to click on the squad member and see their stats").
+                    *
+                    * They are real people in `world.people` now, so the same
+                    * person screen the town uses already knows how to render
+                    * them — rank, trade, hometown, service record, the lot.
+                    * A squad of names you cannot open was the last place the
+                    * old invented squadmates still showed through.
+                    */}
+                  {onInspect === undefined ? (
+                    <div className="nm">{squadLineFor(member, person, world.tick)}</div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="link nm"
+                      onClick={() => { onInspect(member.personId) }}
+                    >
+                      {squadLineFor(member, person, world.tick)}
+                    </button>
+                  )}
                   {!dead && (
                     <div className="sub">
-                      {ROLE_TITLES[member.role as SquadRole] ?? member.role} ·{' '}
-                      {bondWords(bondWith(member, world.tick))}
+                      {ROLE_TITLES[member.role as SquadRole] ?? member.role}
+                      {/* A bond with yourself is not a thing. */}
+                      {isYou ? ' · this is you' : ` · ${bondWords(bondWith(member, world.tick))}`}
                     </div>
                   )}
                   {/**
