@@ -33,6 +33,12 @@
 > §4.1/§4.2/§4.4b the situation model, §4.4c the wound writing, §5.2
 > attribution, §6 bonds, §7 lasting injury, §11 forty drifting nations.
 >
+> **THE SUITE STANDS AT 1723 PASSING, 1 FAILING** (2026-08-17, clean run from
+> the repo root with nothing else on the machine). The one red is the
+> wealthy-shopkeeper forecast, named at the foot of this banner. The suite
+> also halved — 3631s to 1873s — when four full-world event scans went through
+> the index; if it is ever slow again, look for a new one before anything else.
+>
 > **SIMULATION_VERSION 191, and the three baselines ARE pinned** —
 > GOLDEN_HASH_HEX `7a054f73` (determinism.test.ts and the copy in App.tsx),
 > HEARTLAND_GOLDEN `40d2d709` (w2.test.ts), header string 191.
