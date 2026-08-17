@@ -62,7 +62,8 @@ import { activeWars, combatPowerOf, homeland, isAtWar, relationBetween } from '.
 import { inflictFieldIllness, inflictWound } from './health.js'
 import { describeAilment, pickFatalInjury } from './wounds.js'
 import { raisePending } from './player.js'
-import { encodeScene, pickScene, rollThreat, SCENE_OPTIONS } from './scenes.js'
+import { encodeScene, pickScene, rollThreat } from './scenes.js'
+import { optionIdsFor } from './situation.js'
 import { beatsFor, encodeSequence } from './engagement.js'
 import {
   beatFor,
@@ -1962,7 +1963,9 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
             workplaceId: null,
             monthlyPay: null,
             placeId: null,
-            options: [...SCENE_OPTIONS],
+            // THE OPTIONS COME FROM THE SITUATION (§4.2), not from a fixed
+            // three. Ids only: the prose is derived on every read.
+            options: [...optionIdsFor(world, personId, tick, threat)],
           })
           continue
         }
@@ -2001,7 +2004,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           workplaceId: null,
           monthlyPay: null,
           placeId: null,
-          options: [...SCENE_OPTIONS],
+          options: [...optionIdsFor(world, personId, tick, threat)],
         })
         continue
       }

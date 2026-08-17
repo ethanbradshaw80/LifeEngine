@@ -143,6 +143,7 @@ import type {
   TournamentResult,
 } from './casino.js'
 import { decodeScene, outcomeFor, SCENE_OPTIONS, sceneById, unitMomentById } from './scenes.js'
+import { optionIdsFor, spectrumOf } from './situation.js'
 import type { SceneChoice } from './scenes.js'
 import {
   answerDesperation,
@@ -2458,8 +2459,10 @@ function resolveFollowOn(
 
   const record = world.service.get(person.id)
   const isLeader = (record?.rank ?? 0) >= 4 || record?.commissioned === true
-  const answer: SceneChoice =
-    choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+  // A SITUATIONAL OPTION IS `spectrum:variant` (§4.2). `spectrumOf` reads the
+  // head, so a bare `push` from a save written before the variants existed
+  // still resolves exactly as it always did.
+  const answer: SceneChoice = spectrumOf(choice)
   const odds = followOnOdds(answer, isLeader)
   const rng = openStream(world.seed, Stream.CombatResolution, person.id * 71, pending.tick + 3_900)
 
@@ -5343,8 +5346,7 @@ export function resolvePending(world: World, choice: string): void {
       // on a course, or nothing at all but how somebody is remembered.
       const momentId = momentIdOf(pending.occupationId)
       const moment = unitMomentById(momentId)
-      const answer: SceneChoice =
-        choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+      const answer: SceneChoice = spectrumOf(choice)
       const did = moment?.did[answer] ?? 'answered the unit'
 
       recordEvent(world, pending.tick, {
@@ -5427,8 +5429,7 @@ export function resolvePending(world: World, choice: string): void {
       // cannot.
       const { sceneId, threat } = decodeScene(pending.occupationId)
       const scene = sceneById(sceneId)
-      const answer: SceneChoice =
-        choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : 'hold'
+      const answer: SceneChoice = spectrumOf(choice)
       const outcome = outcomeFor(answer, threat)
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
       const rng = openStream(world.seed, Stream.CombatResolution, person.id, pending.tick + 9100)
@@ -6243,18 +6244,13 @@ export function resolvePending(world: World, choice: string): void {
         otherId: pending.otherId,
         // THE CHOICE TRAVELS WITH THE SEQUENCE. Without it every beat
         // after the decision has to invent one, and the screen did.
-        occupationId: encodeSequence(
-          sceneId,
-          threat,
-          next,
-          seq.beats,
-          seq.choice ??
-            (choice === 'push' || choice === 'hold' || choice === 'cover' ? choice : null),
-        ),
+        occupationId: encodeSequence(sceneId, threat, next, seq.beats, seq.choice ?? spectrumOf(choice)),
         workplaceId: null,
         monthlyPay: null,
         placeId: null,
-        options: [...SCENE_OPTIONS],
+        // The situation does not change between beats — it is the same
+        // afternoon — so the same options are on offer at the beat that asks.
+        options: [...optionIdsFor(world, person.id, pending.tick, threat)],
       })
       return
     }

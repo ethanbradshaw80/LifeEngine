@@ -25,6 +25,7 @@ import {
   personSummary,
 } from '@life-engine/engine'
 import { DEBATE_OPTIONS, decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
+import { castFor, optionsFor, resolutionWords, situationFor, situationWords } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -731,6 +732,46 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       }
     }
 
+    /**
+     * THE DECISION BEAT, WITH THE SITUATION AND WRITTEN ORDERS (plan §4.1,
+     * §4.2, §4.4b — owner, twice, on the writing).
+     *
+     * This beat used to fall through to the generic pending sheet, which
+     * rendered `pending.options` as one-word buttons. That is the whole
+     * reason twenty-four good scenes read as one: the STRUCTURE was
+     * identical, not the prose. Now the scene's own line opens a written
+     * situation — how many, what ground, how far, who saw whom, what support
+     * is in reach, what the light is doing, who is already down — and the
+     * options are drawn from it, four to six of them, each an intention with
+     * its cost. An option that the situation does not support is not shown.
+     */
+    if (beat === 'decision') {
+      const scene = sceneById(sceneId)
+      const situation = situationFor(world, pending.personId, pending.tick, threat)
+      const written = optionsFor(situation).filter((option) =>
+        pending.options.includes(option.id),
+      )
+      if (written.length > 0) {
+        return (
+          <div className="overlay" role="dialog" aria-modal="true" aria-label="Your call">
+            <div className="sheet">
+              <EngagementView
+                beat="decision"
+                step={seq.step}
+                total={seq.beats.length}
+                threat={threat}
+                situation={situationWords(situation, scene?.tell[threat] ?? 'Contact.')}
+                labels={null}
+                options={written}
+                onChoose={(c) => onChoose(c)}
+                onContinue={() => onChoose(written[0]?.id ?? 'hold')}
+              />
+            </div>
+          </div>
+        )
+      }
+    }
+
     if (!beatAsks(beat)) {
       const scene = sceneById(sceneId)
       const record = world.service.get(pending.personId)
@@ -741,9 +782,12 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       // no matter what, which is how a player was told nobody was hurt in
       // the engagement that killed him.
       const wasHurt = hurtInContact(world.events, pending.personId, pending.tick)
+      const shape = situationFor(world, pending.personId, pending.tick, threat)
       const situation =
         beat === 'contact'
-          ? (scene?.tell[threat] ?? 'Contact.')
+          ? // THE READ IS THE SITUATION, not a threat label. Same paragraph
+            // the decision beat opens with, because it is the same afternoon.
+            situationWords(shape, scene?.tell[threat] ?? 'Contact.')
           : beat === 'orient'
             ? orientWords(threat, record?.performance ?? 500, squad.some((m) => m.role === 'radio'))
             : beat === 'consequence'
@@ -764,6 +808,17 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               threat={threat}
               situation={situation}
               labels={null}
+              lines={
+                beat === 'consequence'
+                  ? resolutionWords(shape, seq.choice ?? 'hold', wasHurt ? 'badly' : 'well', {
+                      onPoint: castFor(world, pending.personId, pending.tick, threat).onPoint,
+                      hurt: wasHurt ? (world.people.get(pending.personId)?.familyName ?? null) : null,
+                      killed:
+                        squad.find((m) => world.people.get(m.personId)?.deathTick === pending.tick)
+                          ?.nickname ?? null,
+                    })
+                  : null
+              }
               onChoose={() => onChoose('hold')}
               onContinue={() => onChoose('hold')}
             />
