@@ -578,7 +578,18 @@ const WOUND_SEVERITY_CAPS: Readonly<Record<string, number>> = {
   'laceration': 560,
   'animal-bite': 480,
   'heatstroke': 540,
-  'frostbite': 540,
+  /**
+   * FROSTBITE IS NOT A LIFE-THREATENING WOUND (owner, playing: "frostbite is
+   * treated really seriously and like its something life threating and stuff
+   * we need to fix that").
+   *
+   * At 540 it landed in the SERIOUS band — evacuated, tour over, months of
+   * convalescence, a medical board reading it. Real frostbite in a fit young
+   * soldier is a cold-weather injury that hurts coming back and occasionally
+   * costs toes; it is not a chest wound. 360 keeps it in the walking-wounded
+   * band, where it aches, marks and heals without ending a career.
+   */
+  'frostbite': 360,
   'smoke-inhalation': 560,
 }
 

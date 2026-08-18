@@ -168,14 +168,32 @@ export function TourPanel({
             const health = world.health.get(member.personId)
             const hurt =
               !dead && health !== undefined && health.ailment !== null && health.severity >= 400
-            const state = dead ? 'kia' : hurt ? 'evac' : 'ok'
+            /**
+             * SENT HOME IS A STATE OF ITS OWN (owner: "we just saved Robert
+             * and he was evacuated but when you go to the squad hes still
+             * there and hes on the line all good to go").
+             *
+             * The row read the health record alone, so an evacuated man went
+             * back to "in the fight" the moment his wound healed — the roster
+             * had no way to know he was not there any more. Now it reads
+             * whether HIS OWN TOUR closed while the player's is still open,
+             * which is the fact rather than an inference from a scar.
+             */
+            const gone =
+              !dead &&
+              (world.deployments.get(member.personId) ?? []).some(
+                (t) => t.startedAtTick === tour.startedAtTick && t.returnedAtTick !== null,
+              )
+            const state = dead ? 'kia' : gone || hurt ? 'evac' : 'ok'
             const stateWords = dead
               ? `KIA${person?.causeOfDeath ? ` · ${String(person.causeOfDeath).replace(/-/g, ' ')}` : ''}`
-              : hurt
-                ? health !== undefined && health.severity >= 700
-                  ? 'WIA · medevac'
-                  : 'WIA · still on the line'
-                : 'in the fight'
+              : gone
+                ? 'WIA · evacuated, sent home'
+                : hurt
+                  ? health !== undefined && health.severity >= 700
+                    ? 'WIA · medevac'
+                    : 'WIA · still on the line'
+                  : 'in the fight'
             return (
               <div
                 key={member.personId}

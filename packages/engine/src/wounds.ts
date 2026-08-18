@@ -87,8 +87,48 @@ export function pickFieldIllness(rng: Rng): IllnessKind {
   return rng.pick(['field-fever', 'dysentery', 'infection'] as const)
 }
 
+/**
+ * HOW LIKELY EACH KIND IS WITHIN ITS OWN CONTEXT.
+ *
+ * OWNER: "I think I got frostbite as a wound after a battle too lol."
+ *
+ * `rng.pick` is UNIFORM, so frostbite was one field accident in eight —
+ * exactly as likely as a crush injury or a broken leg, in every theatre, in
+ * every month of the year. The engine has no season and no climate for a
+ * theatre, so the honest fix is not to pretend it does: it is to make the
+ * weather injuries RARE, which is what they are, and to let the common ones
+ * be common. Anything not listed here weighs one.
+ */
+const KIND_WEIGHT: Readonly<Partial<Record<InjuryKind, number>>> = {
+  // The weather ones. Real, and not what usually happens to anybody.
+  frostbite: 1,
+  heatstroke: 2,
+  'near-drowning': 1,
+  'animal-bite': 1,
+  // The ordinary shapes of an accident, which is most of them.
+  fracture: 6,
+  crush: 5,
+  concussion: 5,
+  laceration: 5,
+  burns: 4,
+  // The ordinary shapes of being shot at.
+  gunshot: 8,
+  shrapnel: 8,
+  blast: 6,
+  'hearing-damage': 4,
+  // The severe and the rare stay rare.
+  'spinal-injury': 2,
+  amputation: 2,
+  'internal-injury': 3,
+  'eye-injury': 2,
+  electrocution: 1,
+  'chemical-burns': 1,
+  'smoke-inhalation': 3,
+}
+
 export function pickInjury(rng: Rng, context: InjuryContext): { kind: InjuryKind; site: BodySite } {
-  const kind = rng.pick(INJURY_KINDS_BY_CONTEXT[context])
+  const kinds = INJURY_KINDS_BY_CONTEXT[context]
+  const kind = rng.pickWeighted(kinds, kinds.map((each) => KIND_WEIGHT[each] ?? 1))
   const site = rng.pick(SITES_BY_KIND[kind])
   return { kind, site }
 }

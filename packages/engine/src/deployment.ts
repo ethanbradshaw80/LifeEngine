@@ -1148,6 +1148,13 @@ function hitSquadmate(
       otherId: mate.id,
       detail: casualty.nickname,
     })
+    // `performDeath` already writes his death; this is the line that says
+    // WHERE, so his own story ends somewhere rather than just stopping.
+    recordEvent(world, tick, {
+      type: 'wounded-in-action',
+      subjectId: mate.id,
+      detail: 'wounds taken in action',
+    })
     // THE ONE WATCHING PAYS FOR IT TOO, and in proportion to how well they
     // knew him. This is the mechanism the trauma work will read.
     nudgeWellbeing(
@@ -1185,6 +1192,54 @@ function hitSquadmate(
     otherId: mate.id,
     detail: casualty.nickname,
   })
+  /**
+   * AND IT GOES ON HIS OWN RECORD (owner: "it just said morales was WIA but I
+   * clicked his profile and it never event mentioned" it).
+   *
+   * The line above is the PLAYER'S event — it is about watching somebody get
+   * hit, and `eventsFor` indexes by subject, so the man it happened TO had
+   * nothing at all in his own life story. His health record carried the wound
+   * and his biography did not mention it, which is Law 2 failing out loud:
+   * every person is the main character of their own life, including the one
+   * standing next to you.
+   */
+  const hurt = world.health.get(mate.id)
+  recordEvent(world, tick, {
+    type: 'wounded-in-action',
+    subjectId: mate.id,
+    detail: describeAilment('injury', hurt?.ailmentKind ?? null, hurt?.ailmentSite ?? null),
+  })
+
+  /**
+   * AND A BAD ONE SENDS HIM HOME (owner, playing: "we just saved Robert and he
+   * was evacuated but when you go to the squad hes still there and hes on the
+   * line all good to go, it should say he was WIA and sent home early").
+   *
+   * He was right twice over. A wounded squadmate was never evacuated at all —
+   * he took the wound, healed on the roster, and read as "in the fight" again
+   * a few months later as though nothing had happened. The player has been
+   * evacuated at this severity since M-WOUNDS; the men beside him had not,
+   * which is the same Law 2 fault as the missing record.
+   *
+   * `EVACUATES_AT` is tier 4 in `casualty.ts`, which `tierOfSeverity` puts at
+   * severity 700. Above that he goes on the aircraft, his tour closes, and the
+   * roster has a fact to report instead of a guess.
+   */
+  const takenOut = world.health.get(mate.id)
+  if ((takenOut?.severity ?? 0) >= 700) {
+    const theirs = world.deployments.get(mate.id) ?? []
+    world.deployments.set(
+      mate.id,
+      theirs.map((tour) =>
+        tour.returnedAtTick === null ? { ...tour, returnedAtTick: tick } : tour,
+      ),
+    )
+    recordEvent(world, tick, {
+      type: 'returned-home',
+      subjectId: mate.id,
+      detail: 'evacuated',
+    })
+  }
   nudgeWellbeing(world, tick, person.id, -8 - Math.floor(bond / 90), `${casualty.nickname} being hit`)
 }
 
@@ -1243,6 +1298,50 @@ function startCombatTour(
       : {}),
   }
   world.deployments.set(personId, [...history, deployment])
+
+  /**
+   * THE SQUAD ACTUALLY GOES (owner, playing: "when we join a NPC squad on a
+   * deploymne there history is missed out on for some time and most of the
+   * time has wrong info or info that doesnt make sense").
+   *
+   * He is describing a real hole. The squad was written ONLY onto the
+   * player's own deployment record, so the five men standing beside him had
+   * no tour of their own — their profiles showed no war, their life stories
+   * skipped the years entirely, and a man the feed had just called wounded
+   * had nothing on his record to say where he had been.
+   *
+   * They get a real tour now: same war, same enemy, same dates. Deliberately
+   * WITHOUT a squad of their own, which is the line the comment above draws
+   * and is right to — five men each recruiting five more is how a squad
+   * becomes a hundred people nobody will ever look at. This is five records
+   * per tour, for the five people the player is actually shown.
+   *
+   * Anybody already deployed keeps the tour they have; being in somebody's
+   * squad does not overwrite a war they are already fighting.
+   */
+  for (const mate of deployment.squad ?? []) {
+    if (mate.personId === personId) continue
+    const theirs = world.people.get(mate.personId)
+    if (theirs === undefined || theirs.deathTick !== null) continue
+    const already = world.deployments.get(mate.personId) ?? []
+    if (already.some((tour) => tour.returnedAtTick === null)) continue
+    // The spread copies `squad`; it is deleted rather than set to undefined
+    // because the field is optional-and-absent, not optional-and-undefined.
+    const { squad: _theirSquad, ...withoutSquad } = deployment
+    world.deployments.set(mate.personId, [
+      ...already,
+      { ...withoutSquad, personId: mate.personId, tourNumber: already.length + 1 },
+    ])
+    recordEvent(world, tick, {
+      type: 'deployed',
+      subjectId: mate.personId,
+      otherId: enemyId,
+      detail: (() => {
+        const against = world.nations.get(enemyId)
+        return against ? `the ${bareName(against.name)} front` : 'the front'
+      })(),
+    })
+  }
 
   const enemy = world.nations.get(enemyId)
   recordEvent(world, tick, {
@@ -1841,15 +1940,33 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
     // than the player's own exposure — five men are not five times as
     // likely to be hit as one, they are in cover together — and weighted
     // against competence, so a squad loses the nineteen-year-old first.
-    if ((deployment.squad ?? []).length > 0 && rng.chance(230, 1_000)) {
-      hitSquadmate(
-        world,
-        tick,
-        person,
-        deployment,
-        rng,
-        200 + severityBiasFor((deployment.tier ?? 1) as IntensityTier),
-      )
+    /**
+     * IT IS NOT ALWAYS THE PLAYER (owner: "we need to make sure its not
+     * always us getting hit too").
+     *
+     * MEASURED across five worlds, each a war fought to its end: SEVENTEEN
+     * player wounds against FOUR among the whole squad — the player took 81
+     * per cent of everything. He is one man in six, and the one the game is
+     * about, so some bias towards him is honest; four fifths is not, and it
+     * is the same complaint he made about this on itch a year ago.
+     *
+     * The cause was arithmetic rather than intent. The player rolled his own
+     * casualty every contact; the squad rolled ONE man at 230 in a thousand.
+     * Raised, and a hard contact can take more than one of them, because a
+     * burst that finds a squad rarely finds exactly one person in it.
+     */
+    const squadSize = (deployment.squad ?? []).length
+    if (squadSize > 0) {
+      const bias = 200 + severityBiasFor((deployment.tier ?? 1) as IntensityTier)
+      if (rng.chance(780, 1_000)) {
+        hitSquadmate(world, tick, person, deployment, rng, bias)
+        // A second man, on the contacts that are actually bad. Rare enough
+        // that a squad is not wiped out over a tour, common enough that a
+        // mass-casualty afternoon exists at all.
+        if (bias >= 380 && rng.chance(420, 1_000)) {
+          hitSquadmate(world, tick, person, deployment, rng, bias)
+        }
+      }
     }
 
     // The contact itself, on the record — flavored by the channel that
@@ -2390,6 +2507,37 @@ export function closeTour(
       tour.startedAtTick === deployment.startedAtTick ? { ...tour, returnedAtTick: tick } : tour,
     ),
   )
+
+  /**
+   * AND THE SQUAD COMES HOME WITH HIM.
+   *
+   * They are given a real tour when he deploys, so they need a real end to
+   * it — otherwise the five men beside him would read as deployed for the
+   * rest of their lives, which is a worse record than none. Only the tour
+   * that started with his: a man who went somewhere else afterwards keeps
+   * that one open.
+   */
+  for (const mate of deployment.squad ?? []) {
+    if (mate.personId === personId) continue
+    const theirs = world.deployments.get(mate.personId)
+    if (theirs === undefined) continue
+    world.deployments.set(
+      mate.personId,
+      theirs.map((tour) =>
+        tour.startedAtTick === deployment.startedAtTick && tour.returnedAtTick === null
+          ? { ...tour, returnedAtTick: tick }
+          : tour,
+      ),
+    )
+    if (world.people.get(mate.personId)?.deathTick === null) {
+      recordEvent(world, tick, {
+        type: 'returned-home',
+        subjectId: mate.personId,
+        detail: 'tour complete',
+      })
+    }
+  }
+
   const person = world.people.get(personId)
   if (!person || person.deathTick !== null) return
 
