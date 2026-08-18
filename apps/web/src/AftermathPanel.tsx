@@ -1,5 +1,5 @@
 /**
- * WHAT THE WAR LEFT (MILITARY_DEPTH_PLAN §5.2, §6, §7).
+ * WHAT THE WAR LEFT (MILITARY_DEPTH_PLAN §5.2, §7).
  *
  * OWNER, on the first version: "record is all messed the wordings doesnt make
  * sense and I think this knowledge should be somewhere else." Right on both.
@@ -11,20 +11,22 @@
  *
  * THE PLACEMENT. The Record is the SERVICE record: awards, badges, discharge,
  * the paperwork a descendant finds. Opening it with a psychological panel
- * pushed the record itself down the screen and read as though the game had
- * lost the plot. §7 says outright that lasting injury "routes into systems
- * that already exist: wellbeing, the medical board, and the benefits claim
- * path" — so the burden belongs with HEALTH, where a player goes to ask how
- * their character is doing. The bonds and the attribution belong with the
- * DEPLOYMENTS, because they are facts about tours and the men on them.
+ * pushed the record itself down the screen. §7 says outright that lasting
+ * injury "routes into systems that already exist: wellbeing, the medical
+ * board, and the benefits claim path" — so the burden belongs with HEALTH,
+ * where a player goes to ask how their character is doing.
  *
- * So this file exports two small panels rather than one big one, and each
- * goes where its subject already lives.
+ * AND ONE PANEL IS GONE ENTIRELY. "The men you stood with" listed the squad
+ * again, with a bond score against each name, on the very tab that already
+ * shows the squad and its history — the same men, twice, one list with a
+ * number on it (owner: "Lets just remove 'the men you stood with'"). §6's bond
+ * still does its work where it always did, inside the engine, deciding what a
+ * loss costs; it did not need a scoreboard.
  */
 
 import type { ReactElement } from 'react'
-import { aftermathOf, attributionFor, LASTING_AT, warBondWith } from '@life-engine/engine'
-import type { EntityId, Tick } from '@life-engine/shared'
+import { aftermathOf, attributionFor, LASTING_AT } from '@life-engine/engine'
+import type { EntityId } from '@life-engine/shared'
 import type { World } from '@life-engine/engine'
 
 /** "A, B and C" — an English list, not a comma-separated field. */
@@ -100,96 +102,37 @@ export function WhatItLeft({
 }
 
 /**
- * §6 and §5.2 — the men, and what can honestly be known, beside the tours.
+ * §5.2 — WHAT CAN HONESTLY BE KNOWN, beside the tours.
+ *
+ * For almost everybody this is not a number at all, and the line it prints
+ * instead is the point: "fire is collective and nobody here counts."
  */
-export function TheMenYouStoodWith({
+export function WhatYouCanKnow({
   world,
   personId,
-  onInspect,
 }: {
   readonly world: World
   readonly personId: EntityId
-  readonly onInspect: (id: EntityId) => void
 }): ReactElement | null {
   const attribution = attributionFor(world, personId, world.tick)
-
-  const tours = world.deployments.get(personId) ?? []
-  const mates = new Map<EntityId, Tick>()
-  for (const tour of tours) {
-    for (const mate of tour.squad ?? []) {
-      if (mate.personId === personId) continue
-      const since = mates.get(mate.personId)
-      if (since === undefined || mate.sinceTick < since) mates.set(mate.personId, mate.sinceTick)
-    }
-  }
-  if (mates.size === 0 && attribution.words.length === 0) return null
+  if (attribution.words.length === 0) return null
 
   return (
-    <>
-      {mates.size > 0 && (
-        <div className="tour-squad">
-          <h4>The men you stood with · {mates.size}</h4>
-          <p className="muted small">
-            Months are the smallest part of this. What builds it is coming through a bad
-            afternoon together, him being hit, you being hit and him staying — and burying
-            somebody you both knew.
-          </p>
-          {[...mates.entries()]
-            .map(([id, since]) => ({
-              id,
-              bond: warBondWith(world, personId, id, since, world.tick),
-            }))
-            .sort((a, b) => b.bond.strength - a.bond.strength)
-            .slice(0, 8)
-            .map(({ id, bond }) => {
-              const them = world.people.get(id)
-              if (them === undefined) return null
-              const dead = them.deathTick !== null
-              return (
-                <div key={id} className={dead ? 'sq-row gone' : 'sq-row'}>
-                  <span className="sq-ic" aria-hidden="true">
-                    {dead ? '🕯️' : bond.strength >= 600 ? '🤝' : '🪖'}
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      className="link nm"
-                      onClick={() => {
-                        onInspect(id)
-                      }}
-                    >
-                      {them.givenName} {them.familyName}
-                    </button>
-                    <div className="sub">
-                      {bond.reasons.length === 0
-                        ? 'You were in the same squad, and that was all it ever was.'
-                        : `${inWords(bond.reasons)}.`}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-        </div>
-      )}
-
-      {attribution.words.length > 0 && (
-        <div className="tour-squad">
-          <h4>What you can and cannot know</h4>
-          <div className="sq-row">
-            <span className="sq-ic" aria-hidden="true">
-              🎯
-            </span>
-            <div>
-              <div className="nm">
-                {attribution.confirmed === null
-                  ? 'Nobody in this trade counts'
-                  : `${String(attribution.confirmed)} confirmed`}
-              </div>
-              <div className="sub">{attribution.words}</div>
-            </div>
+    <div className="tour-squad">
+      <h4>What you can and cannot know</h4>
+      <div className="sq-row">
+        <span className="sq-ic" aria-hidden="true">
+          🎯
+        </span>
+        <div>
+          <div className="nm">
+            {attribution.confirmed === null
+              ? 'Nobody in this trade counts'
+              : `${String(attribution.confirmed)} confirmed`}
           </div>
+          <div className="sub">{attribution.words}</div>
         </div>
-      )}
-    </>
+      </div>
+    </div>
   )
 }

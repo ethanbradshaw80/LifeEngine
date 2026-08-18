@@ -43,7 +43,7 @@ import { CityHall } from './CityHall.js'
 import { Legacy } from './Legacy.js'
 import { BadgeMark } from './BadgeMark.js'
 import { CommandTab } from './CommandTab.js'
-import { TheMenYouStoodWith, WhatItLeft } from './AftermathPanel.js'
+import { WhatItLeft, WhatYouCanKnow } from './AftermathPanel.js'
 import {
   activeWars,
   ageAt,
@@ -3469,10 +3469,12 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 {serviceTab === 'deployments' && currentTour !== undefined && (
                   <TourPanel world={world} tour={currentTour} onInspect={onInspect} />
                 )}
-                {/* §6 and §5.2 — the men, and what can honestly be known,
-                    beside the tours they belong to rather than on the rack. */}
+                {/* §5.2 — what can honestly be known, beside the tours. The
+                    squad itself is already on this tab, so the bond list that
+                    used to sit here was the same men a second time with a
+                    number against each name. */}
                 {serviceTab === 'deployments' && (
-                  <TheMenYouStoodWith world={world} personId={person.id} onInspect={onInspect} />
+                  <WhatYouCanKnow world={world} personId={person.id} />
                 )}
                 {serviceTab === 'deployments' && <h3>Deployments</h3>}
                 {serviceTab === 'deployments' && (tours.length === 0 ? (
