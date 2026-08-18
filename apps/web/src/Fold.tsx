@@ -28,6 +28,7 @@ export function Fold({
   title,
   count,
   hint,
+  tone,
   open = false,
   children,
 }: {
@@ -36,6 +37,15 @@ export function Fold({
   readonly count?: number
   /** One line of what is inside, so a shut fold is still informative. */
   readonly hint?: string
+  /**
+   * HOW THE HINT READS AT A GLANCE.
+   *
+   * Seventeen schools in one column all look alike when every status line is
+   * the same grey. `ok` is the one you can act on, `no` the one you cannot,
+   * and the default is neither — so a thumb can find the actionable row
+   * without reading all seventeen.
+   */
+  readonly tone?: 'ok' | 'no'
   /** Open on arrival — for the one thing a screen is usually opened for. */
   readonly open?: boolean
   readonly children: ReactNode
@@ -45,7 +55,9 @@ export function Fold({
       <summary>
         <span className="fold-title">{title}</span>
         {count !== undefined && <span className="fold-count">{count}</span>}
-        {hint !== undefined && hint.length > 0 && <span className="fold-hint">{hint}</span>}
+        {hint !== undefined && hint.length > 0 && (
+          <span className={tone === undefined ? 'fold-hint' : `fold-hint ${tone}`}>{hint}</span>
+        )}
         <span className="fold-mark" aria-hidden="true" />
       </summary>
       <div className="fold-body">{children}</div>

@@ -3070,10 +3070,31 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           <section key={key} className="sch-group">
                             <h4 className="sch-cat">{heading}</h4>
                             {courses.map((option) => (
-                              <article key={option.id} className="sch-card">
+                              /* ONE LINE PER COURSE (owner: "school houses too
+                                 lots of scrolling"). Each card carried a name,
+                                 a grant, two meters, a requirement list, a
+                                 status and a button — several screens of thumb
+                                 per group. The summary says the course and
+                                 where you stand with it, so the whole
+                                 schoolhouse is scannable and you open the one
+                                 you are actually working toward. */
+                              <Fold
+                                key={option.id}
+                                title={option.title}
+                                hint={
+                                  option.attempts.graduated
+                                    ? 'graduated'
+                                    : option.open
+                                      ? option.monthsUntilClass === 0
+                                        ? 'a class starts this month'
+                                        : `next class in ${String(option.monthsUntilClass)} months`
+                                      : option.reason
+                                }
+                                tone={option.open || option.attempts.graduated ? 'ok' : 'no'}
+                              >
+                              <article className="sch-card">
                                 <div className="sch-head">
                                   <div>
-                                    <div className="sch-name">{option.title}</div>
                                     <div className="sch-grants">
                                       {option.gatesGrade !== null
                                         ? `Required to make E-${option.gatesGrade}`
@@ -3137,6 +3158,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                   </div>
                                 )}
                               </article>
+                              </Fold>
                             ))}
                           </section>
                         )

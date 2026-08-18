@@ -6051,5 +6051,35 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
      three, so it comes in — but never on the tap target's height. */
   .fold-body { padding: 0.2rem 0.55rem 0.6rem; }
   .fold > summary { padding-left: 0.6rem; padding-right: 0.6rem; }
-  .fold-hint { font-size: 0.72rem; }
+
+  /*
+   * THE HINT GETS ITS OWN LINE RATHER THAN AN ELLIPSIS.
+   *
+   * Squeezed beside a long title on a 375px screen it truncated to "Opens at
+   * C…", which is not information — it is the shape of information. A summary
+   * that has to be opened to find out what it says defeats the fold. Two short
+   * lines beat one useless one, and the row is still a single tap target.
+   */
+  .fold > summary {
+    flex-wrap: wrap;
+    align-items: baseline;
+    padding-top: 0.45rem;
+    padding-bottom: 0.45rem;
+  }
+  .fold-title { max-width: calc(100% - 3.5rem); }
+  .fold-hint {
+    flex: 1 0 100%;
+    order: 3;
+    text-align: left;
+    white-space: normal;
+    font-size: 0.72rem;
+    margin-top: 0.05rem;
+  }
+  /* The chevron stays on the first line, beside the title. */
+  .fold-mark { order: 2; margin-left: auto; }
 }
+
+/* The hint that says whether this row is worth a tap right now. Seventeen
+   schools in a column all read alike when every status line is the same grey. */
+.fold-hint.ok { color: var(--ok); }
+.fold-hint.no { color: var(--muted); opacity: 0.75; }
