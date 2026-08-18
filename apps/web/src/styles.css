@@ -943,6 +943,11 @@ ul.welcome-points li + li {
 }
 
 .news-year {
+  /* Sticky like the life story's own year marker already is, so scrolling a
+     century of news never leaves you wondering which decade you are in. */
+  position: sticky;
+  top: -0.7rem;
+  z-index: 1;
   width: fit-content;
   margin: 0.7rem auto 0.35rem;
   padding: 0.05rem 0.75rem;
@@ -5943,4 +5948,108 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
 .jobs-licence-blurb {
   font-size: 0.76rem;
   color: var(--muted);
+}
+
+/*
+ * A FOLD — the tappable bubble (owner: "most players are mobile... a lot of
+ * scrolling that we could cut out by adding bubbles and or drop down tab").
+ *
+ * Sized for a thumb rather than a cursor: the whole summary row is the target,
+ * never just a chevron. The closed state carries a count or a phrase, so a
+ * column of shut boxes still tells you which one you want.
+ */
+.fold {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  margin: 0.45rem 0;
+  overflow: hidden;
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  /* A 44px-tall target, which is the smallest a thumb reliably hits. */
+  min-height: 2.75rem;
+  padding: 0.55rem 0.8rem;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--fg);
+  /* Stops the double-tap-to-zoom delay on iOS, which reads as an unresponsive
+     control on exactly the devices this is for. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Safari and Chrome each draw their own marker; both are removed so the one
+   below is the only one, in the same place, on every phone. */
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::marker { content: ''; }
+
+.fold > summary:hover { background: var(--panel-raised); }
+.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+.fold-title { flex: none; }
+
+.fold-count {
+  flex: none;
+  min-width: 1.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--panel-raised);
+  border: 1px solid var(--line);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The one line that makes a shut fold worth reading. Truncates rather than
+   wrapping, because a summary that wraps to three lines is the scrolling this
+   exists to remove. */
+.fold-hint {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.74rem;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* The chevron, drawn rather than an image so it inherits the text colour. */
+.fold-mark {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.1rem;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 120ms ease;
+}
+
+.fold[open] > summary .fold-mark {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.fold[open] > summary { border-bottom: 1px solid var(--line); }
+
+.fold-body { padding: 0.2rem 0.8rem 0.7rem; }
+
+/* Inside a fold the section headings are redundant — the summary IS the
+   heading — so the first one is pulled up rather than repeating itself. */
+.fold-body > h4:first-child { margin-top: 0.5rem; }
+
+@media (max-width: 480px) {
+  /* On a phone the padding is the difference between five rows on screen and
+     three, so it comes in — but never on the tap target's height. */
+  .fold-body { padding: 0.2rem 0.55rem 0.6rem; }
+  .fold > summary { padding-left: 0.6rem; padding-right: 0.6rem; }
+  .fold-hint { font-size: 0.72rem; }
 }

@@ -43,6 +43,7 @@ import { CityHall } from './CityHall.js'
 import { Legacy } from './Legacy.js'
 import { BadgeMark } from './BadgeMark.js'
 import { CommandTab } from './CommandTab.js'
+import { Fold } from './Fold.js'
 import { WhatItLeft, WhatYouCanKnow } from './AftermathPanel.js'
 import {
   activeWars,
@@ -2854,11 +2855,17 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     const roster = unitRosterOf(world, person.id)
                     if (roster === null || roster.members.length <= 1) return null
                     return (
-                      <>
-                        <h3>{roster.unitName}</h3>
-                        <p className="muted small">
-                          {roster.branchName} · {roster.baseName}
-                        </p>
+                      /* A WHOLE COMPANY OF NAMES, folded. This is the longest
+                         list on the Career tab and on a phone it buried
+                         everything under it — which is exactly the scrolling
+                         the owner asked to cut. The summary carries the unit
+                         and the strength, so a shut fold still says who you
+                         are with. */
+                      <Fold
+                        title={roster.unitName}
+                        count={roster.members.length}
+                        hint={`${roster.branchName} · ${roster.baseName}`}
+                      >
                         <ul className="roster">
                           {roster.members.map((member) => (
                             <li key={member.personId}>
@@ -2880,7 +2887,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             </li>
                           ))}
                         </ul>
-                      </>
+                      </Fold>
                     )
                   })()}
                 {record.dischargedAtTick === null && serviceTab === 'career' && (
@@ -3209,7 +3216,16 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   }
                   return (
                     <div className="tour-squad">
-                      {reports.length > 0 && <h4>Annual reports · {reports.length}</h4>}
+                      {reports.length > 0 && (
+                        <Fold
+                          title="Annual reports"
+                          count={reports.length}
+                          hint={
+                            reports[0] === undefined
+                              ? ''
+                              : `latest: ${markWords(reports[0].mark)}`
+                          }
+                        >
                       {reports.map((report) => {
                         const rater = report.raterId === null
                           ? undefined
@@ -3248,16 +3264,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </div>
                         )
                       })}
-                      {reports.length > 0 && (
                         <p className="muted small">
                           Reports begin at sergeant and are written by whoever
                           outranks you in your unit. The man who writes them
                           changes when you move.
                         </p>
+                        </Fold>
                       )}
                       {contacts.length > 0 && (
-                        <>
-                          <h4>After-action reviews · {contacts.length}</h4>
+                        <Fold
+                          title="After-action reviews"
+                          count={contacts.length}
+                          hint="filed, one per contact"
+                        >
                           {contacts.map((contact, at) => {
                             const filed = afterActionFor(world, person.id, contact)
                             if (filed === null) return null
@@ -3351,7 +3370,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                             assessment made at the time — it can be wrong, and it
                             is never corrected.
                           </p>
-                        </>
+                        </Fold>
                       )}
                       {/* THE UNIT'S HONOURS LIVE ON THE CAREER TAB, beside the
                           unit that earned them, and nowhere else — owner: "we
@@ -3375,11 +3394,20 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   }
                   return (
                     <>
-                      <h3>The rack</h3>
-                      <RibbonRack world={world} personId={person.id} />
+                      {/* FOLDED FOR THUMBS (owner: "most players are mobile...
+                          a lot of scrolling that we could cut out"). The rack
+                          opens on arrival because it is what the tab is for;
+                          everything under it is one tap away instead of three
+                          screens down. */}
+                      <Fold title="The rack" count={decorations.length} open>
+                        <RibbonRack world={world} personId={person.id} />
+                      </Fold>
                       {badges.length > 0 && (
-                        <>
-                          <h3>Badges</h3>
+                        <Fold
+                          title="Badges"
+                          count={badges.length}
+                          hint={badges[0] ?? ''}
+                        >
                           <ul className="badge-chips">
                             {badges.map((badge) => (
                               <li key={badge} title={badge}>
@@ -3388,7 +3416,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                               </li>
                             ))}
                           </ul>
-                        </>
+                        </Fold>
                       )}
                       {(() => {
                         /**
@@ -3406,8 +3434,15 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         const permanent = world.health.get(person.id)?.permanent ?? []
                         if (woundLines.length === 0 && permanent.length === 0) return null
                         return (
-                          <>
-                            <h3>Wounds</h3>
+                          <Fold
+                            title="Wounds"
+                            count={woundLines.length + permanent.length}
+                            hint={
+                              permanent.length > 0
+                                ? `${String(permanent.length)} permanent`
+                                : 'all healed'
+                            }
+                          >
                             <ol className="timeline">
                               {woundLines.map((e) => (
                                 <li key={e.id}>
@@ -3433,10 +3468,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                 </li>
                               ))}
                             </ol>
-                          </>
+                          </Fold>
                         )
                       })()}
-                      <h3>Decorations</h3>
+                      <Fold
+                        title="Decorations"
+                        count={
+                          decorations.filter(
+                            (award) =>
+                              award.kind !== 'qualification-badge' && award.kind !== 'combat-action',
+                          ).length
+                        }
+                        hint="what each one was for"
+                      >
                       <ol className="timeline">
                         {decorations
                           .filter(
@@ -3456,6 +3500,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                           </li>
                         ))}
                       </ol>
+                      </Fold>
                     </>
                   )
                 })()}

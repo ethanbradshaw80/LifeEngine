@@ -16,6 +16,7 @@
  */
 
 import type { ReactElement } from 'react'
+import { Fold } from './Fold.js'
 import {
   DUTY_TITLES,
   enlistedBy,
@@ -62,8 +63,14 @@ export function CommandTab({
 
   return (
     <div className="tour-squad">
-      {/* §10.1. WHERE THE SERVICE HAS YOU, which is not always with your unit. */}
-      <h4>Where you are</h4>
+      {/* §10.1. WHERE THE SERVICE HAS YOU, which is not always with your unit.
+          Open on arrival: it is the one thing this tab is usually opened for,
+          and a screen of shut boxes is its own kind of unfriendly. */}
+      <Fold
+        title="Where you are"
+        open
+        hint={duty === null ? 'with your unit' : DUTY_TITLES[duty.duty]}
+      >
       <div className="sq-row">
         <span className="sq-ic" aria-hidden="true">
           🧭
@@ -105,10 +112,14 @@ export function CommandTab({
         </div>
       )}
 
+      </Fold>
+
       {/* §10.7. THE UNIT'S OWN STANDING — where the peacetime MUC comes from. */}
       {grade !== null && (
-        <>
-          <h4>The unit</h4>
+        <Fold
+          title="The unit"
+          hint={inspection === null ? 'not inspected yet' : inspection.verdict}
+        >
           <div className="sq-row">
             <span className="sq-ic" aria-hidden="true">
               🏅
@@ -130,11 +141,15 @@ export function CommandTab({
               {Math.round(grade / 10)}
             </span>
           </div>
-        </>
+        </Fold>
       )}
 
       {/* §10.3. THE PEOPLE WHO ARE YOURS. */}
-      <h4>{mine.length === 0 ? 'Nobody is yours yet' : `Yours · ${String(mine.length)}`}</h4>
+      <Fold
+        title={mine.length === 0 ? 'Nobody is yours yet' : 'Yours'}
+        {...(mine.length === 0 ? {} : { count: mine.length })}
+        open={mine.length > 0}
+      >
       {mine.length === 0 ? (
         <p className="muted small">
           Below sergeant nobody answers to you. That changes with the third stripe, and then
@@ -187,11 +202,12 @@ export function CommandTab({
         })
       )}
 
+      </Fold>
+
       {/* §10.3: "when one of yours dies, you are the one who writes the
           letter. That is the moment the whole system is for." */}
       {letter !== null && (
-        <>
-          <h4>The letter</h4>
+        <Fold title="The letter" hint="one of yours did not come home" open>
           <p className="muted small">
             One of yours did not come home, and this is the part of the job nobody trains you
             for.
@@ -204,13 +220,12 @@ export function CommandTab({
             ))}
             <p className="aar-sign">{letter[letter.length - 1]}</p>
           </div>
-        </>
+        </Fold>
       )}
 
       {/* §10.1's whole reason for existing: the recruiter's own list. */}
       {signedUp.length > 0 && (
-        <>
-          <h4>People you signed up · {signedUp.length}</h4>
+        <Fold title="People you signed up" count={signedUp.length}>
           <p className="muted small">
             You sat in the office and they walked in. Their records carry your name on the day
             they enlisted, and will for the rest of their lives.
@@ -240,7 +255,7 @@ export function CommandTab({
               </div>
             )
           })}
-        </>
+        </Fold>
       )}
     </div>
   )
