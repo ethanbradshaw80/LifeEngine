@@ -26,7 +26,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
-import type { Money } from '@life-engine/shared'
+import type { EntityId, Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { ageAt } from '../src/clock.js'
 import { livingPeople } from '../src/systems.js'
@@ -35,7 +35,7 @@ import { setPlayer, startBusiness } from '../src/player.js'
 import type { World } from '../src/types.js'
 
 /** The wealthy shopkeeper the money tests have used since the first report. */
-function aShopkeeper(seedValue: number): { world: World; personId: number } {
+function aShopkeeper(seedValue: number): { world: World; personId: EntityId } {
   const world = createWorld(makeSeed(seedValue), 100)
   advanceTicks(world, 30 * 12)
   const person = livingPeople(world)

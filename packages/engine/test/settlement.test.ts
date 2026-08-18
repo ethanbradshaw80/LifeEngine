@@ -63,7 +63,9 @@ describe('settling down here', () => {
       type: 'spouse',
       strength: 900,
       typeSinceTick: world.tick,
-      sinceTick: world.tick,
+      formedAtTick: world.tick,
+      endedAtTick: null,
+      familySizeAspiration: null,
     })
 
     // WHILE HE IS SERVING, he stays where he is posted. A wedding does not

@@ -35,7 +35,7 @@ function enlist(world: ReturnType<typeof createWorld>, personId: number): void {
     rankSinceTick: world.tick,
     qualifications: [],
     enlistedAtTick: world.tick,
-    baseId: null,
+    baseId: personId as never,
     monthlyPay: 139_000 as never,
     performance: 700,
     termMonthsLeft: 40,
@@ -47,7 +47,22 @@ function enlist(world: ReturnType<typeof createWorld>, personId: number): void {
     schoolId: null,
     schoolStartsAtTick: null,
     fitnessTestedAtTick: world.tick,
-  } as never)
+    /**
+     * THE TWO FIELDS THE `as never` WAS HIDING.
+     *
+     * Without `priorSpecialtyIds` this fixture crashed the whole tick —
+     * `veteranUnlocks` spreads it the moment this soldier is discharged, and
+     * `runEmployment` calls that for every veteran in town, so one incomplete
+     * test record took down fourteen months of world simulation with
+     * "record.priorSpecialtyIds is not iterable".
+     *
+     * `baseId` was `null` against a type that says `EntityId`. The cast on the
+     * object literal is gone so the compiler catches the next field the
+     * record grows, which is the only reason this drifted in the first place.
+     */
+    priorSpecialtyIds: [],
+    specialtyChangedAtTick: null,
+  })
   // The BODY lives on the person now, and the fitness-failure flag reads it
   // — without this every fixture soldier is flagged for being unfit and the
   // flag tests measure the wrong thing entirely.

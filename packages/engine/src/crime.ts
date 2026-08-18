@@ -995,7 +995,7 @@ function resolveViolence(
     return offence
   }
 
-  inflictWound(world, tick, victim.id, severity, 'direct-combat', rng)
+  inflictWound(world, tick, victim.id, severity, 'assault', rng)
   recordEvent(world, tick, {
     type: 'was-injured',
     subjectId: victim.id,
@@ -1973,7 +1973,7 @@ export function defendTheHouse(
         Stream.Crime,
       )
     } else {
-      inflictWound(world, tick, thief.id, 500 + rng.nextInt(0, 300), 'direct-combat', rng)
+      inflictWound(world, tick, thief.id, 500 + rng.nextInt(0, 300), 'assault', rng)
       recordEvent(world, tick, {
         type: 'was-injured',
         subjectId: thief.id,

@@ -31,6 +31,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
+import type { EntityId } from '@life-engine/shared'
 import { ageAt } from '../src/clock.js'
 import { relationKey } from '../src/geopolitics.js'
 import { homeland } from '../src/geopolitics.js'
@@ -68,7 +69,7 @@ function aPlayerWithASquad(seedValue = 12345): World {
 
   // A cohort, so there is a unit for a squad to be drawn from.
   let enlisted = 0
-  let playerId: number | null = null
+  let playerId: EntityId | null = null
   for (const person of livingPeople(world)) {
     if (enlisted >= 14) break
     const age = ageAt(person.birthTick, world.tick)

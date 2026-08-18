@@ -19,6 +19,20 @@ export const SCHEMA_VERSION = 1
 /**
  * Simulation behaviour version.
  *
+ * v193 — Provenance, violence and the raider. Three behaviour changes, all
+ *      of which move every seed:
+ *      (a) A wound is service-connected only if the CONTEXT was line of duty.
+ *          `inflictWound` stamped `true` unconditionally, and civilian
+ *          accidents run through the same function, so ordinary townspeople
+ *          accrued service disability ratings and drew pensions for falls.
+ *      (b) Violent crime draws from its own `assault` injury table instead of
+ *          borrowing `direct-combat` — a stabbing outside a tavern could
+ *          produce SHRAPNEL. Different draws, so crime histories differ.
+ *      (c) The yearly raider on a player's floated company can no longer be
+ *          somebody drawing on the player's own wallet. It reliably picked
+ *          the player's spouse, who bought the company with the player's own
+ *          savings and then blocked every real rival for ever.
+ *
  * v1 — Milestone 1. Placeholder friendships; partnership was an accident of
  *      shared housing.
  * v11 — M-WOUNDS. Harm is specific: injury kinds and sites picked from the
@@ -617,7 +631,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 192
+export const SIMULATION_VERSION = 193
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'

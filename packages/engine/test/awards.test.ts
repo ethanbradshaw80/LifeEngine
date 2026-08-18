@@ -28,6 +28,7 @@ import { inflictWound } from '../src/health.js'
 import { advanceTicks, createWorld } from '../src/index.js'
 import { pensionOf } from '../src/service.js'
 import { recordEvent } from '../src/records.js'
+import { openStream, Stream } from '../src/rng.js'
 import { freshHealth } from '../src/health.js'
 import { livingPeople } from '../src/systems.js'
 import type { World } from '../src/types.js'
@@ -340,10 +341,53 @@ describe('the pension', () => {
     expect(pensionOf(world, soldierId)).toBe(0)
   })
 
-  it('a wound inflicted on deployment is stamped service-connected; a civilian one is not', () => {
+  /**
+   * A REAL STREAM, NOT A HAND-ROLLED `{ pick }`.
+   *
+   * The stub this used to pass satisfied `inflictWound`'s declared parameter
+   * and then died inside it, because the signature promised callers it needed
+   * only `pick` while the body reached for `pickWeighted`. A stub that has to
+   * be kept in step with a private call chain is a second implementation of
+   * the RNG; the engine's own stream cannot drift from itself.
+   */
+  function aStream(world: World, personId: EntityId) {
+    return openStream(world.seed, Stream.Health, personId, world.tick)
+  }
+
+  it('a wound inflicted on deployment is stamped service-connected', () => {
     const { world, soldierId } = worldWithASoldier()
-    const rng = { pick: <T>(items: readonly T[]) => items[0] as T }
-    inflictWound(world, world.tick, soldierId, 700, 'direct-combat', rng)
+    inflictWound(world, world.tick, soldierId, 700, 'direct-combat', aStream(world, soldierId))
+    expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(true)
+  })
+
+  /**
+   * THE HALF OF THIS TEST'S NAME THAT WAS NEVER WRITTEN — and the bug it was
+   * hiding.
+   *
+   * `inflictWound` stamped `true` unconditionally, and `systems.ts` puts
+   * every ordinary civilian accident in the world through it. So a veteran
+   * who fell off a ladder at fifty accrued a SERVICE disability rating and
+   * `pensionOf` paid him for the fall. Provenance now follows the context.
+   */
+  it('a civilian accident is not, even to a man who served', () => {
+    const { world, soldierId } = worldWithASoldier()
+    inflictWound(world, world.tick, soldierId, 700, 'mishap', aStream(world, soldierId))
+    expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(false)
+  })
+
+  it('a mugging is not a war wound', () => {
+    const { world, soldierId } = worldWithASoldier()
+    inflictWound(world, world.tick, soldierId, 700, 'assault', aStream(world, soldierId))
+    expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(false)
+  })
+
+  it('a combat wound on top of a civilian one keeps its provenance', () => {
+    // The compounding branch renames the record to the new wound; it used to
+    // inherit the old flag, so this man's gunshot never reached the pension.
+    const { world, soldierId } = worldWithASoldier()
+    inflictWound(world, world.tick, soldierId, 400, 'mishap', aStream(world, soldierId))
+    expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(false)
+    inflictWound(world, world.tick, soldierId, 700, 'direct-combat', aStream(world, soldierId))
     expect(world.health.get(soldierId)?.ailmentServiceConnected).toBe(true)
   })
 })

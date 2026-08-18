@@ -32,11 +32,34 @@ import { ageAt } from './clock.js'
 import { MACHINES_BY_OCCUPATION, occupationById, PENSION_CENTS_PER_POINT, PENSION_THRESHOLD } from './content.js'
 import { raisePending } from './player.js'
 import { factor, recordDecision, recordEvent } from './records.js'
-import { openStream, Stream } from './rng.js'
+import { openStream, Stream, type Rng } from './rng.js'
 import { wellbeingBaselineFor, wellbeingOf } from './wellbeing.js'
 import type { BodySite, HealthRecord, Person, World } from './types.js'
 import { describeAilment, markFor, pickFieldIllness, pickIllness, pickInjury } from './wounds.js'
 import type { InjuryContext } from './wounds.js'
+
+/**
+ * WHICH WOUNDS ARE LINE OF DUTY.
+ *
+ * `inflictWound` used to stamp `ailmentServiceConnected: true` on EVERY wound
+ * that came through it, on the reasoning that "every wound through this door
+ * came from a deployment". That was never true. `systems.ts` sends ordinary
+ * civilian accidents through the same door (`mishap`, severity 600-950),
+ * `tick.ts` sends off-duty ones, and `crime.ts` sent muggings — so a man who
+ * fell off a ladder at fifty accrued a SERVICE disability rating, and
+ * `pensionOf` paid him for it.
+ *
+ * Provenance is a property of HOW somebody was hurt, so it is read off the
+ * context rather than assumed from the call site. Line of duty is line of
+ * duty — a truck rolling on a supply run counts as much as fire does, which
+ * is why `field-accident` is in this set — but a ladder at home is not.
+ */
+const LINE_OF_DUTY: ReadonlySet<InjuryContext> = new Set<InjuryContext>([
+  'direct-combat',
+  'convoy',
+  'base-attack',
+  'field-accident',
+])
 
 // --- Tunables ---------------------------------------------------------------
 
@@ -603,10 +626,20 @@ export function inflictWound(
   personId: EntityId,
   severity: number,
   context: InjuryContext,
-  rng: { pick: <T>(items: readonly T[]) => T },
+  /**
+   * A WHOLE `Rng`, NOT A `{ pick }`.
+   *
+   * This used to promise callers it needed nothing but `pick`, and then cast
+   * `rng as never` on the way into `pickInjury` — so when the injury table
+   * gained WEIGHTS (frostbite was one field accident in eight under a uniform
+   * pick), the body started calling `pickWeighted` and the signature went on
+   * telling every caller it was not needed. The compiler cannot catch a lie it
+   * was handed. The type says what the body actually uses now.
+   */
+  rng: Rng,
 ): { kind: string; site: BodySite | null; description: string; severity: number } {
   const record = world.health.get(personId) ?? freshHealth(personId)
-  const injury = pickInjury(rng as never, context)
+  const injury = pickInjury(rng, context)
   /**
    * THE KIND CAPS THE SEVERITY (live player, on itch: evacuated home and
    * decorated "for something like blown out hearing").
@@ -641,6 +674,17 @@ export function inflictWound(
       severity: worse,
       peakSeverity: Math.max(record.peakSeverity, worse),
       askedConvalesce: false,
+      /**
+       * THE BODY IS CARRYING BOTH, so provenance is carrying both.
+       *
+       * This branch renames the record to the NEW wound but used to inherit
+       * the old flag untouched, which broke in the direction that costs a
+       * man money: a combat wound landing on top of a civilian one kept
+       * `false` and never reached the pension. Taking either is the honest
+       * rule — the department rates the part it can attribute, and a later
+       * scrape does not un-attribute a gunshot.
+       */
+      ailmentServiceConnected: record.ailmentServiceConnected || LINE_OF_DUTY.has(context),
     })
     return { kind: injury.kind, site: injury.site, description, severity }
   }
@@ -653,11 +697,10 @@ export function inflictWound(
     peakSeverity: severity,
     sinceTick: tick,
     askedConvalesce: false,
-    // Every wound through this door came from a deployment — any channel,
-    // accident included: line of duty is line of duty. Provenance is
-    // stamped NOW because only now is it knowable; the pension reads what
-    // this becomes when it resolves, however many years from now.
-    ailmentServiceConnected: true,
+    // Provenance is stamped NOW because only now is it knowable; the
+    // pension reads what this becomes when it resolves, however many years
+    // from now. See LINE_OF_DUTY for why this is no longer a bare `true`.
+    ailmentServiceConnected: LINE_OF_DUTY.has(context),
   })
   return { kind: injury.kind, site: injury.site, description, severity }
 }
@@ -674,11 +717,21 @@ export function inflictFieldIllness(
   tick: Tick,
   personId: EntityId,
   severity: number,
-  rng: { pick: <T>(items: readonly T[]) => T },
+  /**
+   * A WHOLE `Rng`, NOT A `{ pick }`.
+   *
+   * This used to promise callers it needed nothing but `pick`, and then cast
+   * `rng as never` on the way into `pickInjury` — so when the injury table
+   * gained WEIGHTS (frostbite was one field accident in eight under a uniform
+   * pick), the body started calling `pickWeighted` and the signature went on
+   * telling every caller it was not needed. The compiler cannot catch a lie it
+   * was handed. The type says what the body actually uses now.
+   */
+  rng: Rng,
 ): { kind: string; description: string } | null {
   const record = world.health.get(personId) ?? freshHealth(personId)
   if (record.ailment !== null) return null
-  const kind = pickFieldIllness(rng as never)
+  const kind = pickFieldIllness(rng)
   world.health.set(personId, {
     ...record,
     ailment: 'illness',

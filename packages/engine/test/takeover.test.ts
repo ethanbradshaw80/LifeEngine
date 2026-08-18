@@ -241,4 +241,45 @@ describe('somebody comes for what you floated', () => {
       expect(world.events.some((e) => e.type === 'took-control')).toBe(true)
     }
   })
+
+  it('never lets the player’s own household be the raider', () => {
+    /**
+     * THE BUG THAT BROKE THE TEST ABOVE, pinned on its own so it cannot come
+     * back quietly.
+     *
+     * The pass reads the WALLET to pick the richest person in town, which is
+     * right — a married couple raid from one purse. But the player's spouse
+     * draws on the PLAYER'S wallet, so with a rich player the richest
+     * non-player in town was reliably somebody in the player's own house.
+     * Measured at seed 4242: it picked person 156, wallet holder 36 — the
+     * player — already holding the whole company. The player bought their own
+     * company from themselves, no money left the household, and the 100 per
+     * cent holding made the pass `continue` every year after, so no genuine
+     * rival ever got near it.
+     */
+    const { world, person, stockId } = aBuyer()
+    startBusiness(world, 'shop')
+    ;(world.player as { pending: unknown }).pending = null
+    const business = [...world.businesses.values()].find((b) => b.ownerId === person.id)
+    expect(business).toBeDefined()
+    if (!business) return
+    world.businesses.set(business.id, { ...business, listedStockId: stockId })
+
+    const playerPurse = walletOf(world, person.id).personId
+    for (let month = 0; month < 14; month += 1) {
+      ;(world.player as { pending: unknown }).pending = null
+      advanceTicks(world, 1)
+    }
+
+    // Nobody drawing on the player's own wallet may hold a slice of the
+    // player's own float that they did not buy themselves.
+    for (const other of livingPeople(world)) {
+      if (other.id === person.id) continue
+      if (walletOf(world, other.id).personId !== playerPurse) continue
+      expect(
+        stakePerMilleOf(world, accountsOf(world, other.id).holdings, stockId),
+        `${String(other.id)} raided the player's company out of the player's own purse`,
+      ).toBe(0)
+    }
+  })
 })

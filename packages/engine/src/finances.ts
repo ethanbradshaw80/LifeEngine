@@ -6307,9 +6307,27 @@ function runRaiders(world: World, tick: Tick): void {
      */
     let raider: Person | undefined
     let deepest = 0
+    /**
+     * NOT OUT OF THE PLAYER'S OWN PURSE.
+     *
+     * Excluding `playerId` alone was not enough, and the hole was wide.
+     * Reading the WALLET is right — a married couple raid from one purse —
+     * but the player's SPOUSE shares the player's wallet, so the richest
+     * non-player in town was reliably somebody in the player's own house.
+     * MEASURED at seed 4242: the pass picked person 156, whose wallet holder
+     * was 36 — the player — and who already held 1000 per mille of the
+     * company. The player was buying their own company from themselves with
+     * their own savings, the money never left the household, and because
+     * that holding sat at 100 per cent the loop hit `continue` every year
+     * and no actual rival ever got a look at it.
+     *
+     * Anybody drawing on the player's wallet is the player for this purpose.
+     */
+    const playerPurse = walletOf(world, playerId).personId
     for (const person of [...world.people.values()].sort((a, b) => a.id - b.id)) {
       if (person.deathTick !== null || person.id === playerId) continue
       if (ageAt(person.birthTick, tick) < 25) continue
+      if (walletOf(world, person.id).personId === playerPurse) continue
       const purse = walletOf(world, person.id).savings
       if (purse > deepest) {
         deepest = purse

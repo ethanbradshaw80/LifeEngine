@@ -30,11 +30,22 @@ export type InjuryContext =
   | 'convoy'
   | 'base-attack'
   | 'field-accident' // deployment tempo: vehicles, weather, fatigue
+  /**
+   * VIOLENCE THAT IS NOT WAR: a mugging, a bar fight, a robbery gone wrong.
+   *
+   * Crime used to borrow `direct-combat` for this, which was wrong twice
+   * over. It drew SHRAPNEL for a stabbing on a street corner — nobody is
+   * shelled outside a tavern — and, because provenance follows the context,
+   * it stamped a mugging as line of duty, so a veteran robbed at sixty
+   * accrued a SERVICE disability rating and drew a bigger pension for it.
+   */
+  | 'assault'
 
 const INJURY_KINDS_BY_CONTEXT: Readonly<Record<InjuryContext, readonly InjuryKind[]>> = {
   machinery: ['crush', 'laceration', 'fracture', 'amputation', 'electrocution', 'chemical-burns', 'eye-injury'],
   mishap: ['fracture', 'concussion', 'laceration', 'crush', 'spinal-injury', 'near-drowning', 'smoke-inhalation', 'animal-bite', 'frostbite'],
   'direct-combat': ['gunshot', 'shrapnel', 'laceration', 'hearing-damage', 'eye-injury'],
+  assault: ['laceration', 'fracture', 'concussion', 'crush', 'internal-injury', 'gunshot'],
   convoy: ['blast', 'shrapnel', 'crush', 'concussion', 'amputation', 'internal-injury', 'hearing-damage'],
   'base-attack': ['blast', 'burns', 'shrapnel', 'concussion', 'hearing-damage', 'smoke-inhalation'],
   'field-accident': ['crush', 'fracture', 'burns', 'concussion', 'heatstroke', 'frostbite', 'near-drowning', 'spinal-injury'],

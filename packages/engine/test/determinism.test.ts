@@ -94,7 +94,15 @@ export const GOLDEN_TICKS = 120
 // the charge sheet are player-path only, so an unplayed world is byte
 // identical and DETERMINISM.md §7 puts player-path changes on the schema
 // version instead.
-export const GOLDEN_HASH_HEX = 'a7f1f732'
+//
+// SIMULATION_VERSION 193: three behaviour changes that all reach an UNPLAYED
+// world, so the bump is required rather than optional. A wound is
+// service-connected only when the context was line of duty (civilian
+// accidents were accruing service disability and drawing pensions); violent
+// crime draws from its own `assault` table instead of borrowing the combat
+// one; and the yearly raider can no longer be somebody spending out of the
+// player's own wallet. See the v193 entry in snapshot.ts.
+export const GOLDEN_HASH_HEX = '68dbd926'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -167,7 +175,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":192')
+    expect(text).toContain('"simulationVersion":193')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })
