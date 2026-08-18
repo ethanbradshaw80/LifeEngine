@@ -3066,35 +3066,42 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                       return groups.map(({ key, heading }) => {
                         const courses = all.filter((option) => option.category === key)
                         if (courses.length === 0) return null
+                        const joinable = courses.filter(
+                          (option) => option.open && !option.attempts.graduated,
+                        ).length
+                        const done = courses.filter((option) => option.attempts.graduated).length
                         return (
-                          <section key={key} className="sch-group">
-                            <h4 className="sch-cat">{heading}</h4>
+                          /* THE HEADER IS THE BUBBLE (owner: "I think you
+                             shouldve just had them listed under their
+                             headers"). The first pass folded every course
+                             separately, which traded one long scroll for
+                             seventeen shut boxes — noise of a different shape,
+                             and it hid the grouping that was doing the real
+                             work. Three groups now, each saying how many
+                             courses it holds and how many you could actually
+                             join, with the courses listed inside as they
+                             always were. A group with something open to you
+                             starts open, because that is the one you came
+                             here for. */
+                          <Fold
+                            key={key}
+                            title={heading}
+                            count={courses.length}
+                            hint={
+                              joinable > 0
+                                ? `${String(joinable)} you can join now`
+                                : done > 0
+                                  ? `${String(done)} graduated`
+                                  : 'none open to you yet'
+                            }
+                            tone={joinable > 0 ? 'ok' : 'no'}
+                            open={joinable > 0}
+                          >
                             {courses.map((option) => (
-                              /* ONE LINE PER COURSE (owner: "school houses too
-                                 lots of scrolling"). Each card carried a name,
-                                 a grant, two meters, a requirement list, a
-                                 status and a button — several screens of thumb
-                                 per group. The summary says the course and
-                                 where you stand with it, so the whole
-                                 schoolhouse is scannable and you open the one
-                                 you are actually working toward. */
-                              <Fold
-                                key={option.id}
-                                title={option.title}
-                                hint={
-                                  option.attempts.graduated
-                                    ? 'graduated'
-                                    : option.open
-                                      ? option.monthsUntilClass === 0
-                                        ? 'a class starts this month'
-                                        : `next class in ${String(option.monthsUntilClass)} months`
-                                      : option.reason
-                                }
-                                tone={option.open || option.attempts.graduated ? 'ok' : 'no'}
-                              >
-                              <article className="sch-card">
+                              <article key={option.id} className="sch-card">
                                 <div className="sch-head">
                                   <div>
+                                    <div className="sch-name">{option.title}</div>
                                     <div className="sch-grants">
                                       {option.gatesGrade !== null
                                         ? `Required to make E-${option.gatesGrade}`
@@ -3158,9 +3165,8 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                                   </div>
                                 )}
                               </article>
-                              </Fold>
                             ))}
-                          </section>
+                          </Fold>
                         )
                       })
                     })()}
