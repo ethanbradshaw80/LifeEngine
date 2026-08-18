@@ -43,7 +43,7 @@ import { CityHall } from './CityHall.js'
 import { Legacy } from './Legacy.js'
 import { BadgeMark } from './BadgeMark.js'
 import { CommandTab } from './CommandTab.js'
-import { AftermathPanel } from './AftermathPanel.js'
+import { TheMenYouStoodWith, WhatItLeft } from './AftermathPanel.js'
 import {
   activeWars,
   ageAt,
@@ -3361,13 +3361,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </div>
                   )
                 })()}
-                {/* WHAT THE WAR LEFT (plan sections 5.2, 6 and 7). It sits on
-                    the Record because that is where a life is read back, and
-                    because none of it is a thing you do — it is a thing that
-                    happened to you. */}
-                {serviceTab === 'record' && (
-                  <AftermathPanel world={world} personId={person.id} onInspect={onInspect} />
-                )}
                 {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
                   // Combat badges are badges, wherever their kind sits.
@@ -3475,6 +3468,11 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                 )}
                 {serviceTab === 'deployments' && currentTour !== undefined && (
                   <TourPanel world={world} tour={currentTour} onInspect={onInspect} />
+                )}
+                {/* §6 and §5.2 — the men, and what can honestly be known,
+                    beside the tours they belong to rather than on the rack. */}
+                {serviceTab === 'deployments' && (
+                  <TheMenYouStoodWith world={world} personId={person.id} onInspect={onInspect} />
                 )}
                 {serviceTab === 'deployments' && <h3>Deployments</h3>}
                 {serviceTab === 'deployments' && (tours.length === 0 ? (
@@ -3756,6 +3754,14 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
               tours dashboard. */}
           <BodyDiagram world={world} personId={person.id} />
           <CoverageCard world={world} personId={person.id} busy={busy} onAct={onAct} />
+          {/* §7 — LASTING INJURY, WITH THE HEALTH. The plan says outright that
+              it "routes into systems that already exist: wellbeing, the
+              medical board, and the benefits claim path", and this is where a
+              player comes to ask how their character is actually doing. It was
+              on the service Record, above the ribbons, which pushed the record
+              itself down the page and read as though the game had lost the
+              plot (owner: "record is all messed"). */}
+          <WhatItLeft world={world} personId={person.id} />
           {(() => {
             const record = healthOf(world, person.id)
             const ailing = record !== undefined && record.ailment !== null

@@ -215,8 +215,23 @@ export function attributionFor(world: World, personId: EntityId, tick: Tick): At
  */
 export interface Aftermath {
   readonly burden: number
-  /** Named people and specific days. Empty for most veterans, which is right. */
+  /**
+   * Named people and specific days, together. Kept because it is the plain
+   * "can this explain itself" check, and Law 3 is about being able to.
+   */
   readonly causes: readonly string[]
+  /**
+   * THE TWO KINDS, SEPARATED — and they have to be, because they cannot go in
+   * one sentence.
+   *
+   * OWNER, reading the first version: "the wordings doesnt make sense." It
+   * joined these into one list with commas and produced "It is about Roy
+   * Dillard, the day you were hit, being held." People and events are
+   * different grammar; a screen can only write them properly if it is given
+   * them apart.
+   */
+  readonly lost: readonly string[]
+  readonly own: readonly string[]
   /** Whether it crossed into something a doctor would put a name to. */
   readonly lasting: boolean
 }
@@ -226,9 +241,12 @@ export const LASTING_AT = 620
 
 export function aftermathOf(world: World, personId: EntityId, tick: Tick): Aftermath {
   const record = world.service.get(personId)
-  if (record === undefined) return { burden: 0, causes: [], lasting: false }
+  if (record === undefined) {
+    return { burden: 0, causes: [], lost: [], own: [], lasting: false }
+  }
 
-  const causes: string[] = []
+  const lost: string[] = []
+  const own: string[] = []
   let burden = 0
 
   // LOSING SOMEBODY BY NAME. The single largest input, and it is a person.
@@ -241,7 +259,7 @@ export function aftermathOf(world: World, personId: EntityId, tick: Tick): After
     if (them?.deathTick === undefined || them.deathTick === null) continue
     if (them.deathTick > tick) continue
     burden += 150
-    causes.push(`${them.givenName} ${them.familyName}`)
+    lost.push(`${them.givenName} ${them.familyName}`)
   }
 
   const mine = eventsFor(world, personId)
@@ -249,12 +267,12 @@ export function aftermathOf(world: World, personId: EntityId, tick: Tick): After
   const wounds = mine.filter((e) => e.type === 'wounded-in-action' && e.tick <= tick).length
   if (wounds > 0) {
     burden += Math.min(200, wounds * 90)
-    causes.push(wounds === 1 ? 'the day you were hit' : `${String(wounds)} times hit`)
+    own.push(wounds === 1 ? 'you were hit once' : `you were hit ${String(wounds)} times`)
   }
   // CAPTIVITY, which is its own category and always is.
   if (tours.some((tour) => tour.capturedAtTick !== null)) {
     burden += 260
-    causes.push('being held')
+    own.push('you were taken prisoner')
   }
   // A LOT OF CONTACT is an input, but a small one — §7 is explicit that this
   // is about WHO rather than how many months in country.
@@ -277,5 +295,11 @@ export function aftermathOf(world: World, personId: EntityId, tick: Tick): After
   burden -= Math.min(400, yearsSince * 18)
 
   const bounded = Math.max(0, Math.min(1000, burden))
-  return { burden: bounded, causes, lasting: bounded >= LASTING_AT }
+  return {
+    burden: bounded,
+    causes: [...lost, ...own],
+    lost,
+    own,
+    lasting: bounded >= LASTING_AT,
+  }
 }
