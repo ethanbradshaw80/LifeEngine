@@ -2995,8 +2995,6 @@ export type EventType =
   | 'unit-awarded'
   /** The unit's annual inspection, graded (plan §10.7). */
   | 'unit-inspected'
-  /** A panel of named seniors, and it can be failed (plan §10.7). */
-  | 'faced-a-board'
   /** Something went wrong on an exercise (plan §10.5). */
   | 'training-accident'
   /** Off duty, on a road, and peacetime's quietest killer (plan §10.5). */
@@ -3174,7 +3172,6 @@ export type DecisionType =
   /** The annual report: the work done, and what the man writing it thought. */
   | 'evaluation'
   /** Appearing before a board — the outcome is on the record either way. */
-  | 'board'
   /** Off-duty trouble, and what led to it. */
   | 'discipline'
   /** Where the service is sending you, and why (plan §10.1). */

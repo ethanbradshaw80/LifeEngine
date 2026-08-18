@@ -45,8 +45,44 @@ import { useWorld } from './useWorld.js'
  * browser. KEEP THIS IN STEP WITH THE TEST.
  */
 const GOLDEN_SEED = 12345
+
+/**
+ * A SEED NOBODY HAS PLAYED BEFORE.
+ *
+ * OWNER: "I think the issues with the repeating history is that if a player
+ * wants to change the seed they have to advance settings. Isnt this making
+ * every game play out the same?"
+ *
+ * It was, and completely. The app booted `useWorld(GOLDEN_SEED)` and the seed
+ * box defaulted to the same number, so every player who has ever opened this
+ * game and not typed over it got seed 12345 — which is the DETERMINISM TEST'S
+ * FIXTURE. The same war in 1975, the same Eleanor Hoffman killed in 1976, the
+ * same forty years of news, every time, for everybody. The repeating history
+ * he kept seeing was one world being handed out over and over.
+ *
+ * The randomness lives HERE and can only live here: `apps/web` owns all I/O
+ * (ADR-0003), and the engine is forbidden randomness of its own precisely so
+ * that a seed means something. The seed stays visible and typeable, because a
+ * player who wants to replay a world — or send one to somebody — must still
+ * be able to.
+ */
+/**
+ * DRAWN ONCE PER PAGE LOAD, not per render — the seed box and the world the
+ * worker builds have to be the same number, and a function called twice is
+ * two different worlds.
+ */
+const FIRST_SEED = freshSeed()
+
+function freshSeed(): number {
+  const buffer = new Uint32Array(1)
+  globalThis.crypto.getRandomValues(buffer)
+  // Never zero, and never the fixture: one is a degenerate stream and the
+  // other is the world this whole comment exists about.
+  const drawn = (buffer[0] ?? 0) % 900_000_000
+  return drawn <= 1 || drawn === GOLDEN_SEED ? 7_777_777 : drawn
+}
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '7a054f73'
+const GOLDEN_HASH_HEX = 'a7f1f732'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
@@ -72,10 +108,10 @@ export function App() {
     act,
     choose,
     discardSave,
-  } = useWorld(GOLDEN_SEED)
+  } = useWorld(FIRST_SEED)
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
-  const [seedInput, setSeedInput] = useState(String(GOLDEN_SEED))
+  const [seedInput, setSeedInput] = useState(String(FIRST_SEED))
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
   const [picking, setPicking] = useState(false)
@@ -234,7 +270,7 @@ export function App() {
           <>
             <p className="banner bad">{message ?? 'The saved game could not be opened.'}</p>
             <section className="controls">
-              <button type="button" className="primary" onClick={() => newWorld(GOLDEN_SEED)}>
+              <button type="button" className="primary" onClick={() => { newWorld(freshSeed()) }}>
                 Start a new world
               </button>
               <button type="button" onClick={discardSave}>

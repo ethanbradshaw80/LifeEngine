@@ -456,12 +456,6 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
             ? `${year} — The unit scraped through its inspection.`
             : `${year} — The unit passed its inspection.`
     }
-    case 'faced-a-board': {
-      const [outcome] = (event.detail ?? '').split('|')
-      return outcome === 'passed'
-        ? `${year} — Went before the board, in a pressed uniform, and was recommended.`
-        : `${year} — Went before the board and was turned down.`
-    }
     case 'unit-awarded': {
       // THE UNIT'S DECORATION, said in the unit's name rather than the
       // person's — that is the whole difference between the two kinds.

@@ -60,18 +60,14 @@ describe('the unit is graded', () => {
     }
   })
 
-  it('is a board a person can fail, and both outcomes reach the record', () => {
-    const world = createWorld(makeSeed(4242), 300)
-    advanceTicks(world, 40 * 12)
-    const boards = world.events.filter((e) => e.type === 'faced-a-board')
-    expect(boards.length, 'nobody ever went before a board').toBeGreaterThan(0)
-    const outcomes = new Set(boards.map((e) => (e.detail ?? '').split('|')[0]))
-    // A board nobody fails is a formality, and a board nobody passes is a
-    // wall. Both have to happen in forty years of a town's service.
-    expect(outcomes.has('passed'), 'nobody ever passed a board').toBe(true)
-    expect(outcomes.has('failed'), 'nobody ever failed a board').toBe(true)
-  })
-
+  /**
+   * THE BOARD TEST WENT WITH THE BOARD (owner: "we already have a board thing
+   * set up"). `service.ts`'s `boardStandingFor` is the promotion board, with
+   * its own screen; the one this file used to test was a second one I added
+   * beside it, answering the same question on a different schedule. What is
+   * left here is the INSPECTION, which grades the UNIT and which nothing else
+   * in the game does.
+   */
   it('remembers a unit’s last inspection for the people in it', () => {
     const world = createWorld(makeSeed(4242), 300)
     advanceTicks(world, 30 * 12)

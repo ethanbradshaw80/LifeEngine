@@ -26,10 +26,8 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { TICKS_PER_YEAR } from '@life-engine/shared'
 import { toDate } from './clock.js'
 import { eventsFor } from './eventindex.js'
-import { recordDecision, recordEvent } from './records.js'
-import { factor } from './records.js'
-import { hash32, openStream, Stream } from './rng.js'
-import { rankTitle } from './service.js'
+import { recordEvent } from './records.js'
+import { hash32, Stream } from './rng.js'
 import { unitGradeOf, unitKeyOf } from './unitawards.js'
 import type { World } from './types.js'
 
@@ -127,114 +125,20 @@ export function lastInspectionOf(
     : { verdict: found.verdict, grade: found.grade, year: found.year }
 }
 
-/** How senior somebody has to be before a board will look at them. */
-const BOARD_FROM_RANK = 3
-
 /**
- * THE BOARD.
+ * THE PROMOTION BOARD WAS ALREADY BUILT, AND I BUILT A SECOND ONE.
  *
- * Three senior people from the unit, by name, and they can turn you down. It
- * reads §10.2's `regardBetween` for each panel member rather than inventing a
- * second opinion of you — the first sergeant who has it in for you writes your
- * evaluation AND sits on your board, which is exactly the point.
- */
-export interface BoardPanel {
-  readonly members: readonly { readonly personId: EntityId; readonly title: string }[]
-  /** 0–1000: how the room is disposed towards them before a word is said. */
-  readonly regard: number
-}
-
-export function panelFor(
-  world: World,
-  personId: EntityId,
-  regardOf: (world: World, raterId: EntityId, ratedId: EntityId) => number,
-): BoardPanel | null {
-  const own = world.service.get(personId)
-  if (own === undefined || own.dischargedAtTick !== null) return null
-  const key = unitKeyOf(world, personId)
-  if (key === null) return null
-
-  const seniors: { personId: EntityId; rank: number }[] = []
-  for (const record of world.service.values()) {
-    if (record.dischargedAtTick !== null) continue
-    if (record.personId === personId) continue
-    if (unitKeyOf(world, record.personId) !== key) continue
-    if (world.people.get(record.personId)?.deathTick !== null) continue
-    if (record.rank <= own.rank) continue
-    seniors.push({ personId: record.personId, rank: record.rank })
-  }
-  if (seniors.length === 0) return null
-
-  // The most senior three, and id order under that so the panel is stable.
-  seniors.sort((a, b) => b.rank - a.rank || a.personId - b.personId)
-  const sitting = seniors.slice(0, 3)
-
-  let regard = 0
-  const members = sitting.map((each) => {
-    const theirs = world.service.get(each.personId)
-    const them = world.people.get(each.personId)
-    regard += regardOf(world, each.personId, personId)
-    return {
-      personId: each.personId,
-      title: `${
-        theirs === undefined
-          ? ''
-          : `${rankTitle(world, theirs.branch, theirs.rank, theirs.commissioned === true)} `
-      }${them?.givenName ?? ''} ${them?.familyName ?? ''}`.trim(),
-    }
-  })
-  return { members, regard: Math.floor(regard / Math.max(1, sitting.length)) }
-}
-
-/**
- * SOLDIER OF THE YEAR, and the ordinary promotion board.
+ * OWNER: "remove this from the feed we already have a board thing set up."
  *
- * A board is a thing you can FAIL, which is what makes appearing before one
- * worth anything. It reads the panel's regard, the person's own record and the
- * unit's grade — a good unit's board is a harder board, because the standard
- * in the room is the standard of the room.
+ * He is right, and it was worse than a noisy feed line. `service.ts` has
+ * `boardStandingFor`, with its own screen on the Career tab that explains what
+ * a board wants of you and how far off it you are. `runBoards` here added a
+ * SECOND board, on a different schedule, with a different bar, writing its own
+ * event — two systems answering the same question, which is exactly what Law
+ * 12 forbids and the kind of thing a player feels as incoherence long before
+ * anybody finds it in the code.
+ *
+ * Deleted rather than hidden. What stays in this file is the INSPECTION, which
+ * grades the UNIT rather than the person and which nothing else does — it is
+ * what the peacetime Meritorious Unit Commendation is earned on (§10.7).
  */
-export function runBoards(world: World, tick: Tick): void {
-  if (tick <= 0 || tick % INSPECTED_EVERY !== 6) return
-  const year = toDate(world, tick).year
-
-  for (const record of [...world.service.values()].sort((a, b) => a.personId - b.personId)) {
-    if (record.dischargedAtTick !== null) continue
-    if (record.rank < BOARD_FROM_RANK) continue
-    if (world.people.get(record.personId)?.deathTick !== null) continue
-
-    const room = openStream(world.seed, Stream.Service, record.personId, tick + 84_000)
-    // Not everybody goes before a board every year — it is an event, not a
-    // fixture, and a fixture is how peacetime becomes ten identical years.
-    if (!room.chance(180, 1_000)) continue
-
-    const key = unitKeyOf(world, record.personId)
-    const grade = key === null ? 500 : unitGradeOf(world, key, tick)
-    // A HARDER ROOM IN A BETTER UNIT. The bar is the standard of the people
-    // sitting behind the table, so doing well in a good unit is worth more
-    // and is harder, which is true and is also the interesting version.
-    const bar = 420 + Math.floor(grade / 5)
-    const showing = record.performance + (room.chance(1, 2) ? 40 : -40)
-    const passed = showing >= bar
-
-    recordEvent(world, tick, {
-      type: 'faced-a-board',
-      subjectId: record.personId,
-      detail: `${passed ? 'passed' : 'failed'}|${String(year)}`,
-    })
-    recordDecision(world, tick, {
-      subjectId: record.personId,
-      decision: 'board',
-      significance: passed ? 'notable' : 'defining',
-      inputs: [
-        factor('strong-performance', record.performance),
-        factor('unit-standing', grade),
-      ],
-      chosen: passed
-        ? 'went before the board and was recommended'
-        : 'went before the board and was turned down',
-      rejected: [],
-      streamId: Stream.Service,
-    })
-  }
-}

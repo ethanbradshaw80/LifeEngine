@@ -48,7 +48,7 @@ import { runHealth } from './health.js'
 import { runService } from './service.js'
 import { runEvaluations } from './evaluations.js'
 import { runUnitAwards } from './unitawards.js'
-import { runBoards, runInspections } from './boards.js'
+import { runInspections } from './boards.js'
 import { runGarrison } from './garrison.js'
 import { runSpecialDuty } from './specialduty.js'
 import { inflictWound } from './health.js'
@@ -154,7 +154,6 @@ export function advanceTick(world: World): World {
   // grade is what the Meritorious Unit Commendation is earned on in peace —
   // and boards sit at mid-year, so the standard in the room is this year's.
   runInspections(world, next)
-  runBoards(world, next)
   /**
    * PEACETIME THAT CAN HURT YOU (plan §10.5, §10.6, §10.3).
    *
