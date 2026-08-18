@@ -3,10 +3,11 @@
 A deterministic generational life simulation, and **The Life Simulator** — the web
 application built on top of it.
 
-> **Current phase: playable.** Layers 1–3 are complete and two Layer 4 institutions
-> (military service, crime and justice) plus an economy are built and playable.
-> ~46,000 lines across 51 engine modules and 23 UI components, with **890 tests**
-> covering them.
+> **Current phase: playable.** Layers 1–3 are complete and three Layer 4 institutions
+> (military service and war, crime and justice, and the economy) are built and
+> playable, alongside civilian careers of the same depth. ~92,700 lines across 88
+> engine modules and 45 UI components, with **1,736 tests** covering them.
+> Shipped to itch.io as v187, the Military Depth update.
 
 ---
 
@@ -100,7 +101,9 @@ results. This is an engineering requirement, not an aspiration, and it is enforc
 - **Migrations.** Every persisted-field change gets a numbered migration with a test
   that loads a real old save.
 
-Current: `SIMULATION_VERSION` **95** · `SCHEMA_VERSION` **40** · 890 tests green.
+Current: `SIMULATION_VERSION` **193** · `SCHEMA_VERSION` **77** · 1,735 tests
+green, 1 failing (`alliedwar`, a 900s timeout under investigation — see
+`RESUME.md`).
 
 Full rules: [docs/DETERMINISM.md](docs/DETERMINISM.md).
 

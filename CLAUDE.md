@@ -19,8 +19,9 @@ the floors under a life (ADR-0028), careers (ADR-0029), personal money
 Article 15 that playing turned up (ADR-0034 to ADR-0037).
 
 **For where the project actually is, read `RESUME.md`.** It carries the live
-state, the queue, and the recurring failure shapes. Last updated 2026-08-04 at
-SIMULATION_VERSION 95, SCHEMA_VERSION 40, 890 tests green.
+state, the queue, and the recurring failure shapes. Last updated 2026-08-18 at
+SIMULATION_VERSION 193, 1735 tests passing and 1 failing (alliedwar, under
+investigation). Shipped to itch.io as v187, the Military Depth update.
 
 ---
 

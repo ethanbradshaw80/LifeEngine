@@ -33,15 +33,39 @@
 > §4.1/§4.2/§4.4b the situation model, §4.4c the wound writing, §5.2
 > attribution, §6 bonds, §7 lasting injury, §11 forty drifting nations.
 >
-> **THE SUITE STANDS AT 1723 PASSING, 1 FAILING** (2026-08-17, clean run from
-> the repo root with nothing else on the machine). The one red is the
-> wealthy-shopkeeper forecast, named at the foot of this banner. The suite
-> also halved — 3631s to 1873s — when four full-world event scans went through
-> the index; if it is ever slow again, look for a new one before anything else.
+> **THE SUITE STANDS AT 1735 PASSING, 1 FAILING** (2026-08-18, clean run from
+> the repo root, 1912s / 31.9 min, nothing else on the machine). The
+> wealthy-shopkeeper forecast is GREEN — that was the old red. The new one is
+> `alliedwar.test.ts` "sends people to an ally war", which timed out at 900s;
+> it builds three 140-person worlds and advances each 1800 ticks. Being
+> measured in isolation to tell a genuine regression from a heavy test that
+> has drifted past its limit. The suite also halved — 3631s to 1873s — when
+> four full-world event scans went through the index; if it is ever slow
+> again, look for a new one before anything else.
 >
-> **SIMULATION_VERSION 191, and the three baselines ARE pinned** —
-> GOLDEN_HASH_HEX `7a054f73` (determinism.test.ts and the copy in App.tsx),
-> HEARTLAND_GOLDEN `40d2d709` (w2.test.ts), header string 191.
+> **RUN THE TEST TYPECHECK, NOT JUST THE SOURCE ONE.**
+> `packages/engine/tsconfig.json` is SOURCE ONLY; tests are checked by
+> `tsconfig.test.json`, which is not in the routine loop. Five type errors in
+> tests committed 2026-08-17 went unnoticed because of it, and two `as never`
+> casts on object literals hid fixture drift that cost a full suite run:
+> `npx tsc --noEmit -p packages/engine/tsconfig.test.json`.
+>
+> **STOPPING A BACKGROUNDED SUITE DOES NOT KILL IT.** TaskStop kills the
+> wrapping shell and leaves `vitest.mjs` and its workers running. Confirmed
+> 2026-08-18: an orphan was still alive at 2,958 CPU-seconds competing with
+> the run started after it, and the resulting timeouts were repeatedly
+> misdiagnosed as contention. Verify with `Get-CimInstance Win32_Process
+> -Filter "Name='node.exe'"` filtered on `vitest`, and kill by hand.
+>
+> **SIMULATION_VERSION 193, and the three baselines ARE pinned** —
+> GOLDEN_HASH_HEX `68dbd926` (determinism.test.ts and the copy in App.tsx,
+> which drives the in-browser determinism banner), HEARTLAND_GOLDEN
+> `6df14f1f` (w2.test.ts), header string 193. Bumped from 192 for three
+> behaviour changes that all reach an UNPLAYED world: wound provenance now
+> follows the injury CONTEXT (civilian accidents were accruing service
+> disability and drawing pensions), violent crime draws from its own
+> `assault` table instead of borrowing the combat one, and the yearly raider
+> can no longer be somebody spending out of the player's own wallet.
 >
 > **WHAT IS NOT BUILT, and it is deliberate rather than forgotten:**
 >
