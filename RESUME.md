@@ -33,13 +33,20 @@
 > §4.1/§4.2/§4.4b the situation model, §4.4c the wound writing, §5.2
 > attribution, §6 bonds, §7 lasting injury, §11 forty drifting nations.
 >
-> **THE SUITE STANDS AT 1735 PASSING, 1 FAILING** (2026-08-18, clean run from
-> the repo root, 1912s / 31.9 min, nothing else on the machine). The
-> wealthy-shopkeeper forecast is GREEN — that was the old red. The new one is
-> `alliedwar.test.ts` "sends people to an ally war", which timed out at 900s;
-> it builds three 140-person worlds and advances each 1800 ticks. Being
-> measured in isolation to tell a genuine regression from a heavy test that
-> has drifted past its limit. The suite also halved — 3631s to 1873s — when
+> **THE SUITE IS FULLY GREEN: 1736 PASSING, 151 FILES** (2026-08-18, clean
+> run from the repo root, 1713s / 28.6 min, nothing else on the machine). The
+> wealthy-shopkeeper forecast that was the standing red is fixed.
+>
+> **A TIMEOUT MEASURES WALL CLOCK, NOT WORK — and that cost an hour today.**
+> `alliedwar.test.ts` "sends people to an ally war" failed the 900s default
+> and looked exactly like a regression. It is not: run ALONE on an idle
+> machine the whole file finishes in **345s**. Vitest runs about ten files at
+> once, and the clock counts the time a file spends waiting for a CPU slot
+> behind other heavy ones, so 345s of work stretched past 900s of wall clock.
+> Its limit is now 1_800_000, set from that measurement. If a heavy test ever
+> times out again, MEASURE IT ALONE FIRST: if the isolated number has moved,
+> the simulation got slower and the timeout is not the problem. The suite
+> also halved — 3631s to 1873s — when
 > four full-world event scans went through the index; if it is ever slow
 > again, look for a new one before anything else.
 >

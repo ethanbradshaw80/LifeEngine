@@ -101,9 +101,8 @@ results. This is an engineering requirement, not an aspiration, and it is enforc
 - **Migrations.** Every persisted-field change gets a numbered migration with a test
   that loads a real old save.
 
-Current: `SIMULATION_VERSION` **193** · `SCHEMA_VERSION` **77** · 1,735 tests
-green, 1 failing (`alliedwar`, a 900s timeout under investigation — see
-`RESUME.md`).
+Current: `SIMULATION_VERSION` **193** · `SCHEMA_VERSION` **77** · 1,736 tests
+green.
 
 Full rules: [docs/DETERMINISM.md](docs/DETERMINISM.md).
 

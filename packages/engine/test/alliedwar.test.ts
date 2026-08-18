@@ -197,5 +197,24 @@ describe('the town, not just the player', () => {
       }
     }
     expect(totalSupport, 'nobody in three towns ever helped an ally').toBeGreaterThan(0)
-  })
+    /**
+     * THE TIME THIS GENUINELY NEEDS, measured rather than guessed.
+     *
+     * It timed out at the 900s default in the full suite on 2026-08-18 and
+     * looked like a regression. It is not. Run ON ITS OWN, on an idle
+     * machine, the whole file finishes in 345s — three 140-person worlds
+     * advanced 1800 ticks each is simply a lot of simulation.
+     *
+     * The gap is that vitest runs about ten files at once and a timeout
+     * measures WALL CLOCK, which counts the time this file spends waiting
+     * for a CPU slot behind other heavy files. Under suite load that
+     * inflated 345s of work past 900s of wall clock.
+     *
+     * So the limit is set from the measured cost with room for the
+     * contention, not nudged up until it went green. Nothing about what
+     * this test asserts has changed. If it ever times out again, measure it
+     * alone FIRST — if that number has moved, the simulation got slower and
+     * the timeout is not the problem.
+     */
+  }, 1_800_000)
 })
