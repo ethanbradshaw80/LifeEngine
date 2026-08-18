@@ -42,6 +42,8 @@ import { heldSkills, standingOf } from '@life-engine/engine'
 import { CityHall } from './CityHall.js'
 import { Legacy } from './Legacy.js'
 import { BadgeMark } from './BadgeMark.js'
+import { CommandTab } from './CommandTab.js'
+import { AftermathPanel } from './AftermathPanel.js'
 import {
   activeWars,
   ageAt,
@@ -234,7 +236,7 @@ const EVENT_ICONS: Partial<Record<EventType, string>> = {
  * scrolled forever became five that do not — and on a phone that is the
  * difference between a screen you use and one you give up on.
  */
-type ServiceTab = 'career' | 'schools' | 'packet' | 'deployments' | 'reports' | 'record'
+type ServiceTab = 'career' | 'schools' | 'packet' | 'command' | 'deployments' | 'reports' | 'record'
 
 /**
  * C3 §18. The Crime section: the acts, and the county's own record of them.
@@ -262,6 +264,12 @@ const SERVICE_TABS: readonly { id: ServiceTab; label: string }[] = [
   { id: 'career', label: 'Career' },
   { id: 'schools', label: 'School Houses' },
   { id: 'packet', label: 'Drop a Packet' },
+  /**
+   * §10.3. RANK MEANS PEOPLE, and it had nowhere to be seen. The engine knew
+   * who was yours, whose trouble had landed on you and whose letter you had
+   * to write, and none of it reached a screen.
+   */
+  { id: 'command', label: 'My People' },
   { id: 'deployments', label: 'Deployments' },
   { id: 'reports', label: 'Reports' },
   { id: 'record', label: 'Record' },
@@ -3353,6 +3361,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     </div>
                   )
                 })()}
+                {/* WHAT THE WAR LEFT (plan sections 5.2, 6 and 7). It sits on
+                    the Record because that is where a life is read back, and
+                    because none of it is a thing you do — it is a thing that
+                    happened to you. */}
+                {serviceTab === 'record' && (
+                  <AftermathPanel world={world} personId={person.id} onInspect={onInspect} />
+                )}
                 {serviceTab === 'record' && (() => {
                   const decorations = decorationsOf(world, person.id)
                   // Combat badges are badges, wherever their kind sits.
@@ -3455,6 +3470,9 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                     you are not. A dashboard for a deployment that is
                     happening now is a different thing from a list of
                     deployments that happened. */}
+                {serviceTab === 'command' && (
+                  <CommandTab world={world} personId={person.id} onInspect={onInspect} />
+                )}
                 {serviceTab === 'deployments' && currentTour !== undefined && (
                   <TourPanel world={world} tour={currentTour} onInspect={onInspect} />
                 )}

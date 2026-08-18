@@ -119,23 +119,23 @@ export function situationFor(world: World, personId: EntityId, tick: Tick, threa
   // nobody gets a good look at a position that has you pinned.
   const base = threat === 'light' ? 2 : threat === 'heavy' ? 6 : 12
   const countLow = base + (draw % (threat === 'light' ? 3 : 5))
-  const spread = threat === 'light' ? 1 + ((draw >> 3) % 2) : 2 + ((draw >> 3) % 6)
+  const spread = threat === 'light' ? 1 + ((draw >>> 3) % 2) : 2 + ((draw >>> 3) % 6)
 
   // HOW FAR. Distance is what makes an option sane or suicidal, so it is
   // drawn wide: forty metres and four hundred are different wars.
   const distance =
     threat === 'light'
-      ? 40 + ((draw >> 6) % 9) * 20
+      ? 40 + ((draw >>> 6) % 9) * 20
       : threat === 'heavy'
-        ? 80 + ((draw >> 6) % 12) * 25
-        : 30 + ((draw >> 6) % 8) * 15
+        ? 80 + ((draw >>> 6) % 12) * 25
+        : 30 + ((draw >>> 6) % 8) * 15
 
   const firstSight: FirstSight =
     threat === 'overrun'
       ? 'they-saw-you'
-      : ((draw >> 11) % 10 < 4
+      : ((draw >>> 11) % 10 < 4
           ? 'they-saw-you'
-          : (draw >> 11) % 10 < 8
+          : (draw >>> 11) % 10 < 8
             ? 'you-saw-them'
             : 'at-once')
 
@@ -143,18 +143,18 @@ export function situationFor(world: World, personId: EntityId, tick: Tick, threa
   // exactly the case §4.2 names — "you cannot call for fire with no radio
   // and nothing in range".
   const radio = (two % 100) >= (threat === 'overrun' ? 30 : 12)
-  const gunsInRange = radio && (two >> 4) % 100 < 62
-  const gunsMinutes = gunsInRange ? 8 + ((two >> 8) % 5) * 4 : null
-  const airUp = radio && (two >> 12) % 100 < 34
-  const airMinutes = airUp ? 14 + ((two >> 15) % 6) * 5 : null
+  const gunsInRange = radio && (two >>> 4) % 100 < 62
+  const gunsMinutes = gunsInRange ? 8 + ((two >>> 8) % 5) * 4 : null
+  const airUp = radio && (two >>> 12) % 100 < 34
+  const airMinutes = airUp ? 14 + ((two >>> 15) % 6) * 5 : null
 
-  const lightMinutes = ((two >> 19) % 10) === 0 ? 0 : 15 + ((two >> 20) % 9) * 15
-  const weather = WEATHERS[(draw >> 17) % WEATHERS.length] ?? null
+  const lightMinutes = ((two >>> 19) % 10) === 0 ? 0 : 15 + ((two >>> 20) % 9) * 15
+  const weather = WEATHERS[(draw >>> 17) % WEATHERS.length] ?? null
 
   return {
     countLow,
     countHigh: countLow + spread,
-    ground: GROUNDS[(draw >> 21) % GROUNDS.length] ?? 'open ground',
+    ground: GROUNDS[(draw >>> 21) % GROUNDS.length] ?? 'open ground',
     distance,
     firstSight,
     radio,
@@ -166,8 +166,8 @@ export function situationFor(world: World, personId: EntityId, tick: Tick, threa
     strength: cast.strength,
     // A covered approach is what makes a flank an option rather than a
     // hundred metres of nothing. Deliberately not always there.
-    hasApproach: (draw >> 27) % 100 < 55,
-    hasCover: (two >> 24) % 100 < 78,
+    hasApproach: (draw >>> 27) % 100 < 55,
+    hasCover: (two >>> 24) % 100 < 78,
   }
 }
 
@@ -216,9 +216,9 @@ export function castFor(
   const opensBadly =
     names.length > 0 &&
     (threat === 'overrun' ? draw % 100 < 62 : threat === 'heavy' ? draw % 100 < 34 : draw % 100 < 9)
-  const downNow = opensBadly ? (names[(draw >> 7) % names.length] ?? null) : null
+  const downNow = opensBadly ? (names[(draw >>> 7) % names.length] ?? null) : null
   const standing = names.filter((name) => name !== downNow)
-  const onPoint = standing.length === 0 ? null : (standing[(draw >> 13) % standing.length] ?? null)
+  const onPoint = standing.length === 0 ? null : (standing[(draw >>> 13) % standing.length] ?? null)
   return { strength, downNow, onPoint, names }
 }
 
@@ -228,9 +228,17 @@ function counted(situation: Situation): string {
 }
 
 function lightWords(situation: Situation): string {
-  if (situation.lightMinutes === 0) return 'It is already dark'
-  if (situation.lightMinutes <= 30) return `The light goes in ${String(situation.lightMinutes)} minutes`
-  return `You have about ${String(Math.round(situation.lightMinutes / 15) * 15)} minutes of light`
+  // CLAMPED, because it was printing "The light goes in -30 minutes" on the
+  // owner's screen. The draws come from `hash32`, which returns UNSIGNED —
+  // and every shift here was the SIGNED `>>`, so any draw above 2^31 came
+  // back negative and took the count, the distance, the minutes and the
+  // array indices with it. The shifts are `>>>` now; this floor is the belt
+  // to that braces, because a negative minute should never reach a player
+  // whatever a future draw does.
+  const left = Math.max(0, situation.lightMinutes)
+  if (left === 0) return 'It is already dark'
+  if (left <= 30) return `The light goes in ${String(left)} minutes`
+  return `You have about ${String(Math.round(left / 15) * 15)} minutes of light`
 }
 
 function supportWords(situation: Situation): string {
@@ -239,7 +247,11 @@ function supportWords(situation: Situation): string {
   if (situation.gunsMinutes !== null) parts.push(`battery is ${String(situation.gunsMinutes)} minutes out`)
   if (situation.airMinutes !== null) parts.push(`there is air ${String(situation.airMinutes)} minutes away`)
   if (parts.length === 0) return 'The radio works, and there is nothing in range to send'
-  return `The radio works. ${parts.join(' and ')}`
+  // A COMMA, NOT A FULL STOP. Joining with one produced "The radio works.
+  // battery is 8 minutes out" on the owner's screen — a sentence starting
+  // lower-case, which is the sort of thing that makes good writing read as
+  // generated.
+  return `The radio works, and ${parts.join(' and ')}`
 }
 
 /**

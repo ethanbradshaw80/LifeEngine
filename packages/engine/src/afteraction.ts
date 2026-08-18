@@ -196,8 +196,8 @@ export function afterActionFor(
    */
   const draw = hash32(world.seed, Stream.CombatResolution, personId, 55_000 + event.tick)
   const low = 4 + (draw % 9)
-  const high = low + 2 + ((draw >> 4) % 4)
-  const losses = Math.max(0, Math.min(high, Math.floor(low / 2) + ((draw >> 8) % 4)))
+  const high = low + 2 + ((draw >>> 4) % 4)
+  const losses = Math.max(0, Math.min(high, Math.floor(low / 2) + ((draw >>> 8) % 4)))
 
   /**
    * WHAT IT COST US, read from the record rather than assessed: the unit's
@@ -274,13 +274,13 @@ export function afterActionFor(
   const tier = Math.max(0, Math.min(3, tour?.tier ?? 1))
   const opened = stamp(shape, 0)
   const met = stamp(shape, 22 + (shape % 40))
-  const answered = stamp(shape, 26 + ((shape >> 3) % 44))
-  const ended = stamp(shape, 61 + ((shape >> 6) % 90))
+  const answered = stamp(shape, 26 + ((shape >>> 3) % 44))
+  const ended = stamp(shape, 61 + ((shape >>> 6) % 90))
   const sequence = [
     `${opened}. ${pick(OPENINGS, shape) ?? OPENINGS[0] ?? ''}`,
-    `${met}. ${pick(CONTACTS, shape >> 5) ?? CONTACTS[0] ?? ''}`,
-    `${answered}. ${pick(RESPONSES, shape >> 9) ?? RESPONSES[0] ?? ''}`,
-    `${ended}. ${pick(ENDINGS, shape >> 13) ?? ENDINGS[0] ?? ''}`,
+    `${met}. ${pick(CONTACTS, shape >>> 5) ?? CONTACTS[0] ?? ''}`,
+    `${answered}. ${pick(RESPONSES, shape >>> 9) ?? RESPONSES[0] ?? ''}`,
+    `${ended}. ${pick(ENDINGS, shape >>> 13) ?? ENDINGS[0] ?? ''}`,
   ]
 
   return {
@@ -291,7 +291,7 @@ export function afterActionFor(
     filed: `${String(filedOn.month)}/${String(filedOn.year)} (${String(FILED_AFTER_DAYS)} days)`,
     place: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
     operation: tour?.operation ?? null,
-    mission: pick(MISSIONS[tier] ?? MISSIONS[1] ?? [], shape >> 17) ?? 'Operations as assigned.',
+    mission: pick(MISSIONS[tier] ?? MISSIONS[1] ?? [], shape >>> 17) ?? 'Operations as assigned.',
     narrative: narrative.endsWith('.') ? narrative : `${narrative}.`,
     sequence,
     enemyStrength: `Enemy strength assessed at ${String(low)}-${String(high)}.`,
@@ -310,8 +310,8 @@ export function afterActionFor(
      */
     recommendations:
       killed + hurt > 0
-        ? (pick(RECOMMENDATIONS.slice(0, 5), shape >> 21) ?? RECOMMENDATIONS[0] ?? '')
-        : (pick(RECOMMENDATIONS, shape >> 21) ?? RECOMMENDATIONS[0] ?? ''),
+        ? (pick(RECOMMENDATIONS.slice(0, 5), shape >>> 21) ?? RECOMMENDATIONS[0] ?? '')
+        : (pick(RECOMMENDATIONS, shape >>> 21) ?? RECOMMENDATIONS[0] ?? ''),
     signedBy:
       signer === undefined
         ? `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} ${

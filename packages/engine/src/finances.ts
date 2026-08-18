@@ -1516,6 +1516,22 @@ function serviceDebts(world: World, tick: Tick): void {
       checking -= fromChecking
       savings -= fromSavings
       monthsPaid += 1
+      /**
+       * THE LOAN PAYMENT GETS A LINE TOO. `serviceDebts` moves money by
+       * mutating locals and writing the record once at the end, so it never
+       * passed through `debitPerson` and never wrote a row — the last $247.38
+       * of the month that the statement could not explain.
+       */
+      recordMoney(
+        world,
+        personId,
+        -paid as Money,
+        loan.kind === 'student'
+          ? 'Student loan payment'
+          : loan.kind === 'mortgage'
+            ? 'Mortgage payment'
+            : 'Loan payment',
+      )
       const balance = (loan.balance + interest - paid) as Money
       if (balance <= 0) {
         recordEvent(world, tick, { type: 'paid-off-loan', subjectId: personId, detail: loan.kind })
@@ -2959,8 +2975,36 @@ export interface MonthAhead {
   readonly children: number
   /** Day-to-day spending, plus the sales tax on it. */
   readonly lifestyle: Money
+  /**
+   * WHAT THE LOANS TAKE (owner: "these numbers need to all connect").
+   *
+   * A student loan, a mortgage, a car — `serviceDebts` collects them every
+   * month before anything else touches the wallet, and the forecast did not
+   * know they existed. That is a RECURRING source, which is exactly the kind
+   * of hole the six-month test is built to find and the kind a player feels
+   * as "it says one thing and does another".
+   */
+  readonly debts: Money
   /** What the month actually leaves behind. */
   readonly net: Money
+}
+
+/**
+ * WHAT THE LOANS TAKE FROM THIS WALLET THIS MONTH.
+ *
+ * The same figure `serviceDebts` collects: the scheduled payment, capped by
+ * what is actually left to pay. A student loan for somebody still enrolled
+ * takes nothing, which is the one case that would otherwise over-state a
+ * student's month badly.
+ */
+function debtsDueFor(world: World, personId: EntityId): Money {
+  const wallet = walletOf(world, personId)
+  let due = 0
+  for (const loan of wallet.loans) {
+    const interest = Math.floor((loan.balance * loan.ratePerMille) / 12_000)
+    due += Math.min(loan.monthlyPayment, loan.balance + interest)
+  }
+  return due as Money
 }
 
 export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
@@ -2977,6 +3021,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     adults: 0,
     children: 0,
     lifestyle: 0 as Money,
+    debts: 0 as Money,
     net: 0 as Money,
   }
   const person = world.people.get(personId)
@@ -3003,6 +3048,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     // AND WHAT THEY SPEND ON THEMSELVES — the same function the ledger
     // charges them with, so the forecast and the month cannot disagree.
     const lifestyleAlone = loneDiscretionary(world, personId, takeAlone - keepAlone)
+    const owedOnLoans = debtsDueFor(world, personId)
     const spentAlone = (lifestyleAlone + salesTaxOn(lifestyleAlone)) as Money
     return {
       ...nothing,
@@ -3013,9 +3059,10 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
       living: keepAlone as Money,
       costs: keepAlone as Money,
       lifestyle: spentAlone,
+      debts: owedOnLoans,
       adults: 1,
       children: 0,
-      net: (takeAlone - keepAlone - spentAlone) as Money,
+      net: (takeAlone - keepAlone - spentAlone - owedOnLoans) as Money,
     }
   }
   const household = world.households.get(person.householdId)
@@ -3121,6 +3168,7 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     const half = Math.floor(whole / 2)
     return (personId === wallet.personId ? whole - half : half) as Money
   }
+  const owedOnLoans = debtsDueFor(world, personId)
   const draw = halved(typicalDrawOf(world, personId))
   const rent = halved(rentalIncomeOf(world, personId))
   const interest = halved(
@@ -3205,7 +3253,11 @@ export function monthAheadFor(world: World, personId: EntityId): MonthAhead {
     adults: parts.adults,
     children: parts.children,
     lifestyle: mineOfLifestyle as Money,
-    net: (bottom + draw + rent + interest) as Money,
+    debts: owedOnLoans,
+    // THE LOANS COME OFF THE BOTTOM LINE. They are collected before anything
+    // else touches the wallet, and a forecast that ignores them promises a
+    // month the player does not get.
+    net: (bottom + draw + rent + interest - owedOnLoans) as Money,
   }
 }
 
@@ -3531,24 +3583,52 @@ export function runFinances(world: World, tick: Tick): void {
          * doing for a stranger.
          */
         if (taken > 0 && playerWallet !== null && walletHolderOf(world, earner.personId) === playerWallet) {
+          /**
+           * EVERY CENT TAKEN GETS A LINE — owner: "we need the money to
+           * actually align with how much they are making... these numbers
+           * need to all connect."
+           *
+           * MEASURED at seed 4242: the money log said +$14,831 for a month in
+           * which the wallet moved +$11,706. $3,124.74 left with no line
+           * against it, every month.
+           *
+           * The cause was the `theirs !== undefined` below having NO ELSE. An
+           * earner on the player's wallet whose unit `unitsUnder` does not
+           * return — a second earner in the household is the ordinary case —
+           * had their share taken in silence. The itemisation was treated as
+           * the happy path and the money as incidental; it is the other way
+           * round. Whatever is taken is now always said, itemised when the
+           * unit is known and named plainly when it is not.
+           */
           const theirs = units.find((one) => one.includes(earner.personId))
-          if (theirs !== undefined) {
-            const at = units.indexOf(theirs)
-            const theirShape = { unitCount: units.length, totalIncome, mine: incomes[at] ?? 0 }
-            const parts = unitCostParts(world, household, theirs, theirShape)
-            const spend = discretionaryForUnit(world, household, theirs, theirShape)
-            const day = spend + salesTaxOn(spend as Money)
-            const whole = parts.rent + parts.living + day
-            if (whole > 0) {
-              const rentCut = Math.floor((taken * parts.rent) / whole)
-              const liveCut = Math.floor((taken * parts.living) / whole)
-              const dayCut = taken - rentCut - liveCut
-              recordMoney(world, earner.personId, -rentCut as Money, 'Rent')
-              recordMoney(world, earner.personId, -liveCut as Money, 'Living costs — food, clothes, the bills')
-              recordMoney(world, earner.personId, -dayCut as Money, 'Day-to-day spending')
-            } else {
-              recordMoney(world, earner.personId, -taken as Money, 'The month’s bills')
-            }
+          const at = theirs === undefined ? -1 : units.indexOf(theirs)
+          const parts =
+            theirs === undefined
+              ? undefined
+              : unitCostParts(world, household, theirs, {
+                  unitCount: units.length,
+                  totalIncome,
+                  mine: incomes[at] ?? 0,
+                })
+          const spend =
+            theirs === undefined
+              ? 0
+              : discretionaryForUnit(world, household, theirs, {
+                  unitCount: units.length,
+                  totalIncome,
+                  mine: incomes[at] ?? 0,
+                })
+          const day = spend + salesTaxOn(spend as Money)
+          const whole = parts === undefined ? 0 : parts.rent + parts.living + day
+          if (parts !== undefined && whole > 0) {
+            const rentCut = Math.floor((taken * parts.rent) / whole)
+            const liveCut = Math.floor((taken * parts.living) / whole)
+            const dayCut = taken - rentCut - liveCut
+            recordMoney(world, earner.personId, -rentCut as Money, 'Rent')
+            recordMoney(world, earner.personId, -liveCut as Money, 'Living costs — food, clothes, the bills')
+            recordMoney(world, earner.personId, -dayCut as Money, 'Day-to-day spending')
+          } else {
+            recordMoney(world, earner.personId, -taken as Money, 'The month’s bills')
           }
         }
       }
@@ -3580,6 +3660,15 @@ export function runFinances(world: World, tick: Tick): void {
           checking: (accounts.checking - fromChecking) as Money,
           savings: (accounts.savings - fromSavings) as Money,
         })
+        // AND IT GETS A LINE. Money coming out of savings to cover a bad
+        // month is the single movement a player most wants explained, and it
+        // was the quietest thing in the ledger.
+        recordMoney(
+          world,
+          member.id,
+          -(fromChecking + fromSavings) as Money,
+          fromSavings > 0 ? 'Drawn from savings to cover the month' : 'Covering the month',
+        )
         collected += fromChecking + fromSavings
         shortfall -= fromChecking + fromSavings
       }
@@ -3601,6 +3690,9 @@ export function runFinances(world: World, tick: Tick): void {
         const beforeLiquid = wallet.checking + wallet.savings
         const afterLiquid = beforeLiquid - unmet
         setAccounts(world, { ...wallet, checking: (wallet.checking - unmet) as Money })
+        // The month that could not be met, said out loud. Going into the
+        // negatives with no line for it is how a balance becomes a mystery.
+        recordMoney(world, head.id, -unmet as Money, 'The month the money did not cover')
         noteWalletArrearsCrossing(world, tick, household.id, beforeLiquid as Money, afterLiquid as Money)
         // THE SLIDE'S TWO WARNINGS (H1): the letters at −$50k, the calls at
         // −$250k — each once, at its crossing, so the −$500k paperwork is

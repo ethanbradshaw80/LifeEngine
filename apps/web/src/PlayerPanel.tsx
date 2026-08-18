@@ -26,6 +26,7 @@ import {
 } from '@life-engine/engine'
 import { DEBATE_OPTIONS, decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
 import { castFor, optionsFor, resolutionWords, situationFor, situationWords } from '@life-engine/engine'
+import type { SceneChoice } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -698,6 +699,26 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
     const { sceneId, threat } = decodeScene(pending.occupationId)
     const beat = beatAt(seq.beats, seq.step)
 
+    /**
+     * WHAT "GO ON" ACTUALLY SENDS, and it stopped being 'hold'.
+     *
+     * FOUND BY PLAYING IT: the engine answered `"hold" is not one of:
+     * cover:ground, push:draw, hold:guns, hold:air, hold:dark, cover:break`
+     * on the owner's screen. Once options became `spectrum:variant`, the
+     * literal 'hold' this screen had always sent was no longer one of them,
+     * so every read-and-continue beat was refused and the engagement stuck.
+     *
+     * The read beats do not decide anything — the sequence already carries
+     * the choice that was made — so this sends the most neutral id the
+     * pending actually offers, and falls back to the bare answer for a
+     * pending raised before variants existed.
+     */
+    const answerAs = (want: SceneChoice): string =>
+      pending.options.find((option) => option === want || option.startsWith(`${want}:`)) ??
+      pending.options[0] ??
+      want
+    const goOn = (): void => { onChoose(answerAs('hold')) }
+
     // THE FOLLOW-ON NAMES THE MAN, which is the whole reason the beat
     // exists. It reads `whoIsDown` from the SAME seed the resolver does,
     // so the question and the answer are about the same person — two
@@ -723,8 +744,8 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
                 threat={threat}
                 situation={follow.tell}
                 labels={follow.labels}
-                onChoose={(c) => onChoose(c)}
-                onContinue={() => onChoose('hold')}
+                onChoose={(c) => { onChoose(answerAs(c as SceneChoice)) }}
+                onContinue={goOn}
               />
             </div>
           </div>
@@ -819,8 +840,8 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
                     })
                   : null
               }
-              onChoose={() => onChoose('hold')}
-              onContinue={() => onChoose('hold')}
+              onChoose={goOn}
+              onContinue={goOn}
             />
           </div>
         </div>

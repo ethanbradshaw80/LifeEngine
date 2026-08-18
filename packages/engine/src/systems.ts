@@ -99,7 +99,7 @@ import { freshHealth, inflictWound, isSeverelyAiling, mortalityFromHealth } from
 import { isJailed, recordGateOf } from './crime.js'
 import { DEBATE_OPTIONS, debateDue } from './government.js'
 
-import { describeAilment, pickInjury } from './wounds.js'
+import { describeAilment, isLethalKind, pickFatalInjury } from './wounds.js'
 import {
   closeServiceOnDeath,
   educationOffersEnlistment,
@@ -3604,14 +3604,41 @@ export function runMortality(world: World, tick: Tick): void {
     const activeAilment = healthRecord !== undefined && healthRecord.ailment !== null
     let cause: string
     if (accidental) {
-      const fatalInjury = pickInjury(rng, 'mishap')
+      /**
+       * A DEATH NAMES A CAUSE THAT COULD ACTUALLY HAVE KILLED SOMEBODY.
+       *
+       * OWNER, reading an obituary: "SN Eleanor Hoffman, 23, did not survive
+       * September 1976... The cause is recorded as an accident — a broken
+       * foot. obviously people shouldnt die from a broken foot."
+       *
+       * He is right, and the fault was one word. `pickInjury` draws from
+       * everything a context can produce, sprains and fractures included.
+       * `pickFatalInjury` — which exists for exactly this, and which the
+       * deployment path already uses — draws only from the kinds that kill
+       * and falls back to one that does when a context has none. This call
+       * site used the first, so the town's accidental deaths were named after
+       * whatever the dice handed back, however survivable.
+       */
+      const fatalInjury = pickFatalInjury(rng, 'mishap')
       cause = `an accident — ${describeAilment('injury', fatalInjury.kind, fatalInjury.site)}`
     } else if (activeAilment) {
-      cause = describeAilment(
-        healthRecord.ailment ?? 'illness',
-        healthRecord.ailmentKind,
-        healthRecord.ailmentSite,
-      )
+      /**
+       * AND THE SAME TRAP ONE BRANCH DOWN. A person carrying a healing wound
+       * dies at an elevated rate — that is real — but naming the death after
+       * a wound that cannot kill says a broken foot killed them just as
+       * loudly. Where the wound is survivable the honest words are the ones a
+       * doctor would use: something went wrong in the recovery, which is what
+       * actually happens.
+       */
+      const kind = healthRecord.ailmentKind
+      const namesIt = healthRecord.ailment !== 'injury' || isLethalKind(kind)
+      cause = namesIt
+        ? describeAilment(
+            healthRecord.ailment ?? 'illness',
+            kind,
+            healthRecord.ailmentSite,
+          )
+        : `complications following ${describeAilment('injury', kind, healthRecord.ailmentSite)}`
     } else {
       cause = age >= 70 ? 'old age' : 'a sudden illness'
     }

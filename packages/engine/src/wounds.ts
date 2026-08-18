@@ -177,6 +177,16 @@ const LETHAL_KINDS: ReadonlySet<InjuryKind> = new Set<InjuryKind>([
  * An injury somebody could plausibly have died of, drawn from the same
  * table and the same stream as any other — only the eligible set differs.
  */
+/**
+ * CAN THIS KIND OF INJURY PLAUSIBLY KILL SOMEBODY?
+ *
+ * Exported because naming a CAUSE OF DEATH is a different question from
+ * picking a wound, and the two got confused — see `systems.ts`.
+ */
+export function isLethalKind(kind: string | null): boolean {
+  return kind !== null && LETHAL_KINDS.has(kind as InjuryKind)
+}
+
 export function pickFatalInjury(rng: Rng, context: InjuryContext): { kind: InjuryKind; site: BodySite } {
   const drawn = pickInjury(rng, context)
   if (LETHAL_KINDS.has(drawn.kind)) return drawn

@@ -84,6 +84,46 @@ describe('the situation', () => {
     expect(sawSupport, 'support was never available in 600 contacts').toBe(true)
   })
 
+  it('never prints a negative number at a player', () => {
+    /**
+     * OWNER'S SCREENSHOT: "The light goes in -30 minutes."
+     *
+     * `hash32` returns UNSIGNED — 0 to 4,294,967,295 — and every shift in this
+     * module was the SIGNED `>>`, which converts to int32 first. Any draw
+     * above 2^31 came back negative and took the enemy count, the distance,
+     * the support minutes and the array indices with it. One character per
+     * line, and it was visible in the first scene he read.
+     */
+    const world = createWorld(makeSeed(4242), 200)
+    advanceTicks(world, 12)
+    const anybody = [...world.people.values()][0]
+    if (anybody === undefined) return
+
+    for (let month = 0; month < 400; month += 1) {
+      for (const threat of ['light', 'heavy', 'overrun'] as const) {
+        const shape = situationFor(world, anybody.id, month as Tick, threat)
+        expect(shape.countLow, 'a negative enemy count').toBeGreaterThan(0)
+        expect(shape.countHigh).toBeGreaterThanOrEqual(shape.countLow)
+        expect(shape.distance, 'a negative distance').toBeGreaterThan(0)
+        expect(shape.strength).toBeGreaterThan(0)
+        expect(shape.lightMinutes, 'negative minutes of light').toBeGreaterThanOrEqual(0)
+        if (shape.gunsMinutes !== null) expect(shape.gunsMinutes).toBeGreaterThan(0)
+        if (shape.airMinutes !== null) expect(shape.airMinutes).toBeGreaterThan(0)
+        // The ground and the weather are drawn by index, so a negative index
+        // silently became the fallback string every time.
+        expect(shape.ground.length).toBeGreaterThan(5)
+
+        // AND NOTHING IN THE WRITTEN PARAGRAPH CARRIES A MINUS SIGN.
+        const words = situationWords(shape, 'Contact.')
+        expect(words, words).not.toMatch(/-\d/)
+        for (const option of optionsFor(shape)) {
+          expect(option.cost, option.cost).not.toMatch(/-\d/)
+          expect(option.intention, option.intention).not.toMatch(/-\d/)
+        }
+      }
+    }
+  })
+
   it('says the same thing for ever, because a contact is a fact', () => {
     const world = createWorld(makeSeed(4242), 200)
     advanceTicks(world, 24)
