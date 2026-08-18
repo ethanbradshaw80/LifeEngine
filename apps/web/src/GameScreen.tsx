@@ -2794,27 +2794,6 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                         * the cited period and it is yours for life; arrive
                         * after and it comes off when you post out.
                         */}
-                      {(() => {
-                        const worn = unitAwardsFor(world, person.id)
-                        if (worn.length === 0) return null
-                        return (
-                          <>
-                            <dt>Unit awards</dt>
-                            <dd>
-                              {worn.map((award) => (
-                                <div key={`${award.title}-${String(award.year)}`}>
-                                  {award.title} ({award.year})
-                                  <span className="muted small">
-                                    {award.permanent
-                                      ? ' · you were there'
-                                      : ' · your unit’s, worn while you serve in it'}
-                                  </span>
-                                </div>
-                              ))}
-                            </dd>
-                          </>
-                        )
-                      })()}
                     </>
                   )}
                   {unlocks.length > 0 && (
@@ -2832,6 +2811,55 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                   )}
                 </dl>
                 )}
+                {/* THE UNIT'S HONOURS, AS A BUBBLE (owner: "make unit awards a
+                    bubble too").
+
+                    It moved OUT of the facts list to get here, and had to: a
+                    `<details>` is not a legal child of a `<dl>`, which takes
+                    only `<dt>` and `<dd>`. Nesting it there would have looked
+                    right and been broken markup that a screen reader announces
+                    as a malformed list.
+
+                    The summary says how many and BY WHICH RIGHT, because that
+                    distinction is the whole feature — present during the cited
+                    period and it is yours for life; arrive after and it comes
+                    off your chest when you post out. */}
+                {serviceTab === 'career' && (() => {
+                  const worn = unitAwardsFor(world, person.id)
+                  if (worn.length === 0) return null
+                  const forLife = worn.filter((award) => award.permanent).length
+                  return (
+                    <Fold
+                      title="Unit awards"
+                      count={worn.length}
+                      hint={
+                        forLife === worn.length
+                          ? 'all earned with the unit'
+                          : forLife === 0
+                            ? 'worn while you serve here'
+                            : `${String(forLife)} yours for life`
+                      }
+                    >
+                      {worn.map((award) => (
+                        <div key={`${award.title}-${String(award.year)}`} className="sq-row">
+                          <span className="sq-ic" aria-hidden="true">
+                            🎗️
+                          </span>
+                          <div>
+                            <div className="nm">
+                              {award.title} ({award.year})
+                            </div>
+                            <div className="sub">
+                              {award.permanent
+                                ? 'You were there — worn for life.'
+                                : 'Your unit’s, from before your time — worn while you serve in it.'}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </Fold>
+                  )
+                })()}
                 {discharged && serviceTab === 'career' && (
                   enlistmentBar(world, person, world.tick) === null ? (
                     <RecruitingStationView
