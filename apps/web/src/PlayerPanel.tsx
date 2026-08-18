@@ -27,6 +27,7 @@ import {
 import { DEBATE_OPTIONS, decodeSchoolMoment, majorById, schoolMomentById } from '@life-engine/engine'
 import { castFor, optionsFor, resolutionWords, situationFor, situationWords } from '@life-engine/engine'
 import type { SceneChoice } from '@life-engine/engine'
+import { hash32, Stream } from '@life-engine/engine'
 import {
   contractFor,
   crimeSceneFor,
@@ -831,13 +832,25 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
               labels={null}
               lines={
                 beat === 'consequence'
-                  ? resolutionWords(shape, seq.choice ?? 'hold', wasHurt ? 'badly' : 'well', {
-                      onPoint: castFor(world, pending.personId, pending.tick, threat).onPoint,
-                      hurt: wasHurt ? (world.people.get(pending.personId)?.familyName ?? null) : null,
-                      killed:
-                        squad.find((m) => world.people.get(m.personId)?.deathTick === pending.tick)
-                          ?.nickname ?? null,
-                    })
+                  ? resolutionWords(
+                      shape,
+                      seq.choice ?? 'hold',
+                      wasHurt ? 'badly' : 'well',
+                      {
+                        onPoint: castFor(world, pending.personId, pending.tick, threat).onPoint,
+                        hurt: wasHurt
+                          ? (world.people.get(pending.personId)?.familyName ?? null)
+                          : null,
+                        killed:
+                          squad.find((m) => world.people.get(m.personId)?.deathTick === pending.tick)
+                            ?.nickname ?? null,
+                      },
+                      // WHICH TELLING (owner: "each choice should be random
+                      // like and not give the same results every single
+                      // time"). Seeded on the contact, so it varies between
+                      // afternoons and never re-rolls within one.
+                      hash32(world.seed, Stream.CombatResolution, pending.personId, pending.tick),
+                    )
                   : null
               }
               onChoose={goOn}
