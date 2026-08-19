@@ -58,15 +58,35 @@ describe('a government exists', () => {
     // a senator or a governor behind it — and sixty years is not always
     // long enough for a four-hundred-person town to produce one. A vacant
     // presidency in a young world is the ladder working, not failing.
-    for (const officeId of ['mayor', 'sheriff', 'council', 'school-board']) {
+    /**
+     * A SEAT MAY BE EMPTY. A SEAT MAY NOT BE HELD BY A CORPSE.
+     *
+     * This used to require all four town seats filled at every moment, which
+     * is not a claim the simulation can honour: an officeholder who dies
+     * vacates the chair in the same tick (see `performDeath`) and the
+     * by-election takes months to run. The two halves of the old assertion
+     * were in tension from the instant anybody died in office — filling the
+     * seat instantly would have meant inventing a successor, and leaving the
+     * dead man in it meant a screen could name him as the sitting mayor.
+     *
+     * OWNER'S RULING: allow the short vacancy. So the test now pins the two
+     * things that are actually true — nobody dead holds a seat, and the town
+     * is not simply ungoverned — instead of one thing that cannot be.
+     */
+    const seats = ['mayor', 'sheriff', 'council', 'school-board']
+    let filled = 0
+    for (const officeId of seats) {
       const holder = world.officials.get(officeId)
-      expect(holder, `${officeId} is vacant`).toBeDefined()
-      if (holder === undefined) continue
+      if (holder === undefined) continue // a by-election is running
+      filled += 1
       const person = world.people.get(holder.personId)
       expect(person).toBeDefined()
-      expect(person?.deathTick).toBeNull()
+      expect(person?.deathTick, `${officeId} is held by a dead person`).toBeNull()
       expect(partyById(holder.partyId)).toBeDefined()
     }
+    // A vacancy is a by-election; four vacancies is a government that has
+    // stopped seating anybody, which is the failure this test exists for.
+    expect(filled, 'every town seat is empty at once').toBeGreaterThan(seats.length / 2)
   })
 
   it('turns over — a seat is not a life appointment', () => {

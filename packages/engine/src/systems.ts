@@ -3669,6 +3669,27 @@ export function performDeath(
   const age = ageAt(person.birthTick, tick)
   setPerson(world, { ...person, deathTick: tick, causeOfDeath: cause })
   world.employment.delete(person.id)
+  /**
+   * DEATH VACATES THE CHAIR, IN THE SAME BREATH.
+   *
+   * `runGovernment` already refuses to let a corpse keep a seat — "the chair
+   * is empty from the month they die" — but it runs EARLIER in the tick than
+   * deaths do, so an officeholder who died this month sat in
+   * `world.officials` until the next one, and any screen reading that map in
+   * between would have named a dead man as the sitting mayor.
+   *
+   * OWNER'S RULING when this was put to him: allow a short vacancy. The seat
+   * empties now and `runGovernment` opens the ballot at its next pass — a
+   * town with a dead mayor genuinely does not have a mayor, and the weeks
+   * before the by-election are a real thing rather than a gap in the model.
+   * The alternative was interim succession, which is more machinery for a
+   * state that lasts a month.
+   *
+   * The term itself stands in the ledger (Law 6); only the chair empties.
+   */
+  for (const [officeId, holder] of world.officials) {
+    if (holder.personId === person.id) world.officials.delete(officeId)
+  }
   // A death in uniform closes the service record (service owns the write).
   // Left open, a dead soldier stayed "serving" forever — inflating the
   // deployment quota's denominator and reading as a career that never
