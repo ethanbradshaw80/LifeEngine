@@ -761,10 +761,7 @@ export function homePurchaseBar(
    * cost more than they had and the purchase would have gone through. The
    * LOANS below stay on the personal file, which is the other half of H0.
    */
-  const cash = ((): Money => {
-    const w = walletOf(world, personId)
-    return (w.savings + w.checking) as Money
-  })()
+  const cash = (accounts.savings + accounts.checking) as Money // TEMP REVERT
   if (method === 'cash') {
     return cash >= price
       ? null

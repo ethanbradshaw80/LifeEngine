@@ -64,6 +64,27 @@ const WORLD_LEVEL = new Set([
  * wrote the sentence.
  */
 const DELIBERATELY_SILENT = new Set([
+  /**
+   * THE SQUAD WALK SAYS THESE, AND IT SAYS THEM BETTER (2026-08-18).
+   *
+   * OWNER, with a screenshot: three lines for one man — "Barlow \"Padre\"
+   * was killed. The seat stays on the roster.", "Padre was killed.", and
+   * "Barlow \"Padre\" was hit. Your squad carried it."
+   *
+   * Two systems were narrating the same squadmate. `describeEvent` renders
+   * the PLAYER'S copy of the event; the squad walk in `story.ts` reads the
+   * man's OWN record inside the tour and writes the same facts with his
+   * name, his nickname and his seat. The squad walk wins because it is
+   * sourced from the person it is about (Law 2) — so it still reports a man
+   * whose fate never reached the player's own log.
+   *
+   * These two are therefore silent HERE and loud THERE, which is the exact
+   * thing this list exists to record. `squadlives.test.ts` pins that a
+   * wounded squadmate reaches a timeline, so this entry cannot quietly hide
+   * a casualty that shows up nowhere at all.
+   */
+  'squadmate-killed',
+  'squadmate-wounded',
   'left-job', // the arrival line reads better alone on a job change
   'laid-off', // 'left-job' already tells it
   'drew-unemployment', // a balance, not a life event

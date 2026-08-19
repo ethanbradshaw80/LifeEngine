@@ -19,6 +19,14 @@ export const SCHEMA_VERSION = 1
 /**
  * Simulation behaviour version.
  *
+ * v194 — The table of organisation, and the trades' own wars. Soldiers are
+ *      dealt into fire teams of 4, squads of 9, platoons of 4 squads and
+ *      companies of 4 platoons by arrival order, instead of a whole station
+ *      sharing one hashed squad name — so rosters, squadmates and every
+ *      record that names a unit differ from v193 for every seed. 210 new
+ *      combat scenes across the trades and the seven special units change
+ *      which moment a deployed person meets.
+ *
  * v193 — Provenance, violence and the raider. Three behaviour changes, all
  *      of which move every seed:
  *      (a) A wound is service-connected only if the CONTEXT was line of duty.
@@ -631,7 +639,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 193
+export const SIMULATION_VERSION = 194
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
