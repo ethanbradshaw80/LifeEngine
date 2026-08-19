@@ -31,7 +31,7 @@ import { toDate } from './clock.js'
 import { deploymentsOf } from './deployment.js'
 import { eventsFor } from './eventindex.js'
 import { hash32, Stream } from './rng.js'
-import { branchName, rankTitle, unitRosterOf } from './service.js'
+import { branchName, rankTitleOf, unitRosterOf } from './service.js'
 import { bareName } from './text.js'
 import type { World, WorldEvent } from './types.js'
 
@@ -268,7 +268,7 @@ export function afterActionFor(
     const rank =
       theirs === undefined
         ? ''
-        : `${rankTitle(world, theirs.branch, theirs.rank, theirs.commissioned === true)} `
+        : `${rankTitleOf(world, other.subjectId)} `
     named.push(
       `${rank}${them.familyName.toUpperCase()}, ${
         fell ? 'killed in action' : 'wounded, evacuated to the field hospital'
@@ -359,7 +359,7 @@ export function afterActionFor(
         : (pick(RECOMMENDATIONS, shape >>> 21) ?? RECOMMENDATIONS[0] ?? ''),
     signedBy:
       signer === undefined
-        ? `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} ${
+        ? `${rankTitleOf(world, record.personId)} ${
             world.people.get(personId)?.familyName ?? ''
           }`.trim().toUpperCase()
         : `${signer.rankTitle} ${surname}`.trim().toUpperCase(),

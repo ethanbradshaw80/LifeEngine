@@ -767,10 +767,19 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
      * options are drawn from it, four to six of them, each an intention with
      * its cost. An option that the situation does not support is not shown.
      */
-    if (beat === 'decision') {
+    /**
+     * THE OPTIONS THE PENDING ACTUALLY CARRIES, for whichever beat is asking.
+     *
+     * This used to run for the decision beat alone and called `optionsFor`
+     * without a beat, so it always built the decision's spectrum. Now that
+     * each beat writes its own set, the beat has to be passed or the screen
+     * would offer buttons the pending does not accept — and `resolvePending`
+     * would refuse the answer.
+     */
+    {
       const scene = sceneById(sceneId)
       const situation = situationFor(world, pending.personId, pending.tick, threat)
-      const written = optionsFor(situation).filter((option) =>
+      const written = optionsFor(situation, beat).filter((option) =>
         pending.options.includes(option.id),
       )
       if (written.length > 0) {
@@ -778,7 +787,7 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
           <div className="overlay" role="dialog" aria-modal="true" aria-label="Your call">
             <div className="sheet">
               <EngagementView
-                beat="decision"
+                beat={beat}
                 step={seq.step}
                 total={seq.beats.length}
                 threat={threat}

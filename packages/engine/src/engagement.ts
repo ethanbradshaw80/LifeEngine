@@ -271,8 +271,24 @@ export function beatAt(beats: readonly BeatKind[], step: number): BeatKind {
 }
 
 /** Is this the beat that actually asks something? */
-export function beatAsks(beat: BeatKind): boolean {
-  return beat === 'decision' || beat === 'followon'
+export function beatAsks(_beat: BeatKind): boolean {
+  /**
+   * EVERY BEAT ASKS SOMETHING NOW (owner: "the screens after the initial
+   * contact screen are always the same options and stuff as well, each
+   * screen should have their own options").
+   *
+   * Only the decision and the follow-on used to put a question on the
+   * screen; the rest were narration with a Go on button under them. That is
+   * why a five-beat engagement felt like one screen four times — the player
+   * was reading, not deciding, for most of it.
+   *
+   * `situation.ts` now writes a distinct set of options for each beat: what
+   * you do in the first seconds, whether you act on a partial picture, what
+   * you do about what just happened, and what you put in the report. The
+   * spectrum underneath is unchanged, so the engine's arithmetic and every
+   * old save still resolve exactly as before.
+   */
+  return true
 }
 
 /**

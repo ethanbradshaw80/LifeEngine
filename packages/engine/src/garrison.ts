@@ -40,7 +40,7 @@ import type { EntityId, Tick } from '@life-engine/shared'
 import { eventsFor } from './eventindex.js'
 import { openStream, Stream } from './rng.js'
 import { factor, recordDecision, recordEvent } from './records.js'
-import { rankTitle } from './service.js'
+import { rankTitleOf } from './service.js'
 import { unitKeyOf } from './unitawards.js'
 import type { World } from './types.js'
 
@@ -293,11 +293,11 @@ export function letterFor(
   const rank =
     theirs === undefined
       ? ''
-      : `${rankTitle(world, theirs.branch, theirs.rank, theirs.commissioned === true)} `
+      : `${rankTitleOf(world, theirs.personId)} `
   const signature =
     mine === undefined
       ? `${writer.givenName} ${writer.familyName}`
-      : `${rankTitle(world, mine.branch, mine.rank, mine.commissioned === true)} ${writer.givenName} ${writer.familyName}`
+      : `${rankTitleOf(world, mine.personId)} ${writer.givenName} ${writer.familyName}`
 
   return [
     `I am writing to you about ${rank}${dead.givenName} ${dead.familyName}, who served under me.`,

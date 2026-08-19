@@ -11,6 +11,8 @@ import { describe, expect, it } from 'vitest'
 import type { EntityId } from '@life-engine/shared'
 import { seed as makeSeed } from '@life-engine/shared'
 import { createWorld } from '../src/index.js'
+import { optionsFor, situationFor } from '../src/situation.js'
+import { livingPeople } from '../src/systems.js'
 import {
   afterActionWords,
   beatsFor,
@@ -175,14 +177,45 @@ describe('the sequence rides on the scene encoding', () => {
     expect(beatAsks(beatAt(old.beats, 0))).toBe(true)
   })
 
-  it('only the decision beats ask anything', () => {
-    expect(beatAsks('contact')).toBe(false)
-    expect(beatAsks('orient')).toBe(false)
-    expect(beatAsks('consequence')).toBe(false)
-    expect(beatAsks('after')).toBe(false)
-    // The outcome must fire exactly once, on a beat that actually asks.
-    expect(beatAsks('decision')).toBe(true)
-    expect(beatAsks('followon')).toBe(true)
+  it('every beat asks something, because every beat is a question', () => {
+    /**
+     * CHANGED 2026-08-18 (owner: "the screens after the initial contact
+     * screen are always the same options and stuff as well, each screen
+     * should have their own options").
+     *
+     * This used to assert that only the decision and the follow-on put a
+     * question on the screen; the rest were narration with a Go on button,
+     * which is why a five-beat engagement read as one screen four times.
+     * Each beat now writes its own options in `situation.ts` — the first
+     * seconds, whether to act on a partial picture, what to do about what
+     * just happened, what goes in the report.
+     *
+     * `beatAsks` is a PRESENTATION gate and nothing else. The test below,
+     * and the guard in player.ts, are what protect the thing that actually
+     * matters: the outcome — the wound and death matrix — fires on the
+     * DECISION beat alone. That guard deliberately does not consult this
+     * function, because it did once and rolled for a man's life twice in
+     * every overrun sequence.
+     */
+    for (const beat of (['contact', 'orient', 'decision', 'consequence', 'followon', 'after'] as const)) {
+      expect(beatAsks(beat), `${beat} should offer the player something to decide`).toBe(true)
+    }
+  })
+
+  it('gives each beat its own options rather than the same three', () => {
+    // The complaint in one assertion: no two beats may present the same set.
+    const world = createWorld(makeSeed(7), 60)
+    const person = livingPeople(world)[0]
+    if (!person) throw new Error('empty town')
+    const situation = situationFor(world, person.id, world.tick, 'heavy')
+    const seen = new Map<string, string>()
+    for (const beat of (['contact', 'orient', 'decision', 'consequence', 'followon', 'after'] as const)) {
+      const ids = optionsFor(situation, beat).map((o) => o.id).join(',')
+      expect(ids.length, `${beat} offers nothing at all`).toBeGreaterThan(0)
+      const already = seen.get(ids)
+      expect(already, `${beat} presents the same options as ${String(already)}`).toBeUndefined()
+      seen.set(ids, beat)
+    }
   })
 
   it('every sequence contains exactly one plain decision', () => {

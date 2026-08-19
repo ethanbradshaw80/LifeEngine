@@ -402,7 +402,145 @@ export interface SceneOption {
  * THE OPTIONS THE SITUATION SUPPORTS — four to six of them, never a fixed
  * three, and every one gated on something real.
  */
-export function optionsFor(situation: Situation): readonly SceneOption[] {
+/**
+ * WHAT A BEAT IS FOR — and why the options change with it.
+ *
+ * OWNER: "the screens after the initial contact screen are always the same
+ * options and stuff as well, each screen should have their own options."
+ *
+ * He is right, and the old comment beside the call site admitted it in
+ * writing: "the situation does not change between beats — it is the same
+ * afternoon — so the same options are on offer at the beat that asks." That
+ * reasoning is true about the SITUATION and wrong about the QUESTION. The
+ * afternoon does not change; what is being asked of you does, four or five
+ * times, and asking it with the same three buttons turns a sequence into the
+ * same screen shown repeatedly.
+ *
+ * A contact opens with seconds and instinct. Orienting is not a decision at
+ * all — it is the moment you decide whether to act on what you have or wait
+ * for more. The decision beat is the real one and keeps the full spectrum.
+ * The consequence beat asks what you do about what just happened, which is a
+ * different question from what you were going to do. The follow-on is about
+ * a PERSON. And the last beat is about what you say afterwards.
+ *
+ * All of them still resolve through `spectrumOf`, so the engine's own
+ * arithmetic is untouched and an old save's bare `push` still parses.
+ */
+function beatOptions(situation: Situation, beat: string): readonly SceneOption[] | null {
+  const down = situation.downNow
+  if (beat === 'contact') {
+    return [
+      {
+        id: 'push:shout',
+        spectrum: 'push',
+        intention: 'Return fire at once, before anybody has worked out where it is coming from.',
+        cost: 'Volume now buys everybody a second to move. It also tells them exactly how many of you there are and where.',
+      },
+      {
+        id: 'cover:drop',
+        spectrum: 'cover',
+        intention: 'Everybody down where they stand.',
+        cost: 'The safest thing in the first two seconds, and the ground you are lying on was chosen by them, not you.',
+      },
+      {
+        id: 'hold:find',
+        spectrum: 'hold',
+        intention: 'Nobody fires until somebody can say where it is coming from.',
+        cost: 'Two seconds of discipline against two seconds of being shot at while you spend them.',
+      },
+    ]
+  }
+  if (beat === 'orient') {
+    return [
+      {
+        id: 'push:now',
+        spectrum: 'push',
+        intention: 'You have enough. Move on it before it changes.',
+        cost: 'What you have is most of it. Acting on most of it is how most things are done and how some of them go wrong.',
+      },
+      {
+        id: 'hold:look',
+        spectrum: 'hold',
+        intention: 'Another ten seconds of looking before anybody commits.',
+        cost: 'Ten seconds is nothing, unless it is the ten seconds they needed.',
+      },
+    ]
+  }
+  if (beat === 'consequence') {
+    return [
+      {
+        id: 'push:press',
+        spectrum: 'push',
+        intention: 'Carry on with it — the thing that just happened does not change the task.',
+        cost: 'The task gets done. Whether everybody agrees it was worth it is decided afterwards, by people who were not here.',
+      },
+      {
+        id: 'hold:consolidate',
+        spectrum: 'hold',
+        intention: 'Stop, get a count, and find out what you actually have left.',
+        cost: `A count takes minutes you may not have${down === null ? '' : `, and ${down} is where he fell for all of them`}.`,
+      },
+      {
+        id: 'cover:withdraw',
+        spectrum: 'cover',
+        intention: 'That is enough. Get everybody back the way you came.',
+        cost: 'Nothing more is lost here today. The ground is theirs and somebody will have to come back for it.',
+      },
+    ]
+  }
+  if (beat === 'followon') {
+    return [
+      {
+        id: 'push:reach',
+        spectrum: 'push',
+        intention: `Go for ${down ?? 'him'} now, across whatever is in the way.`,
+        cost: 'Crossing it is the whole risk. Nobody who has ever done it says it felt like a decision.',
+      },
+      {
+        id: 'hold:cover-him',
+        spectrum: 'hold',
+        intention: 'Put everything you have onto the position and let somebody else go for him.',
+        cost: 'It is the right way to do it. It is also somebody else going.',
+      },
+      {
+        id: 'cover:wait',
+        spectrum: 'cover',
+        intention: 'Nobody moves until the fire slackens.',
+        cost: `Waiting is correct and it is the hardest thing in the game to do${down === null ? '' : ` while ${down} is out there`}.`,
+      },
+    ]
+  }
+  if (beat === 'after') {
+    return [
+      {
+        id: 'hold:report',
+        spectrum: 'hold',
+        intention: 'Get a full and accurate report in, whatever it says about today.',
+        cost: 'Accurate reports are how the next patrol survives, and how this one gets examined.',
+      },
+      {
+        id: 'cover:men',
+        spectrum: 'cover',
+        intention: 'See to the men first. The report can wait an hour.',
+        cost: 'An hour of the truth going stale, spent on people who need somebody to look at them.',
+      },
+    ]
+  }
+  // 'decision' and anything unrecognised get the full situational spectrum.
+  return null
+}
+
+export function optionsFor(
+  situation: Situation,
+  /** Which beat is asking. Omitted means the decision beat's full spectrum. */
+  beat = 'decision',
+): readonly SceneOption[] {
+  const forBeat = beatOptions(situation, beat)
+  if (forBeat !== null) return forBeat
+  return situationalOptions(situation)
+}
+
+function situationalOptions(situation: Situation): readonly SceneOption[] {
   const found: SceneOption[] = []
   const range = rangeWords(situation.distance)
 
@@ -515,8 +653,10 @@ export function optionIdsFor(
   personId: EntityId,
   tick: Tick,
   threat: Threat,
+  /** The beat asking the question — see `beatOptions`. */
+  beat = 'decision',
 ): readonly string[] {
-  return optionsFor(situationFor(world, personId, tick, threat)).map((option) => option.id)
+  return optionsFor(situationFor(world, personId, tick, threat), beat).map((option) => option.id)
 }
 
 /**

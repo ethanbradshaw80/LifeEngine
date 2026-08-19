@@ -174,33 +174,7 @@ import {
   SEVERE_AILMENT,
 } from './health.js'
 import { grantCampaignMedal, grantValor, grantWoundRecognition } from './awards.js'
-import {
-  termsOfferedTo,
-  optionsOffered,
-  encodeContract,
-  decodeContract,
-  bonusFor,
-  applyReenlistmentOption,
-  applyBoardPromotion,
-  assignServiceUnit,
-  boardStandingFor,
-  boostServicePerformance,
-  nextClassTick,
-  commissionsOnEntry,
-  oathAdministratorsFor,
-  discharge as dischargeService,
-  enlistPerson,
-  enlistmentBar,
-  isServing,
-  rankTitle,
-  recruitingDriveActive,
-  reenlist as reenlistService,
-  retrainSpecialty,
-  schoolOptionsFor,
-  unitOptionsFor,
-  veteranUnlocks,
-  branchName,
-} from './service.js'
+import { applyBoardPromotion, applyReenlistmentOption, assignServiceUnit, boardStandingFor, bonusFor, boostServicePerformance, branchName, commissionsOnEntry, decodeContract, discharge as dischargeService, encodeContract, enlistPerson, enlistmentBar, isServing, nextClassTick, oathAdministratorsFor, optionsOffered, rankTitle, rankTitleOf, recruitingDriveActive, reenlist as reenlistService, retrainSpecialty, schoolOptionsFor, termsOfferedTo, unitOptionsFor, veteranUnlocks } from './service.js'
 import { MAX_FITNESS_POINTS } from './content.js'
 import { placesOfKind } from './worldgen.js'
 import {
@@ -6249,9 +6223,19 @@ export function resolvePending(world: World, choice: string): void {
         workplaceId: null,
         monthlyPay: null,
         placeId: null,
-        // The situation does not change between beats — it is the same
-        // afternoon — so the same options are on offer at the beat that asks.
-        options: [...optionIdsFor(world, person.id, pending.tick, threat)],
+        /**
+         * THE BEAT ASKS ITS OWN QUESTION (owner: "the screens after the
+         * initial contact screen are always the same options and stuff as
+         * well, each screen should have their own options").
+         *
+         * The line that used to be here said the situation does not change
+         * between beats, so the options need not either. True about the
+         * situation and wrong about the QUESTION — a contact, an orientation,
+         * a consequence and a follow-on are four different things being asked
+         * of you, and answering all four with the same three buttons is what
+         * made a sequence read as one screen shown repeatedly.
+         */
+        options: [...optionIdsFor(world, person.id, pending.tick, threat, seq.beats[next] ?? 'decision')],
       })
       return
     }
@@ -7554,7 +7538,7 @@ export function describePending(world: World, pending: PendingDecision): string 
       return 'Chose how to carry the ailment.' // log-only
     case 'reenlist': {
       const record = world.service.get(pending.personId)
-      const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
+      const title = record ? rankTitleOf(world, record.personId) : 'soldier'
       // NOT "another four years": the term is chosen one prompt later, and
       // this promised a number the player was about to be asked for. At
       // twenty years it is not the same question at all, and the fork
@@ -7586,7 +7570,7 @@ export function describePending(world: World, pending: PendingDecision): string 
     case 'deployment-order': {
       const enemy = pending.otherId === null ? undefined : world.nations.get(pending.otherId)
       const record = world.service.get(pending.personId)
-      const title = record ? rankTitle(world, record.branch, record.rank, record.commissioned === true) : 'soldier'
+      const title = record ? rankTitleOf(world, record.personId) : 'soldier'
       /**
        * §10.8 THE ALERT. Same orders, same choices, same consequences — a
        * different night. "A war that starts during your daughter's birthday is
@@ -7976,7 +7960,7 @@ export function describeStakes(world: World, pending: PendingDecision): string[]
       const record = world.service.get(pending.personId)
       if (record) {
         const years = Math.floor((pending.tick - record.enlistedAtTick) / TICKS_PER_YEAR)
-        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitle(world, record.branch, record.rank, record.commissioned === true)}, ${formatMoney(annualPay(record.monthlyPay))} a year.`)
+        lines.push(`${String(years)} year${years === 1 ? '' : 's'} served; ${rankTitleOf(world, record.personId)}, ${formatMoney(annualPay(record.monthlyPay))} a year.`)
         lines.push(
           `Leaving keeps the record${specialtyFor(world, record.specialtyId).civilianUnlocks.length > 0 ? ' and the trade' : ''}; staying means choosing a new term next.`,
         )

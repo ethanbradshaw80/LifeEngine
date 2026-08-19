@@ -45,7 +45,7 @@ import { officeById, PARTIES } from './government.js'
 import { activeWars, homeland } from './geopolitics.js'
 import { hash32, Stream } from './rng.js'
 import { bareName, sentenceCase, sentenceInWords, withArticle } from './text.js'
-import { branchName, lastUnitRosterOf, rankTitle } from './service.js'
+import { branchName, lastUnitRosterOf, rankTitleOf } from './service.js'
 import type { Person, World } from './types.js'
 import { specialtyFor } from './worldspec.js'
 
@@ -218,7 +218,7 @@ function deathInService(
 ): NewsArticle {
   const record = world.service.get(person.id)
   const age = ageAt(person.birthTick, item.tick)
-  const rank = record === undefined ? null : rankTitle(world, record.branch, record.rank, record.commissioned === true)
+  const rank = record === undefined ? null : rankTitleOf(world, record.personId)
   const branch = record === undefined ? null : branchName(world, record.branch)
   const trade = record === undefined ? null : specialtyFor(world, record.specialtyId).title
   const cause = person.causeOfDeath ?? 'causes not stated'

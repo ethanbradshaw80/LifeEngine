@@ -85,7 +85,7 @@ import type { Rng } from './rng.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { officerRoleById, specialtyTitleCased } from './content.js'
 import { sceneTagsFor } from './enlistment.js'
-import { badgesOf, boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf, unitRosterOf } from './service.js'
+import { badgesOf, boostServicePerformance, branchName, isServing, rankTitleOf, squadmatesOf, unitRosterOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
@@ -375,7 +375,7 @@ export function ordersSheetFor(
     controlNo: `${garrison.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase()}-${String(sequence).padStart(4, '0')}-${String(year).slice(-2)}`,
     issued: stampDate(world, tick, 0, false),
     name: `${person.familyName.toUpperCase()}, ${person.givenName}`,
-    rank: `${rankTitle(world, record.branch, record.rank, record.commissioned === true)} (${payGradeOf(branch, record.rank, record.commissioned === true)})`,
+    rank: `${rankTitleOf(world, record.personId)} (${payGradeOf(branch, record.rank, record.commissioned === true)})`,
     specialty: specialtyTitleCased(specialty, record.commissioned === true),
     unit: unit?.name ?? `${garrison} garrison`,
     assignedTo: variant === 'rotation' ? `${enemy?.name ?? 'an ally'} — allied posting` : frontName,
@@ -2124,7 +2124,8 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
             placeId: null,
             // THE OPTIONS COME FROM THE SITUATION (§4.2), not from a fixed
             // three. Ids only: the prose is derived on every read.
-            options: [...optionIdsFor(world, personId, tick, threat)],
+            // The opening beat of the sequence asks the opening question.
+            options: [...optionIdsFor(world, personId, tick, threat, beats[0] ?? 'contact')],
           })
           continue
         }
@@ -2166,7 +2167,8 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           workplaceId: null,
           monthlyPay: null,
           placeId: null,
-          options: [...optionIdsFor(world, personId, tick, threat)],
+          // An accident has no contact beat; it is the decision itself.
+          options: [...optionIdsFor(world, personId, tick, threat, 'decision')],
         })
         continue
       }

@@ -704,7 +704,7 @@ export function oathAdministratorsFor(world: World, personId: EntityId): readonl
       member: {
         personId: other.personId,
         name: `${person.givenName} ${person.familyName}`,
-        rankTitle: rankTitle(world, other.branch, other.rank, other.commissioned === true),
+        rankTitle: rankTitleOf(world, other.personId),
         rank: other.rank,
         specialtyTitle: specialtyFor(world, other.specialtyId).title,
         role: other.commissioned === true ? 'your officer' : 'your unit',
@@ -805,7 +805,7 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
       // The ladder THEY are on. A lieutenant in the roster was being listed
       // under a private's rank (owner: "having their rank wrongs in
       // different menus").
-      rankTitle: rankTitle(world, other.branch, other.rank, other.commissioned === true),
+      rankTitle: rankTitleOf(world, other.personId),
       rank: other.rank,
       specialtyTitle: specialtyFor(world, other.specialtyId).title,
       role: '',
