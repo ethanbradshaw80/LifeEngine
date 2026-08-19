@@ -26,6 +26,8 @@
 import type { CombatScene } from './types.js'
 import { RIFLEMAN_SCENES } from './mosrifleman.js'
 import { PATHFINDER_SCENES, TRIDENT_SCENES } from './unitscenes.js'
+import { GUARDIAN_SCENES, NIGHTHAWK_SCENES } from './unitscenes_air.js'
+import { EMBER_SCENES, GREY_SCENES, VANGUARD_SCENES } from './unitscenes_deep.js'
 import {
   SUPPLY_SCENES as SUPPLY_TRADE_SCENES,
   TRANSPORT_SCENES as TRANSPORT_TRADE_SCENES,
@@ -560,6 +562,13 @@ export const MOS_SCENES: readonly CombatScene[] = [
   // piece of ground — and who were drawing from the infantry pool until now.
   ...TRANSPORT_TRADE_SCENES,
   ...SUPPLY_TRADE_SCENES,
+  // The five units that were owed: the air pack, the two tier-2 units fed by
+  // the Pathfinders and the Trident, and the Grey Section.
+  ...GUARDIAN_SCENES,
+  ...NIGHTHAWK_SCENES,
+  ...VANGUARD_SCENES,
+  ...EMBER_SCENES,
+  ...GREY_SCENES,
   ...MEDICAL_SCENES,
   ...TRANSPORT_SCENES,
   ...ENGINEER_SCENES,
