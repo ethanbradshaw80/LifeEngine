@@ -35,7 +35,6 @@ import {
   decodeWorkMoment,
   decodeSequence,
   beatAt,
-  beatAsks,
   engagementRoll,
   followOnFor,
   whoIsDown,
@@ -768,15 +767,22 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
      * its cost. An option that the situation does not support is not shown.
      */
     /**
-     * THE OPTIONS THE PENDING ACTUALLY CARRIES, for whichever beat is asking.
+     * THE DECISION BEAT KEEPS ITS OWN SCREEN, because it is the only one
+     * whose text is the SITUATION — the full written read of the ground.
      *
-     * This used to run for the decision beat alone and called `optionsFor`
-     * without a beat, so it always built the decision's spectrum. Now that
-     * each beat writes its own set, the beat has to be passed or the screen
-     * would offer buttons the pending does not accept — and `resolvePending`
-     * would refuse the answer.
+     * A first attempt at the owner's "each screen should have their own
+     * options" removed this guard so that every beat rendered here. That was
+     * a regression and he caught it immediately: "it repeats like the same
+     * thing in all the beats and you just keep repeating options till the
+     * end." It did, because the beat-specific PROSE — orienting, the
+     * consequence, the after-action — lives in the branch below, and running
+     * this one unconditionally showed the same contact paragraph five times
+     * with buttons under it. The options were per-beat; the words were not.
+     *
+     * The fix is not here. It is below, where each beat's own words now
+     * carry each beat's own options.
      */
-    {
+    if (beat === 'decision') {
       const scene = sceneById(sceneId)
       const situation = situationFor(world, pending.personId, pending.tick, threat)
       const written = optionsFor(situation, beat).filter((option) =>
@@ -803,7 +809,7 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       }
     }
 
-    if (!beatAsks(beat)) {
+    {
       const scene = sceneById(sceneId)
       const record = world.service.get(pending.personId)
       const tour = deploymentsOf(world, pending.personId).find((t) => t.returnedAtTick === null)
@@ -814,6 +820,9 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
       // the engagement that killed him.
       const wasHurt = hurtInContact(world.events, pending.personId, pending.tick)
       const shape = situationFor(world, pending.personId, pending.tick, threat)
+      const beatChoices = optionsFor(shape, beat).filter((option) =>
+        pending.options.includes(option.id),
+      )
       const situation =
         beat === 'contact'
           ? // THE READ IS THE SITUATION, not a threat label. Same paragraph
@@ -862,7 +871,21 @@ export function DecisionPrompt({ world, pending, onChoose }: PromptProps) {
                     )
                   : null
               }
-              onChoose={goOn}
+              /**
+               * THIS BEAT'S OWN WORDS AND THIS BEAT'S OWN OPTIONS.
+               *
+               * Every beat used to end in a single Go on button, so four
+               * fifths of an engagement was reading. The options come from
+               * `optionsFor(situation, beat)` and are filtered against what
+               * the pending actually carries, so the screen can never offer
+               * a button `resolvePending` would refuse.
+               *
+               * Where a beat genuinely asks nothing, the filter comes back
+               * empty and the Go on button is what is left — which is the
+               * right answer for a beat that is pure narration.
+               */
+              options={beatChoices}
+              onChoose={(c) => onChoose(c)}
               onContinue={goOn}
             />
           </div>

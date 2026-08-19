@@ -754,7 +754,17 @@ export function homePurchaseBar(
   // already own a home" was the single-home model talking; what stops a
   // second purchase now is the money, which is the honest constraint.
   const price = homePriceFor(rentAt(world, place.desirability))
-  const cash = (accounts.savings + accounts.checking) as Money
+  /**
+   * THE SAME WALLET RULE, AND THE SAME BUG. `buyHome` spends from `walletOf`
+   * — its own comment says "the money comes out of the WALLET (H0)" — while
+   * this measured the personal file, so a household member was told a house
+   * cost more than they had and the purchase would have gone through. The
+   * LOANS below stay on the personal file, which is the other half of H0.
+   */
+  const cash = ((): Money => {
+    const w = walletOf(world, personId)
+    return (w.savings + w.checking) as Money
+  })()
   if (method === 'cash') {
     return cash >= price
       ? null
@@ -1235,10 +1245,25 @@ export function payDownLoan(
  * greys from the same answer the verb refuses with.
  */
 export function payDownBar(world: World, personId: EntityId, kind: LoanKind): string | null {
-  const accounts = accountsOf(world, personId)
-  const loan = accounts.loans.find((l) => l.kind === kind)
+  /**
+   * MONEY FROM THE WALLET, THE DEBT FROM THE PERSONAL FILE (H0) — and this
+   * read the personal file for BOTH.
+   *
+   * OWNER, playing: "I'm getting a 'there is nothing to pay with' on my
+   * student loan when I obviously have the money." He did have it. In a
+   * household the cash sits on the HOLDER's account and a member's own
+   * record shows nothing, so anybody who did not hold their own wallet was
+   * told they were penniless.
+   *
+   * `payDownLoan` has always spent from `walletOf`, so the verb would have
+   * worked if the button had let him press it. That is exactly the failure
+   * the note above this function warns about: a bar and its verb must answer
+   * from the same place, or the screen refuses what the engine would do.
+   */
+  const loan = accountsOf(world, personId).loans.find((l) => l.kind === kind)
   if (loan === undefined) return 'You do not carry that debt.'
-  if (accounts.savings + accounts.checking <= 0) return 'There is nothing to pay it with.'
+  const wallet = walletOf(world, personId)
+  if (wallet.savings + wallet.checking <= 0) return 'There is nothing to pay it with.'
   return null
 }
 

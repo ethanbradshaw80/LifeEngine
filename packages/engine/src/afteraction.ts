@@ -242,9 +242,34 @@ export function afterActionFor(
   const named: string[] = []
   let killed = 0
   let hurt = 0
+  /**
+   * A MAN COUNTS ONCE, AND HE COUNTS AS THE WORSE THING.
+   *
+   * OWNER: "on the after action report if someone is killed it lists them
+   * wounded and marks them both WIA and KIA."
+   *
+   * He was, because he genuinely was both: `inflictWound` stamps the wound
+   * and the death follows it on the same tick, so the loop saw two events
+   * about one man and counted a casualty for each. A real return does not
+   * say "1 KIA, 1 WIA" about one body.
+   *
+   * The dead are gathered first and the wounded pass is then blind to them.
+   * Same fault as the story feed's hit-then-killed pair, in a second place —
+   * which is what happens when two systems each read the raw event log.
+   */
+  const diedHere = new Set<EntityId>()
   for (const other of world.events) {
     if (other.tick !== event.tick) continue
     if (!present.has(other.subjectId)) continue
+    if (other.type === 'died' && KILLED_IN_ACTION.has(other.detail ?? '')) {
+      diedHere.add(other.subjectId)
+    }
+  }
+  for (const other of world.events) {
+    if (other.tick !== event.tick) continue
+    if (!present.has(other.subjectId)) continue
+    // A wound on a man who died in this action is part of his death.
+    if (other.type === 'wounded-in-action' && diedHere.has(other.subjectId)) continue
     /**
      * ANY DEATH IN THE ACTION, not only the player's own wording.
      *

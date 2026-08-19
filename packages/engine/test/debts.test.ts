@@ -12,8 +12,9 @@
 
 import { describe, expect, it } from 'vitest'
 import { seed as makeSeed } from '@life-engine/shared'
+import type { Money } from '@life-engine/shared'
 import { advanceTicks, createWorld } from '../src/index.js'
-import { accountsOf, creditPerson, payDownBar, payDownLoan, takeLoan } from '../src/finances.js'
+import { accountsOf, creditPerson, payDownBar, payDownLoan, takeLoan, walletOf } from '../src/finances.js'
 import { livingPeople } from '../src/systems.js'
 
 function anAdult(world: ReturnType<typeof createWorld>) {
@@ -81,5 +82,76 @@ describe('paying a debt down', () => {
     if (person === undefined) return
     // No such debt.
     expect(payDownBar(world, person.id, 'mortgage')).toContain('do not carry')
+  })
+})
+
+/**
+ * THE BAR AND THE VERB MUST ANSWER FROM THE SAME PLACE.
+ *
+ * OWNER, playing: "I'm getting a 'there is nothing to pay with' on my student
+ * loan when I obviously have the money."
+ *
+ * He did have it. H0 splits a person's finances in two — MONEY lives on the
+ * household's wallet holder, POSITIONS (loans, holdings) live on the person's
+ * own file — and `payDownBar` read the personal file for both. Anybody who
+ * was not the holder of their own wallet was told they were penniless, while
+ * `payDownLoan` behind the button would have paid the debt without complaint.
+ *
+ * This is the bar pattern's whole reason for existing, failing: the greyed
+ * button and the refusal have to come from one answer.
+ */
+describe('a bar never refuses what its verb would do', () => {
+  it('lets a household member pay a debt from the household wallet', () => {
+    const world = createWorld(makeSeed(31_337), 120)
+    advanceTicks(world, 25 * 12)
+
+    // Somebody who shares a wallet they do not hold — the exact shape of the
+    // report. Without one, this test proves nothing, so it says so.
+    const member = livingPeople(world).find((person) => {
+      const own = accountsOf(world, person.id)
+      const purse = walletOf(world, person.id)
+      return purse.personId !== person.id && own.savings + own.checking <= 0
+    })
+    expect(member, 'no household member with an empty personal file — nothing tested').toBeDefined()
+    if (!member) return
+
+    // Money in the wallet, and a debt on his own file.
+    const purse = walletOf(world, member.id)
+    world.accounts.set(purse.personId, {
+      ...purse,
+      savings: 4_000_000 as Money,
+      checking: 500_000 as Money,
+    })
+    // The debt is placed directly rather than borrowed: `takeLoan` runs a
+    // credit gate that has nothing to do with the claim being tested, and a
+    // test that fails for a second reason proves neither.
+    const own = accountsOf(world, member.id)
+    world.accounts.set(member.id, {
+      ...own,
+      loans: [
+        ...own.loans,
+        {
+          kind: 'student',
+          balance: 1_200_000 as Money,
+          principal: 1_200_000 as Money,
+          ratePerMille: 45,
+          monthlyPayment: 20_000 as Money,
+          takenAtTick: world.tick,
+          maturesAtTick: (world.tick + 120) as never,
+          missedMonths: 0,
+        },
+      ],
+    })
+    expect(accountsOf(world, member.id).loans.some((l) => l.kind === 'student')).toBe(true)
+
+    // The button must not refuse.
+    expect(
+      payDownBar(world, member.id, 'student'),
+      'the bar refused a man whose wallet is full',
+    ).toBeNull()
+
+    // And the verb must actually do it, which is what makes the bar honest.
+    const paid = payDownLoan(world, world.tick, member.id, 'student', 300_000 as Money)
+    expect(paid, 'the verb paid nothing the bar had allowed').toBeGreaterThan(0)
   })
 })
