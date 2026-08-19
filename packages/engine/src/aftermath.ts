@@ -146,15 +146,52 @@ export interface Attribution {
   readonly words: string
 }
 
-const COUNTING_SPECIALTIES = new Set(['sniper', 'scout-sniper', 'special-forces', 'reconnaissance'])
+/**
+ * WHO CAN HONESTLY CLAIM A NUMBER.
+ *
+ * OWNER, playing: "I don't even know if snipers and special units have their
+ * numbers or what it says because I haven't seen it."
+ *
+ * He had not seen it because it could not happen. This set used to name
+ * `sniper`, `scout-sniper`, `special-forces` and `reconnaissance`, and NONE
+ * OF THOSE FOUR IDS EXIST — there are twenty-two specialties in
+ * `content.ts` and not one of them is any of these. The set matched nobody,
+ * ever, so the only route to a count was special-unit membership and every
+ * other soldier in the game got the collective-fire line.
+ *
+ * There is no sniper trade to point at, so the gate is what the service
+ * actually records: the marksmanship qualification a man is awarded, plus
+ * unit membership. A rifleman who earned his badge is the closest thing this
+ * simulation has to somebody whose individual fire is observed and written
+ * down, which is what a count is.
+ */
+const COUNTING_QUALIFICATIONS = new Set(['expert marksman'])
 
 export function attributionFor(world: World, personId: EntityId, tick: Tick): Attribution {
   const record = world.service.get(personId)
   if (record === undefined) {
     return { confirmed: null, confirmedBy: null, words: '' }
   }
+  /**
+   * NOTHING TO SAY TO A MAN WHO WAS NEVER IN ONE (owner: the panel "says the
+   * same thing for everyone even if you never deployed or if you are a desk
+   * role").
+   *
+   * The collective-fire line below asserts "You have fired at people and you
+   * do not know" — which is a strong claim to make about a supply clerk who
+   * never left the country. It was shown to ANYBODY holding a service
+   * record. Attribution is a question about contacts, so with no contacts
+   * there is no question and the panel says nothing at all.
+   */
+  const contacts = eventsFor(world, personId).filter(
+    (event) => event.type === 'saw-combat' && event.tick <= tick,
+  )
+  if (contacts.length === 0) {
+    return { confirmed: null, confirmedBy: null, words: '' }
+  }
+
   const counts =
-    COUNTING_SPECIALTIES.has(record.specialtyId) || record.unitId !== null
+    record.qualifications.some((q) => COUNTING_QUALIFICATIONS.has(q)) || record.unitId !== null
   if (!counts) {
     /**
      * THE HONEST ANSWER FOR ALMOST EVERYBODY, and it is a better line than a
@@ -168,11 +205,8 @@ export function attributionFor(world: World, personId: EntityId, tick: Tick): At
     }
   }
 
-  // The contacts they were actually in, which is the only thing a count can
-  // be built from — no free-floating lifetime number.
-  const contacts = eventsFor(world, personId).filter(
-    (event) => event.type === 'saw-combat' && event.tick <= tick,
-  )
+  // `contacts` above is the only thing a count can be built from — no
+  // free-floating lifetime number.
   let confirmed = 0
   for (const contact of contacts) {
     // Uncertain by default even for the trades that count: most contacts
