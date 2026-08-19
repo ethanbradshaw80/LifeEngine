@@ -35,8 +35,30 @@ import { branchName, rankTitle, unitRosterOf } from './service.js'
 import { bareName } from './text.js'
 import type { World, WorldEvent } from './types.js'
 
-/** Days between the contact and the filing. Reports are not written that night. */
-const FILED_AFTER_DAYS = 11
+/**
+ * Days between the contact and the filing. Reports are not written that night.
+ *
+ * OWNER: "they always say (11) days". They did — this was a bare constant, so
+ * every report in every war in every save was filed exactly eleven days
+ * later, which reads as a template the moment you see two of them. A staff
+ * that is busy files late and a quiet week files quickly, so the number is
+ * drawn per report from the event itself: deterministic, and different.
+ */
+/**
+ * THE CAUSES THAT MEAN "LOST IN THIS ACTION". Written down in one place so
+ * the next cause of death added on a battlefield has somewhere obvious to go
+ * — the last one was missed for exactly as long as this list was a single
+ * inline string comparison.
+ */
+const KILLED_IN_ACTION: ReadonlySet<string> = new Set([
+  'killed in action',
+  'wounds taken in action',
+  'an accident on deployment',
+  'an accident on rotation',
+])
+
+const FILED_MIN_DAYS = 4
+const FILED_SPREAD_DAYS = 24
 
 export interface AfterActionReport {
   /** "AFTER-ACTION REVIEW" — the form's own name. */
@@ -223,7 +245,18 @@ export function afterActionFor(
   for (const other of world.events) {
     if (other.tick !== event.tick) continue
     if (!present.has(other.subjectId)) continue
-    const fell = other.type === 'died' && other.detail === 'wounds taken in action'
+    /**
+     * ANY DEATH IN THE ACTION, not only the player's own wording.
+     *
+     * OWNER: "the after action report is not showing the guys we lost."
+     * MEASURED in deployment.ts: a SQUADMATE killed in combat is given the
+     * cause `killed in action` (line 1140) while the player's own death is
+     * `wounds taken in action` (line 2243). This test named only the second,
+     * so the one category of casualty the report exists to record — the men
+     * beside you — was the one category it silently skipped. Every report
+     * counted zero dead unless the player himself had died writing it.
+     */
+    const fell = other.type === 'died' && KILLED_IN_ACTION.has(other.detail ?? '')
     const wounded = other.type === 'wounded-in-action'
     if (!fell && !wounded) continue
     if (fell) killed += 1
@@ -246,6 +279,18 @@ export function afterActionFor(
   const when = toDate(world, event.tick)
   const filedTick = (event.tick + 1) as Tick
   const filedOn = toDate(world, filedTick)
+  /**
+   * HOW LATE THIS ONE WAS, drawn from the action rather than fixed.
+   *
+   * Keyed on the EVENT's id and tick, so the same report always reads the
+   * same way (Law 11) while two reports never read alike. A staff with
+   * casualties to account for and a company still in contact does not file
+   * on the same schedule as one writing up a quiet patrol.
+   */
+  const filedAfterDays =
+    FILED_MIN_DAYS +
+    (hash32(world.seed, Stream.CombatResolution, event.id as EntityId, 77_000 + event.tick) %
+      FILED_SPREAD_DAYS)
 
   /**
    * WHO SIGNED IT.
@@ -288,7 +333,7 @@ export function afterActionFor(
     unit: roster?.unitName ?? 'the unit',
     command: `${branchName(world, record.branch)} · ${roster?.baseName ?? 'a home station'}`,
     occurred: `${String(when.month)}/${String(when.year)}`,
-    filed: `${String(filedOn.month)}/${String(filedOn.year)} (${String(FILED_AFTER_DAYS)} days)`,
+    filed: `${String(filedOn.month)}/${String(filedOn.year)} (${String(filedAfterDays)} days)`,
     place: enemy === undefined ? 'the front' : `the ${bareName(enemy.name)} front`,
     operation: tour?.operation ?? null,
     mission: pick(MISSIONS[tier] ?? MISSIONS[1] ?? [], shape >>> 17) ?? 'Operations as assigned.',
