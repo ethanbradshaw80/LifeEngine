@@ -166,8 +166,25 @@ export function TourPanel({
              * to narrate one.
              */
             const health = world.health.get(member.personId)
+            /**
+             * A SICK MAN IS NOT A CASUALTY (owner, playing: "if someone gets
+             * sick it marks them as WIA — still on the line on the roster
+             * for the deployment").
+             *
+             * This tested `ailment !== null`, which is true for ILLNESS as
+             * well as injury — and field illness is a real system that gives
+             * men dysentery and fever on deployment. So a man with a fever
+             * was reported as wounded in action, which is a claim about
+             * enemy fire, and reported as standing on the line while he was
+             * doing it. Wrong twice in one row.
+             *
+             * The health record already distinguishes the two. The roster
+             * reads what it says.
+             */
             const hurt =
-              !dead && health !== undefined && health.ailment !== null && health.severity >= 400
+              !dead && health !== undefined && health.ailment === 'injury' && health.severity >= 400
+            const ill =
+              !dead && health !== undefined && health.ailment === 'illness' && health.severity >= 400
             /**
              * SENT HOME IS A STATE OF ITS OWN (owner: "we just saved Robert
              * and he was evacuated but when you go to the squad hes still
@@ -184,16 +201,22 @@ export function TourPanel({
               (world.deployments.get(member.personId) ?? []).some(
                 (t) => t.startedAtTick === tour.startedAtTick && t.returnedAtTick !== null,
               )
-            const state = dead ? 'kia' : gone || hurt ? 'evac' : 'ok'
+            const state = dead ? 'kia' : gone || hurt || ill ? 'evac' : 'ok'
             const stateWords = dead
               ? `KIA${person?.causeOfDeath ? ` · ${String(person.causeOfDeath).replace(/-/g, ' ')}` : ''}`
               : gone
-                ? 'WIA · evacuated, sent home'
-                : hurt
+                ? ill
+                  ? 'sick · evacuated, sent home'
+                  : 'WIA · evacuated, sent home'
+                : ill
                   ? health !== undefined && health.severity >= 700
-                    ? 'WIA · medevac'
-                    : 'WIA · still on the line'
-                  : 'in the fight'
+                    ? 'sick · evacuated'
+                    : 'sick · off the line'
+                  : hurt
+                    ? health !== undefined && health.severity >= 700
+                      ? 'WIA · medevac'
+                      : 'WIA · still on the line'
+                    : 'in the fight'
             return (
               <div
                 key={member.personId}

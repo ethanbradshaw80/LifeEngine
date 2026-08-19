@@ -595,60 +595,54 @@ export function pickScene(
   const rankOk = COMBAT_SCENES.filter((scene) => isOfficer || scene.officersOnly !== true)
 
   /**
-   * OWNED SCENES FIRST, AND EXCLUSIVELY.
-   *
    * A scene that names its trades is offered to those trades and to nobody
-   * else, and where a trade has its own scenes it gets ONLY those. This is
-   * the owner's separation rule made structural: an infantry problem is not
-   * a storeman's problem however similar the situation looked to the tags.
+   * else. Scenes that name none are situational and open to whoever the
+   * tags reach, which is every scene written before 2026-08-18.
    */
   const eligible = rankOk.filter(
     (scene) =>
       scene.specialtyIds === undefined ||
       (specialtyId !== null && scene.specialtyIds.includes(specialtyId)),
   )
-  const ownedByTrade = eligible.filter((scene) => scene.specialtyIds !== undefined)
-  if (ownedByTrade.length > 0) {
-    const byChannel = ownedByTrade.filter((scene) => scene.channels.includes(channel))
-    const fromTrade = byChannel.length > 0 ? byChannel : ownedByTrade
-    const tradeWeights = fromTrade.map((scene) => {
-      const seen = recent.indexOf(scene.id)
-      return seen === 0 ? 1 : seen > 0 ? 4 : 24
-    })
-    return rng.pickWeighted(fromTrade, tradeWeights)
-  }
 
   /**
-   * THE JOB DECIDES WHAT YOU SEE. OWNER'S RULING, 2026-08-18: "I don't want
-   * the special groups to get the same popups as logistics guys."
+   * THE ORDER OF PRECEDENCE, MOST SPECIFIC FIRST — unit, then trade, then
+   * the general war.
    *
-   * A first attempt at his repetition complaint turned these filters into
-   * weights so that a Pathfinder could occasionally draw a general scene.
-   * That was the wrong answer to the right complaint: it made every MOS
-   * blend into every other, which is precisely what he does not want. The
-   * separation is the POINT — a logistics sergeant and a combat swimmer are
-   * not having the same war — and the cure for repetition is DEPTH inside
-   * each pool, not leakage between them.
+   * THE UNIT HAS TO COME FIRST, and the first version of this had it second,
+   * which would have quietly destroyed the thing it was built for. Special
+   * units recruit riflemen. So a Pathfinder — whose service record says
+   * `rifleman` — matched the twenty new infantry scenes, returned out of the
+   * trade branch, and never reached the unit branch at all. He would have
+   * spent a career in a special unit having an ordinary infantryman's war,
+   * which is the precise opposite of the owner's ruling.
    *
-   * So the gates are gates again: your unit's scenes if your unit has any,
-   * then the channel, then your own trade's tags. What changed permanently
-   * is the last step below.
+   * Being in Trident is a stronger fact about your war than being a
+   * rifleman is.
    */
-  const unitScenes = eligible.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
-  const pool = unitScenes.length > 0 ? unitScenes : eligible.filter((scene) => scene.unitId === null)
+  const byUnit = eligible.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
+  const byTrade = eligible.filter((scene) => scene.specialtyIds !== undefined)
+  const general = eligible.filter((scene) => scene.unitId === null && scene.specialtyIds === undefined)
+
+  const pool = byUnit.length > 0 ? byUnit : byTrade.length > 0 ? byTrade : general
   const matching = pool.filter((scene) => scene.channels.includes(channel))
   const choices = matching.length > 0 ? matching : pool
   if (choices.length === 0) return undefined
-  const own = choices.filter((scene) => scene.tags.some((tag) => tags.includes(tag)))
-  const finalPool = own.length > 0 ? own : choices
 
   /**
-   * AND NOT THE ONE YOU JUST HAD.
-   *
-   * Within the right pool, an immediate repeat is still what reads as "it is
-   * always the same". Recent scenes are pushed far down rather than removed:
-   * a pool can be small, and a scene that can never recur is its own kind of
-   * wrong — a man can be ambushed on the same road twice.
+   * Tags narrow within the general pool only. Inside a unit's or a trade's
+   * own scenes every scene is already theirs, and narrowing again by tag
+   * would shrink a deliberately deep pool back to the handful that share a
+   * situation word.
+   */
+  const narrowed =
+    pool === general ? choices.filter((scene) => scene.tags.some((tag) => tags.includes(tag))) : []
+  const finalPool = narrowed.length > 0 ? narrowed : choices
+
+  /**
+   * AND NOT THE ONE YOU JUST HAD. Recent scenes are pushed far down rather
+   * than removed: a pool can be small, and a scene that can never recur is
+   * its own kind of wrong — a man can be ambushed on the same road twice.
    */
   const weights = finalPool.map((scene) => {
     const seen = recent.indexOf(scene.id)

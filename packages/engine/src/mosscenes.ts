@@ -25,6 +25,7 @@
 
 import type { CombatScene } from './types.js'
 import { RIFLEMAN_SCENES } from './mosrifleman.js'
+import { PATHFINDER_SCENES, TRIDENT_SCENES } from './unitscenes.js'
 
 /**
  * A NOTE ON TAGS, LEARNED BY MEASURING THIS FILE TWICE.
@@ -545,6 +546,12 @@ export const MOS_SCENES: readonly CombatScene[] = [
   // part of why the owner kept seeing the same three. Twenty of his own,
   // in `mosrifleman.ts`.
   ...RIFLEMAN_SCENES,
+  // The special units' own wars. Seven units shared TEN scenes before
+  // 2026-08-18, and the three tier-2 units — the ones a tier-1 operator is
+  // promoted into — had none at all, so reaching the top of the pack made a
+  // player's war SHALLOWER. See `unitscenes.ts`.
+  ...PATHFINDER_SCENES,
+  ...TRIDENT_SCENES,
   ...MEDICAL_SCENES,
   ...TRANSPORT_SCENES,
   ...ENGINEER_SCENES,

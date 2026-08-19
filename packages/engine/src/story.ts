@@ -586,11 +586,33 @@ function describeEvent(world: World, person: Person, event: WorldEvent): string 
     case 'second-act': {
       return `${year} — Went into ${(event.detail ?? 'something else').toLowerCase()} after playing.`
     }
-    case 'squadmate-killed': {
-      return `${year} — ${event.detail ?? 'A man in the team'} was killed.`
-    }
+    /**
+     * SILENT HERE, BECAUSE SOMEBODY ELSE ALREADY SAYS IT (Law 12, one
+     * writer).
+     *
+     * OWNER, with a screenshot: three lines in the feed for one man —
+     * "Barlow \"Padre\" was killed. The seat stays on the roster.",
+     * "Padre was killed.", and "Barlow \"Padre\" was hit. Your squad
+     * carried it."
+     *
+     * Two independent systems were narrating the same squadmate. These two
+     * cases render the PLAYER'S OWN `squadmate-killed` / `squadmate-wounded`
+     * events; the squad walk further down this file reads the man's own
+     * record inside the tour and writes the same facts with his name, his
+     * nickname and the roster around him. Both were correct and both were
+     * printing.
+     *
+     * The squad walk wins because it is sourced from the person it is about
+     * — which is Law 2, and which also means it still reports a man whose
+     * fate never reached the player's own event log.
+     *
+     * (An earlier check for this searched for IDENTICAL feed text and found
+     * none, which is why it was missed: the duplicates were never the same
+     * sentence.)
+     */
+    case 'squadmate-killed':
     case 'squadmate-wounded': {
-      return `${year} — ${event.detail ?? 'A man in the team'} was hit and taken out.`
+      return null
     }
     case 'signed-pro': {
       const [club, tier] = (event.detail ?? '').split(':')
@@ -1460,8 +1482,22 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
       const them = world.people.get(member.personId)
       if (them === undefined) continue
       const name = `${member.nickname.length > 0 ? `${them.familyName} "${member.nickname}"` : them.familyName}`
+      /**
+       * A MAN HIT AND KILLED IN THE SAME ACTION IS ONE EVENT, NOT TWO.
+       *
+       * `inflictWound` stamps the wound and the death follows it in the same
+       * tick, so the feed read "he was hit" and then "he was killed" as
+       * though a week had passed between them. It had not: it was one
+       * afternoon and one man.
+       */
+      const diedAt = new Set(
+        eventsFor(world, member.personId)
+          .filter((each) => each.type === 'died')
+          .map((each) => each.tick),
+      )
       for (const event of eventsFor(world, member.personId)) {
         if (event.tick < tour.startedAtTick || event.tick > over) continue
+        if (event.type === 'wounded-in-action' && diedAt.has(event.tick)) continue
         if (event.type === 'wounded-in-action') {
           const what = (event.detail ?? '').split(':')[1]
           entries.push({
