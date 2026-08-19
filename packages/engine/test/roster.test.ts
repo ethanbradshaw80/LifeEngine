@@ -28,7 +28,19 @@ describe('unit rosters', () => {
       // air-guard soldier to make the Guardian Flight turned this red.
       const special = world.spec.units.some((u) => u.name === roster.unitName)
       if (!special) {
-        expect(roster.unitName).toMatch(/^(1st|2nd|3rd|4th) Squad, [ABCD] Company$/)
+        /**
+         * THE WHOLE CHAIN, because a posting now has one (2026-08-18).
+         *
+         * This used to read "1st Squad, A Company", which skipped the
+         * platoon — and it skipped it because there WAS no platoon: the old
+         * `subUnitOf` hashed (base, branch) and gave a whole station a
+         * single squad name. Soldiers are dealt into fire teams of 4,
+         * squads of 9, platoons of 4 squads and companies of 4 platoons now,
+         * so a name has three levels in it and companies run past D.
+         */
+        expect(roster.unitName).toMatch(
+          /^(1st|2nd|3rd|4th) Squad, (1st|2nd|3rd|4th) Platoon, [A-H] Company$/,
+        )
       }
       // Everyone listed is alive and serving. THE POSTING IS ONLY A LINE
       // SQUAD'S RULE: rosterFrom matches a special unit on unitId alone, so

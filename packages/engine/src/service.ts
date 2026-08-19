@@ -84,7 +84,7 @@ import { isCaptive } from './deployment.js'
 import { factor, recordDecision, recordEvent } from './records.js'
 import { recruiterNow } from './specialduty.js'
 import { withArticle } from './text.js'
-import { hash32, openStream, type Rng, Stream, type StreamId } from './rng.js'
+import { openStream, type Rng, Stream, type StreamId } from './rng.js'
 import { disciplineOf, fitnessOf, fitnessStandardFor, habitMaturity, habitMonths, keepsHabit } from './stats.js'
 import { wellbeingOf } from './wellbeing.js'
 import type { ReCode, PriorTerm, CausalFactor, Person, Place, World } from './types.js'
@@ -502,8 +502,6 @@ export function fitnessScoreFor(person: Person, age: number, noise: number): num
 // ---------------------------------------------------------------------------
 
 /** Fictional company letters and squad ordinals — no real unit is named. */
-const COMPANY_LETTERS = ['A', 'B', 'C', 'D'] as const
-const SQUAD_ORDINALS = ['1st', '2nd', '3rd', '4th'] as const
 
 /**
  * Which sub-unit a soldier belongs to at their current posting.
@@ -520,16 +518,71 @@ const SQUAD_ORDINALS = ['1st', '2nd', '3rd', '4th'] as const
  * assigned to squads"). A structure that exists on paper and never has two
  * people in it is not a structure.
  */
-function subUnitOf(
-  world: World,
-  baseId: EntityId,
-  branchId: string,
-): { company: string; squad: string } {
-  const branchIndex = Math.max(0, world.spec.branches.findIndex((b) => b.id === branchId))
-  const draw = hash32(world.seed, Stream.Employment, baseId, 31_000 + branchIndex)
-  const company = COMPANY_LETTERS[draw % COMPANY_LETTERS.length] ?? 'A'
-  const squad = SQUAD_ORDINALS[Math.floor(draw / 4) % SQUAD_ORDINALS.length] ?? '1st'
-  return { company, squad }
+/**
+ * THE TABLE OF ORGANISATION, modelled on how infantry is actually structured
+ * (owner: "look at how soldiers squads and units work in real life and model
+ * it after that").
+ *
+ * WHAT WAS THERE BEFORE. `subUnitOf` hashed (base, branch) and nothing else,
+ * so every soldier at a station was in the SAME squad of the SAME company
+ * for ever — a base had exactly one squad in it — and the roster handed back
+ * the entire station as though four hundred people answered to one squad
+ * leader. That is why the owner saw the same unit name on every report.
+ *
+ * THE REAL SHAPE, which is a pyramid and not a list:
+ *
+ *   FIRE TEAM   4 — a team leader and three others; the smallest group that
+ *               manoeuvres as one.
+ *   SQUAD       9 — two fire teams under a squad leader. The squad is the
+ *               unit a soldier actually lives in: these are the men whose
+ *               names he knows and who are beside him when he is hit.
+ *   PLATOON    36 — four squads, led by a lieutenant with a platoon sergeant
+ *               who is the senior enlisted man and really runs it.
+ *   COMPANY   144 — four platoons under a captain, with a first sergeant.
+ *
+ * The numbers are the doctrinal ones and they are deliberately exact: a
+ * squad that drifts to fourteen men is not a squad, and the whole point of
+ * the structure is that it is fixed while the people in it change.
+ *
+ * ASSIGNMENT IS BY SENIORITY OF ARRIVAL, not by a hash. Soldiers are ordered
+ * by person id — which is stable for a whole career, so nobody is silently
+ * transferred between squads as the base grows — and then dealt out in
+ * fours. That gives real squads with real neighbours rather than a name
+ * printed on a record.
+ */
+const FIRE_TEAM = 4
+const SQUAD = 9
+const PLATOON = SQUAD * 4
+const COMPANY = PLATOON * 4
+
+const COMPANY_LETTERS_TO = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'] as const
+const ORDINALS = ['1st', '2nd', '3rd', '4th'] as const
+
+export interface SubUnit {
+  readonly company: string
+  readonly platoon: string
+  readonly squad: string
+  readonly fireTeam: string
+  /** Index of this soldier's SQUAD across the whole station. */
+  readonly squadIndex: number
+}
+
+/**
+ * Where one soldier sits in the pyramid, from their position in the ordered
+ * station roll.
+ */
+function subUnitAt(index: number): SubUnit {
+  const companyIndex = Math.floor(index / COMPANY)
+  const platoonInCompany = Math.floor((index % COMPANY) / PLATOON)
+  const squadInPlatoon = Math.floor((index % PLATOON) / SQUAD)
+  const teamInSquad = Math.floor((index % SQUAD) / FIRE_TEAM)
+  return {
+    company: COMPANY_LETTERS_TO[companyIndex % COMPANY_LETTERS_TO.length] ?? 'A',
+    platoon: ORDINALS[platoonInCompany] ?? '1st',
+    squad: ORDINALS[squadInPlatoon] ?? '1st',
+    fireTeam: teamInSquad === 0 ? 'Alpha' : 'Bravo',
+    squadIndex: Math.floor(index / SQUAD),
+  }
 }
 
 export interface RosterMember {
@@ -666,7 +719,26 @@ function authorityOf(world: World, personId: EntityId): number {
 
 function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoster | null {
   if (!record) return null
-  const mine = subUnitOf(world, record.baseId, record.branch)
+  /**
+   * THE STATION ROLL, in a stable order, so the pyramid can be dealt out.
+   *
+   * By PERSON ID rather than by rank: a soldier must not be transferred
+   * between squads every time somebody above him is promoted or killed. Id
+   * order is arrival order and it never changes for a living career.
+   */
+  const roll = [...world.service.values()]
+    .filter(
+      (each) =>
+        each.dischargedAtTick === null &&
+        each.unitId === null &&
+        each.baseId === record.baseId &&
+        each.branch === record.branch &&
+        (world.people.get(each.personId)?.deathTick ?? null) === null,
+    )
+    .map((each) => each.personId)
+    .sort((a, b) => a - b)
+  const myIndex = roll.indexOf(record.personId)
+  const mine = subUnitAt(myIndex < 0 ? 0 : myIndex)
 
   // A SPECIAL UNIT IS A UNIT (owner, playing: "I just got assigned to a
   // special unit after dropping a packet but my actual unit like the people
@@ -693,6 +765,16 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
     } else {
       if (other.unitId !== null) continue
       if (other.baseId !== record.baseId || other.branch !== record.branch) continue
+      /**
+       * YOUR ROSTER IS YOUR SQUAD — the nine men, not the four hundred.
+       *
+       * This used to return the whole station, so a base of four hundred
+       * read as one squad with one squad leader and three hundred and
+       * ninety-eight men listed under him. A squad is the unit a soldier
+       * actually lives in; the station is an address.
+       */
+      const theirIndex = roll.indexOf(other.personId)
+      if (theirIndex < 0 || subUnitAt(theirIndex).squadIndex !== mine.squadIndex) continue
     }
     const person = world.people.get(other.personId)
     if (!person || person.deathTick !== null) continue
@@ -746,7 +828,9 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
   // what an ordinary posting is called; the Pathfinders are the Pathfinders.
   const special = record.unitId === null ? undefined : unitFor(world, record.unitId)
   return {
-    unitName: special?.name ?? `${mine.squad} Squad, ${mine.company} Company`,
+    unitName:
+      special?.name ??
+      `${mine.squad} Squad, ${mine.platoon} Platoon, ${mine.company} Company`,
     baseName: world.places.get(record.baseId)?.name ?? 'a home station',
     branchName: branchName(world, record.branch),
     members: withRoles,

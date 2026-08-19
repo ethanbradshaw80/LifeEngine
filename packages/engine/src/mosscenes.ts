@@ -26,6 +26,10 @@
 import type { CombatScene } from './types.js'
 import { RIFLEMAN_SCENES } from './mosrifleman.js'
 import { PATHFINDER_SCENES, TRIDENT_SCENES } from './unitscenes.js'
+import {
+  SUPPLY_SCENES as SUPPLY_TRADE_SCENES,
+  TRANSPORT_SCENES as TRANSPORT_TRADE_SCENES,
+} from './moslogistics.js'
 
 /**
  * A NOTE ON TAGS, LEARNED BY MEASURING THIS FILE TWICE.
@@ -552,6 +556,10 @@ export const MOS_SCENES: readonly CombatScene[] = [
   // player's war SHALLOWER. See `unitscenes.ts`.
   ...PATHFINDER_SCENES,
   ...TRIDENT_SCENES,
+  // The logistics trades, whose war is a load and a schedule rather than a
+  // piece of ground — and who were drawing from the infantry pool until now.
+  ...TRANSPORT_TRADE_SCENES,
+  ...SUPPLY_TRADE_SCENES,
   ...MEDICAL_SCENES,
   ...TRANSPORT_SCENES,
   ...ENGINEER_SCENES,
