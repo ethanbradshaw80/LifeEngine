@@ -6083,3 +6083,36 @@ button.re-card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(
    schools in a column all read alike when every status line is the same grey. */
 .fold-hint.ok { color: var(--ok); }
 .fold-hint.no { color: var(--muted); opacity: 0.75; }
+
+/* ---------------------------------------------------------------------------
+   THE SQUAD, DRAWN AS A SQUAD (2026-08-18)
+
+   Owner: "UI looks the same for the units." It did — the panel printed a
+   longer name over the same flat list, so the table of organisation behind it
+   was invisible. A squad is a leader and two fire teams, and now it is drawn
+   that way: the leader stands alone at the top, then Alpha, then Bravo.
+   --------------------------------------------------------------------------- */
+
+.chain {
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.fireteam {
+  margin-bottom: 0.2rem;
+}
+
+/* The team label sits ON the list it heads, so the eye reads four names as
+   one group rather than as more of the same column. */
+.fireteam-head {
+  margin: 0.55rem 0 0;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.fireteam .roster {
+  margin-top: 0.25rem;
+}

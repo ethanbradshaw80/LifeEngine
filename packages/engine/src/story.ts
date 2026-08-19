@@ -1474,6 +1474,11 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
    * timeline walks the squad's own events inside each tour window instead.
    * Bounded by tours × squad size × their events in the window.
    */
+  /**
+   * WHICH ENTRIES ARE ABOUT SOMEBODY ELSE, so the ordering can put them
+   * after the player's own act in the same month. See the sort below.
+   */
+  const aboutOthers = new Set<number>()
   for (const tour of deploymentsOf(world, personId)) {
     const squad = tour.squad ?? []
     const over = tour.returnedAtTick ?? world.tick
@@ -1500,6 +1505,7 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
         if (event.type === 'wounded-in-action' && diedAt.has(event.tick)) continue
         if (event.type === 'wounded-in-action') {
           const what = (event.detail ?? '').split(':')[1]
+          aboutOthers.add(event.id)
           entries.push({
             eventId: event.id,
             tick: event.tick,
@@ -1509,6 +1515,7 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
             outcome: null,
           })
         } else if (event.type === 'died') {
+          aboutOthers.add(event.id)
           entries.push({
             eventId: event.id,
             tick: event.tick,
@@ -1522,9 +1529,29 @@ export function timelineFor(world: World, personId: EntityId): TimelineEntry[] {
     }
   }
 
-  // Squad entries land out of order with the person's own; the timeline is
-  // read as one life. Numeric comparators only (M-DEBUG step 2).
-  entries.sort((a, b) => a.tick - b.tick || a.eventId - b.eventId)
+  /**
+   * ONE LIFE, IN THE ORDER IT WAS LIVED — and within a month, WHAT YOU DID
+   * BEFORE WHAT IT CAME TO.
+   *
+   * OWNER, reading his own feed: "Morales 'Pockets' was killed. The seat
+   * stays on the roster. / called the evacuation in; Robert did not make it.
+   * — shouldn't the evacuation message show first and then the other one."
+   *
+   * He is right, and the cause was mechanical. Both land on the same tick,
+   * the tiebreak was the event id, and the engine records the DEATH before
+   * it logs the player's attempt to prevent it — so the feed announced the
+   * outcome and then described the act, which reads like a man working on a
+   * corpse. A month's own acts come first; the lines about what happened to
+   * somebody else close it.
+   *
+   * Numeric comparators only (M-DEBUG step 2).
+   */
+  entries.sort(
+    (a, b) =>
+      a.tick - b.tick ||
+      (aboutOthers.has(a.eventId) ? 1 : 0) - (aboutOthers.has(b.eventId) ? 1 : 0) ||
+      a.eventId - b.eventId,
+  )
   return entries
 }
 

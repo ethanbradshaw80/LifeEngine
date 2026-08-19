@@ -593,15 +593,33 @@ export interface RosterMember {
   readonly specialtyTitle: string
   /** 'squad leader' | 'team leader' | the trade they actually do. */
   readonly role: string
+  /**
+   * WHICH FIRE TEAM, or null for the squad leader, who belongs to neither
+   * because he moves between them. A squad is two teams and a man who
+   * commands both; showing nine names in one column hides the only piece of
+   * structure a soldier actually feels.
+   */
+  readonly fireTeam: 'Alpha' | 'Bravo' | null
   readonly deployed: boolean
 }
 
 export interface UnitRoster {
-  /** e.g. "1st Squad, A Company" — the fictional structure, in words. */
+  /** e.g. "1st Squad, 2nd Platoon, A Company" — the structure, in words. */
   readonly unitName: string
   readonly baseName: string
   readonly branchName: string
   readonly members: readonly RosterMember[]
+  /**
+   * THE CHAIN ABOVE THE SQUAD, separately from the name.
+   *
+   * The name is one string and a screen cannot take it apart without
+   * parsing prose, which is how a UI ends up splitting on commas. A special
+   * unit has no platoon or company — the Pathfinders are the Pathfinders —
+   * so both are null there and a screen shows the unit alone.
+   */
+  readonly squad: string | null
+  readonly platoon: string | null
+  readonly company: string | null
 }
 
 /**
@@ -690,6 +708,9 @@ export function oathAdministratorsFor(world: World, personId: EntityId): readonl
         rank: other.rank,
         specialtyTitle: specialtyFor(world, other.specialtyId).title,
         role: other.commissioned === true ? 'your officer' : 'your unit',
+        // Not a formed squad — this list answers "who could stand in", so
+        // there are no fire teams to belong to.
+        fireTeam: null,
         deployed: false,
       },
     })
@@ -788,6 +809,8 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
       rank: other.rank,
       specialtyTitle: specialtyFor(world, other.specialtyId).title,
       role: '',
+      // Assigned below, once the squad is sorted by who answers for whom.
+      fireTeam: null,
       deployed: isDeployed(world, other.personId),
     })
   }
@@ -810,19 +833,36 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
   // officer, and the senior enlisted beside them is the platoon sergeant —
   // not a "team leader" reporting to nobody.
   const ledByAnOfficer = world.service.get(members[0]?.personId ?? (0 as EntityId))?.commissioned === true
-  const withRoles = members.map((member, index) => ({
-    ...member,
-    role:
-      index === 0
-        ? ledByAnOfficer
-          ? 'platoon leader'
-          : 'squad leader'
-        : index === 1
+  /**
+   * A SQUAD IS A LEADER AND TWO FIRE TEAMS, and the roles follow that shape
+   * rather than being "the first two people".
+   *
+   * The old version named exactly one team leader, because the roster was
+   * the whole station and a station has no teams. A nine-man squad has THREE
+   * men who answer for somebody: the squad leader, and a team leader at the
+   * head of each of Alpha and Bravo. Everybody else does their trade — which
+   * is the honest answer, and better than inventing a title for a private.
+   */
+  const withRoles = members.map((member, index) => {
+    // 0 is the squad leader; 1-4 are Alpha; 5-8 are Bravo.
+    const fireTeam: 'Alpha' | 'Bravo' | null =
+      index === 0 ? null : index <= FIRE_TEAM ? 'Alpha' : 'Bravo'
+    const leadsATeam = index === 1 || index === FIRE_TEAM + 1
+    return {
+      ...member,
+      fireTeam,
+      role:
+        index === 0
           ? ledByAnOfficer
-            ? 'platoon sergeant'
-            : 'team leader'
-          : member.specialtyTitle,
-  }))
+            ? 'platoon leader'
+            : 'squad leader'
+          : leadsATeam
+            ? ledByAnOfficer && index === 1
+              ? 'platoon sergeant'
+              : `${fireTeam ?? ''} team leader`
+            : member.specialtyTitle,
+    }
+  })
 
   // A selected unit is called by its own name. "1st Squad, A Company" is
   // what an ordinary posting is called; the Pathfinders are the Pathfinders.
@@ -831,6 +871,10 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
     unitName:
       special?.name ??
       `${mine.squad} Squad, ${mine.platoon} Platoon, ${mine.company} Company`,
+    // Null in a special unit: the Pathfinders have no A Company above them.
+    squad: special === undefined ? mine.squad : null,
+    platoon: special === undefined ? mine.platoon : null,
+    company: special === undefined ? mine.company : null,
     baseName: world.places.get(record.baseId)?.name ?? 'a home station',
     branchName: branchName(world, record.branch),
     members: withRoles,

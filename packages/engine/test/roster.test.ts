@@ -91,7 +91,26 @@ describe('unit rosters', () => {
       const ledByOfficer =
         world.service.get(roster.members[0]?.personId as never)?.commissioned === true
       expect(roster.members[0]?.role).toBe(ledByOfficer ? 'platoon leader' : 'squad leader')
-      expect(roster.members[1]?.role).toBe(ledByOfficer ? 'platoon sergeant' : 'team leader')
+      /**
+       * TWO TEAM LEADERS, SO THEY HAVE TO BE TOLD APART (2026-08-18).
+       *
+       * This expected a bare "team leader" back when a roster was the whole
+       * station and exactly one man was given the title. A nine-man squad is
+       * a leader and two fire teams, so there is an Alpha team leader and a
+       * Bravo team leader, and a roster that called both "team leader" would
+       * be hiding the structure the rest of this change exists to show.
+       */
+      expect(roster.members[1]?.role).toBe(
+        ledByOfficer ? 'platoon sergeant' : 'Alpha team leader',
+      )
+      const bravoLead = roster.members[5]
+      if (bravoLead !== undefined) expect(bravoLead.role).toBe('Bravo team leader')
+      // And the two teams are drawn from the right ends of the squad.
+      expect(roster.members[0]?.fireTeam).toBeNull()
+      for (const [i, m] of roster.members.entries()) {
+        if (i === 0) continue
+        expect(m.fireTeam).toBe(i <= 4 ? 'Alpha' : 'Bravo')
+      }
     }
   })
 

@@ -707,6 +707,19 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
   // it feels to live through one, until L4-M3 makes it personal. M-ARMY2:
   // the town's own service news too — neighbors enlisting, drives on the
   // square — so the uniforms are visible (owner direction).
+  /**
+   * EVERY MAN WHO WAS EVER IN ONE OF YOUR SQUADS. Cheap — the tours are
+   * already in hand — and it is the set the feed needs to avoid saying the
+   * same death twice in two voices.
+   */
+  const squadEverServedWith = useMemo(() => {
+    const ids = new Set<number>()
+    for (const tour of world.deployments.get(person.id) ?? []) {
+      for (const mate of tour.squad ?? []) ids.add(mate.personId)
+    }
+    return ids
+  }, [world, person.id])
+
   const feedItems = useMemo(() => {
     // The service feed is asked WHOSE story this is, so a recruiting season
     // reaches the people it could be about rather than everyone alive.
@@ -726,7 +739,22 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       // being refused are `diplomacy` and stay on the News tab, which is the
       // desk for them. Elections were already excluded for the same reason.
       ...newsSince(world, person.birthTick).filter((item) => item.kind === 'war'),
-      ...serviceNewsSince(world, person.birthTick, person.id),
+      /**
+       * NOT A MAN YOUR OWN FEED HAS ALREADY BURIED (owner, with a
+       * screenshot: "Morales 'Pockets' was killed. The seat stays on the
+       * roster." sitting directly above "Robert Morales was killed in
+       * action.").
+       *
+       * The town's service news reports every soldier from here who is
+       * killed — which is right, and is how a town learns — but a man in
+       * YOUR squad is not town news to you. The life story already names him
+       * as somebody you served beside, with his nickname and his seat, which
+       * is a truer line than the newspaper's. This was the third writer of
+       * one death: two are now silent and the closest one speaks.
+       */
+      ...serviceNewsSince(world, person.birthTick, person.id).filter(
+        (item) => item.subjectId === undefined || !squadEverServedWith.has(item.subjectId),
+      ),
     ]
     const merged: (
       | { kind: 'life'; tick: number; entry: (typeof entries)[number] }
@@ -741,7 +769,7 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
     for (const span of quietSpans) merged.push({ kind: 'quiet', tick: span.tick, months: span.months })
     merged.sort((x, y) => x.tick - y.tick)
     return merged
-  }, [world, person.birthTick, person.id, entries, quietSpans])
+  }, [world, person.birthTick, person.id, entries, quietSpans, squadEverServedWith])
 
   // A finished press with nothing to show leaves its marker.
   useEffect(() => {
@@ -2896,31 +2924,62 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
                          and the strength, so a shut fold still says who you
                          are with. */
                       <Fold
-                        title={roster.unitName}
+                        title={roster.squad === null ? roster.unitName : `${roster.squad} Squad`}
                         count={roster.members.length}
-                        hint={`${roster.branchName} · ${roster.baseName}`}
+                        hint={
+                          roster.platoon === null
+                            ? `${roster.branchName} · ${roster.baseName}`
+                            : `${roster.platoon} Platoon, ${roster.company ?? ''} Company · ${roster.baseName}`
+                        }
                       >
-                        <ul className="roster">
-                          {roster.members.map((member) => (
-                            <li key={member.personId}>
-                              <button
-                                type="button"
-                                className="linky"
-                                onClick={() => onInspect(member.personId)}
-                              >
-                                <span className="rank">{member.rankTitle}</span>{' '}
-                                {member.name}
-                                {member.personId === person.id && (
-                                  <span className="muted small"> — you</span>
-                                )}
-                              </button>
-                              <span className="muted small">
-                                {member.role}
-                                {member.deployed ? ' · away' : ''}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
+                        {/* WHERE YOU SIT, above the squad. The name alone was
+                            a single string, so the screen could show it and
+                            still tell you nothing about the shape you are in
+                            (owner: "UI looks the same for the units"). */}
+                        {roster.platoon !== null && (
+                          <p className="chain muted small">
+                            {roster.squad} Squad · {roster.platoon} Platoon ·{' '}
+                            {roster.company} Company · {roster.branchName}
+                          </p>
+                        )}
+                        {/* A SQUAD IS TWO FIRE TEAMS AND THE MAN OVER BOTH,
+                            so it is drawn as two teams and the man over both.
+                            Nine names in one column is the station list this
+                            replaced, wearing a shorter number. */}
+                        {(['leader', 'Alpha', 'Bravo'] as const).map((group) => {
+                          const inGroup = roster.members.filter((m) =>
+                            group === 'leader' ? m.fireTeam === null : m.fireTeam === group,
+                          )
+                          if (inGroup.length === 0) return null
+                          return (
+                            <div key={group} className="fireteam">
+                              {group !== 'leader' && (
+                                <h5 className="fireteam-head">{group} Team</h5>
+                              )}
+                              <ul className="roster">
+                                {inGroup.map((member) => (
+                                  <li key={member.personId}>
+                                    <button
+                                      type="button"
+                                      className="linky"
+                                      onClick={() => onInspect(member.personId)}
+                                    >
+                                      <span className="rank">{member.rankTitle}</span>{' '}
+                                      {member.name}
+                                      {member.personId === person.id && (
+                                        <span className="muted small"> — you</span>
+                                      )}
+                                    </button>
+                                    <span className="muted small">
+                                      {member.role}
+                                      {member.deployed ? ' · away' : ''}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
+                        })}
                       </Fold>
                     )
                   })()}

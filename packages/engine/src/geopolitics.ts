@@ -831,13 +831,21 @@ export function newsSince(world: World, sinceTick: Tick): NewsItem[] {
      * short of that — border tension, an ally asking, an ally being
      * refused. The News tab still carries both; the life feed keeps the war.
      */
-    const kind =
-      event.type === 'war-began' ||
-      event.type === 'joined-war' ||
-      event.type === 'ceasefire' ||
-      event.type === 'peace-restored'
-        ? 'war'
-        : 'diplomacy'
+    /**
+     * ONLY A COUNTRY GOING TO WAR, which is what he actually asked for.
+     *
+     * The first pass also counted `ceasefire` and `peace-restored` as war
+     * news, on the reasoning that a war ENDING is worth a line. Watching the
+     * live feed killed that: `peace-restored` fires whenever a pair
+     * de-escalates to peace, INCLUDING from mere tension, so the story feed
+     * filled up with "relations warmed between Syria and Spain" — a headline
+     * about two foreign countries who were never fighting. That is the exact
+     * crowding the filter exists to stop.
+     *
+     * Everything short of a declaration is diplomacy and lives on the News
+     * tab, which has a desk for it.
+     */
+    const kind = event.type === 'war-began' || event.type === 'joined-war' ? 'war' : 'diplomacy'
     items.push({ tick: event.tick, text: event.detail ?? 'events abroad', nearby, kind })
   }
   return items
