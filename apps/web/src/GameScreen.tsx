@@ -719,7 +719,13 @@ export function GameScreen({ world, person, busy, onAdvance, onStop, onInspect, 
       // stops dinner to talk about. The player's OWN swearing-in still
       // appears here, because that arrives through their personal timeline,
       // not the wire.
-      ...newsSince(world, person.birthTick).filter((item) => item.kind !== 'election'),
+      // THE LIFE FEED KEEPS THE WAR, NOT THE WEATHER AROUND IT (owner,
+      // playing v187: "our feed gets crowded with news updates about boarder
+      // clashes and stuff like that, lets make it to were you only see when a
+      // country goes to war"). Border tension, an ally asking and an ally
+      // being refused are `diplomacy` and stay on the News tab, which is the
+      // desk for them. Elections were already excluded for the same reason.
+      ...newsSince(world, person.birthTick).filter((item) => item.kind === 'war'),
       ...serviceNewsSince(world, person.birthTick, person.id),
     ]
     const merged: (

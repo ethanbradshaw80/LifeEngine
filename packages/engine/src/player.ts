@@ -6965,7 +6965,20 @@ function commit(world: World, pending: PendingDecision, choice: string): void {
     // "has this one already played" is asked every month and the log is the
     // cheap place to ask it. The event ledger would answer too, and it grows
     // without bound.
-    choice: pending.kind === 'unit-moment' ? `${momentIdOf(pending.occupationId)}:${choice}` : choice,
+    //
+    // A COMBAT MOMENT LOGS ITS SCENE for the same reason, and for a second
+    // one (owner, playing v187: "I feel like we are seeing the same scenes
+    // way too much in combat, its never different"). `pickScene` pushes down
+    // what the player has just been through, and the scene id survived
+    // nowhere else — the pending carries it, the pending is discarded on
+    // commit, and `saw-combat`'s detail is a flavour string. Same shape as
+    // the unit moment above, so there is one convention rather than two.
+    choice:
+      pending.kind === 'unit-moment'
+        ? `${momentIdOf(pending.occupationId)}:${choice}`
+        : pending.kind === 'combat-moment'
+          ? `${decodeScene(pending.occupationId).sceneId}:${choice}`
+          : choice,
   })
   // A "NO" IS STAMPED so it can be honoured. Recorded for every kind
   // rather than only the ones with a cooldown today: the table in

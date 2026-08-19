@@ -112,6 +112,25 @@ export function App() {
   const [selected, setSelected] = useState<EntityId | null>(null)
   const [filter, setFilter] = useState<Filter>('living')
   const [seedInput, setSeedInput] = useState(String(FIRST_SEED))
+  /**
+   * HAS THE PLAYER DELIBERATELY CHOSEN A SEED?
+   *
+   * OWNER, playing v187: "the seed doesn't automatically change on every
+   * load, you have to change it still."
+   *
+   * The random draw at boot was real but it landed in a TEXT BOX that is
+   * initialised once and never refreshed, and `applySeed` — the button
+   * everybody actually presses — reads the box. So the first new world of a
+   * session was random and every one after it was the SAME random world,
+   * for ever, unless the player edited the field by hand. `freshSeed()` was
+   * wired only to the damaged-save recovery button, which a healthy game
+   * never shows.
+   *
+   * The box is now an override rather than the source: untouched, every new
+   * world draws fresh; typed into, it reproduces exactly the world asked
+   * for, which is the whole point of being able to see a seed at all.
+   */
+  const [seedTouched, setSeedTouched] = useState(false)
   // Whether the character picker is open. Pure interface state — what the user
   // is looking at, not a fact about the world.
   const [picking, setPicking] = useState(false)
@@ -245,9 +264,15 @@ export function App() {
   const chosenPreset = 'american-heartland'
 
   function applySeed() {
-    const value = Number.parseInt(seedInput, 10)
-    if (!Number.isInteger(value)) return
+    const typed = Number.parseInt(seedInput, 10)
+    // A typed seed is honoured; anything else — untouched, or nonsense left
+    // in the box — means "just give me a new world".
+    const value = seedTouched && Number.isInteger(typed) ? typed : freshSeed()
     setSelected(null)
+    // Show the seed the world was ACTUALLY built from, so it can be written
+    // down and played again, and arm the next new world to draw fresh.
+    setSeedInput(String(value))
+    setSeedTouched(false)
     newWorld(value, chosenPreset)
   }
 
@@ -673,7 +698,7 @@ export function App() {
           <input
             value={seedInput}
             inputMode="numeric"
-            onChange={(e) => setSeedInput(e.target.value)}
+            onChange={(e) => { setSeedInput(e.target.value); setSeedTouched(true) }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') setConfirmingNewWorld(true)
             }}

@@ -815,7 +815,30 @@ export function newsSince(world: World, sinceTick: Tick): NewsItem[] {
     ) {
       continue
     }
-    items.push({ tick: event.tick, text: event.detail ?? 'events abroad', nearby })
+    /**
+     * TAG WHAT KIND OF STORY THIS IS, so a reader can choose.
+     *
+     * OWNER, playing v187: "our feed gets crowded with news updates about
+     * boarder clashes and stuff like that, lets make it to were you only see
+     * when a country goes to war in the feed instead of the others."
+     *
+     * These items were pushed untagged, so the personal feed had no way to
+     * tell "the Republic is at war" from "the Republic and Halvia exchanged
+     * words at the border" — it took the lot. The newsroom already had a
+     * `kind` for exactly this and only the election branch was setting it.
+     *
+     * WAR is the beats where a war starts or ends. DIPLOMACY is everything
+     * short of that — border tension, an ally asking, an ally being
+     * refused. The News tab still carries both; the life feed keeps the war.
+     */
+    const kind =
+      event.type === 'war-began' ||
+      event.type === 'joined-war' ||
+      event.type === 'ceasefire' ||
+      event.type === 'peace-restored'
+        ? 'war'
+        : 'diplomacy'
+    items.push({ tick: event.tick, text: event.detail ?? 'events abroad', nearby, kind })
   }
   return items
 }

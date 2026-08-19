@@ -24,6 +24,7 @@
  */
 
 import type { CombatScene } from './types.js'
+import { RIFLEMAN_SCENES } from './mosrifleman.js'
 
 /**
  * A NOTE ON TAGS, LEARNED BY MEASURING THIS FILE TWICE.
@@ -539,6 +540,11 @@ const COMMAND_SCENES: readonly CombatScene[] = [
  * scenes become the seeds of the new engagement pools").
  */
 export const MOS_SCENES: readonly CombatScene[] = [
+  // THE RIFLEMAN HAD NO POOL AT ALL until 2026-08-18 — the most-played job
+  // in the game fell through to the general core scenes, which is a large
+  // part of why the owner kept seeing the same three. Twenty of his own,
+  // in `mosrifleman.ts`.
+  ...RIFLEMAN_SCENES,
   ...MEDICAL_SCENES,
   ...TRANSPORT_SCENES,
   ...ENGINEER_SCENES,

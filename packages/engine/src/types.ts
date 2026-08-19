@@ -1047,6 +1047,24 @@ export interface CombatScene {
   readonly did: Readonly<Record<SceneChoice, string>>
   /** Serving in this unit only, or null for anyone. */
   readonly unitId: string | null
+  /**
+   * WHICH SPECIALTIES OWN THIS MOMENT. Absent means "situational, open to
+   * whoever the tags reach" — which is what every scene written before
+   * 2026-08-18 is.
+   *
+   * OWNER'S RULING: "I don't want the special groups to get the same popups
+   * as logistics guys." Tags could not deliver that, and measuring showed
+   * why: they describe a SITUATION, and situations are shared. The medic
+   * carries `combat_firefight`; supply carries `base_defense` and
+   * `combat_convoy_ambush`. The rifleman owns no tag that somebody else does
+   * not also hold, so twenty infantry scenes tagged honestly were drawn by
+   * medics and storemen the moment they were added — and the existing
+   * "in a base attack it is entirely their own war" test caught it.
+   *
+   * Ownership is therefore stated rather than inferred. A scene that names
+   * its trades is offered to those trades and to nobody else.
+   */
+  readonly specialtyIds?: readonly string[]
   /** Units take the sharper jobs: bias the threat roll upward. */
   readonly biasToward: Threat | null
   /**

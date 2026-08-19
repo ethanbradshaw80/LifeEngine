@@ -580,24 +580,83 @@ export function pickScene(
   tags: readonly string[] = [],
   /** M-ENLIST §5c. Command moments are only offered to people in command. */
   isOfficer = false,
+  /**
+   * Scene ids this person has just been through, MOST RECENT FIRST. Empty is
+   * a legitimate answer (a first tour, or a caller that does not track it)
+   * and simply means nothing is suppressed.
+   */
+  recent: readonly string[] = [],
+  /**
+   * The trade this person actually holds. Scenes that name their owners are
+   * offered only to the trades they name — see `CombatScene.specialtyIds`.
+   */
+  specialtyId: string | null = null,
 ): CombatScene | undefined {
-  const eligible = COMBAT_SCENES.filter((scene) => isOfficer || scene.officersOnly !== true)
+  const rankOk = COMBAT_SCENES.filter((scene) => isOfficer || scene.officersOnly !== true)
+
+  /**
+   * OWNED SCENES FIRST, AND EXCLUSIVELY.
+   *
+   * A scene that names its trades is offered to those trades and to nobody
+   * else, and where a trade has its own scenes it gets ONLY those. This is
+   * the owner's separation rule made structural: an infantry problem is not
+   * a storeman's problem however similar the situation looked to the tags.
+   */
+  const eligible = rankOk.filter(
+    (scene) =>
+      scene.specialtyIds === undefined ||
+      (specialtyId !== null && scene.specialtyIds.includes(specialtyId)),
+  )
+  const ownedByTrade = eligible.filter((scene) => scene.specialtyIds !== undefined)
+  if (ownedByTrade.length > 0) {
+    const byChannel = ownedByTrade.filter((scene) => scene.channels.includes(channel))
+    const fromTrade = byChannel.length > 0 ? byChannel : ownedByTrade
+    const tradeWeights = fromTrade.map((scene) => {
+      const seen = recent.indexOf(scene.id)
+      return seen === 0 ? 1 : seen > 0 ? 4 : 24
+    })
+    return rng.pickWeighted(fromTrade, tradeWeights)
+  }
+
+  /**
+   * THE JOB DECIDES WHAT YOU SEE. OWNER'S RULING, 2026-08-18: "I don't want
+   * the special groups to get the same popups as logistics guys."
+   *
+   * A first attempt at his repetition complaint turned these filters into
+   * weights so that a Pathfinder could occasionally draw a general scene.
+   * That was the wrong answer to the right complaint: it made every MOS
+   * blend into every other, which is precisely what he does not want. The
+   * separation is the POINT — a logistics sergeant and a combat swimmer are
+   * not having the same war — and the cure for repetition is DEPTH inside
+   * each pool, not leakage between them.
+   *
+   * So the gates are gates again: your unit's scenes if your unit has any,
+   * then the channel, then your own trade's tags. What changed permanently
+   * is the last step below.
+   */
   const unitScenes = eligible.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
   const pool = unitScenes.length > 0 ? unitScenes : eligible.filter((scene) => scene.unitId === null)
   const matching = pool.filter((scene) => scene.channels.includes(channel))
   const choices = matching.length > 0 ? matching : pool
   if (choices.length === 0) return undefined
-  // THE TRADE NARROWS, IT DOES NOT DECIDE. A crew chief in an ambush is
-  // still in an ambush — the channel already said so — but between two
-  // scenes the channel allows, his own job wins.
-  //
-  // The last-resort fallback stays "some scene rather than none", which is
-  // right for enemy contact: the player is in something whatever their job
-  // is. An ACCIDENT is the opposite, so deployment.ts checks the tag itself
-  // there rather than trusting this fallback.
   const own = choices.filter((scene) => scene.tags.some((tag) => tags.includes(tag)))
   const finalPool = own.length > 0 ? own : choices
-  return finalPool[rng.nextInt(0, finalPool.length)]
+
+  /**
+   * AND NOT THE ONE YOU JUST HAD.
+   *
+   * Within the right pool, an immediate repeat is still what reads as "it is
+   * always the same". Recent scenes are pushed far down rather than removed:
+   * a pool can be small, and a scene that can never recur is its own kind of
+   * wrong — a man can be ambushed on the same road twice.
+   */
+  const weights = finalPool.map((scene) => {
+    const seen = recent.indexOf(scene.id)
+    if (seen === 0) return 1
+    if (seen > 0) return 4
+    return 24
+  })
+  return rng.pickWeighted(finalPool, weights)
 }
 
 /**

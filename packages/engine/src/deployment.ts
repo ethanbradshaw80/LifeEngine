@@ -1244,6 +1244,31 @@ function hitSquadmate(
 }
 
 /**
+ * THE SCENES THIS PERSON HAS JUST BEEN THROUGH, most recent first.
+ *
+ * Read off the player's own log rather than stored anywhere new: a
+ * `combat-moment` entry already carries `scene:threat` in `occupationId`,
+ * so the history is there and nothing has to be added to the world (Law 6
+ * — history is persistent — and Law 12 — no duplicated authoritative
+ * state). `pickScene` pushes these down so the same moment does not land
+ * twice running, which is what actually reads as "it is always the same".
+ */
+const RECENT_SCENE_WINDOW = 6
+
+function recentScenesFor(world: World): readonly string[] {
+  const seen: string[] = []
+  for (let i = world.player.log.length - 1; i >= 0 && seen.length < RECENT_SCENE_WINDOW; i -= 1) {
+    const entry = world.player.log[i]
+    if (entry === undefined || entry.kind !== 'combat-moment') continue
+    // `commit` logs a combat moment as "sceneId:choice", the same shape a
+    // unit moment uses. The head is the scene.
+    const sceneId = entry.choice.split(':')[0] ?? ''
+    if (sceneId.length > 0 && !seen.includes(sceneId)) seen.push(sceneId)
+  }
+  return seen
+}
+
+/**
  * One door into a war, for orders, for volunteers, and for going to an
  * ally's war — so a tour is a tour whatever put someone on the boat, and
  * only the record's factors say which it was.
@@ -2072,6 +2097,8 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           rng,
           sceneTagsForRecord(world, record),
           record.commissioned,
+          recentScenesFor(world),
+          record.specialtyId,
         )
         if (scene !== undefined) {
           const weight = channels.find((c) => c.id === channel)?.weight ?? 0
@@ -2120,7 +2147,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       rng.chance(3, 5)
     ) {
       const tags = sceneTagsForRecord(world, record)
-      const scene = pickScene(channel, record.unitId, rng, tags, record.commissioned)
+      const scene = pickScene(channel, record.unitId, rng, tags, record.commissioned, recentScenesFor(world), record.specialtyId)
       if (scene !== undefined && scene.tags.some((tag) => tags.includes(tag))) {
         const weight = channels.find((c) => c.id === channel)?.weight ?? 0
         const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)
