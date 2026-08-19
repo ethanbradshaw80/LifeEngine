@@ -758,7 +758,20 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
     )
     .map((each) => each.personId)
     .sort((a, b) => a - b)
-  const myIndex = roll.indexOf(record.personId)
+  /**
+   * ONE PASS, NOT ONE PASS PER MAN.
+   *
+   * The first version of this called `roll.indexOf(...)` again for every
+   * member inside the loop below, which is O(n²) on a station's whole
+   * strength — and `rosterFrom` is called constantly, by the story, the
+   * after-action report, `squadmatesOf` and the medic's field aid. MEASURED
+   * by the suite: the full run went from 29.4 minutes to 50 and four heavy
+   * tests timed out. A position in an ordered list is a lookup, so it is a
+   * Map.
+   */
+  const placeInRoll = new Map<EntityId, number>()
+  for (const [index, id] of roll.entries()) placeInRoll.set(id, index)
+  const myIndex = placeInRoll.get(record.personId) ?? -1
   const mine = subUnitAt(myIndex < 0 ? 0 : myIndex)
 
   // A SPECIAL UNIT IS A UNIT (owner, playing: "I just got assigned to a
@@ -794,7 +807,7 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
        * ninety-eight men listed under him. A squad is the unit a soldier
        * actually lives in; the station is an address.
        */
-      const theirIndex = roll.indexOf(other.personId)
+      const theirIndex = placeInRoll.get(other.personId) ?? -1
       if (theirIndex < 0 || subUnitAt(theirIndex).squadIndex !== mine.squadIndex) continue
     }
     const person = world.people.get(other.personId)
