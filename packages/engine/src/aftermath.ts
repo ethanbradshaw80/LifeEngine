@@ -30,6 +30,7 @@
 
 import type { EntityId, Tick } from '@life-engine/shared'
 import { eventsFor } from './eventindex.js'
+import { badgesOf } from './service.js'
 import { hash32, Stream } from './rng.js'
 import type { World } from './types.js'
 
@@ -159,13 +160,19 @@ export interface Attribution {
  * ever, so the only route to a count was special-unit membership and every
  * other soldier in the game got the collective-fire line.
  *
- * There is no sniper trade to point at, so the gate is what the service
- * actually records: the marksmanship qualification a man is awarded, plus
- * unit membership. A rifleman who earned his badge is the closest thing this
- * simulation has to somebody whose individual fire is observed and written
- * down, which is what a count is.
+ * THE GATE IS SNIPER SCHOOL, which the game already has and which the first
+ * repair of this missed (owner: "we have a school called 'sniper school' in
+ * the schoolhouse"). It is in `content.ts` as `sniper-school`, it is already
+ * restricted to `specialtyIds: ['rifleman']` so only infantry can apply, and
+ * finishing it awards the badge `sniper qualified`. That badge is a fact the
+ * service recorded about a man, earned over two months against a 420
+ * difficulty with two seats a class — which is a far better claim on a count
+ * than a trade id ever was.
+ *
+ * So: a man who passed sniper school, or a man in a special unit. Everybody
+ * else gets the honest collective-fire answer.
  */
-const COUNTING_QUALIFICATIONS = new Set(['expert marksman'])
+const SNIPER_BADGE = 'sniper qualified'
 
 export function attributionFor(world: World, personId: EntityId, tick: Tick): Attribution {
   const record = world.service.get(personId)
@@ -190,8 +197,7 @@ export function attributionFor(world: World, personId: EntityId, tick: Tick): At
     return { confirmed: null, confirmedBy: null, words: '' }
   }
 
-  const counts =
-    record.qualifications.some((q) => COUNTING_QUALIFICATIONS.has(q)) || record.unitId !== null
+  const counts = badgesOf(world, personId).includes(SNIPER_BADGE) || record.unitId !== null
   if (!counts) {
     /**
      * THE HONEST ANSWER FOR ALMOST EVERYBODY, and it is a better line than a

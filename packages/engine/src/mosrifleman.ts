@@ -151,7 +151,7 @@ export const RIFLEMAN_SCENES: readonly CombatScene[] = [
     tags: ['combat_firefight', 'combat_breach'],
     channels: ['direct-combat-exposure'],
     tell: {
-      light: 'There is a face at the second-floor window. It has been there twice now and it is not carrying anything you can see.',
+      light: 'There is a face at the second-floor window, and it has been there twice now, and it is not carrying anything you can see.',
       heavy: 'Somebody is at that window every time the fire slackens, and the fire is very well laid on.',
       overrun: 'Whoever is in that window is putting rounds down the length of the street and there are people trying to cross it.',
     },
