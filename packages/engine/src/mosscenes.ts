@@ -25,6 +25,7 @@
 
 import type { CombatScene } from './types.js'
 import { RIFLEMAN_SCENES } from './mosrifleman.js'
+import { SNIPER_SCENES } from './mossniper.js'
 import { PATHFINDER_SCENES, TRIDENT_SCENES } from './unitscenes.js'
 import { GUARDIAN_SCENES, NIGHTHAWK_SCENES } from './unitscenes_air.js'
 import { EMBER_SCENES, GREY_SCENES, VANGUARD_SCENES } from './unitscenes_deep.js'
@@ -552,6 +553,9 @@ export const MOS_SCENES: readonly CombatScene[] = [
   // part of why the owner kept seeing the same three. Twenty of his own,
   // in `mosrifleman.ts`.
   ...RIFLEMAN_SCENES,
+  // Earned rather than assigned: owned by the `sniper qualified` badge, so a
+  // rifleman who passed the course has a sniper's war from then on.
+  ...SNIPER_SCENES,
   // The special units' own wars. Seven units shared TEN scenes before
   // 2026-08-18, and the three tier-2 units — the ones a tier-1 operator is
   // promoted into — had none at all, so reaching the top of the pack made a

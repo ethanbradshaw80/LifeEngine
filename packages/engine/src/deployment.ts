@@ -85,7 +85,7 @@ import type { Rng } from './rng.js'
 import { nudgeWellbeing } from './wellbeing.js'
 import { officerRoleById, specialtyTitleCased } from './content.js'
 import { sceneTagsFor } from './enlistment.js'
-import { boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf, unitRosterOf } from './service.js'
+import { badgesOf, boostServicePerformance, branchName, isServing, rankTitle, squadmatesOf, unitRosterOf } from './service.js'
 import { performDeath } from './systems.js'
 import type { Deployment, GeoRelation, Nation, Person, ServiceRecord, World } from './types.js'
 import { branchSpecFor, specialtyFor, unitFor } from './worldspec.js'
@@ -2099,6 +2099,7 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
           record.commissioned,
           recentScenesFor(world),
           record.specialtyId,
+          badgesOf(world, personId),
         )
         if (scene !== undefined) {
           const weight = channels.find((c) => c.id === channel)?.weight ?? 0
@@ -2147,7 +2148,10 @@ function resolveTours(world: World, tick: Tick, wars: GeoRelation[]): void {
       rng.chance(3, 5)
     ) {
       const tags = sceneTagsForRecord(world, record)
-      const scene = pickScene(channel, record.unitId, rng, tags, record.commissioned, recentScenesFor(world), record.specialtyId)
+      const scene = pickScene(
+        channel, record.unitId, rng, tags, record.commissioned,
+        recentScenesFor(world), record.specialtyId, badgesOf(world, personId),
+      )
       if (scene !== undefined && scene.tags.some((tag) => tags.includes(tag))) {
         const weight = channels.find((c) => c.id === channel)?.weight ?? 0
         const threat = rollThreat(Math.floor(weight / 1000), scene.biasToward, rng)

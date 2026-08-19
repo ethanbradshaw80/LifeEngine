@@ -860,7 +860,19 @@ function rosterFrom(world: World, record: ServiceRecordT | undefined): UnitRoste
             ? ledByAnOfficer && index === 1
               ? 'platoon sergeant'
               : `${fireTeam ?? ''} team leader`
-            : member.specialtyTitle,
+            : /**
+               * THE SNIPER IS THE SNIPER (owner: "if you get this school
+               * completed and deploy you should then be the sniper for all
+               * the deployments after the school").
+               *
+               * His record still says `rifleman`, because that is what he
+               * is — a rifleman who passed a course — so the roster read him
+               * as one of the riflemen and the squad had no sniper in it at
+               * all. The badge is the fact, and it outlasts the posting.
+               */
+              badgesOf(world, member.personId).includes('sniper qualified')
+              ? 'sniper'
+              : member.specialtyTitle,
     }
   })
 

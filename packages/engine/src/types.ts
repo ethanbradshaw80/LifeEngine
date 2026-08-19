@@ -1065,6 +1065,21 @@ export interface CombatScene {
    * its trades is offered to those trades and to nobody else.
    */
   readonly specialtyIds?: readonly string[]
+  /**
+   * WHICH BADGES OWN THIS MOMENT — a school somebody passed, rather than a
+   * trade they were assigned.
+   *
+   * OWNER: "if you get this school completed and deploy you should then be
+   * the sniper for all the deployments after the school." There is no sniper
+   * SPECIALTY in the game and there should not be — a sniper is a rifleman
+   * who passed a course, which is exactly how it works. So a scene can be
+   * owned by a qualification, and `sniper qualified` is the first of them.
+   *
+   * A badge outranks a trade and yields to a unit: a Pathfinder who is also
+   * a sniper is having a Pathfinder's war, but a line rifleman who passed
+   * the course is having a sniper's.
+   */
+  readonly badgeIds?: readonly string[]
   /** Units take the sharper jobs: bias the threat roll upward. */
   readonly biasToward: Threat | null
   /**

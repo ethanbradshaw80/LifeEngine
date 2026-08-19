@@ -591,6 +591,8 @@ export function pickScene(
    * offered only to the trades they name — see `CombatScene.specialtyIds`.
    */
   specialtyId: string | null = null,
+  /** Badges this person holds — see `CombatScene.badgeIds`. */
+  badges: readonly string[] = [],
 ): CombatScene | undefined {
   const rankOk = COMBAT_SCENES.filter((scene) => isOfficer || scene.officersOnly !== true)
 
@@ -601,8 +603,9 @@ export function pickScene(
    */
   const eligible = rankOk.filter(
     (scene) =>
-      scene.specialtyIds === undefined ||
-      (specialtyId !== null && scene.specialtyIds.includes(specialtyId)),
+      (scene.specialtyIds === undefined ||
+        (specialtyId !== null && scene.specialtyIds.includes(specialtyId))) &&
+      (scene.badgeIds === undefined || scene.badgeIds.some((badge) => badges.includes(badge))),
   )
 
   /**
@@ -621,10 +624,28 @@ export function pickScene(
    * rifleman is.
    */
   const byUnit = eligible.filter((scene) => scene.unitId !== null && scene.unitId === unitId)
-  const byTrade = eligible.filter((scene) => scene.specialtyIds !== undefined)
-  const general = eligible.filter((scene) => scene.unitId === null && scene.specialtyIds === undefined)
+  /**
+   * A BADGE SITS BETWEEN THE UNIT AND THE TRADE. A Pathfinder who is also a
+   * sniper is having a Pathfinder's war; a line rifleman who passed the
+   * course is having a sniper's, not an infantryman's.
+   */
+  const byBadge = eligible.filter((scene) => scene.badgeIds !== undefined)
+  const byTrade = eligible.filter(
+    (scene) => scene.specialtyIds !== undefined && scene.badgeIds === undefined,
+  )
+  const general = eligible.filter(
+    (scene) =>
+      scene.unitId === null && scene.specialtyIds === undefined && scene.badgeIds === undefined,
+  )
 
-  const pool = byUnit.length > 0 ? byUnit : byTrade.length > 0 ? byTrade : general
+  const pool =
+    byUnit.length > 0
+      ? byUnit
+      : byBadge.length > 0
+        ? byBadge
+        : byTrade.length > 0
+          ? byTrade
+          : general
   const matching = pool.filter((scene) => scene.channels.includes(channel))
   const choices = matching.length > 0 ? matching : pool
   if (choices.length === 0) return undefined
