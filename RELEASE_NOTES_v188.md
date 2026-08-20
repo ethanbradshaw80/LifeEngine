@@ -84,5 +84,14 @@ exactly eleven days later.
   ladder counted as a war injury and paid a pension for it.
 - **A dead officeholder kept their seat** for a month. The chair is empty from
   the day they die, and a by-election follows.
+- **You could buy a house without paying for it.** If your money and your
+  household's shared account weren't the same one, the purchase went through
+  and took whatever happened to be in the wallet — the rest was invented. The
+  till refuses now, and the town has to afford its houses too.
+- **There was no way to apply for ROTC.** The button existed, but it was
+  hidden inside the "What it cost" card — which only appears once you already
+  have a student loan. ROTC is how you avoid the loan, so the one door out was
+  behind the thing it prevents. It's its own card now, shown to anyone at
+  university.
 - Assorted: muggings no longer produce shrapnel wounds; squadmates' deployments
   show on their own records.
