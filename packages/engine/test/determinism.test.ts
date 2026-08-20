@@ -102,7 +102,7 @@ export const GOLDEN_TICKS = 120
 // crime draws from its own `assault` table instead of borrowing the combat
 // one; and the yearly raider can no longer be somebody spending out of the
 // player's own wallet. See the v193 entry in snapshot.ts.
-export const GOLDEN_HASH_HEX = 'e2d316de'
+export const GOLDEN_HASH_HEX = '3cf7fc40'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))
@@ -175,7 +175,7 @@ describe('serialization', () => {
     const world = runReference()
     const text = serialize(world)
     expect(text).toContain('"schemaVersion":1')
-    expect(text).toContain('"simulationVersion":194')
+    expect(text).toContain('"simulationVersion":195')
     expect(text).toContain('"userId":"local"')
     expect(text).toContain(`"seed":${GOLDEN_SEED}`)
   })

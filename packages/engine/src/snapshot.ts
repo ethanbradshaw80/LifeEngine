@@ -19,6 +19,15 @@ export const SCHEMA_VERSION = 1
 /**
  * Simulation behaviour version.
  *
+ * v195 — A house is paid for out of the wallet. `homePurchaseBar` measured
+ *      the buyer's PERSONAL file while `buyHome` spends from the household
+ *      WALLET, and since that bar was the only sufficiency check in the
+ *      purchase, a married buyer could take a house for whatever happened to
+ *      be in the wallet — checking went negative and the money was invented.
+ *      MEASURED at seed 12345 over thirty years: people carrying negative
+ *      checking fall from 10 to 6. Every seed where anybody bought a home
+ *      differs from v194.
+ *
  * v194 — The table of organisation, and the trades' own wars. Soldiers are
  *      dealt into fire teams of 4, squads of 9, platoons of 4 squads and
  *      companies of 4 platoons by arrival order, instead of a whole station
@@ -639,7 +648,7 @@ export const SCHEMA_VERSION = 1
  *      actual partnership. Results differ from v1 for every seed, which is what
  *      a version bump is for (docs/DETERMINISM.md §7).
  */
-export const SIMULATION_VERSION = 194
+export const SIMULATION_VERSION = 195
 
 /** Placeholder until accounts arrive at Milestone 6. */
 export const LOCAL_USER_ID = 'local'
