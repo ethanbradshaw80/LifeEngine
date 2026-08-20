@@ -102,7 +102,7 @@ export const GOLDEN_TICKS = 120
 // crime draws from its own `assault` table instead of borrowing the combat
 // one; and the yearly raider can no longer be somebody spending out of the
 // player's own wallet. See the v193 entry in snapshot.ts.
-export const GOLDEN_HASH_HEX = '3cf7fc40'
+export const GOLDEN_HASH_HEX = 'c30ee051'
 
 function runReference() {
   const world = createWorld(makeSeed(GOLDEN_SEED))

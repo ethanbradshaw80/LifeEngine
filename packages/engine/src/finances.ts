@@ -779,10 +779,30 @@ export function homePurchaseBar(
    * is exactly what the five tests that failed when this was first corrected
    * were doing, so they were pinning the bug in place.
    */
-  const cash = ((): Money => {
-    const purse = walletOf(world, personId)
-    return (purse.savings + purse.checking) as Money
-  })()
+  /**
+   * THE PERSONAL FILE HERE, DELIBERATELY, AND IT IS A COMPROMISE.
+   *
+   * The wallet is where money really is, and this bar reading the personal
+   * file is what let a married buyer take a house for whatever happened to
+   * be in the purse. The honest fix is `walletOf` — and it cost too much to
+   * ship: `walletOf` goes through `spouseOf`, which is `firstEdgeWith`,
+   * which SCANS EVERY RELATIONSHIP IN THE WORLD. The NPC housing pass calls
+   * this bar for every household every month, and the existing
+   * `walletHolderOf` call below it is guarded on a player existing — so in
+   * an UNPLAYED world, which is what the heavy tests run, the wallet
+   * version added an O(relationships) scan per household per month where
+   * there had been none. MEASURED: the full suite went from 30 minutes to
+   * 61, with nine heavy tests timing out, twice.
+   *
+   * So the exploit is closed at the TILL instead — `buyHome` refuses when
+   * the wallet cannot cover the deposit, which is proven inert for NPCs and
+   * is the guard that actually stops the free house. What remains is a
+   * cosmetic mismatch: a married player may see an affordable price on a
+   * house the purchase will then decline. That is a wrong label, not
+   * invented money, and it is the right thing to leave open until
+   * `spouseOf` is indexed rather than scanned.
+   */
+  const cash = (accounts.savings + accounts.checking) as Money
   if (method === 'cash') {
     return cash >= price
       ? null

@@ -19,14 +19,15 @@ export const SCHEMA_VERSION = 1
 /**
  * Simulation behaviour version.
  *
- * v195 — A house is paid for out of the wallet. `homePurchaseBar` measured
- *      the buyer's PERSONAL file while `buyHome` spends from the household
- *      WALLET, and since that bar was the only sufficiency check in the
- *      purchase, a married buyer could take a house for whatever happened to
- *      be in the wallet — checking went negative and the money was invented.
- *      MEASURED at seed 12345 over thirty years: people carrying negative
- *      checking fall from 10 to 6. Every seed where anybody bought a home
- *      differs from v194.
+ * v195 — A house has to be paid for. `homePurchaseBar` measures the buyer's
+ *      PERSONAL file while `buyHome` spends from the household WALLET, and
+ *      that bar was the only sufficiency check in the purchase — so a buyer
+ *      whose money was on the other side of that split took the house for
+ *      whatever happened to be in the wallet, drove checking negative for
+ *      the rest, and the difference was invented. `buyHome` now refuses
+ *      outright when the wallet cannot cover the deposit. It fires for the
+ *      town as well as the player, so every seed where a household bought a
+ *      home it could not afford differs from v194.
  *
  * v194 — The table of organisation, and the trades' own wars. Soldiers are
  *      dealt into fire teams of 4, squads of 9, platoons of 4 squads and

@@ -44,8 +44,26 @@ import type { Loan } from '../src/types.js'
  * in the wallet, and `buyHome` drove the real wallet negative to cover it.
  */
 function fund(world: ReturnType<typeof createWorld>, personId: number, savings: number): void {
+  /**
+   * BOTH ACCOUNTS, because two different checks read two different ones.
+   *
+   * `homePurchaseBar` reads the buyer's personal file and `buyHome` spends
+   * from the household WALLET. That split is a real (and documented) wart —
+   * the honest bar is the wallet one, and it costs an O(relationships) scan
+   * per household per month that took the suite from 30 minutes to 61. A
+   * fixture that funds only one side is therefore testing the wart rather
+   * than the behaviour, whichever side it picks: fund the file alone and the
+   * till refuses; fund the wallet alone and the bar does.
+   *
+   * A rich person is rich in both places, so this gives them money the way
+   * the world would and the test measures buying a house.
+   */
+  const own = accountsOf(world, personId as never)
+  world.accounts.set(personId as never, { ...own, savings: savings as Money })
   const purse = walletOf(world, personId as never)
-  world.accounts.set(purse.personId, { ...purse, savings: savings as Money })
+  if (purse.personId !== personId) {
+    world.accounts.set(purse.personId, { ...purse, savings: savings as Money })
+  }
 }
 
 function anAdult(world: ReturnType<typeof createWorld>) {

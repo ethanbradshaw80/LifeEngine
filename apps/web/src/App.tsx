@@ -82,7 +82,7 @@ function freshSeed(): number {
   return drawn <= 1 || drawn === GOLDEN_SEED ? 7_777_777 : drawn
 }
 const GOLDEN_TICKS = 120
-const GOLDEN_HASH_HEX = '3cf7fc40'
+const GOLDEN_HASH_HEX = 'c30ee051'
 
 type Filter = 'living' | 'working' | 'children' | 'dead'
 
