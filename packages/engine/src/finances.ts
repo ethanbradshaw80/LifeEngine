@@ -761,7 +761,28 @@ export function homePurchaseBar(
    * cost more than they had and the purchase would have gone through. The
    * LOANS below stay on the personal file, which is the other half of H0.
    */
-  const cash = (accounts.savings + accounts.checking) as Money // TEMP REVERT
+  /**
+   * THE MONEY THE VERB WILL ACTUALLY SPEND — which is the WALLET (H0).
+   *
+   * This measured the personal file while `buyHome` spends from the wallet,
+   * and because this bar is the ONLY sufficiency check in the purchase, the
+   * mismatch did not merely grey the wrong button: it MADE MONEY. MEASURED
+   * at seed 9009 — buyer 37, married to 36, who holds the purse. 90,000,000
+   * on his own file, 77,500 in the wallet. The bar read his file and said
+   * yes; `buyHome` drained the wallet to zero, drove checking negative for
+   * the rest, and returned true. He got the house and his 90 million was
+   * never touched.
+   *
+   * The wallet is not a preference, it is where money IS: `creditPerson`
+   * credits the wallet, so every wage in the game lands there. A balance on
+   * a non-holder's personal file is something only a test can create — which
+   * is exactly what the five tests that failed when this was first corrected
+   * were doing, so they were pinning the bug in place.
+   */
+  const cash = ((): Money => {
+    const purse = walletOf(world, personId)
+    return (purse.savings + purse.checking) as Money
+  })()
   if (method === 'cash') {
     return cash >= price
       ? null
@@ -1297,6 +1318,17 @@ export function buyHome(
   // The deed stays on the buyer's own record: houses are personal, the
   // couple's cash is not.
   const wallet = walletOf(world, personId)
+  /**
+   * AND THE VERB CHECKS TOO, because a bar is a screen and this is the till.
+   *
+   * The subtraction below takes what savings has and puts the REMAINDER on
+   * checking without asking whether checking holds it, so a wallet short of
+   * the deposit simply went negative and the house completed anyway. That is
+   * money created from nothing, and it survived because `homePurchaseBar`
+   * was the only thing standing in front of it. One guard in front of a
+   * money-moving verb is one too few.
+   */
+  if (Math.max(0, wallet.savings) + Math.max(0, wallet.checking) < nowDue) return false
   const fromSavings = Math.min(nowDue, Math.max(0, wallet.savings))
   const fromChecking = nowDue - fromSavings
   setAccounts(world, {

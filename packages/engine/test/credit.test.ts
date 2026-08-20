@@ -30,14 +30,22 @@ import {
   offeredRatePerMille,
   totalDebtOf,
 } from '../src/credit.js'
-import { accountsOf, buyHome, creditOf, homeValueOf, takeLoan } from '../src/finances.js'
+import { accountsOf, buyHome, creditOf, homeValueOf, takeLoan, walletOf } from '../src/finances.js'
 import type { Loan } from '../src/types.js'
 
+/**
+ * FUND THE WALLET, WHICH IS WHERE MONEY LIVES (H0).
+ *
+ * This used to write to the person's OWN file. Real income never lands
+ * there — `creditPerson` credits `walletOf` — so a married test subject was
+ * given money nobody could spend, and the purchase tests passed only because
+ * `homePurchaseBar` read the same wrong account. Between them they pinned a
+ * money-duplication bug in place: the bar said yes on savings that were not
+ * in the wallet, and `buyHome` drove the real wallet negative to cover it.
+ */
 function fund(world: ReturnType<typeof createWorld>, personId: number, savings: number): void {
-  world.accounts.set(personId as never, {
-    ...accountsOf(world, personId as never),
-    savings: savings as Money,
-  })
+  const purse = walletOf(world, personId as never)
+  world.accounts.set(purse.personId, { ...purse, savings: savings as Money })
 }
 
 function anAdult(world: ReturnType<typeof createWorld>) {
@@ -249,5 +257,50 @@ describe('a house', () => {
 
     // And it cannot be bought twice.
     expect(buyHome(world, world.tick, person.id, household!.placeId)).toBe(false)
+  })
+})
+
+/**
+ * A HOUSE IS NOT FREE, AND THE TILL SAYS SO.
+ *
+ * MEASURED at seed 9009 before the fix: buyer 37, married to 36 who holds the
+ * purse. 90,000,000 sitting on his own file and 77,500 in the wallet.
+ * `homePurchaseBar` read his file and said yes; `buyHome` spent from the
+ * WALLET, drained it to zero, drove checking negative for the rest, and
+ * returned true. He got the house and his ninety million was never touched.
+ *
+ * Money in this game lives on the wallet — `creditPerson` credits `walletOf`,
+ * so every wage lands there — and a balance on a non-holder's personal file
+ * is something only a test can create. Five tests were doing exactly that,
+ * which is why they failed when the bar was first corrected and why the
+ * duplication survived: the bar and the fixture agreed with each other and
+ * both disagreed with the till.
+ */
+describe('the wallet is the money', () => {
+  it('refuses a house the wallet cannot pay for, however rich the file looks', () => {
+    const world = createWorld(makeSeed(9009), 60)
+    const person = anAdult(world)
+    const household = person.householdId === null ? null : world.households.get(person.householdId)
+    expect(household).toBeTruthy()
+
+    // The exact shape of the bug: a fortune where nobody can spend it.
+    const purse = walletOf(world, person.id)
+    expect(purse.personId, 'this fixture needs somebody who does not hold their own purse').not.toBe(
+      person.id,
+    )
+    world.accounts.set(person.id, {
+      ...accountsOf(world, person.id),
+      savings: 90_000_000 as Money,
+    })
+    world.accounts.set(purse.personId, { ...purse, savings: 1_000 as Money, checking: 0 as Money })
+
+    const before = walletOf(world, person.id)
+    expect(buyHome(world, world.tick, person.id, household!.placeId), 'bought a house he could not pay for').toBe(false)
+
+    // And nothing moved: no house, and no invented money.
+    const after = walletOf(world, person.id)
+    expect(after.savings + after.checking).toBe(before.savings + before.checking)
+    expect(accountsOf(world, person.id).homePlaceId).toBeNull()
+    expect(after.checking, 'checking went negative to buy a house').toBeGreaterThanOrEqual(0)
   })
 })

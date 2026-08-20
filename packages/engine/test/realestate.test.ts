@@ -25,7 +25,7 @@ import {
   rentOf,
   valueOf,
 } from '../src/realestate.js'
-import { accountsOf, buyHome, endLease, sellHome, signLease } from '../src/finances.js'
+import { accountsOf, buyHome, endLease, sellHome, signLease, walletOf } from '../src/finances.js'
 import { livingPeople } from '../src/systems.js'
 import { placesOfKind } from '../src/worldgen.js'
 
@@ -297,8 +297,9 @@ describe('a house is wealth, or a loss', () => {
       .filter((l) => l.forSale)
       .sort((a, b) => a.price - b.price)[0]
     if (!listing) throw new Error('nothing for sale')
-    const acc = accountsOf(w, person.id)
-    w.accounts.set(person.id, { ...acc, savings: (listing.price * 2) as never })
+    // The WALLET, not the personal file — see credit.test.ts's `fund`.
+    const purse = walletOf(w, person.id)
+    w.accounts.set(purse.personId, { ...purse, savings: (listing.price * 2) as never })
     return { w, person, listing }
   }
 
@@ -395,8 +396,8 @@ describe('a portfolio, not a single home', () => {
       )
       .sort((a, b) => a.id - b.id)[0]
     if (!person) throw new Error('nobody rents')
-    const acc = accountsOf(w, person.id)
-    w.accounts.set(person.id, { ...acc, savings: 500_000_000 as never })
+    const purse2 = walletOf(w, person.id)
+    w.accounts.set(purse2.personId, { ...purse2, savings: 500_000_000 as never })
     return { w, person }
   }
 

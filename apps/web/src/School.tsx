@@ -470,6 +470,63 @@ export function School({
         </p>
       </section>
 
+      {/**
+        * THE ROTC OFFER IS NOT PART OF THE BILL (owner: "there is no button in
+        * the UI to apply for ROTC").
+        *
+        * There was a button. It lived INSIDE the "What it cost" card, which
+        * renders only `{loan !== undefined}` — so the offer appeared only to a
+        * student who had already taken a student loan. ROTC exists so the
+        * service pays the fees INSTEAD of a loan, so the one door out was
+        * hidden behind the thing it prevents, and anybody who had not yet
+        * borrowed — or who was paying their own way — never knew it existed.
+        *
+        * It is its own card now, shown to anybody at university, which is the
+        * only condition `rotcBar` actually cares about.
+        */}
+      {/**
+        * THE ROTC BARGAIN, OFFERED RATHER THAN IMPOSED.
+        *
+        * OWNER: "when I joined college it automatically made me do rotc no
+        * option this shouldnt be the way there should be a little button
+        * that says join ROTC in the education tab to where you click it
+        * and it tells you what that entails."
+        *
+        * He was right on both counts. A die roll was committing his
+        * character to four years in uniform without a word — `fundingFor`
+        * no longer rolls for the player at all — and the answer is an
+        * offer with the terms stated BEFORE the pen, not silence.
+        *
+        * The bar pattern: this button appears only when `rotcBar` says the
+        * door is open, so a button that is offered always works. When it
+        * is shut, the reason is shown instead of a dead control.
+        */}
+      {(() => {
+        // The only condition that matters is being at university; `rotcBar`
+        // answers everything else, including whether the fees are already
+        // covered or a term is already signed.
+        if (record.enrolledIn !== 'college') return null
+        const bar = rotcBar(world, person.id)
+        return (
+          <section className="school-card rotc-offer">
+            <h3>The service will pay for this</h3>
+            <p className="muted small">{ROTC_TERMS}</p>
+            {bar === null ? (
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => onAct({ verb: 'join-rotc' } as never)}
+              >
+                Sign for ROTC
+              </button>
+            ) : (
+              <p className="muted small">{bar}</p>
+            )}
+          </section>
+        )
+      })()}
+
       {loan !== undefined && (
         <section className="school-card">
           <h3>What it cost</h3>
@@ -486,45 +543,6 @@ export function School({
               </>
             )}
           </dl>
-          {/**
-            * THE ROTC BARGAIN, OFFERED RATHER THAN IMPOSED.
-            *
-            * OWNER: "when I joined college it automatically made me do rotc no
-            * option this shouldnt be the way there should be a little button
-            * that says join ROTC in the education tab to where you click it
-            * and it tells you what that entails."
-            *
-            * He was right on both counts. A die roll was committing his
-            * character to four years in uniform without a word — `fundingFor`
-            * no longer rolls for the player at all — and the answer is an
-            * offer with the terms stated BEFORE the pen, not silence.
-            *
-            * The bar pattern: this button appears only when `rotcBar` says the
-            * door is open, so a button that is offered always works. When it
-            * is shut, the reason is shown instead of a dead control.
-            */}
-          {(() => {
-            const bar = rotcBar(world, person.id)
-            const offered = record.enrolledIn === 'college'
-            if (!offered) return null
-            return (
-              <div className="rotc-offer">
-                <h4>The service will pay for this</h4>
-                <p className="muted small">{ROTC_TERMS}</p>
-                {bar === null ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => onAct({ verb: 'join-rotc' } as never)}
-                  >
-                    Sign for ROTC
-                  </button>
-                ) : (
-                  <p className="muted small">{bar}</p>
-                )}
-              </div>
-            )
-          })()}
           <p className="muted small">
             {record.enrolledIn === null
               ? 'Repaying. This one is not cleared by bankruptcy.'
