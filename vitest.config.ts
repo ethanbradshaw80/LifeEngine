@@ -18,6 +18,30 @@ export default defineConfig({
     // sixteen workers are competing for the box. They passed alone and
     // failed in the suite, which is a false negative, not a slow test.
     // A genuinely hung test still fails; it just fails at fifteen minutes.
+    /**
+     * CAP THE WORKERS INSTEAD OF RAISING THE LIMIT AGAIN.
+     *
+     * The note above has been rewritten three times, each time raising the
+     * timeout because "they passed alone and failed in the suite". That is
+     * the right diagnosis and the wrong lever: the number being exceeded is
+     * WALL CLOCK, and wall clock on an over-subscribed box is mostly waiting.
+     * Raising the ceiling makes a slow suite slower to fail without making
+     * any test finish sooner.
+     *
+     * MEASURED 2026-08-20. The suite was green at 30.2 minutes, then came
+     * back at 63, 61 and 63 with seven or eight heavy tests timing out — and
+     * the engine was provably unchanged across all of it: three probes at
+     * the failing shape (a 140-person world run 600 ticks) gave identical
+     * population, identical event counts and ~13s either side of every
+     * suspect change. One of those tests reports 3,118,226ms of wall clock
+     * for work the engine does in seconds. That gap is queueing, not
+     * simulation.
+     *
+     * Vitest defaults to about `cores - 2` workers; this box has 14 cores
+     * and the heavy files are the ones that collide. Six leaves the machine
+     * room to answer, which is what keeps a wall-clock number honest.
+     */
+    maxWorkers: 6,
     testTimeout: 900_000,
     // beforeAll hooks grow whole centuries too; same reasoning, same limit.
     hookTimeout: 900_000,

@@ -41,7 +41,10 @@ let built: readonly { seed: number; world: World }[] | null = null
  */
 beforeAll(() => {
   longRuns()
-}, 600_000)
+  // Below the global hookTimeout, which meant this file bailed — and took
+  // its nine tests with it as "skipped" — while every other heavy file was
+  // still allowed fifteen minutes. Same limit as everything else now.
+}, 900_000)
 
 function longRuns(): readonly { seed: number; world: World }[] {
   built ??= SEEDS.map((seed) => {
